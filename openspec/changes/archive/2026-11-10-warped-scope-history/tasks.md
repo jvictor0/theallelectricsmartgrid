@@ -160,3 +160,10 @@
 - The highest case-median current mean was 161.996 ms CPU per audio second (legacy maximum 4.217, prior phase-grid maximum 10.624). The largest matched mean increase was 51.32×. Current/legacy/prior largest observed block CPU times were 10.937/5.518/0.657 ms for blocks representing 21.333 ms of audio. These isolated desktop measurements do not establish iPad callback safety.
 - This is a material fast-setting CPU tradeoff, not a performance-equivalence signoff. Slow-tempo cases often improve; the complete range, p99s, methodology and limitations are recorded in `private/test/perf/reference/phase-inverse-2026-11-10.md`.
 - Raw results, source snapshots and hashes: `build/results/time-warp-review/landing-inverse/`. All prior partial interrupted timings remain invalid.
+
+## Rebased landing validation
+
+- Rebased onto main `5c3cb41`, preserving the new modulation-group and audio-scope work. Reviewed three affected PhaseTime source hashes and retained main's Encoder correspondence. Two newly added audio-modulator tests now read the consolidated writer marker count; their assertions are unchanged.
+- `make core-test`: all 914 main cases and 39 alternate-rate cases passed; four existing main skips. `make visualizers-test`: all 84 cases passed.
+- `make lean-test`: both source/proof/axiom audits passed (31 PhaseTime contracts and 520 theorems; 73 Encoder contracts and 2766 theorems). All 41 main OpenSpec specifications pass strict validation; diff whitespace checks pass.
+- The measured inverse and benchmark sources are unchanged by the rebase. Unique experiments, final logs and generated contract indexes are preserved in the main checkout under `build/results/warped-scope-history-2026-11-10/` before removing this worktree.

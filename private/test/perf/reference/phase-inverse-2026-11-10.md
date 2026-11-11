@@ -24,7 +24,9 @@ absolute CPU cost. Correctness results are separate from these timings.
 
 The raw 120-case/five-repeat sweep, source snapshots, binary hash and generated
 summary are retained under `build/results/time-warp-review/landing-inverse/`;
-the results directory must be preserved outside the worktree before cleanup.
+the main checkout preserves these at
+`build/results/warped-scope-history-2026-11-10/time-warp-review/landing-inverse/`
+before worktree cleanup.
 No concurrent build/test/benchmark was observed during the serial sweep.
 Ordinary desktop applications remained running.
 

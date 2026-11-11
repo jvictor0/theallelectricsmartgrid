@@ -282,3 +282,16 @@ the confinement condition must also extend over both shifted analysis windows.
 The fixed-cell implementation uses confinement for unfinished first traversals,
 and selects a preserved complete fallback when reassigning older islands. It does
 not merge arbitrary timestamps across excursions outside the cell.
+
+## Landing correspondence review
+
+The 2026-11-10 rebase includes main's manager-owned modulation groups and shared
+audio modulation scopes. `SmartGridOneModulatorHistory` still composes the same
+periodic/event axis with the inverse; the new source dispatch preserves LFO
+selection and unavailable-value propagation. `SquiggleBoyTrack` retains the
+same phase-origin/common-period publication, while its new audio taps are
+outside the pure-LFO model. `SquiggleBoy::PopulateUIState` still populates every
+voice/quad LFO axis before publishing its scope bank. These three full-file
+hashes were refreshed after reviewing those combined paths; the mathematical
+contracts and Lean definitions are unchanged. Encoder source hashes retain
+main's reviewed modulation-group implementation.

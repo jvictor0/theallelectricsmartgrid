@@ -41,7 +41,7 @@ void CheckSourceTaps()
                     if (top)
                     {
                         const auto& markers = writer->GetMarkers(scope, lane);
-                        size_t count = markers.m_startIndexIndex.load() + markers.m_advanceStartIndices;
+                        size_t count = markers.m_startIndexIndex;
                         DOCTEST_REQUIRE(count > 0);
                         DOCTEST_CHECK(markers.m_startIndices[(count - 1) % ScopeWriter::x_numStartIndices]
                             == doctest::Approx(writer->m_index + top.m_offset));
@@ -51,7 +51,7 @@ void CheckSourceTaps()
                     && source->m_physicalModeling.m_ahd.m_channels[lane].m_triggered)
                 {
                     const auto& markers = writer->GetMarkers(scope, lane);
-                    size_t count = markers.m_startIndexIndex.load() + markers.m_advanceStartIndices;
+                    size_t count = markers.m_startIndexIndex;
                     DOCTEST_REQUIRE(count > 0);
                     DOCTEST_CHECK(markers.m_startIndices[(count - 1) % ScopeWriter::x_numStartIndices] == writer->m_index);
                 }
