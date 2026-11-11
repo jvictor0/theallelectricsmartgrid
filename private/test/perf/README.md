@@ -245,31 +245,75 @@ blend preservation, repeatability, unchanged input files, and the no-gesture cas
 
 ## SGREC control-timeline replay
 
-The experimental `perf_sgrec` executable replays v6 assignments and transport
-through the complete SynthRig, with the ordinary encoder and fader smoothing.
-Prepare the timeline with the shared SGREC reader, then run it serially:
+Benchmark a v6 recording with one command. This replays assignments and transport
+through the complete SynthRig, with the ordinary encoder and fader smoothing:
+
+```sh
+make perf-sgrec SGREC_ARGS='"/path/to/performance.sgrec" --callback-frames 512'
+make perf-sgrec SGREC_ARGS='"/path/to/performance.sgrec" --callback-frames 512 --seconds 960 --repeats 3 --output build/results/jam-before'
+```
+
+`--callback-frames` is required: obtain it from the app's `Audio route ... frames=`
+log for the incident. SGREC **does not store device callback size or boundaries**;
+its `block_frames` describes storage/compression blocks and must not be used here.
+512 host frames at 48 kHz gives 93.75 measured callbacks per audio second and a
+10.667 ms budget. This is offline execution without real-time pacing, not a
+reproduction of device scheduling. Windows are aligned to recording frame zero;
+the original callback offset and route changes during a recording are unknown.
+
+The default renders the entire recording. `--seconds` limits rendering from frame
+zero; it does not skip history. Repeats are independent, serial runs. The runner
+creates a new `build/results/sgrec-perf-.../` directory, or uses the explicitly
+named **new** directory; it refuses to replace previous results. It saves:
+
+- `callbacks-N.jsonl`: one row per callback-sized window, including exact start
+  frame, duration, calling-thread CPU seconds, wall seconds and control event count.
+- `summary.json`: per-run CPU and wall p50/p95/p99/p99.9/max, ten worst callbacks
+  with frame positions, and counts exceeding the nominal callback budget.
+  These are desktop budget comparisons, **not measured device xruns**. Full
+  callbacks determine percentiles and exceedance counts; a partial tail is
+  reported separately and included in total CPU/wall time and throughput.
+- `metadata.json`: source recording timestamp/revision/hash, checkout revision
+  and dirty status, compiler/platform, binary/replay hashes and exact commands.
+  `source.diff` retains the tracked working diff, not untracked source files.
+- Validated `replay.json`, per-run logs and final patches. The latter can be
+  compared with `extract_recording.py patch --sample`.
+
+Replay metadata records completion, failure, or interruption. Interrupting a
+run stops its native replay process and retains completed repetitions and the
+partial callback output for inspection.
+
+After `make perf-build`, the runner can also be invoked directly:
+
+```sh
+python3 private/test/perf/run_sgrec.py performance.sgrec --callback-frames 512
+```
+
+For low-level use, preparation and native replay remain separate commands:
 
 ```sh
 python3 scripts/prepare_sgrec_replay.py performance.sgrec build/results/replay.json
-make perf-build
-build/tools/perf/Release/perf_sgrec build/results/replay.json 960 build/results/replay.jsonl
+build/tools/perf/Release/perf_sgrec build/results/replay.json 512 all build/results/callbacks.jsonl build/results/final-patch.json
 ```
 
-The seconds argument limits rendering from recording frame zero; it does not
-skip ahead. Add a final path to save the final patch for comparison with
-`extract_recording.py patch --sample`. Preparation refuses an existing output;
-the native executable replaces its explicitly named result files.
+The native duration is `all` or a positive number of seconds; the final patch
+path is optional. Preparation refuses an existing output; the native executable
+replaces its explicitly named result files. Use the runner for provenance and
+overwrite protection.
 
 Preparation checks every block CRC, frame continuity, event framing and clean
 completion. It decodes the first sampled phase block, and skips audio. It
 rejects bulk patch load/reset events rather than approximating their semantics.
 Native replay rejects unknown controls, invalid paths, and out-of-order events.
 
-Each output row measures one second of audio with calling-thread CPU seconds,
-wall seconds, event count, current clock phase and the last delay grain's active
-PVDR bin count (four channels combined). Timing includes SynthRig output capture,
-finite checks, control application and the test grid wrapper. It excludes JSON
-preparation, result writing, recording compression, device I/O, and GUI rendering.
+Each output row also records current clock phase and the last delay grain's
+active PVDR bin count (four channels combined). Control events still split
+rendering at their exact host frame inside a measured callback; they do not split
+timing rows or shift the next timing boundary. Timing includes timer overhead,
+SynthRig output capture, finite checks, control application and the test grid
+wrapper. No timer baseline is subtracted. Result rows are buffered in fixed-size
+batches and written outside timing. Timing excludes JSON preparation, result
+writing, recording compression, device I/O, background I/O-thread CPU and GUI rendering.
 The last-grain bin count is a snapshot, not an average for the timing window.
 
 This is **control replay, not deterministic audio reconstruction**. It restores
@@ -285,6 +329,25 @@ Build against the recording's revision when comparing behavior. An embedded
 SHA does not establish whether the original app had uncommitted changes.
 Compare relative workload changes rather than equating desktop throughput with
 the iPad's smoothed callback-budget meter.
+
+## Audio callback diagnostics overhead
+
+`build/tools/perf/Release/perf_audio_diagnostics 1000000` measures the callback
+instrumentation without DSP: wall-clock-only timing, paired wall/thread-CPU
+timing with aggregation, a synthetic overrun storm, and a stalled reporter with
+a full queue. It reports CPU/wall nanoseconds per callback and asserts zero C++
+allocations in each measured loop. It exercises publication at approximately
+the current 47 callbacks per audio second; consumer queue copying is included,
+but formatting and disk I/O are excluded. Run after `make perf-build`, serially
+with other benchmarks. This is a host measurement, not an iPad latency guarantee.
+
+On 2026-11-11, five serial runs of one million callbacks per mode on this arm64
+Mac measured median CPU costs of 35.7 ns for wall-only timing, 289.5 ns with
+metrics, 291.2 ns during an incident storm, and 290.2 ns with a full queue and
+stalled reporter. All measured loops reported zero C++ allocations. The added
+normal cost was about 0.25 microseconds per callback; total metrics cost was
+0.0014% of the current 1024-frame / 48 kHz budget. Raw runs, source snapshots
+and build metadata are retained in `build/results/audio-metrics-overhead/`.
 
 ## Historical reference
 

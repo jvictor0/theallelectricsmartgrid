@@ -124,6 +124,51 @@ the previous day's 2,241 invalid-number messages and both thermal-transition
 timestamps obtained with Apple's reader; that validates those anchors, not
 every possible message type. Keep raw captures alongside decoded results.
 
+## Audio callback metric dumps
+
+The existing message-thread reporter drains numeric callback batches once per
+second and adds the following to its roughly once-per-minute diagnostic dump:
+
+- `Audio metrics`: callback count, valid CPU-clock count, summed elapsed/CPU
+  microseconds and summed callback budgets. `cpu_count < count` means some CPU
+  measurements were unavailable; do not interpret those as zero CPU work.
+- `Audio metrics range`: first and last callback-entry monotonic timestamps
+  covered by the aggregate. Ranges can span more than a minute after a UI stall.
+- `Audio callback kind=worst_wall|worst_cpu|worst_arrival`: complete paired
+  measurements and position of each selected callback. The following
+  `Audio callback timing` line has the same callback ID. `excess_us` is arrival
+  interval minus the previous buffer's duration, floored at zero. It is a cadence
+  diagnostic, not a hardware deadline or proof of scheduler starvation.
+- `Audio clock`: a monotonic-to-UTC anchor and engine sample rate. Use captured
+  `mono_us` to place incidents, rather than the text logger's drain-time prefix.
+- `Recording metrics`: existing recorder state/error, written frames/bytes,
+  session queue high-water and maximum compression/write-block duration, plus
+  the recording's start host-sample index. These counters reset on recording
+  start and are approximate concurrent snapshots, not interval maxima.
+
+Individual elapsed-time overruns and long arrival gaps are logged as
+`kind=incident` when their batch reaches the reporter. Recording positions can
+be related to `engine_sample / oversample - start_host_sample`; the engine
+sample is captured at callback entry, before its first rendered sample.
+
+The audio path reads a steady clock and the current thread's CPU clock at entry
+and exit, then updates fixed-size numeric storage. It performs no logging,
+formatting, allocation, waiting or file I/O. The clock is warmed during device
+preparation. On Apple platforms, the public `CLOCK_THREAD_CPUTIME_ID` path uses
+the kernel's current-thread runtime query, not thread enumeration or another
+thread's Mach port. Relevant implementation sources:
+[Libc clock_gettime](https://github.com/apple-oss-distributions/Libc/blob/main/gen/clock_gettime.c)
+and [XNU thread_get_runtime_self](https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/kern/thread.c).
+
+One aggregate is queued approximately each second. The 64-batch SPSC queue is
+fixed-size; if full, the producer keeps accumulating totals and worst records
+until publication succeeds. Each pending batch retains at most 16 individual
+incidents, and each reporter poll formats at most 16 incidents. Additional
+incident details are counted in `omitted_incidents`; totals and worst records
+are still retained. Device restarts preserve queued records and reset arrival
+history so downtime is not misclassified as an arrival gap. These diagnostics
+do not collect CPU use of other processes, and do not alter general log points.
+
 ## Experimental journal
 
 The [iPad / MAYA44 investigation journal](experiments/ipad-maya-audio/README.md)

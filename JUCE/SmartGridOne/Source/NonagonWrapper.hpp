@@ -834,6 +834,11 @@ struct NonagonWrapper
         m_internal.m_squiggleBoy.SetRecordingDirectory(directory);
     }
 
+    void LogRecordingDiagnostics() const
+    {
+        m_internal.m_context.m_recorder.LogDiagnostics();
+    }
+
     // Runs the engine samples of one host frame. Engine samples are numbered
     // from 1, so the host frame's sub-sample 0 is the last of the group; its
     // output is the decimated host-rate sample.

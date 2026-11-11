@@ -150,6 +150,7 @@ struct StreamingRecorder
     std::atomic<uint64_t> m_writtenBytes{0};
     std::atomic<uint64_t> m_queueHighWater{0};
     std::atomic<uint64_t> m_maxBlockMicros{0};
+    std::atomic<uint64_t> m_diagnosticStartHostSample{0};
     bool m_prepared = false;
 
     // Producer-only state, also accessed after the audio callback has quiesced.
@@ -254,6 +255,7 @@ struct StreamingRecorder
         m_maxBlockMicros = 0;
         m_initialPatch = initialPatch;
         m_recordingStartSample = SampleTimer::GetHostSample();
+        m_diagnosticStartHostSample.store(m_recordingStartSample, std::memory_order_relaxed);
         m_stopRequested = false;
         m_error = Error::None;
         m_errorLogged = false;
@@ -345,6 +347,17 @@ struct StreamingRecorder
             static_cast<unsigned long long>(m_writtenFrames.load()),
             static_cast<unsigned long long>(m_writtenBytes.load()),
             static_cast<unsigned long long>(m_queueHighWater.load()));
+    }
+
+    void LogDiagnostics() const
+    {
+        INFO("Recording metrics state=%d error=%d start_host_sample=%llu written_frames=%llu written_bytes=%llu queue_high_water=%llu max_block_us=%llu",
+            static_cast<int>(m_state.load()), static_cast<int>(m_error.load()),
+            static_cast<unsigned long long>(m_diagnosticStartHostSample.load()),
+            static_cast<unsigned long long>(m_writtenFrames.load()),
+            static_cast<unsigned long long>(m_writtenBytes.load()),
+            static_cast<unsigned long long>(m_queueHighWater.load()),
+            static_cast<unsigned long long>(m_maxBlockMicros.load()));
     }
 
     void Fail(Error error)

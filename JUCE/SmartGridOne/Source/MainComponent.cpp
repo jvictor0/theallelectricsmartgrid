@@ -543,7 +543,10 @@ void MainComponent::timerCallback()
         m_nonagon.CheckMidiConnections();
     }
 
-    m_appObserver.Report(m_deviceManager, m_nonagon.m_midiSender);
+    if (m_appObserver.Report(m_deviceManager, m_nonagon.m_midiSender))
+    {
+        m_nonagon.LogRecordingDiagnostics();
+    }
 
     // Re-renderthe component at 60 FPS
     //

@@ -50,7 +50,7 @@ lean-test:
 	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/PhaseTime/Audit.lean"
 
 PERF_DIR := $(REPO_ROOT)/build/tools/perf/Release
-.PHONY: perf-configure perf-build perf-test perf-run
+.PHONY: perf-configure perf-build perf-test perf-run perf-sgrec
 perf-configure:
 	cmake -S "$(REPO_ROOT)/private/test/perf" -B "$(PERF_DIR)" -DCMAKE_BUILD_TYPE=Release $(CMAKE_ARGS)
 
@@ -62,3 +62,6 @@ perf-test: perf-build
 
 perf-run: perf-build
 	python3 "$(REPO_ROOT)/private/test/perf/run.py" --bin-dir "$(PERF_DIR)" $(PERF_ARGS)
+
+perf-sgrec: perf-build
+	python3 "$(REPO_ROOT)/private/test/perf/run_sgrec.py" --bin-dir "$(PERF_DIR)" $(SGREC_ARGS)

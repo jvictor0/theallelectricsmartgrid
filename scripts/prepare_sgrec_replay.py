@@ -45,6 +45,7 @@ def prepare(source_path, output_path):
             'replay_version': 1,
             'source': str(Path(source_path).resolve()),
             'git_commit_sha': header['git_commit_sha'],
+            'recorded_at_utc': header['recorded_at_utc'],
             'sample_rate': header['sample_rate'],
             'frames': reader.m_total_frames,
             'initial_phase': initial_phase,

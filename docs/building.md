@@ -33,7 +33,7 @@ the same command; if it fails, the build stops before compiling or deploying.
 | `make build-sanitized` / `make run-sanitized` | `build/xcode/macos/Debug/` |
 | `make ios-build` / `make ios-install` / `make ios-deploy` | `build/xcode/ios/Release/` |
 | `make core-test` | `build/core/RelWithDebInfo/` |
-| `make perf-build` / `make perf-test` / `make perf-run` | `build/tools/perf/Release/` (results in `build/results/`) |
+| `make perf-build` / `make perf-test` / `make perf-run` / `make perf-sgrec` | `build/tools/perf/Release/` (results in `build/results/`) |
 | `make visualizers-test` | `build/visualizers/Release/` |
 | `make midi-test` | `build/midi/Release/` |
 | `make clang-tidy` | `build/clang-tidy/report.txt` |
@@ -89,6 +89,14 @@ records serial repeated timings in ms CPU/sec audio, without launching the app.
 See [the benchmark guide](../private/test/perf/README.md) for workload selection,
 input captures, measurement boundaries, and before/after comparisons. These
 targets do not change the core tests' assertion-enabled configuration.
+
+For an SGREC performance investigation, run
+`make perf-sgrec SGREC_ARGS='"/path/to/jam.sgrec" --callback-frames 512'`.
+This validates and replays the whole control timeline, saving CPU/wall timings
+for each callback-sized window and percentile/worst-callback summaries. Supply
+the callback size from the app's audio route log; SGREC storage blocks are not
+device callbacks. See the [SGREC benchmark guide](../private/test/perf/README.md#sgrec-control-timeline-replay)
+for duration limits, serial repeats, output files and interpretation limits.
 
 ## Lean specifications
 

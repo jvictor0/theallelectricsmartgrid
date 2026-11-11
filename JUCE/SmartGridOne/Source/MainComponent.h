@@ -68,7 +68,7 @@ public:
             m_appObserver.RecordFormatMute();
         }
 
-        m_appObserver.EndAudioCallback(start, bufferToFill.numSamples, m_sampleRate);
+        m_appObserver.EndAudioCallback(start);
     }
 
     NonagonWrapper::IOInfo MakeIOInfo()
@@ -88,6 +88,7 @@ public:
     virtual void releaseResources() override
     {
         m_audioReady.store(false, std::memory_order_release);
+        m_appObserver.FinishAudio();
         m_nonagon.ReleaseResources();
     }
 
