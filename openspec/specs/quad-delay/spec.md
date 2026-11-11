@@ -1,42 +1,43 @@
 # Quad Delay Specification
 
 ## Purpose
-The Quad Delay (`QuadDelay` and `QuadDelayInputSetter` in `private/src/QuadDelay.hpp`, head logic in `private/src/TapeHead.hpp`, buffers in `private/src/DelayLine.hpp`) is the first of three global quadraphonic send effects. It is a time-warped delay synchronized to the Theory of Time (see phasor-timebase): instead of a fixed wall-clock delay it implements `D(F⁻¹(t + d)) = X(F⁻¹(t))`, where F is the post-modulation logical time, using a movable write head and an inverse time buffer. Playback is resynthesized through phase-vocoder grains (see phase-vocoder) so pitch is preserved while logical time stretches, compresses, or reverses. Per-channel feedback with saturation and band-pass damping, quantized delay ratios and read speeds, pitch shifting with unison, per-partial slew-up, and quadraphonic rotation complete the effect. Send and return routing between the delay, reverb, and partial machine is specified in mixdown-mastering.
+The Quad Delay (`QuadDelay` and `QuadDelayInputSetter` in `private/src/QuadDelay.hpp`, head logic in `private/src/TapeHead.hpp`, buffers in `private/src/DelayLine.hpp`) is the first of three global quadraphonic send effects. It is a time-warped delay synchronized to the Theory of Time (see phasor-timebase). Its write trajectory F maps real time to continuous master phase, and its chosen forward-history partial inverse G maps phase back to real time. A logical delay d requests `X(G(F(t) - d))` before real-time analysis-window constraints. Playback is resynthesized through phase-vocoder grains (see phase-vocoder) so pitch is preserved while logical time stretches, compresses, or reverses. Per-channel feedback with saturation and band-pass damping, quantized delay ratios and read speeds, pitch shifting with unison, per-partial slew-up, and quadraphonic rotation complete the effect. Send and return routing between the delay, reverb, and partial machine is specified in mixdown-mastering.
 
 ## Requirements
 
 ### Requirement: Time-Warped Delay Line with Movable Write Head
-The system SHALL saturate each engine-rate input sample, decimate it through an order-8 Butterworth `DownsamplerGeneric`, and write the decimated sample once per host frame into a `QuadDelayLineMovableWriter` of 2^24 host samples per channel, at the absolute host sample completed by the engine clock. It SHALL maintain one shared inverse buffer (`TimeWarpInverter::m_writeHeadInverse`). The inverse buffer SHALL be owned by the Theory of Time, wired to the delay at startup, written every engine sample from the shared write head, and map integer warped-time coordinates in engine samples back to the absolute `SampleTimer` engine sample at which they occurred. The caller SHALL supply each real timestamp; the inverter SHALL NOT maintain an independently advancing clock. The delay converts real timestamps by division by `x_oversample`, and tracks its actual recorded-audio bounds independently of inverse writes. Audio is stored indexed by wall-clock time; reads first convert a warped-time position to wall-clock time through the inverse buffer (`GetRealTime`) and then read the audio buffer at that wall-clock index with cubic interpolation.
+The system SHALL saturate each engine-rate input sample, decimate it through an order-8 Butterworth `DownsamplerGeneric`, and write the decimated sample once per host frame into a `QuadDelayLineMovableWriter` of 2^24 host samples per channel, at the absolute host sample completed by the engine clock. The Theory of Time SHALL own the shared phase-to-real inverse, wire it to the delay at startup, and observe the continuous master phase and absolute `SampleTimer` engine sample every engine sample. The inverse SHALL use a tempo-independent grid of 2^18 cells per master cycle with 2^20 cells spanning four cycles and the compact branch storage specified in warped-scope-history. The caller SHALL supply each real timestamp; the inverter SHALL NOT maintain an independently advancing clock. The delay converts returned real timestamps by division by `x_oversample`, and tracks its actual recorded-audio bounds independently of inverse writes. Audio is stored indexed by wall-clock time; reads first convert a continuous-phase position to wall-clock time through the inverse (`GetRealTime`) and then read the audio buffer at that wall-clock index with cubic interpolation.
 
 #### Scenario: One write per host frame
 - **WHEN** the delay processes `4096 * x_oversample` engine samples
 - **THEN** the delay line's wall-clock time advances by 4096 host samples
 
 #### Scenario: Inverse buffer is populated by scattering
-- **WHEN** the warped-time write head ascends across one or more integer warped-time values
-- **THEN** the writer interpolates the wall-clock time at each crossed integer coordinate using linear interpolation between the adjacent ascending (warped time, wall-clock time) pairs and stores it in `m_writeHeadInverse`
+- **WHEN** the continuous-phase write head ascends across one or more fixed phase-grid boundaries
+- **THEN** the writer interpolates the real engine timestamp at each crossed boundary between adjacent ascending observations and commits the corresponding cell and frontier transitions
 
 #### Scenario: Descending warped time defers inverse updates
-- **WHEN** the warped-time position decreases from one sample to the next (time modulation runs the clock backward)
-- **THEN** audio continues to be recorded at the wall-clock index, but the inverse buffer is not updated until warped time ascends again, and the turnaround warped time is recorded when ascent resumes
+- **WHEN** the continuous-phase position decreases from one sample to the next (time modulation runs the clock backward)
+- **THEN** audio continues to be recorded at the wall-clock index while the inverse and forward frontier retain their selected forward history
+- **AND** ascent resumes the compact cell transitions, retaining the minimum cut within one confined visit and replacing it for a separate visit
 
-### Requirement: Write Head Continuity via Glue Offset
-The shared write head SHALL be computed every engine sample by one `WriteTapeHead`, owned by the Theory of Time, as `unwound master phase * engineLoopSamples + glue`, in engine samples, where `engineLoopSamples` is the Theory of Time global period and the additive glue offset preserves continuity of the absolute write position across transport state and tempo-scale changes. Read heads and the delay input SHALL use this position divided by `x_oversample`, in host samples, with `masterLoopSamples = engineLoopSamples / x_oversample`. While the transport is stopped the write head advances by one engine sample per engine sample and the glue is re-derived each sample; when the running state or the master loop length changes, the glue is re-anchored so the write head does not jump.
+### Requirement: Write Head Continuity via Phase Offset
+The shared write head SHALL be computed every engine sample by one `PhaseClock`, owned by the Theory of Time, in continuous master cycles. While running, its phase SHALL equal modulated musical phase plus a constant offset. While stopped, it SHALL advance by the nominal phase increment. Restart SHALL set the offset to continuous phase minus the reset musical phase without changing continuous phase. Read heads and the delay input SHALL use this same continuous coordinate. Tempo edits SHALL change future travel without rescaling stored phase coordinates or rebasing the offset.
 
 #### Scenario: Transport stop freezes warped time but not recording
 - **WHEN** the Theory of Time stops running
-- **THEN** the write head continues to advance by one host sample per host frame from its current position
-- **AND** when the transport resumes, the glue offset makes the theory-derived position continuous with the position reached during the stop
+- **THEN** the write head continues from its current phase at the nominal tempo while audio recording continues at the host sample rate
+- **AND** when the transport resumes, the phase offset preserves the position reached during the stop
 
 #### Scenario: Master loop length change does not jump the head
-- **WHEN** `masterLoopSamples` changes while the transport is running
-- **THEN** the glue offset is recomputed as the difference between the current actual position and the new theory position, so the write head position is continuous across the change
+- **WHEN** the nominal master-loop duration changes while the transport is running
+- **THEN** future phase increments reflect the new duration without rescaling the write position or previously recorded inverse coordinates
 
 #### Scenario: Delay phase continues while transport is stopped
 - **WHEN** transport stops and Theory of Time resets its phase to zero
-- **THEN** the delay's local phase continues from its last position, advancing by `1 / masterLoopSamples` cycles per host frame at the current tempo
+- **THEN** the continuous phase advances from its last position at the current nominal tempo
 - **AND** the read heads keep their selected playback speeds within the region behind the advancing write head
-- **AND** starting transport returns the local playback phase to the modulated global phase
+- **AND** starting transport rebases the musical offset without moving the continuous write or read phases
 
 ### Requirement: Loop Selection Gated at Loop Tops
 The system SHALL only apply a requested delay loop change when the currently selected loop and the requested loop are both simultaneously crossing a modulated cycle boundary (`CrossedCycleBoundary`). Until that dual-top condition occurs, the read head keeps using the previously selected loop. The loop selector switch value is inverted against the loop hierarchy (`x_numLoops - switchVal - 1`) to choose the requested Theory of Time loop.
@@ -58,19 +59,20 @@ The system SHALL quantize the delay-time factor per channel to one of {0.8, 2/3,
 
 #### Scenario: Negative speed reverses playback
 - **WHEN** the read-head-speed switch selects -1
-- **THEN** the projected read position moves backward through warped time at one warped sample per warped sample while grains continue to be synthesized at the original pitch
+- **THEN** the projected read position moves backward through continuous phase at one cycle per write-phase cycle while grains continue to be synthesized at the original pitch
 
 ### Requirement: Read Head Projection into the Selected Loop
-The read head SHALL be computed per channel by `ReadTapeHead` from `delayPhase * readHeadSpeed - effectiveDelaySamples / masterLoopSamples`, wrapped by `WrapMod` in phase units into the selected-loop region behind the write phase and offset by one resynthesis hop. `delayPhase` follows modulated global phase while running and free-runs while stopped. Here `loopSamples = masterLoopSamples / cycleRatio(selectedLoop)`, `effectiveDelaySamples = loopSamples * bufferFrac`, and `hopSamples` is the resynthesis hop size. The resulting `readPhase` SHALL drive both the display and the absolute audio position, with `readHead = writeHead + (readPhase - delayPhase) * masterLoopSamples`. Thus the audio head lies in `[writeHead - hopSamples - loopSamples, writeHead - hopSamples)`, and the continuity glue translates both heads equally without being multiplied by read-head speed. If the master loop or selected loop length is not positive, the read head equals the write head.
+The read head SHALL be computed per channel by `ReadTapeHead` from `projected = writePhase * readHeadSpeed - loopPeriod * bufferFrac`, where `loopPeriod = 1 / cycleRatio(selectedLoop)` is positive. `WrapMod(writePhase - loopPeriod, writePhase, projected)` SHALL place the read head in `[writePhase - loopPeriod, writePhase)`. The resulting continuous `readPhase` SHALL drive both the displayed marker and the audio query through the shared inverse. No sample-derived hop offset SHALL be applied in phase coordinates; complete analysis-window safety SHALL be applied in real time after inversion.
 
 #### Scenario: Non-unit speed preserves agreement between audio and display
-- **WHEN** the write head has a nonzero continuity glue offset and the read speed is slow, fast, or negative
-- **THEN** the audio and displayed read heads have the same displacement from their respective write heads, after converting phase to host samples
-- **AND** changing the glue offset translates the audio read head and write head equally without changing the displayed read phase
+- **WHEN** the write head has a nonzero continuity phase offset and the read speed is slow, fast, or negative
+- **THEN** the audio query and displayed read marker use the same continuous read phase
+- **AND** restarting transport with fixed controls preserves the write and read coordinates
 
-#### Scenario: Read head stays one hop behind the write head
+#### Scenario: Read head stays behind the write head
 - **WHEN** the read head is computed with any speed and delay ratio
-- **THEN** the wrapped read position is at most `writeHead - hopSamples` and at least `writeHead - hopSamples - loopSamples`, so reads always trail the write head by at least the resynthesis hop
+- **THEN** the wrapped read phase is at least `writePhase - loopPeriod` and strictly less than `writePhase`
+- **AND** the grain manager constrains the inverted real timestamp to a complete pair of analysis windows with cubic interpolation support
 
 #### Scenario: Matching controls produce matching read positions
 - **WHEN** channels have the same loop, delay ratio, read speed, and history
@@ -150,27 +152,27 @@ The system SHALL remix the four delayed channels with a linear rotation (`QuadFl
 - **THEN** each output channel is a linear blend of the two adjacent input channels weighted by the fractional angle
 
 ### Requirement: Delay UI State Observability
-The system SHALL publish per-channel damping filter alphas and head positions, and expose a common scope of the magnitude of each actual completed delay-line write. Forward full display cycles SHALL record scope starts; backward travel SHALL undo scope boundaries using the generic scope history. The UI SHALL draw this envelope through the shared inverse in warped coordinates, converting filtered magnitude to dB. Separate min/max envelope buckets and the positional waveform recorder SHALL be removed. Signed delay-return scopes used for spectra SHALL retain their existing signal.
+The system SHALL publish per-channel damping filter alphas and continuous master-phase head positions, and expose a common scope of the magnitude of each actual completed delay-line write. Its periodic axis SHALL have origin zero and period one master cycle, without start/end events. The UI SHALL sample through the shared phase-to-real inverse, convert filtered magnitude to dB, and draw symmetrically from negative to positive level about each lane center. Separate min/max envelope buckets and the positional waveform recorder SHALL be removed. Signed delay-return scopes used for spectra SHALL retain their existing signal.
 
 #### Scenario: Head positions track the tape heads
 - **WHEN** the delay publishes its head positions
-- **THEN** the markers and waveform use the same display-cycle coordinates
+- **THEN** markers and waveform use the same explicit master-cycle axis
 
 #### Scenario: Stopped recording remains visible across the whole display
 - **WHEN** audio is recorded while transport is stopped
-- **THEN** the free-running continuous write head records full display-cycle starts and the envelope remains readable on that axis
+- **THEN** continuous phase advances at nominal tempo and the display retains its full period even before the first cycle completes
 
 #### Scenario: Restart preserves the recorded waveform
-- **WHEN** transport restarts after the delay has been free-running
-- **THEN** the existing display offset and continuous coordinate preserve the recorded waveform and write marker
-- **AND** the read markers retain the existing resynchronization behavior
+- **WHEN** transport restarts with fixed read speed, delay and loop selection
+- **THEN** a phase offset absorbs the musical reset without moving the write or read coordinates
+- **AND** existing waveform coordinates retain their meaning
 
 #### Scenario: Envelope reflects recorded audio
 - **WHEN** audio with a distinct amplitude profile is written into the delay
-- **THEN** its magnitude is recorded in the common scope and filtered by the existing LOD pipeline before dB display conversion
+- **THEN** its magnitude passes through the existing LOD pipeline before symmetric dB display conversion
 
 ### Requirement: Unavailable Inverse History
-Unwritten inverse entries SHALL be unavailable. An exact integer lookup SHALL depend only on that entry; fractional lookup SHALL require both interpolation endpoints. Grain launch SHALL preserve unavailable status before applying the latest-complete-window clamp. A channel with unavailable inverse history or insufficient retained audio for its previous/current analysis windows and cubic interpolation support SHALL contribute no new grain. Other channels and already scheduled overlap-add tails SHALL continue. Recorded sample-bank playback SHALL retain its unbounded-history behavior.
+Unwritten inverse history SHALL be unavailable. A lookup SHALL select the cell's fallback or replacement traversal and interpolate only within that traversal's available endpoints, using entry/frontier interpolation for a partial first traversal as specified in warped-scope-history. Grain launch SHALL preserve unavailable status before applying the latest-complete-window clamp. A channel with unavailable inverse history or insufficient retained audio for its previous/current analysis windows and cubic interpolation support SHALL contribute no new grain. Other channels and already scheduled overlap-add tails SHALL continue. Recorded sample-bank playback SHALL retain its unbounded-history behavior.
 
 #### Scenario: Cold start does not substitute recent audio for missing delay history
 - **WHEN** a one-second delay is requested before that history has been recorded

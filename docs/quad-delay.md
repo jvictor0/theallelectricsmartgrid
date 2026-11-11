@@ -30,7 +30,7 @@ Unwritten inverse entries are unavailable (NaN). A cell selects either its
 preserved first traversal or its latest replacement, with the last forward endpoint
 closing a partial traversal. At grain launch, unavailable history or a window
 before retained audio suppresses that channel's new grain; scheduled overlap-add
-tails continue. Unavailable waveform history displays as zero.
+tails continue. Unavailable waveform history displays as a gap.
 
 Forward intervals scatter timestamps onto the fixed phase grid. A new visit after
 leaving the cell replaces its single replacement; older interior islands below the new cut

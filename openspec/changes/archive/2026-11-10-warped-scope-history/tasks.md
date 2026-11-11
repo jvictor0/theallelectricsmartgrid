@@ -37,7 +37,7 @@
 - [x] 6.2 Implement the reviewed compact inverse transitions and safe concurrent reads, preserving the agreed memory budget.
 - [x] 6.3 Add branch/frontier/relative-storage regressions and rerun the full density correctness sweep, including unsupported inputs.
 - [x] 6.4 Update source correspondence, proof audits, documentation and OpenSpec; run the relevant native suites without deployment.
-- [ ] 6.5 Rerun the full density performance sweep when an uncontended timing run is authorized. Stopped at the user's request because another agent is running; all partial timings are invalid for comparison.
+- [x] 6.5 Rerun the full density performance sweep when an uncontended timing run is authorized. Completed during requested landing validation after checking for competing build/benchmark work; the earlier interrupted partial timings remain invalid.
 - [x] 6.6 Formalize stationary-partial paired-analysis invariance, conditional phase-window feature stability, and a phase-confinement criterion for possible boundary compaction; leave runtime storage unchanged.
 
 ## 7. Fixed-cell island reassignment
@@ -153,3 +153,10 @@
 - Pixel tests vary nominal tempos (1, 5 and 20 Hz), displayed periods (1 and 0.5 master cycles), and inverse-history durations independently. The exact 0.1-second threshold remains hidden. Time-warp cursors also hide for a fast nominal tempo despite longer recorded history.
 - All 80 visualizer cases passed. `make lean-test` passed both source and axiom audits (31 PhaseTime contracts, 520 theorems); the cursor-policy edit leaves the mathematical composition unchanged. Strict OpenSpec validation and diff checks passed.
 - Release iOS build succeeded, and the upgrade was installed and launched over Wi-Fi on the paired iPad. Logs: `build/results/time-warp-review/nominal-cursor-visualizers.log`, `nominal-cursor-lean.log`, and `nominal-cursor-ipad-deploy.log`.
+
+## Landing performance validation
+
+- The previously deferred serial sweep completed all 120 cases with five repetitions of legacy, prior phase-grid and current inverse implementations. The independent oracle/trajectory self-test passed before timing; no competing build/test/benchmark was observed.
+- The highest case-median current mean was 161.996 ms CPU per audio second (legacy maximum 4.217, prior phase-grid maximum 10.624). The largest matched mean increase was 51.32×. Current/legacy/prior largest observed block CPU times were 10.937/5.518/0.657 ms for blocks representing 21.333 ms of audio. These isolated desktop measurements do not establish iPad callback safety.
+- This is a material fast-setting CPU tradeoff, not a performance-equivalence signoff. Slow-tempo cases often improve; the complete range, p99s, methodology and limitations are recorded in `private/test/perf/reference/phase-inverse-2026-11-10.md`.
+- Raw results, source snapshots and hashes: `build/results/time-warp-review/landing-inverse/`. All prior partial interrupted timings remain invalid.
