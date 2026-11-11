@@ -33,6 +33,126 @@ DOCTEST_TEST_CASE("Encoder visualizers: every page group's random pair resolves 
     }
 }
 
+DOCTEST_TEST_CASE("Encoder badges: glyph cache covers role symbols with transparent small-size renders")
+{
+    using Glyph = SmartGridOne::ModulationGlyphs;
+    ModulatorGlyphImages cache;
+    cache.LoadImages();
+    for (size_t index = 0; index < static_cast<size_t>(Glyph::NumGlyphs); ++index)
+    {
+        const auto glyph = static_cast<Glyph>(index);
+        DOCTEST_CAPTURE(index);
+        DOCTEST_CHECK(cache.HasImage(glyph) == (glyph != Glyph::None));
+        if (glyph == Glyph::None)
+        {
+            continue;
+        }
+
+        const auto& source = cache.GetImage(glyph);
+        DOCTEST_REQUIRE(source.isValid());
+        for (int size : {16, 24, 32})
+        {
+            DOCTEST_CAPTURE(size);
+            juce::Image image(juce::Image::ARGB, size, size, true);
+            juce::Graphics graphics(image);
+            graphics.drawImage(source, image.getBounds().toFloat().reduced(1.0f));
+            int ink = 0;
+            for (int y = 0; y < size; ++y)
+            {
+                for (int x = 0; x < size; ++x)
+                {
+                    const auto pixel = image.getPixelAt(x, y);
+                    if (pixel.getAlpha() > 128)
+                    {
+                        ++ink;
+                        DOCTEST_CHECK(pixel.getRed() == 255);
+                        DOCTEST_CHECK(pixel.getGreen() == 255);
+                        DOCTEST_CHECK(pixel.getBlue() == 255);
+                    }
+                }
+            }
+
+            DOCTEST_CHECK(ink > 0);
+            if (index >= static_cast<size_t>(Glyph::SubSine))
+            {
+                DOCTEST_CHECK(ink > size / 2);
+            }
+
+            DOCTEST_CHECK(image.getPixelAt(0, 0).getAlpha() == 0);
+            DOCTEST_CHECK(image.getPixelAt(size - 1, size - 1).getAlpha() == 0);
+        }
+    }
+
+    DOCTEST_CHECK_FALSE(cache.HasImage(Glyph::NumGlyphs));
+    if (const char* path = std::getenv("SMARTGRID_BADGE_PREVIEW"))
+    {
+        struct Example
+        {
+            Glyph m_glyph;
+            const char* m_name;
+            SmartGrid::Color m_color;
+        };
+
+        const Example x_examples[] =
+        {
+            {Glyph::SubSine, "Sub", GetModulatorColor(VoiceModulator::Sub)},
+            {Glyph::HarmonicWave, "Dual waveshaping", GetModulatorColor(VoiceModulator::SourceMod1)},
+            {Glyph::VU, "Envelope follower", GetModulatorColor(QuadModulator::DelayWetEnvelope)},
+            {Glyph::AudioOutput, "Voice / main output", GetModulatorColor(VoiceModulator::Voice)},
+            {Glyph::AudioSend, "Send audio", GetModulatorColor(QuadModulator::DelayDryAudio)},
+            {Glyph::Wet, "Return audio", GetModulatorColor(QuadModulator::DelayWetAudio)},
+            {Glyph::LFO, "Existing LFO", GetModulatorColor(VoiceModulator::LFO1)},
+            {Glyph::ADSR, "Existing envelope", GetModulatorColor(VoiceModulator::ModulationEnvelope)},
+            {Glyph::Noise, "Existing noise", GetModulatorColor(VoiceModulator::Noise)}
+        };
+        EncoderBankUIState state;
+        ModulatorVisualizers visualizers;
+        EncoderComponent encoder(EncoderBankUI(0, &state, nullptr), 0, 0, true, visualizers);
+        juce::Image preview(juce::Image::ARGB, 900, 780, true);
+        juce::Graphics g(preview);
+        g.fillAll(juce::Colour(24, 24, 28));
+        g.setColour(juce::Colours::white);
+        g.setFont(24.0f);
+        g.drawText("Modulator badges", 20, 10, 860, 34, juce::Justification::centred);
+        g.setFont(14.0f);
+        g.drawText("64 px comparison above; 16 / 24 / 32 px below", 20, 44, 860, 24, juce::Justification::centred);
+        for (int i = 0; i < 9; ++i)
+        {
+            const auto& example = x_examples[i];
+            const int left = (i % 3) * 300;
+            const int top = 80 + (i / 3) * 230;
+            g.setColour(juce::Colours::white);
+            g.setFont(17.0f);
+            g.drawText(example.m_name, left, top, 300, 30, juce::Justification::centred);
+            const auto& image = cache.GetImage(example.m_glyph);
+            g.drawImage(image, juce::Rectangle<float>(left + 52.0f, top + 43.0f, 64.0f, 64.0f));
+            auto DrawBadge = [&](juce::Rectangle<float> bounds)
+            {
+                encoder.DrawBadgeBackground(g, bounds, example.m_color);
+                g.setColour(juce::Colours::black);
+                g.drawImage(image, bounds.reduced(bounds.getWidth() * 0.05f),
+                    juce::RectanglePlacement::centred, example.m_color.PrefersBlackForeground());
+            };
+            DrawBadge({left + 180.0f, top + 43.0f, 64, 64});
+            const int x_sizes[] = {16, 24, 32};
+            for (int column = 0; column < 3; ++column)
+            {
+                const int size = x_sizes[column];
+                const int center = left + 90 + column * 60;
+                DrawBadge({static_cast<float>(center - size / 2), static_cast<float>(top + 150 - size / 2),
+                    static_cast<float>(size), static_cast<float>(size)});
+                g.setColour(juce::Colours::white);
+                g.setFont(13.0f);
+                g.drawText(juce::String(size), center - 20, top + 174, 40, 22, juce::Justification::centred);
+            }
+        }
+
+        juce::FileOutputStream output{juce::File(path)};
+        DOCTEST_REQUIRE(output.openedOk());
+        DOCTEST_CHECK(juce::PNGImageFormat().writeImageToStream(preview, output));
+    }
+}
+
 namespace
 {
 using Mode = SmartGridOne::EncoderBankMode;

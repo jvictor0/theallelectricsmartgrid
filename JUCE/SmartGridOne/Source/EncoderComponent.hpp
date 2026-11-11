@@ -6,6 +6,7 @@
 #include "FourteenSegmentDisplayComponent.hpp"
 #include "ModulatorVisualizers.hpp"
 #include "EncoderGeometry.hpp"
+#include "ModulatorGlyphPaths.hpp"
 #include <algorithm>
 #include <cmath>
 
@@ -13,7 +14,7 @@
 //
 struct ModulatorGlyphImages
 {
-    static constexpr size_t x_numGlyphs = 7;
+    static constexpr size_t x_numGlyphs = static_cast<size_t>(SmartGridOne::ModulationGlyphs::NumGlyphs);
     juce::Image m_images[x_numGlyphs];
     bool m_loaded;
 
@@ -43,6 +44,13 @@ struct ModulatorGlyphImages
             juce::ImageFileFormat::loadFrom(BinaryData::mod_badge_Quadrature_png, BinaryData::mod_badge_Quadrature_pngSize);
         m_images[static_cast<size_t>(SmartGridOne::ModulationGlyphs::Spread)] = 
             juce::ImageFileFormat::loadFrom(BinaryData::mod_badge_Spread_png, BinaryData::mod_badge_Spread_pngSize);
+
+        for (auto glyph : {SmartGridOne::ModulationGlyphs::SubSine, SmartGridOne::ModulationGlyphs::HarmonicWave,
+            SmartGridOne::ModulationGlyphs::AudioOutput, SmartGridOne::ModulationGlyphs::AudioSend,
+            SmartGridOne::ModulationGlyphs::Wet, SmartGridOne::ModulationGlyphs::VU})
+        {
+            m_images[static_cast<size_t>(glyph)] = ModulatorGlyphPaths::Render(glyph);
+        }
 
         m_loaded = true;
     }

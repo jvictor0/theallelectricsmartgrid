@@ -16,20 +16,20 @@ struct ExpectedSkin
 
 const ExpectedSkin x_voice[] =
 {
-    {Glyph::SmoothRandom, {255, 248, 63}}, {Glyph::SmoothRandom, {255, 71, 250}},
-    {Glyph::SmoothRandom, {255, 248, 63}}, {Glyph::SmoothRandom, {255, 71, 250}},
-    {Glyph::ADSR, {255, 108, 29}}, {Glyph::ADSR, {0, 247, 167}},
-    {Glyph::LFO, {255, 50, 120}}, {Glyph::LFO, {134, 63, 249}},
-    {Glyph::Sheaf, {0, 255, 255}}, {Glyph::Sheaf, {56, 61, 249}},
-    {Glyph::Sheaf, {9, 246, 59}}, {Glyph::Spread, {143, 143, 143}},
-    {Glyph::LFO, {134, 63, 249}}, {Glyph::LFO, {255, 108, 29}}, {Glyph::Noise, {253, 253, 253}}
+    {Glyph::SmoothRandom, {194, 37, 127}}, {Glyph::SmoothRandom, {118, 199, 14}},
+    {Glyph::SmoothRandom, {194, 37, 127}}, {Glyph::SmoothRandom, {118, 199, 14}},
+    {Glyph::ADSR, {255, 198, 40}}, {Glyph::ADSR, {141, 95, 255}},
+    {Glyph::LFO, {255, 18, 210}}, {Glyph::LFO, {85, 106, 0}},
+    {Glyph::Sheaf, {25, 248, 186}}, {Glyph::Sheaf, {56, 61, 249}},
+    {Glyph::Sheaf, {0, 253, 28}}, {Glyph::Spread, {143, 143, 143}},
+    {Glyph::SubSine, {183, 0, 0}}, {Glyph::AudioOutput, {252, 196, 255}}, {Glyph::Noise, {253, 253, 253}}
 };
 const ExpectedSkin x_quad[] =
 {
-    {Glyph::SmoothRandom, {255, 248, 63}}, {Glyph::SmoothRandom, {255, 71, 250}},
-    {Glyph::SmoothRandom, {255, 248, 63}}, {Glyph::SmoothRandom, {255, 71, 250}},
+    {Glyph::SmoothRandom, {194, 37, 127}}, {Glyph::SmoothRandom, {118, 199, 14}},
+    {Glyph::SmoothRandom, {194, 37, 127}}, {Glyph::SmoothRandom, {118, 199, 14}},
     {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}},
-    {Glyph::LFO, {255, 50, 120}}, {Glyph::LFO, {134, 63, 249}},
+    {Glyph::LFO, {255, 18, 210}}, {Glyph::LFO, {85, 106, 0}},
     {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}},
     {Glyph::Spread, {143, 143, 143}}, {Glyph::None, {0, 0, 0}},
     {Glyph::None, {0, 0, 0}}, {Glyph::Noise, {253, 253, 253}}
@@ -37,7 +37,7 @@ const ExpectedSkin x_quad[] =
 const ExpectedSkin x_global[] =
 {
     {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}},
-    {Glyph::SmoothRandom, {255, 248, 63}}, {Glyph::SmoothRandom, {255, 71, 250}},
+    {Glyph::SmoothRandom, {194, 37, 127}}, {Glyph::SmoothRandom, {118, 199, 14}},
     {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}},
     {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}},
     {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}}, {Glyph::None, {0, 0, 0}},
@@ -187,24 +187,62 @@ DOCTEST_TEST_CASE("modulator catalogue: every mode presents preserved sources an
     }
 }
 
-DOCTEST_TEST_CASE("modulator catalogue: page groups reuse the original slot colors and short random names")
+DOCTEST_TEST_CASE("modulator catalogue: page groups share the fixed palette and short random names")
 {
     using namespace SmartGridOneModulators;
+    const SmartGrid::Color x_slotColors[] =
+    {
+        {255, 0, 71}, {0, 219, 255}, {194, 37, 127}, {118, 199, 14},
+        {255, 198, 40}, {141, 95, 255}, {255, 18, 210}, {85, 106, 0},
+        {25, 248, 186}, {56, 61, 249}, {0, 253, 28}, {143, 143, 143},
+        {183, 0, 0}, {252, 196, 255}, {253, 253, 253}
+    };
+
     for (size_t group = 0; group < x_numGroups; ++group)
     {
         DOCTEST_CAPTURE(group);
         const auto first = GetSkin(static_cast<Group>(group), 2);
         const auto second = GetSkin(static_cast<Group>(group), 3);
-        DOCTEST_CHECK(first.m_color == SmartGrid::Color(255, 248, 63));
-        DOCTEST_CHECK(second.m_color == SmartGrid::Color(255, 71, 250));
         DOCTEST_CHECK(std::string(first.m_shortName) == "RND1");
         DOCTEST_CHECK(std::string(second.m_shortName) == "RND2");
-        if (x_groupLanes[group] == 3)
+        for (size_t slot = 0; slot < x_numSlots; ++slot)
         {
-            DOCTEST_CHECK(GetSkin(static_cast<Group>(group), 0).m_color == SmartGrid::Color(255, 30, 18));
-            DOCTEST_CHECK(GetSkin(static_cast<Group>(group), 1).m_color == SmartGrid::Color(127, 84, 139));
+            DOCTEST_CAPTURE(slot);
+            const auto skin = GetSkin(static_cast<Group>(group), slot);
+            if (x_groups[group][slot] == Source::NumSources)
+            {
+                DOCTEST_CHECK(skin.m_color == SmartGrid::Color::Off);
+                DOCTEST_CHECK(skin.m_glyph == Glyph::None);
+            }
+            else
+            {
+                DOCTEST_CHECK(skin.m_color == x_slotColors[slot]);
+                if (slot >= 8 && slot <= 10)
+                {
+                    DOCTEST_CHECK(skin.m_color == TheNonagonSmartGrid::EquationColor(slot - 8));
+                }
+            }
         }
     }
+}
+
+DOCTEST_TEST_CASE("modulator catalogue: mixer followers and audio use distinct role glyphs")
+{
+    using namespace SmartGridOneModulators;
+    const size_t x_slots[] = {0, 1, 4, 5, 12, 13};
+    const Glyph x_expected[] = {Glyph::VU, Glyph::AudioSend, Glyph::VU, Glyph::Wet, Glyph::VU, Glyph::AudioOutput};
+    for (Group group : {Group::QuadDelay, Group::QuadReverb, Group::QuadPartialMachine})
+    {
+        for (size_t i = 0; i < 6; ++i)
+        {
+            DOCTEST_CAPTURE(group);
+            DOCTEST_CAPTURE(i);
+            DOCTEST_CHECK(GetSkin(group, x_slots[i]).m_glyph == x_expected[i]);
+        }
+    }
+
+    DOCTEST_CHECK(GetSkin(Group::QuadLFO, 12).m_glyph == Glyph::VU);
+    DOCTEST_CHECK(GetSkin(Group::QuadLFO, 13).m_glyph == Glyph::AudioOutput);
 }
 
 DOCTEST_TEST_CASE("modulator catalogue: legacy global empty depths survive patch load and UI processing")

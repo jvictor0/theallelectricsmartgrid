@@ -1377,7 +1377,13 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     {
         uiState->m_recordingState.store(GetRecordingState());
         uiState->m_recordingError.store(GetRecordingError());
-        m_encoders.PopulateUIState(&uiState->m_encoderBankUIState);
+        SmartGridOneModulators::SourceMachines machines;
+        for (size_t trio = 0; trio < x_numTracks; ++trio)
+        {
+            machines[trio] = m_voiceConfig[trio * x_voicesPerTrack].m_sourceMachine;
+        }
+
+        m_encoders.PopulateUIState(&uiState->m_encoderBankUIState, machines);
         m_encoders.PopulateModulationMatrixUIState(&uiState->m_modulationMatrixUIState);
         uiState->m_activeTrack.store(m_encoders.GetCurrentTrack());
 

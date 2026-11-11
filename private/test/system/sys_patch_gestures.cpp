@@ -54,7 +54,7 @@ DOCTEST_TEST_CASE("Patch gestures: fresh load publishes assigned colors without 
         source.AddGesture(0, Encoders::Bank::Source, 0, 0, 0);
         source.AddGesture(9, Encoders::Bank::Shape, 2, 2, 1);
         source.m_rig.Internal().SetActiveTrio(TheNonagonSmartGrid::Trio::Water);
-        DOCTEST_REQUIRE(source.PublishedColor(0) == Color::Red);
+        DOCTEST_REQUIRE(source.PublishedColor(0) == Color(255, 0, 71));
         DOCTEST_REQUIRE(source.PublishedColor(9) == Color::Green);
         patch = source.m_rig.SavePatch();
         DOCTEST_REQUIRE_FALSE(patch.empty());
@@ -72,7 +72,7 @@ DOCTEST_TEST_CASE("Patch gestures: fresh load publishes assigned colors without 
 
     DOCTEST_REQUIRE(loaded.m_rig.LoadPatch(patch));
     loaded.m_rig.RunFrames(2);
-    DOCTEST_CHECK(loaded.PublishedColor(0) == Color::Red);
+    DOCTEST_CHECK(loaded.PublishedColor(0) == Color(255, 0, 71));
     DOCTEST_CHECK(loaded.PublishedColor(9) == Color::Green);
     DOCTEST_CHECK(loaded.PublishedColor(1) == Color::Grey.Dim());
 }
@@ -93,7 +93,7 @@ DOCTEST_TEST_CASE("Patch gestures: same-scene loads replace assignment colors")
 
     DOCTEST_REQUIRE(fixture.m_rig.LoadPatch(redPatch));
     fixture.m_rig.RunFrames(2);
-    DOCTEST_CHECK(fixture.PublishedColor(0) == Color::Red);
+    DOCTEST_CHECK(fixture.PublishedColor(0) == Color(255, 0, 71));
 
     DOCTEST_REQUIRE(fixture.m_rig.ReloadPatch(mixedPatch));
     fixture.m_rig.RunFrames(2);
@@ -105,7 +105,7 @@ DOCTEST_TEST_CASE("Patch gestures: same-scene loads replace assignment colors")
 
     DOCTEST_REQUIRE(fixture.m_rig.ReloadPatch(redPatch));
     fixture.m_rig.RunFrames(2);
-    DOCTEST_CHECK(fixture.PublishedColor(0) == Color::Red);
+    DOCTEST_CHECK(fixture.PublishedColor(0) == Color(255, 0, 71));
 }
 
 DOCTEST_TEST_CASE("Patch gestures: loaded targets respond to faders without scene changes")

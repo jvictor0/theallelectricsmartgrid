@@ -446,13 +446,23 @@ DOCTEST_TEST_CASE("modulator manager: only declared sources are downsampled")
     SmartGridOneEncoders encoders(&context);
     for (size_t source = 0; source < x_numSources; ++source)
     {
-        auto glyph = x_sources[source].m_skin.m_glyph;
         auto ref = GetRef(static_cast<Source>(source), 0);
-        auto quad = static_cast<QuadModulator>(ref.m_index);
-        bool mixerEnvelope = ref.m_mode == SmartGridOneLayout::ParamMode::Quad
-            && GetMixerScope(quad) != SmartGridOne::QuadScopes::NumScopes && !IsMixerAudio(quad);
-        bool expected = !mixerEnvelope
-            && (glyph == SmartGridOne::ModulationGlyphs::ADSR || glyph == SmartGridOne::ModulationGlyphs::LFO);
+        bool expected = false;
+        if (ref.m_mode == SmartGridOneLayout::ParamMode::Voice)
+        {
+            auto voice = static_cast<VoiceModulator>(ref.m_index);
+            expected = voice == VoiceModulator::ModulationEnvelope || voice == VoiceModulator::AmpEnvelope
+                || voice == VoiceModulator::LFO1 || voice == VoiceModulator::LFO2
+                || voice == VoiceModulator::SourceMod1 || voice == VoiceModulator::SourceMod2
+                || voice == VoiceModulator::Sub || voice == VoiceModulator::Voice;
+        }
+        else if (ref.m_mode == SmartGridOneLayout::ParamMode::Quad)
+        {
+            auto quad = static_cast<QuadModulator>(ref.m_index);
+            expected = quad == QuadModulator::LFO1 || quad == QuadModulator::LFO2 || IsMixerAudio(quad);
+        }
+
+        DOCTEST_CAPTURE(source);
         DOCTEST_CHECK(x_sources[source].m_requiresDownsampling == expected);
         DOCTEST_CHECK(encoders.GetModulatorManager().GetSource(source).m_requiresDownsampling == expected);
     }

@@ -1,8 +1,10 @@
 #pragma once
 
 #include "Color.hpp"
+#include "SmartGridOneModulatorColors.hpp"
 #include "SmartGridOneLayout.hpp"
 #include "SmartGridOneScopeEnums.hpp"
+#include "VoiceMachineEnums.hpp"
 #include <array>
 #include <algorithm>
 
@@ -361,6 +363,54 @@ constexpr Skin GetSkin(Group group, size_t slot)
 
     Source source = x_groups[static_cast<size_t>(group)][slot];
     return source == Source::NumSources ? Skin{} : x_sources[static_cast<size_t>(source)].m_skin;
+}
+
+using SourceMachines = std::array<VoiceMachine::SourceMachine, SmartGridOneLayout::x_numTrios>;
+
+constexpr Skin GetSkin(Group group, size_t slot, const SourceMachines& machines)
+{
+    Skin skin = GetSkin(group, slot);
+    if (static_cast<size_t>(group) >= x_numGroups || slot >= x_numSlots)
+    {
+        return skin;
+    }
+
+    Source source = x_groups[static_cast<size_t>(group)][slot];
+    if (source == Source::NumSources)
+    {
+        return skin;
+    }
+
+    const auto& definition = x_sources[static_cast<size_t>(source)];
+    if (definition.m_mode != BankMode::VoiceWater && definition.m_mode != BankMode::VoiceFire
+        && definition.m_mode != BankMode::VoiceEarth)
+    {
+        return skin;
+    }
+
+    if (definition.m_index != static_cast<size_t>(VoiceModulator::SourceMod1)
+        && definition.m_index != static_cast<size_t>(VoiceModulator::SourceMod2))
+    {
+        return skin;
+    }
+
+    using Glyph = SmartGridOne::ModulationGlyphs;
+    const size_t trio = static_cast<size_t>(definition.m_mode) - static_cast<size_t>(BankMode::VoiceWater);
+    switch (machines[trio])
+    {
+        case VoiceMachine::SourceMachine::DualWaveShapingVCO:
+            skin.m_glyph = Glyph::HarmonicWave;
+            break;
+        case VoiceMachine::SourceMachine::PhysicalModeling:
+            skin.m_glyph = definition.m_index == static_cast<size_t>(VoiceModulator::SourceMod1)
+                ? Glyph::Noise : Glyph::ADSR;
+            break;
+        default:
+            skin.m_glyph = Glyph::None;
+            break;
+    }
+
+    return skin;
 }
 
 inline ModulatorRef GetRef(Source source, size_t lane)

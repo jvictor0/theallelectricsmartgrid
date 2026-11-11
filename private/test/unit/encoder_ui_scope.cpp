@@ -8,6 +8,55 @@ using Mode = Encoders::BankMode;
 using Glyph = SmartGridOne::ModulationGlyphs;
 }
 
+DOCTEST_TEST_CASE("Encoder badges: machine changes follow each visible source owner without navigation")
+{
+    using Machine = VoiceMachine::SourceMachine;
+    synthrig::SynthRig rig;
+    auto& synth = rig.Internal().m_squiggleBoy;
+    auto& encoders = synth.m_encoders;
+    auto& ui = rig.UIState().m_squiggleBoyUIState.m_encoderBankUIState;
+    encoders.SetTrack(0);
+    encoders.SelectBank(Encoders::Bank::Source);
+    auto& bank = encoders.m_encoderBankBank.m_banks[static_cast<size_t>(encoders.m_selectedBank)];
+    for (size_t trio = 0; trio < 3; ++trio)
+    {
+        auto* source = encoders.m_encoderBankBank.GetEncoder(encoders.EncoderIndex(Encoders::Param::Harmonics1, trio));
+        bank.PlaceEncoder(static_cast<int>(trio), 3, source);
+    }
+
+    const Machine x_machines[] = {Machine::DualWaveShapingVCO, Machine::PhysicalModeling,
+        Machine::Sample, Machine::Thru, Machine::DualWaveShapingVCO};
+    const Glyph x_expected[][2] = {{Glyph::HarmonicWave, Glyph::HarmonicWave}, {Glyph::Noise, Glyph::ADSR},
+        {Glyph::None, Glyph::None}, {Glyph::None, Glyph::None}, {Glyph::HarmonicWave, Glyph::HarmonicWave}};
+    for (size_t step = 0; step < 5; ++step)
+    {
+        for (size_t trio = 0; trio < 3; ++trio)
+        {
+            const size_t machineIndex = (step + trio) % 5;
+            for (size_t voice = 0; voice < 3; ++voice)
+            {
+                synth.m_voiceConfig[3 * trio + voice].m_sourceMachine = x_machines[machineIndex];
+            }
+        }
+
+        rig.Internal().PopulateUIState();
+        DOCTEST_CHECK(encoders.GetCurrentTrack() == 0);
+        for (size_t trio = 0; trio < 3; ++trio)
+        {
+            DOCTEST_CAPTURE(step);
+            DOCTEST_CAPTURE(trio);
+            const size_t machineIndex = (step + trio) % 5;
+            DOCTEST_CHECK(ui.GetModulationGlyph(trio, 3, 0) == x_expected[machineIndex][0]);
+            DOCTEST_CHECK(ui.GetModulationGlyph(trio, 3, 1) == x_expected[machineIndex][1]);
+            DOCTEST_CHECK(ui.GetModulationGlyphColor(trio, 3, 0) == SmartGrid::Color(255, 0, 71));
+            DOCTEST_CHECK(ui.GetModulationGlyphColor(trio, 3, 1) == SmartGrid::Color(0, 219, 255));
+            DOCTEST_CHECK(ui.GetModulationGlyph(trio, 3, 4) == Glyph::ADSR);
+            DOCTEST_CHECK(ui.GetModulationGlyph(trio, 3, 12) == Glyph::SubSine);
+            DOCTEST_CHECK(ui.GetModulationGlyph(trio, 3, 13) == Glyph::AudioOutput);
+        }
+    }
+}
+
 DOCTEST_TEST_CASE("Encoder UI weights: publish current direct per-channel depths without source amplitude or transitive routes")
 {
     synthrig::SynthRig rig;
@@ -113,8 +162,8 @@ DOCTEST_TEST_CASE("Encoder UI scope: mixed controls publish independent channels
         DOCTEST_CHECK(ui.GetModulationGlyph(0, 0, 4) == Glyph::ADSR);
         DOCTEST_CHECK(ui.GetModulationGlyph(2, 3, 6) == Glyph::LFO);
         DOCTEST_CHECK(ui.GetModulationGlyph(3, 3, 4) == Glyph::None);
-        DOCTEST_CHECK(ui.GetModulationGlyphColor(0, 0, 4) == SmartGrid::Color::Orange);
-        DOCTEST_CHECK(ui.GetModulationGlyphColor(2, 3, 6) == SmartGrid::Color::Pink);
+        DOCTEST_CHECK(ui.GetModulationGlyphColor(0, 0, 4) == SmartGrid::Color(255, 198, 40));
+        DOCTEST_CHECK(ui.GetModulationGlyphColor(2, 3, 6) == SmartGrid::Color(255, 18, 210));
         DOCTEST_CHECK(ui.GetModulationGlyphColor(3, 3, 4) == SmartGrid::Color::Off);
         DOCTEST_CHECK(ui.GetMainIndicatorColor(0, 0) ==
             TheNonagonSmartGrid::TrioColor(static_cast<TheNonagonSmartGrid::Trio>(trio)));

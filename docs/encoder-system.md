@@ -109,7 +109,7 @@ keys and legacy Voice roots that collide with a suffixed root. Recording contain
 Every `BankedEncoderCell` can act as a modulation destination.
 - Every parameter retains fifteen modulation depth positions for allocation, connection, and persistence. Skins do not determine source availability or gate processing.
 - `ForEachSmartGridOneModulator.hpp` defines typed source skins as `F(enumType, enumValue, mode, color, glyph, shortName)`. Voice skins are shared by Water, Fire, and Earth; missing skins are Off/None. Global defines only random sources at positions 2 and 3 and noise at 14, so positions 6, 7, and 11 have no skin. Existing stored depths at those positions remain intact.
-- Every page group's independent random pair uses RND1/RND2 and the original slot 2/3 yellow/fuchsia colors. Source slots 0/1 retain red/mauve.
+- Every page group's independent random pair uses RND1/RND2 and the Berry/Lime colors at local slots 2/3. All populated local slots follow the [modulator palette](#modulator-palette) below.
 - Mixer audio modulators use a configurable trailing scope window (100 ms by default). Mixer envelope modulators use four VU needles reading the corresponding follower’s accepted RMS history, independently of the existing level/peak/saturation meters.
 - Sub and Voice modulation views reuse the existing Sub and PostAmp scopes, normalized on read. Sub capture precedes all volume gains; Voice modulation precedes track gain, matching PostAmp. `ForEachSourceModulationVisualizer.hpp` assigns source views by the owning trio's source machine: Dual waveshaping reuses its VCO scopes; Physical Modeling uses the existing noise view and a separate internal-envelope history; Sample/Thru have no source views.
 - The **Modulation Depth** is itself implemented as a full `BankedEncoderCell`. This means you can modulate the modulation depth (e.g., using an LFO to slowly fade in an envelope's effect on the filter cutoff).
@@ -136,6 +136,123 @@ show a center marker; encoder-set messages and MIDI values remain normalized.
 Saving writes the signed knob position, so repeated save/load must not reapply
 the exponential depth curve. Changing a top-level parameter to bipolar also
 requires updating its DSP callers to consume the signed domain.
+
+### Modulator palette
+
+The fifteen local modulation positions have a fixed, authored color convention.
+These are **group-local slots**, not the numeric values of source enums. Each
+source's color is assigned explicitly in `ForEachSmartGridOneModulator.hpp`;
+`ForEachSmartGridOneModulatorGroupSlot.hpp` binds those sources to slots. There is
+no runtime index-to-color formula. Every populated occurrence of a slot uses the
+same color, including each page's independent random pair. Unassigned slots stay
+Off/None.
+
+| Slot | Voice source | Quad source, where assigned | Color | sRGB |
+| --- | --- | --- | --- | --- |
+| 0 | Source output 1 | Dry envelope | Coral red | `#FF0047` |
+| 1 | Source output 2 | Dry audio | Cyan | `#00DBFF` |
+| 2 | RND1 | RND1 | Berry | `#C2257F` |
+| 3 | RND2 | RND2 | Lime | `#76C70E` |
+| 4 | Modulation envelope | Wet envelope | Gold | `#FFC628` |
+| 5 | Amp envelope | Wet audio | Violet | `#8D5FFF` |
+| 6 | LFO1 | LFO1 | Fuchsia | `#FF12D2` |
+| 7 | LFO2 | LFO2 | Olive | `#556A00` |
+| 8 | SHF1 | — | Ocean | `#19F8BA` |
+| 9 | SHF2 | — | Indigo | `#383DF9` |
+| 10 | SHF3 | — | SeaGreen | `#00FD1C` |
+| 11 | Spread | Spread | Grey | `#8F8F8F` |
+| 12 | Sub | Output envelope | Deep red | `#B70000` |
+| 13 | Voice | Output audio | Pale lilac | `#FCC4FF` |
+| 14 | Noise | Noise | White | `#FDFDFD` |
+
+Global uses the same RND1/RND2 and Noise colors at slots 2/3/14. Quad dry/wet
+sources belong to their Delay, Reverb, or Partial Machine group; Quad LFO has no
+dry/wet sources. All Quad groups share final-output sources at 12/13.
+
+Functional pairs are **0/1, 2/3, 4/5, 6/7, and 12/13**. Sheafy remains a trio;
+Spread stays grey and Noise stays white. Randoms use Berry/Lime and the main
+envelopes use Gold/Violet, incorporating the final pair swap. Named constants
+live in `SmartGridOneModulatorColors.hpp`, alongside the existing neutral colors
+in `Color.hpp`.
+
+This palette was selected by an offline search using Euclidean distance in
+[Oklab](https://bottosson.github.io/posts/oklab/), balancing separation across the
+palette with strong separation within each functional pair. The weakest pair
+distance rises from approximately 0.266 to 0.437 (64%). The thirteen chromatic
+colors have distinct Twister hue codes; their closest HSV hue spacing is about
+14.2°, rather than equal 27.7° steps. Lightness and saturation also contribute to
+separation. This is a constrained design, not a proof of a universal optimum or
+a guarantee of identical appearance on different hardware.
+
+Sheafy is anchored to the original Nonagon cell colors: Ocean and SeaGreen move
+by less than 0.025 Oklab distance, and Indigo is unchanged. SHF1 is **Ocean**.
+`TheNonagonSmartGrid::EquationColor` uses the same definitions as the source
+catalogue. Corresponding equation output, matrix, RHS, and interval cells use
+these colors, deriving their dim variants from the shared values.
+
+Parameter encoders belonging to a published source use `GetModulatorColor` so
+their rings and source visualizations follow the same palette:
+
+| Parameter family | Source/color |
+| --- | --- |
+| Voice and Quad LFO1/LFO2 controls | LFO1 Fuchsia / LFO2 Olive |
+| Mod AHD attack, hold, decay, amplitude | Modulation envelope Gold |
+| Amp AHD attack, hold, decay, amplitude | Amp envelope Violet |
+| VCO1 harmonics, V, D, incoming phase modulation | Source output 1 Coral red |
+| VCO2 harmonics, V, D, incoming phase modulation, pitch offset | Source output 2 Cyan |
+| Physical excitation SVF cutoff, resonance, morph | Source output 1 Coral red |
+| Physical excitation AHD and amplitude | Source output 2 Cyan |
+| Sub volume, drive, envelope rise/fall, shape | Sub Deep red |
+
+Tempo LFO belongs to the clock and has no published modulation source. Shared
+source, filter, effect, and mixer controls retain their category colors.
+
+### Modulator badges
+
+Badges identify source roles independently of their fixed palette colors. See the
+[rendered size comparison](images/modulator-badges.png) for the new and existing
+symbols at 16/24/32 px:
+
+| Source | Glyph |
+| --- | --- |
+| Sub | One saturated sine cycle, rising first |
+| Dual waveshaping source outputs 1/2 | Shared compact additive waveform |
+| Physical modeling source output 1 | Existing Noise |
+| Physical modeling source output 2 | Existing envelope |
+| Voice and main-output audio | Rounded square open at upper right, arrow from center pointing out |
+| Dry/send audio | Rounded square open at upper left, arrow pointing inward |
+| Wet/return audio | Three horizontal waves |
+| All send, return, and main-output envelope followers | VU arc, ticks, and needle |
+| Modulation and amp envelope generators | Existing envelope |
+
+The additive badge uses three cosine components:
+`cos(θ) + 0.30 cos(2θ) - 0.28 cos(3θ)`. This keeps the waveform recognizable at
+small badge sizes without a dense collection of ripples. The phase convention
+comes from `RandomWaveTable::GenerateWaveTable` and `FillHarmonicsBandLimited`:
+the fundamental and harmonic FFT coefficients are real, and
+`DiscreteFourierTransformGeneric::InverseTransform` mirrors the coefficients
+conjugately and takes the real output. They therefore generate cosine
+harmonics. `WriteDistortedHarmonic` uses imaginary coefficients but is not called
+by the current generator. The VCO subsequently phase-warps and negates the
+wavetable; the badge is a fixed source-family symbol, not a live waveform.
+
+`ModulatorGlyphPaths.hpp` defines the six new symbols as rounded JUCE paths.
+`ModulatorGlyphImages` renders them once into white-on-transparent cached
+images, alongside the original seven PNG glyphs. The existing badge painter
+selects white or black foreground for the palette background. Existing glyph
+IDs, including `None`, keep their numeric values.
+
+Source-pair glyphs resolve through `SmartGridOneModulators::GetSkin` with the
+current machines of all three trios. `SquiggleBoyWithEncoderBank::PopulateUIState`
+supplies those machines, and each glyph uses the owning source's trio, even when
+the visible encoder belongs to a different trio than the navigation selection.
+Switching machines updates the glyph on the next UI publication. Sample and
+Thru currently produce zero for both source modulation outputs, so their source
+pair uses `None`; source colors, routes, and saved depths remain intact.
+
+The native badge test can export a comparison with the existing glyphs, including
+16/24/32 px examples, by setting `SMARTGRID_BADGE_PREVIEW` to an absolute PNG path
+when running `make visualizers-test`.
 
 ## Adjusting all modulation depths from a parent encoder
 

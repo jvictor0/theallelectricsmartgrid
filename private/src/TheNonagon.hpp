@@ -17,6 +17,7 @@
 #include "PhaseUtils.hpp"
 #include "SampleTimer.hpp"
 #include "TheNonagonUIState.hpp"
+#include "SmartGridOneModulatorColors.hpp"
 
 struct TheNonagonInternal
 {
@@ -767,15 +768,15 @@ struct TheNonagonSmartGrid
     {
         if (i == 0)
         {
-            return SmartGrid::Color::Ocean;
+            return SmartGridOneModulatorColors::x_ocean;
         }
         else if (i == 1)
         {
-            return SmartGrid::Color::Indigo;
+            return SmartGridOneModulatorColors::x_indigo;
         }
         else
         {
-            return SmartGrid::Color::SeaGreen;
+            return SmartGridOneModulatorColors::x_seaGreen;
         }
     }
     
@@ -799,16 +800,16 @@ struct TheNonagonSmartGrid
             , m_nonagon(&owner->m_nonagon)
             , m_owner(owner)
         {
-            SetColors(SmartGrid::Color::Ocean, SmartGrid::Color::Ocean.Dim());
+            SetColors(EquationColor(0), EquationColor(0).Dim());
             InitGrid();
         }        
         
         void InitGrid()
         {
             SmartGrid::ColorScheme colorScheme(std::vector<SmartGrid::Color>({
-                        SmartGrid::Color::Yellow, SmartGrid::Color::White.Dim(), SmartGrid::Color::Ocean}));
+                        SmartGrid::Color::Yellow, SmartGrid::Color::White.Dim(), EquationColor(0)}));
             SmartGrid::ColorScheme dimColorScheme(std::vector<SmartGrid::Color>({
-                        SmartGrid::Color::Yellow.Dim(), SmartGrid::Color::White.Dim(), SmartGrid::Color::Ocean.Dim()}));
+                        SmartGrid::Color::Yellow.Dim(), SmartGrid::Color::White.Dim(), EquationColor(0).Dim()}));
             for (size_t i = 0; i < TheNonagonInternal::x_numTimeBits; ++i)
             {
                 Put(i, 6, m_owner->TimeBitCell(i));
@@ -880,9 +881,9 @@ struct TheNonagonSmartGrid
             Cell(int i, int j, State* state, TheNonagonSmartGrid* owner)
                 : SmartGrid::StateCell<bool, CountHighFiberFlash>(
                     SmartGrid::Color::White.Dim(),
-                    SmartGrid::Color::Indigo.Dim(),
+                    EquationColor(1).Dim(),
                     SmartGrid::Color::Yellow,
-                    SmartGrid::Color::Indigo,
+                    EquationColor(1),
                     state,
                     CountHighFiberFlash(owner, i, static_cast<size_t>(j)),
                     true,
@@ -915,7 +916,7 @@ struct TheNonagonSmartGrid
             , m_nonagon(&owner->m_nonagon)
             , m_owner(owner)
         {
-            SetColors(SmartGrid::Color::Indigo, SmartGrid::Color::Indigo.Dim());
+            SetColors(EquationColor(1), EquationColor(1).Dim());
             InitGrid();
         }        
         
@@ -951,7 +952,7 @@ struct TheNonagonSmartGrid
             , m_nonagon(&owner->m_nonagon)
             , m_owner(owner)
         {
-            SetColors(SmartGrid::Color::SeaGreen, SmartGrid::Color::SeaGreen.Dim());
+            SetColors(EquationColor(2), EquationColor(2).Dim());
             InitGrid();
         }        
         

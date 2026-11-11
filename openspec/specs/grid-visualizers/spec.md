@@ -213,12 +213,26 @@ The playhead SHALL use the published absolute modulated global phase and period 
 - **AND** the cached sequence remains valid
 
 ### Requirement: Consistent modulation group presentation
-Every voice and Quad group SHALL label its local random pair RND1 and RND2 and color them with the original slot 2 yellow and slot 3 fuchsia, respectively. The independent random source identity SHALL NOT change its name or color between pages. Source slots 0/1 SHALL retain the original red/mauve colors; other existing populated slots SHALL retain their established colors. Global presentation SHALL remain unchanged.
+Every populated instance of a local modulation slot SHALL use the same RGB color across Voice, Quad, and Global groups. The fixed palette SHALL be 0 `#FF0047`, 1 `#00DBFF`, 2 `#C2257F`, 3 `#76C70E`, 4 `#FFC628`, 5 `#8D5FFF`, 6 `#FF12D2`, 7 `#556A00`, 8 `#19F8BA`, 9 `#383DF9`, 10 `#00FD1C`, 11 `#8F8F8F`, 12 `#B70000`, 13 `#FCC4FF`, and 14 `#FDFDFD`. Every group's independent random pair SHALL retain the RND1/RND2 labels at slots 2/3. Unassigned slots SHALL retain Off/None presentation. Functional color pairs SHALL be 0/1, 2/3, 4/5, 6/7, and 12/13, while Sheafy SHALL remain a trio. The slot palette SHALL remain an authored catalogue convention rather than a runtime color formula.
 
 #### Scenario: Moving between page groups
-- **WHEN** the user moves between Source, Shape, PanMelody, LFO, Sub, or Quad page groups
-- **THEN** the independent randoms in slots 2/3 still display RND1/RND2 in yellow/fuchsia
-- **AND** the zero-based even and odd random generators consistently use those respective names and colors
+- **WHEN** the user moves between Source, Shape, PanMelody, LFO, Sub, Quad, or Global groups
+- **THEN** the independent randoms in slots 2/3 display RND1/RND2 in Berry/Lime
+- **AND** every other populated slot uses its fixed palette color independently of the bound source identity
+
+#### Scenario: Sheafy matches Nonagon
+- **WHEN** a Sheafy modulator and its corresponding Nonagon equation, matrix, RHS, or interval cell are displayed
+- **THEN** their source colors share the same Ocean, Indigo, or SeaGreen definition
+- **AND** inactive/dim variants are derived from those shared colors
+
+#### Scenario: Parameter encoders identify their modulator
+- **WHEN** a Voice or Quad LFO control, modulation/amp envelope control, oscillator-specific VCO control, physical excitation control, or Sub control is displayed
+- **THEN** its encoder color matches its corresponding published modulation source
+- **AND** modulator glyphs and source visualizers use that same catalogue color
+
+#### Scenario: Neutral sources remain neutral
+- **WHEN** Spread or Noise is displayed in any group that binds it
+- **THEN** Spread is grey `#8F8F8F` and Noise is white `#FDFDFD`
 
 ### Requirement: Audio modulation time histories
 Sub and Voice modulation encoders SHALL use time-domain visualizers backed by the existing Sub and PostAmp scopes. Dual waveshaping modulation SHALL reuse VCO1/VCO2 scopes. Sub scope capture SHALL occur after its envelope and shaper but before frequency compensation, sub gain, and track gain. Voice modulation SHALL use the existing PostAmp tap before track gain. These shared scopes SHALL store bipolar audio once and map it as 0.5 + 0.5*sample when read as modulation, without clipping. Source VPS and sub oscillator wraps SHALL retain their lane-specific fractional cycle starts, and PostAmp SHALL retain its AHD boundaries. Only the physical source's internal envelope SHALL add a separate scope history; physical noise SHALL use the existing noise visualization. All histories SHALL use the existing UI publication and LOD pipeline.
@@ -271,3 +285,32 @@ The Theory of Time visualizer SHALL use an explicit periodic unmodulated-phase a
 - **WHEN** modulated phase reverses while unmodulated phase advances
 - **THEN** the curve shows the reversal on the forward unmodulated axis
 - **AND** positive and negative vertical wraps have no connecting line
+
+### Requirement: Role-specific modulation badges
+The system SHALL provide rounded monochrome badges for saturated Sub sine, additive harmonic waveform, audio output, audio send, wet return, and envelope follower VU. Sub SHALL use the saturated sine; Voice and final output audio SHALL share the outward-arrow symbol; dry/send audio SHALL use an inward-arrow symbol; wet/return audio SHALL use three horizontal waves; all mixer envelope followers SHALL use VU. Existing envelope generators SHALL retain the envelope badge. Badge backgrounds SHALL retain the catalogue colors.
+
+#### Scenario: Mixer source roles
+- **WHEN** send, return, or final-output modulation sources affect an encoder
+- **THEN** each follower shows VU and each audio source shows Send, Wet, or Output respectively
+- **AND** Voice uses the same output symbol as final-output audio
+
+#### Scenario: Compact badge rendering
+- **WHEN** badges are rendered at small encoder-strip sizes
+- **THEN** new glyphs retain rounded strokes, transparent backgrounds, and the existing foreground contrast behavior
+- **AND** the additive waveform uses a small fixed harmonic mixture with the generator's cosine phase convention
+
+### Requirement: Source-machine-aware modulation badges
+Source-output glyph publication SHALL resolve the machine belonging to the bound source's trio. Dual waveshaping SHALL use the additive waveform for both source outputs; physical modeling SHALL use Noise for its filtered-noise output and the existing envelope glyph for its internal envelope. Sample and Thru SHALL publish no source-pair glyph because their source modulation outputs are zero. Machine changes SHALL update glyphs on the next UI publication without changing the source colors, identities, or saved modulation depths.
+
+#### Scenario: Machine changes in place
+- **WHEN** the owning trio switches between dual waveshaping and physical modeling
+- **THEN** its source-pair badges switch between harmonic waveforms and Noise/Envelope on UI publication
+- **AND** their source colors remain unchanged
+
+#### Scenario: Another trio is active
+- **WHEN** a visible encoder belongs to a different trio than the active navigation
+- **THEN** its badges follow its own bound source's machine
+
+#### Scenario: Source outputs unavailable
+- **WHEN** a source pair belongs to a Sample or Thru machine
+- **THEN** its source-pair glyphs are None while stored depths and source colors remain intact

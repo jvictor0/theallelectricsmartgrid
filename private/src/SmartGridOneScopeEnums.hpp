@@ -68,6 +68,13 @@ namespace SmartGridOne
         Quadrature = 5,
         Spread = 6,
         None = 7,
+        SubSine = 8,
+        HarmonicWave = 9,
+        AudioOutput = 10,
+        AudioSend = 11,
+        Wet = 12,
+        VU = 13,
+        NumGlyphs = 14,
     };
 }
 

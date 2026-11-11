@@ -12,10 +12,17 @@ bool HasColorNear(const juce::Image& image, int x, int y, juce::Colour color)
         for (int dy = -1; dy <= 1; ++dy)
         {
             auto pixel = image.getPixelAt(x + dx, y + dy);
-            if (pixel.getAlpha() > 128
-                && std::abs(pixel.getRed() - color.getRed()) <= 1
-                && std::abs(pixel.getGreen() - color.getGreen()) <= 1
-                && std::abs(pixel.getBlue() - color.getBlue()) <= 1)
+            if (pixel.getAlpha() <= 128)
+            {
+                continue;
+            }
+
+            // Unpremultiplying an antialiased pixel amplifies one stored RGB rounding unit.
+            //
+            const int tolerance = (255 + pixel.getAlpha() - 1) / pixel.getAlpha();
+            if (std::abs(pixel.getRed() - color.getRed()) <= tolerance
+                && std::abs(pixel.getGreen() - color.getGreen()) <= tolerance
+                && std::abs(pixel.getBlue() - color.getBlue()) <= tolerance)
             {
                 return true;
             }

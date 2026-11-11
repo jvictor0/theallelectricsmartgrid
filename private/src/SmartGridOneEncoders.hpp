@@ -681,6 +681,12 @@ struct SmartGridOneEncoders
 
     void PopulateUIState(EncoderBankUIState* uiState)
     {
+        using Machine = VoiceMachine::SourceMachine;
+        PopulateUIState(uiState, {Machine::DualWaveShapingVCO, Machine::DualWaveShapingVCO, Machine::DualWaveShapingVCO});
+    }
+
+    void PopulateUIState(EncoderBankUIState* uiState, const SmartGridOneModulators::SourceMachines& machines)
+    {
         m_encoderBankBank.PopulateUIState(uiState);
         m_visibleMotion.PopulateUIState(m_encoderBankBank, *uiState);
 
@@ -691,7 +697,7 @@ struct SmartGridOneEncoders
                 auto group = static_cast<ModulatorGroup>(uiState->m_states[x][y].m_modulatorGroup.load());
                 for (size_t i = 0; i < 16; ++i)
                 {
-                    ModulatorSkin skin = SmartGridOneModulators::GetSkin(group, i);
+                    ModulatorSkin skin = SmartGridOneModulators::GetSkin(group, i, machines);
                     uiState->SetModulationGlyph(x, y, i, skin.m_glyph, skin.m_color);
                 }
             }
