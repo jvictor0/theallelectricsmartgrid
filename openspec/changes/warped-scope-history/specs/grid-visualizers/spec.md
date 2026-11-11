@@ -14,12 +14,16 @@ Visualizers SHALL read display data through accepted UI state and explicitly sha
 ## ADDED Requirements
 
 ### Requirement: Coordinate-independent scope cursor duration
-Scope cursor visibility and longest modulation-source selection SHALL use real duration measured through the accepted inverse for bound axes, and real duration directly for unbound axes. Logical cycle width SHALL NOT be interpreted as a sample count.
+Periodic LFO and Theory of Time cursor visibility SHALL use the nominal sweep duration: the published axis period in master cycles divided by the published unwarped tempo in cycles per second. Their indicators SHALL appear only when this duration exceeds 0.1 seconds and the cursor value is available. Event-based scopes SHALL retain their historical-duration rule. Longest modulation-source selection and LOD selection SHALL continue to use mapped real history. Logical cycle width SHALL NOT be interpreted as a sample count.
 
 #### Scenario: Slow phase-domain LFO
-- **WHEN** an LFO's mapped display duration exceeds the existing 0.1-second cursor threshold
+- **WHEN** an LFO's nominal sweep duration exceeds the existing 0.1-second cursor threshold
 - **THEN** the cursor is drawn at its published phase position
-- **AND** the same logical period with a shorter real duration remains subject to the existing threshold
+- **AND** changing the inverse history span alone SHALL NOT change indicator eligibility
+
+#### Scenario: Fast nominal sweep with older history
+- **WHEN** a periodic scope's nominal sweep is at most 0.1 seconds and a warp branch selects older history
+- **THEN** the indicator remains hidden even when the mapped history spans more than 0.1 seconds
 
 ### Requirement: Unwarped time-warp visualization
 The Theory of Time visualizer SHALL use an explicit periodic unmodulated-phase axis with an accepted inverse. It SHALL record bounded warp displacement and add the unmodulated musical coordinate when drawing. Each plotted value SHALL use one inverse lookup; its cursor SHALL reuse its already-read value. Missing history, vertical wraps and the join between current and previous cycles SHALL begin a new path rather than draw a connecting segment.

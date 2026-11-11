@@ -66,6 +66,12 @@
 - [x] 10.2 Replace bounded inverse retries with a simple busy-wait; bracket bounded cell/frontier updates rather than the entire scatter loop. Preserve missing history as gaps and use one inverse lookup per plotted point.
 - [x] 10.3 Add controlled overlap and rendering regressions, run native and proof checks, and refresh source correspondence and documentation. Timing remains deferred under 6.5; no deployment.
 
+## 11. Nominal periodic indicator visibility
+
+- [x] 11.1 Use the published period and nominal tempo in periodic visualizers, retaining historical spans for LOD/source selection and event-scope indicators.
+- [x] 11.2 Verify indicator pixels across independent nominal tempos, periods, and inverse-history spans; update documentation and source correspondence.
+- [x] 11.3 Redeploy the validated change to the paired iPad.
+
 ## Initial implementation validation
 
 - `make core-test`: 851 main cases and 36 alternate-rate cases passed; four existing main cases skipped.
@@ -140,3 +146,10 @@
 - Controlled overlap waits for writer completion without producing zero; a concurrent forward scatter retains all old queried points. New pixel tests cover LFO, envelope, delay and warp gaps. Updated prior expectations that rejected a readable interpolated time or silently omitted a missing weighted source; a real zero-valued source still produces the expected curve.
 - `make core-test`: 886 main cases and 36 alternate-rate cases passed; four existing main skips. `make visualizers-test`: all 80 cases passed. `make lean-test`: both source and axiom audits passed, with 31 PhaseTime contracts and 520 theorems. Strict OpenSpec validation and diff whitespace checks passed.
 - No timing benchmarks or deployment. Final logs are `build/results/time-warp-review/ui-concurrency-core-final.log`, `ui-concurrency-visualizers-verified.log`, and `ui-concurrency-lean-complete.log`, with full native test logs alongside them.
+
+## Nominal periodic indicator validation
+
+- Periodic voice/quad LFO and time-warp indicators use `axisPeriod / tempoHz > 0.1` entirely in the visualizers. Existing published values supply both inputs; DSP, inverse storage, publication, LODs and source-span selection are unchanged.
+- Pixel tests vary nominal tempos (1, 5 and 20 Hz), displayed periods (1 and 0.5 master cycles), and inverse-history durations independently. The exact 0.1-second threshold remains hidden. Time-warp cursors also hide for a fast nominal tempo despite longer recorded history.
+- All 80 visualizer cases passed. `make lean-test` passed both source and axiom audits (31 PhaseTime contracts, 520 theorems); the cursor-policy edit leaves the mathematical composition unchanged. Strict OpenSpec validation and diff checks passed.
+- Release iOS build succeeded, and the upgrade was installed and launched over Wi-Fi on the paired iPad. Logs: `build/results/time-warp-review/nominal-cursor-visualizers.log`, `nominal-cursor-lean.log`, and `nominal-cursor-ipad-deploy.log`.

@@ -390,6 +390,7 @@ DOCTEST_TEST_CASE("Time warp scope: unwarped periodic axis, cursor, and disconne
         auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
         ui->m_squiggleBoyUIState.m_activeTrack.store(0);
         ui->m_nonagonUIState.m_loopMultiplier[0].store(1);
+        ui->m_tempoHz.store(static_cast<double>(SampleTimer::x_sampleRate) / 32768.0);
         auto& writer = ui->m_squiggleBoyUIState.m_monoScopeWriter;
         size_t scope = static_cast<size_t>(SmartGridOne::MonoScopes::TheoryOfTime);
         TimeWarpInverter<8192> inverse(4096.0);
@@ -419,6 +420,9 @@ DOCTEST_TEST_CASE("Time warp scope: unwarped periodic axis, cursor, and disconne
         int markerY = reverse ? 100 : 50;
         DOCTEST_CHECK(image.getPixelAt(255, markerY - 2).getRed() > 200);
         DOCTEST_CHECK(image.getPixelAt(640, 175).getRed() > 50);
+        ui->m_tempoHz.store(20.0);
+        component.Draw(graphics, image.getBounds());
+        DOCTEST_CHECK(image.getPixelAt(255, markerY - 2) == juce::Colours::black);
     }
 }
 

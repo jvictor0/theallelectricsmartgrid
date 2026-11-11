@@ -48,8 +48,10 @@ LOD filters, transport generations, or UI locking on the audio thread.
   phase, adds the unwarped coordinate in the renderer, and breaks the path at
   wraps and the current/previous-cycle join. Its inverse needs two master cycles
   (16 MiB with branch storage), since the plotted period is at most one. MIDI
-  clock corrections can reverse unmodulated travel. Cursor visibility and longest-source selection use mapped
-  real sample duration rather than logical cycle width for all bound scopes.
+  clock corrections can reverse unmodulated travel. Periodic LFO and warp cursor
+  visibility uses nominal sweep duration (axis period / published tempo Hz),
+  keeping the 0.1-second threshold independent of inverse branch history.
+  Longest-source selection, LODs and event-scope indicators retain mapped real duration.
 - Scope publication uses atomic payloads and a revision; acceptance copies a
   coherent view with a bounded retry budget. Level-zero samples are atomic;
   higher levels belong to the UI thread. Overlays share the same periodic axis

@@ -16,7 +16,7 @@
     "private/src/TheoryOfTimeBase.hpp": "753a7ae7c1d173261a46b307c38611c4883f715d4e42cfa4e50d5ad2d227bf9c",
     "private/src/TimeWarpInverter.hpp": "275f50f0b275d827bbf53c93404e1ae2a94251449fd19320265f53100ca00dcd",
     "private/src/TimeWarpView.hpp": "d6787c25d2229d1437c57fa96d99302542508654c925c3a7192c909c0ae178e4",
-    "JUCE/SmartGridOne/Source/ScopeComponent.hpp": "02da1ed16ebcd53a3dab06ef34cf9b67f6644373bc80e647ec695aef83211f24",
+    "JUCE/SmartGridOne/Source/ScopeComponent.hpp": "806d91d1344efb3561af81b0840baacdc39957b9b8a239a4e97011785cb9a4f0",
     "private/src/Resynthesis.hpp": "01663ac984d85a5570e024e0a50760471b0c5d7ae20073c5babf66cab1f04e16",
     "private/src/SquiggleBoy.hpp": "ed2f581977a4c8a13f8b0c8931f98d28287f156fef41a5850c9dcfc0602641e3"
   },

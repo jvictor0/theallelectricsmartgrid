@@ -690,7 +690,8 @@ struct TheoryOfTimeScopeComponent : public SmartGridOneMainVisualizerComponent
         g.setColour(juce::Colours::white);
         g.strokePath(path, juce::PathStrokeType(1.0f));
 
-        if (!std::isfinite(cursorPhase) || !PathDrawer::ShouldDrawScopeMarker(reader))
+        if (!std::isfinite(cursorPhase)
+            || !PathDrawer::ShouldDrawScopeMarker(period / m_uiState->m_tempoHz.load()))
         {
             return;
         }

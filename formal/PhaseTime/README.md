@@ -94,6 +94,9 @@ composition hypothesis below. The separate inverse holds two master cycles
 (16 MiB including branch storage); external MIDI corrections can reverse even
 this clock. The plotted period is at most one. Finite retention remains outside
 the proof. Path breaks and cursor visibility have native pixel regression tests.
+Periodic indicator visibility is a UI policy: axis period divided by published
+nominal tempo must exceed 0.1 seconds. It is independent of the inverse history
+span and does not change the composition theorem or LOD/source-span calculation.
 
 Delay read heads project `writePhase * speed - loopPeriod * bufferFraction`,
 then wrap into `[writePhase - loopPeriod, writePhase)`. The general proof allows

@@ -77,9 +77,12 @@ is not yet published or has fallen outside the retained history are empty.
 
 `ScopeReader::m_sampleExtent` measures real engine-sample duration separately
 from logical axis width. Bound readers measure the available plotted points
-through their inverse; unbound readers retain the segment durations. Cursor
-visibility (the existing 10 Hz threshold) and longest-source selection use this
-real duration, including for modulation overlays.
+through their inverse; unbound readers retain the segment durations. LOD and
+longest-source selection use this real duration, including for modulation overlays.
+Periodic LFO indicators instead use nominal sweep duration: the published axis
+period divided by the existing `m_tempoHz` value. They appear above 0.1 seconds
+when the cursor sample is available. Warp/history changes do not affect that
+threshold decision. Event-based scopes retain the historical-duration rule.
 
 The Theory of Time scope uses an explicit period on **unwarped** continuous phase
 and a separate inverse of that phase. It records the bounded displacement
@@ -87,7 +90,7 @@ and a separate inverse of that phase. It records the bounded displacement
 and wraps by the published period. It starts a new subpath at each vertical wrap,
 at the current/previous-cycle join, and after unavailable history. The curve can
 therefore bend backwards without changing the horizontal coordinate or drawing
-a line across a wrap. Its cursor uses the same real-duration rule as other scopes.
+a line across a wrap. Its cursor uses the same nominal-sweep rule as periodic LFOs.
 
 `SampleTop` owns phase-crossing interpolation. Offsets are always in engine samples. Producers pass
 them unchanged to `RecordStart`, and the writer converts them to its own index

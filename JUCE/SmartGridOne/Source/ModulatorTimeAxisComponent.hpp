@@ -111,6 +111,7 @@ struct ModulatorTimeAxisComponent : SmartGridOneMainVisualizerComponent
 
         g.fillAll(juce::Colours::black);
         double now = SmartGridOneModulatorHistory::GetLatestSample(*m_historyUIState);
+        double tempoHz = m_historyUIState->m_tempoHz.load();
         if (now < 0.0 || boundsRect.isEmpty())
         {
             return true;
@@ -199,7 +200,9 @@ struct ModulatorTimeAxisComponent : SmartGridOneMainVisualizerComponent
                 : m_historyMode == Mode::Quad && random ? TheNonagonSmartGrid::VoiceColor(voice) : sourceColor;
             g.setColour(J(curveColor));
             g.strokePath(path, juce::PathStrokeType(1.4f));
-            if (!PathDrawer::ShouldDrawScopeMarker(axis.GetSampleExtent() / SampleTimer::x_sampleRate))
+            double sweepSeconds = axis.m_periodic.m_period > 0.0
+                ? axis.m_periodic.m_period / tempoHz : axis.GetSampleExtent() / SampleTimer::x_sampleRate;
+            if (!PathDrawer::ShouldDrawScopeMarker(sweepSeconds))
             {
                 continue;
             }
