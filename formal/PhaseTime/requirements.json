@@ -397,7 +397,7 @@
   {
     "id": "P29",
     "status": "proved",
-    "requirement": "With one writer, sequentially consistent atomic scalar accesses, and no counter wrap during an attempt, an unchanged even revision makes every observed field and the resulting lookup equal one committed snapshot. The writer brackets bounded cell/frontier transitions, not the scatter loop.",
+    "requirement": "With one writer, sequentially consistent atomic scalar accesses, and no counter wrap during an attempt, an unchanged even revision makes every observed field and the resulting lookup equal one committed snapshot. The writer brackets bounded cell/frontier transitions or fixed-capacity grid batches, not the whole scatter loop.",
     "theorems": [
       "PhaseTime.Concurrency.accepted_fields_coherent",
       "PhaseTime.Concurrency.accepted_computation_coherent",
@@ -437,6 +437,64 @@
     "anchors": [
       "publication",
       "snapshot_read"
+    ]
+  },
+  {
+    "id": "P32",
+    "status": "proved",
+    "requirement": "Omitting inactive replacement stores preserves every inverse read; activation initializes replacement timestamps before commit. This equivalence is preserved by finishing cells and arbitrary scalar traversals.",
+    "theorems": [
+      "PhaseTime.WriteOptimization.skipped_clears_invisible",
+      "PhaseTime.WriteOptimization.activation_initializes",
+      "PhaseTime.WriteOptimization.same_visible_preserves_every_read",
+      "PhaseTime.WriteOptimization.traversal_refines_reference"
+    ],
+    "anchors": [
+      "cell_enter",
+      "cell_replace",
+      "grid_lookup"
+    ]
+  },
+  {
+    "id": "P33",
+    "status": "proved",
+    "requirement": "Direct complete-cell writes and fixed-size batches produce the same storage, seed and frontier as scalar enter/finish transitions, including arbitrary ring-slot aliasing and exact lower-boundary touches.",
+    "theorems": [
+      "PhaseTime.WriteOptimization.finish_enter_eq_complete",
+      "PhaseTime.WriteOptimization.direct_batch_eq_scalar",
+      "PhaseTime.WriteOptimization.first_edge_boundary_preserved"
+    ],
+    "anchors": [
+      "cell_complete",
+      "write_batch"
+    ]
+  },
+  {
+    "id": "P34",
+    "status": "proved",
+    "requirement": "Each committed batch equals a completed traversal prefix. Arbitrary chunking preserves the final result, and the existing sequentially consistent snapshot theorem applies to batched writes.",
+    "theorems": [
+      "PhaseTime.WriteOptimization.scalar_append",
+      "PhaseTime.WriteOptimization.committed_batch_is_prefix",
+      "PhaseTime.WriteOptimization.batched_snapshot_coherent"
+    ],
+    "anchors": [
+      "write_batch",
+      "snapshot_write",
+      "snapshot_read"
+    ]
+  },
+  {
+    "id": "P35",
+    "status": "proved",
+    "requirement": "A batch processes at most its fixed capacity of edges, makes progress on a nonempty traversal, and performs at most four times capacity plus five atomic stores. No elapsed-time bound is claimed.",
+    "theorems": [
+      "PhaseTime.WriteOptimization.batch_bounded",
+      "PhaseTime.WriteOptimization.batch_progress",
+      "PhaseTime.WriteOptimization.batch_store_bound"
+    ],
+    "anchors": [
+      "write_batch"
     ]
   }
 ]

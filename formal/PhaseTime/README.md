@@ -51,6 +51,7 @@ reversal. Stopped transport continues at nominal positive phase speed.
 | [FixedCell.lean](FixedCell.lean) | Fallback/replacement selection, causal phase bounds, exact preimage existence, island reassignment, confined startup traversal, and constant storage |
 | [AnalysisStability.lean](AnalysisStability.lean) | Stationary-partial common-shift invariance, phase-controlled window-feature bounds, and a conditional criterion for coalescing tiny reversals |
 | [Concurrency.lean](Concurrency.lean) | Coherent scalar reads under one sequence counter; publication ordering; retry completion under an explicit eventual-quiet-attempt hypothesis |
+| [WriteOptimization.lean](WriteOptimization.lean) | Inactive-store elimination, scalar-reference refinement, direct complete-cell fusion, arbitrary ring aliases, batch-prefix equivalence, bounded stores and coherent publication |
 | [Slew.lean](Slew.lean) | Ideal phase-distance decay is bounded and contractive, holds at zero, depends on absolute travel, and composes under forward constant-input subdivision; forward chain rule |
 | [StateMachine.lean](StateMachine.lean), [Reachability.lean](Reachability.lean) | Veil transition obligations and a reachable-state safety theorem |
 
@@ -201,11 +202,37 @@ revisions assume the native 64-bit counter does not wrap during one read attempt
 `TimeWarpInverter::ReadInverse` implements exactly that loop, busy-waiting on odd
 or changed revisions without an attempt limit. The audio thread never waits for
 readers and calls its own lookups outside write sections. Each section covers a
-bounded branch/seed transition, one crossed-grid boundary, or the final frontier
-pair. In a grid crossing, the old cell's endpoint, the new cell's entry and the
-frontier commit together. Interpolation arithmetic and the scatter loop lie
-outside these sections, so an intermediate committed state represents a completed
-prefix of the forward traversal. Storage remains 32 MiB for G and 16 MiB for H.
+bounded branch/seed transition, a fixed-capacity batch of crossed-grid boundaries,
+or the final frontier pair. Interpolation arithmetic and the unbounded scatter
+loop lie outside these sections. An intermediate committed state represents a
+completed prefix of the forward traversal. Storage remains 32 MiB for G and
+16 MiB for H.
+
+`WriteOptimization.lean` was checked, including the axiom audit, before the native
+write optimization. `RawCell.visible` hides both relative timestamp fields when
+the replacement cut is absent, matching the gate in `ReadPayload`. Entering a
+cell therefore needs only its base time, missing fallback endpoint and missing
+cut. `BeginBranch` initializes both relative timestamps when activating a new
+cut; a retained cut already owns initialized timestamps. `FinishCell` preserves
+observable equivalence. An induction extends these facts to the scalar traversal
+against the frozen landed writer.
+
+`CompleteCell` fuses entry and completion into three stores. It retires the seed
+exactly as entry did; it does not read or copy old endpoints. The batch proof
+permits arbitrary slot aliasing, including a batch longer than the ring. The
+first edge conditionally finishes the existing predecessor; exact lower-boundary
+touches skip that finish. Interior cells receive their prepared endpoints, the
+last cell stays open, and its frontier commits once. Batch fusion and append
+lemmas identify the result with the same scalar traversal prefix. Native edge
+timestamps retain the original interpolation expression. IEEE rounding is still
+outside the mathematical model and is checked against the landed C++ reference.
+
+A batch of capacity B has at most 4B+5 atomic stores, including conservative
+per-cell seed retirement, the predecessor endpoint, frontier and revisions.
+The bound does not claim elapsed time or reader fairness. All shared accesses
+remain sequentially consistent, so the original snapshot proof applies without
+new memory-order assumptions. This is reviewed source correspondence, not a
+formal C++ compiler refinement.
 
 The progress theorem assumes an eventual attempt fits between writer sections.
 It proves no nanosecond bound and cannot guarantee scheduling fairness. A paused

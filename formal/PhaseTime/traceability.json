@@ -14,7 +14,7 @@
     "private/src/TapeHead.hpp": "fd7e94c9eca576ba8ed19bc0df9100970657c1683b96c8685ab1283f825a999f",
     "private/src/TheoryOfTime.hpp": "653250fa379a48326b44439fc57eb5b037654462257a5cab6b04c717905a85e4",
     "private/src/TheoryOfTimeBase.hpp": "753a7ae7c1d173261a46b307c38611c4883f715d4e42cfa4e50d5ad2d227bf9c",
-    "private/src/TimeWarpInverter.hpp": "275f50f0b275d827bbf53c93404e1ae2a94251449fd19320265f53100ca00dcd",
+    "private/src/TimeWarpInverter.hpp": "c9cbbb93f5cdbf8ff3d845446fc0bb46a8d5e44917dbf00f2ab913c824685bb5",
     "private/src/TimeWarpView.hpp": "d6787c25d2229d1437c57fa96d99302542508654c925c3a7192c909c0ae178e4",
     "JUCE/SmartGridOne/Source/ScopeComponent.hpp": "806d91d1344efb3561af81b0840baacdc39957b9b8a239a4e97011785cb9a4f0",
     "private/src/Resynthesis.hpp": "01663ac984d85a5570e024e0a50760471b0c5d7ae20073c5babf66cab1f04e16",
@@ -287,6 +287,18 @@
       {
         "path": "private/src/TimeWarpInverter.hpp",
         "symbol": "double ReadInverse(double warpedTime, double latestRealTime) const override"
+      }
+    ],
+    "cell_complete": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "void CompleteCell(int64_t index, double leftTime, double rightTime)"
+      }
+    ],
+    "write_batch": [
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "static constexpr size_t x_writeBatchSize ="
       }
     ]
   }

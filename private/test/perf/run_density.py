@@ -22,7 +22,7 @@ SETTINGS = ['linear', 'gentle', 'blend', 'default_full_mult', 'slow_reversal',
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--mode', choices=['correctness', 'performance'], required=True)
+    parser.add_argument('--mode', choices=['correctness', 'performance', 'write-correctness', 'write-performance'], required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--repeats', type=int, default=5)
     args = parser.parse_args()
@@ -40,18 +40,20 @@ def main():
     sources = list((ROOT / 'private/src').glob('*.hpp'))
     sources += [ROOT / 'private/test/perf' / name for name in [
         'density.cpp', 'run_density.py', 'reference/LegacyTimeWarpInverter.hpp',
-        'reference/PhaseGridTimeWarpInverter.hpp']]
+        'reference/PhaseGridTimeWarpInverter.hpp', 'reference/LandedTimeWarpInverter.hpp']]
     sources += list((ROOT / 'formal/PhaseTime').glob('*.lean'))
     hashes = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
               for p in sources}
-    metadata = {'platform': platform.platform(), 'baseline_commit': 'a8a6ca1',
+    metadata = {'platform': platform.platform(),
+                'baseline_commit': 'de51539eb16f929321c7a3dec275be5b051424ac' if args.mode.startswith('write-') else 'a8a6ca1',
                 'head': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT,
                                                text=True).strip(),
                 'binary_sha256': hashlib.sha256(BINARY.read_bytes()).hexdigest(),
                 'sources': hashes, 'build': json.loads((BINARY.parent / 'build.json').read_text()),
                 'mode': args.mode, 'cases': cases, 'settings': SETTINGS,
                 'repeats': args.repeats, 'cycles': 3.25,
-                'oracle': 'latest closed forward crossing; stationary observations do not advance endpoints'}
+                'oracle': ('frozen landed inverse; exact values and availability' if args.mode.startswith('write-')
+                           else 'latest closed forward crossing; stationary observations do not advance endpoints')}
     (out / (args.mode + '-metadata.json')).write_text(json.dumps(metadata, indent=2) + '\n')
     (out / (args.mode + '-source-diff.patch')).write_bytes(subprocess.check_output(['git', 'diff', '--binary'], cwd=ROOT))
     for source in sources:
@@ -82,6 +84,14 @@ def main():
                         assert row[key] == prior[key], (name, key, row, prior)
                 if setting == 0:
                     assert row['old_max'] < 1e-5 and row['new_max'] < 1e-5, (name, row)
+        elif args.mode == 'write-correctness':
+            assert len(rows) == 1 and rows[0]['mismatches'] == 0, (name, rows)
+        elif args.mode == 'write-performance':
+            for repeat in range(args.repeats):
+                pair = [r for r in rows if r['repeat'] == repeat]
+                assert len(pair) == 2, (name, repeat)
+                assert pair[0]['checksum'] == pair[1]['checksum'], (name, pair)
+                assert pair[0]['unavailable'] == pair[1]['unavailable'], (name, pair)
         all_rows.extend(rows)
         combined.write_text(json.dumps(all_rows, indent=2) + '\n')
         print(json.dumps({'mode': args.mode, 'completed': index + 1, 'total': len(cases),

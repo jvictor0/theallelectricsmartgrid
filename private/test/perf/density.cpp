@@ -4,10 +4,12 @@
 #include "Tuning.hpp"
 #include "reference/LegacyTimeWarpInverter.hpp"
 #include "reference/PhaseGridTimeWarpInverter.hpp"
+#include "reference/LandedTimeWarpInverter.hpp"
 #include <iomanip>
 #include <map>
 #include <random>
 #include <sstream>
+#include <thread>
 
 namespace
 {
@@ -16,6 +18,7 @@ constexpr double x_nan = std::numeric_limits<double>::quiet_NaN();
 using Current = TheoryOfTime::Inverter;
 using Legacy = LegacyTimeWarpInverter<TheoryOfTime::x_timeWarpInverterSamples>;
 using Prior = PhaseGridTimeWarpInverter<TheoryOfTime::x_timeWarpInverterSamples>;
+using Landed = LandedTimeWarpInverter<Current::x_maxSamples>;
 
 struct Settings
 {
@@ -575,6 +578,116 @@ void TimeOne(Inverse& inverse, const Trace& trace, const std::string& name,
         << ",\"checksum\":" << checksum << ",\"unavailable\":" << unavailable << "}" << std::endl;
 }
 
+void WriteCorrectness(const Trace& trace, const std::string& name)
+{
+    auto current = std::make_unique<Current>(TheoryOfTime::x_phaseResolution);
+    auto landed = std::make_unique<Landed>(TheoryOfTime::x_phaseResolution);
+    size_t queries = 0;
+    auto compare = [&](double phase, double cutoff)
+    {
+        double a = current->ReadInverse(phase, cutoff);
+        double b = landed->ReadInverse(phase, cutoff);
+        if (!(a == b || (std::isnan(a) && std::isnan(b))))
+        {
+            throw std::runtime_error("Landed/current inverse mismatch at " + std::to_string(cutoff));
+        }
+
+        ++queries;
+    };
+    for (size_t n = 0; n < trace.m_phase.size(); ++n)
+    {
+        current->Write(trace.m_phase[n], static_cast<double>(n));
+        landed->Write(trace.m_phase[n], static_cast<double>(n));
+        if (n % x_hop == 0)
+        {
+            for (size_t k = 0; k <= 128; ++k)
+            {
+                double q = trace.m_phase[n] - static_cast<double>(k) / 128;
+                compare(q, n);
+                compare(q, static_cast<double>(n) - x_hop);
+            }
+
+            for (double offset : {-1.25, -.75, -.25, 0.0, .25})
+            {
+                compare(trace.m_phase[n] + offset / TheoryOfTime::x_phaseResolution, n);
+            }
+
+            const double speeds[] = {-4, -.5, 1, 4};
+            const double fractions[] = {.8, 2.0 / 3.0, 1, .625};
+            for (size_t lane = 0; lane < 4; ++lane)
+            {
+                compare(ReadPhase(trace.m_phase[n], trace.m_loopPeriods[lane], speeds[lane], fractions[lane]), n);
+            }
+        }
+    }
+
+    std::cout << "{\"case\":\"" << name << "\",\"kind\":\"write_correctness\",\"queries\":" << queries
+        << ",\"mismatches\":0}" << std::endl;
+}
+
+template<typename Inverse>
+void TimeContended(Inverse& inverse, const Trace& trace, const std::string& name,
+    const char* implementation, int repeat)
+{
+    std::atomic<bool> ready{false};
+    std::atomic<bool> done{false};
+    std::atomic<double> query{trace.m_phase.front()};
+    std::vector<double> latency;
+    latency.reserve(1000000);
+    double checksum = 0;
+    double readerCPU = 0;
+    size_t reads = 0;
+    std::thread reader([&]
+    {
+        PrepareCPU();
+        double cpu = CPUSeconds();
+        ready.store(true);
+        while (!done.load())
+        {
+            double q = query.load();
+            auto start = std::chrono::steady_clock::now();
+            double value = inverse.GetRealTime(q);
+            double elapsed = std::chrono::duration<double, std::micro>(
+                std::chrono::steady_clock::now() - start).count();
+            latency.push_back(elapsed);
+            if (std::isfinite(value))
+            {
+                checksum += value * 1e-9;
+            }
+
+            ++reads;
+        }
+
+        readerCPU = CPUSeconds() - cpu;
+    });
+    while (!ready.load())
+    {
+        std::this_thread::yield();
+    }
+
+    double cpu = CPUSeconds();
+    for (size_t n = 0; n < trace.m_phase.size(); ++n)
+    {
+        inverse.Write(trace.m_phase[n], static_cast<double>(n));
+        if (n % x_hop == 0)
+        {
+            query.store(trace.m_phase[n] - .125);
+        }
+    }
+
+    double writerCPU = CPUSeconds() - cpu;
+    done.store(true);
+    reader.join();
+    std::cout << "{\"case\":\"" << name << "\",\"kind\":\"contention\",\"implementation\":\""
+        << implementation << "\",\"repeat\":" << repeat << ",\"writer_cpu_ms_per_audio_second\":"
+        << writerCPU * 1000.0 * SampleTimer::x_sampleRate / trace.m_phase.size()
+        << ",\"reader_cpu_ms\":" << readerCPU * 1000 << ",\"reads\":" << reads
+        << ",\"read_p50_us\":" << Percentile(latency, .5)
+        << ",\"read_p99_us\":" << Percentile(latency, .99)
+        << ",\"read_max_us\":" << Percentile(latency, 1)
+        << ",\"checksum\":" << checksum << "}" << std::endl;
+}
+
 void Work(const Trace& trace, const std::string& name)
 {
     const char* names[] = {"legacy", "prior_phase", "fixed_cell"};
@@ -882,7 +995,7 @@ int main(int argc, char** argv)
 
         if (argc < 4 || argc > 6)
         {
-            throw std::runtime_error("Usage: perf_density correctness|performance|work SETTING PERIOD_BITS [REPEATS] [CYCLES]; inspect SETTING PERIOD_BITS SAMPLE PHASE");
+            throw std::runtime_error("Usage: perf_density correctness|performance|write-correctness|write-performance|contention|work SETTING PERIOD_BITS [REPEATS] [CYCLES]; inspect SETTING PERIOD_BITS SAMPLE PHASE");
         }
 
         std::string mode = argv[1];
@@ -922,6 +1035,43 @@ int main(int argc, char** argv)
                     {
                         auto inverse = std::make_unique<Current>(TheoryOfTime::x_phaseResolution);
                         TimeOne(*inverse, trace, name, "current", 1.0, repeat);
+                    }
+                }
+            }
+        }
+        else if (mode == "write-correctness")
+        {
+            WriteCorrectness(trace, name);
+        }
+        else if (mode == "write-performance" || mode == "contention")
+        {
+            for (int repeat = 0; repeat < repeats; ++repeat)
+            {
+                for (int pass = 0; pass < 2; ++pass)
+                {
+                    if ((repeat + pass) % 2 == 0)
+                    {
+                        auto inverse = std::make_unique<Landed>(TheoryOfTime::x_phaseResolution);
+                        if (mode == "contention")
+                        {
+                            TimeContended(*inverse, trace, name, "landed", repeat);
+                        }
+                        else
+                        {
+                            TimeOne(*inverse, trace, name, "landed", 1.0, repeat);
+                        }
+                    }
+                    else
+                    {
+                        auto inverse = std::make_unique<Current>(TheoryOfTime::x_phaseResolution);
+                        if (mode == "contention")
+                        {
+                            TimeContended(*inverse, trace, name, "current", repeat);
+                        }
+                        else
+                        {
+                            TimeOne(*inverse, trace, name, "current", 1.0, repeat);
+                        }
                     }
                 }
             }

@@ -4,6 +4,7 @@
 #include "PhaseUtils.hpp"
 #include "TimeWarpView.hpp"
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cmath>
 #include <cstddef>
@@ -20,6 +21,7 @@ struct TimeWarpInverter : TimeWarpSource
 {
     static constexpr size_t x_maxSamples = MaxSamples;
     static constexpr size_t x_maxCellPieces = 2;
+    static constexpr size_t x_writeBatchSize = 8;
     static constexpr double x_missing = std::numeric_limits<double>::quiet_NaN();
     static_assert(std::atomic<double>::is_always_lock_free);
     static_assert(std::atomic<float>::is_always_lock_free);
@@ -33,9 +35,10 @@ struct TimeWarpInverter : TimeWarpSource
     std::atomic<float> m_currentRightTime[MaxSamples];
 
     // All shared accesses are sequentially consistent. Readers retry until
-    // they see one unchanged even revision. Each write section covers one
-    // cell transition and its frontier, never the scatter loop. The single
-    // audio writer does not wait for readers. See PhaseTime/Concurrency.lean.
+    // they see one unchanged even revision. Each scatter section covers at
+    // most x_writeBatchSize grid edges and their final frontier. The single
+    // audio writer does not wait for readers. See PhaseTime/Concurrency.lean
+    // and PhaseTime/WriteOptimization.lean.
     //
     std::atomic<uint64_t> m_revision{0};
     uint64_t m_writerRevision = 0;
@@ -91,17 +94,37 @@ struct TimeWarpInverter : TimeWarpSource
         m_currentRightTime[slot].store(static_cast<float>(x_missing));
     }
 
-    void EnterCell(int64_t index, double time)
+    void RetireSeed(size_t slot)
     {
-        size_t slot = WrapIndex(index);
         double seed = m_seedPhase.load();
         if (std::isfinite(seed) && WrapIndex(static_cast<int64_t>(std::floor(seed))) == slot)
         {
             m_seedPhase.store(x_missing);
         }
+    }
 
-        ClearCell(slot);
+    // A missing cut makes both relative timestamps unreadable. A later branch
+    // initializes them before publishing its cut, so stale values need no clear.
+    //
+    void EnterCell(int64_t index, double time)
+    {
+        size_t slot = WrapIndex(index);
+        RetireSeed(slot);
         m_writeHeadInverse[slot].store(time);
+        m_fallbackRightTime[slot].store(x_missing);
+        m_turnPhase[slot].store(x_missing);
+    }
+
+    // Equivalent to EnterCell followed by FinishCell, including seed retirement.
+    // The endpoints are prepared with the original interpolation expression.
+    //
+    void CompleteCell(int64_t index, double leftTime, double rightTime)
+    {
+        size_t slot = WrapIndex(index);
+        RetireSeed(slot);
+        m_writeHeadInverse[slot].store(leftTime);
+        m_fallbackRightTime[slot].store(rightTime);
+        m_turnPhase[slot].store(x_missing);
     }
 
     void SeedCell(double phase, double time)
@@ -240,20 +263,33 @@ struct TimeWarpInverter : TimeWarpSource
     {
         int64_t first = static_cast<int64_t>(std::ceil(low));
         int64_t last = static_cast<int64_t>(std::floor(high));
-        for (int64_t index = first; index <= last; ++index)
+        for (int64_t index = first; index <= last;)
         {
-            double alpha = (static_cast<double>(index) - low) / (high - low);
-            double time = lowTime + alpha * (highTime - lowTime);
+            size_t count = static_cast<size_t>(std::min<int64_t>(x_writeBatchSize, last - index + 1));
+            std::array<double, x_writeBatchSize> times;
+            for (size_t i = 0; i < count; ++i)
+            {
+                double alpha = (static_cast<double>(index + static_cast<int64_t>(i)) - low) / (high - low);
+                times[i] = lowTime + alpha * (highTime - lowTime);
+            }
+
             BeginWrite();
             if (static_cast<double>(index) > low)
             {
-                FinishCell(index - 1, time);
+                FinishCell(index - 1, times[0]);
             }
 
-            EnterCell(index, time);
-            m_frontierPhase.store(static_cast<double>(index));
-            m_frontierTime.store(time);
+            for (size_t i = 0; i + 1 < count; ++i)
+            {
+                CompleteCell(index + static_cast<int64_t>(i), times[i], times[i + 1]);
+            }
+
+            int64_t finalIndex = index + static_cast<int64_t>(count) - 1;
+            EnterCell(finalIndex, times[count - 1]);
+            m_frontierPhase.store(static_cast<double>(finalIndex));
+            m_frontierTime.store(times[count - 1]);
             EndWrite();
+            index += static_cast<int64_t>(count);
         }
 
         m_highestWrittenIndex = std::max(m_highestWrittenIndex, std::floor(high));
