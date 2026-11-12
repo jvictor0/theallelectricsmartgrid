@@ -25,50 +25,48 @@
 //   -> AHD envelope (inverted, exponential) -> Sample Rate Reducer
 //   -> Tuned decay comb with phase-compensated two-pole low-pass damping
 //
-struct PhysicalModelingSourceBase
-{
-    struct UIState : TransferFunction
-    {
-        std::atomic<float> m_mainSVFG;
-        std::atomic<float> m_mainSVFK;
-        std::atomic<float> m_mainSVFMorph;
-        TunedDecayComb::UIState m_combFilter;
-
-        UIState()
-            : m_mainSVFG(0.0f)
-            , m_mainSVFK(0.0f)
-            , m_mainSVFMorph(0.5f)
-        {
-        }
-
-        std::complex<float> TransferFunctionValue(float normalizedFreq) const override
-        {
-            float freq = std::max(0.0f, std::min(0.5f, normalizedFreq));
-            float g = m_mainSVFG.load();
-            float k = m_mainSVFK.load();
-            auto weights = LinearStateVariableFilter::GetMorphWeights(m_mainSVFMorph.load());
-            std::complex<float> svfTransfer =
-                weights.m_lowPass * LinearStateVariableFilter::LowPassTransferFunction(g, k, freq) +
-                weights.m_bandPass * LinearStateVariableFilter::BandPassTransferFunction(g, k, freq) +
-                weights.m_highPass * LinearStateVariableFilter::HighPassTransferFunction(g, k, freq);
-
-            return svfTransfer * m_combFilter.TransferFunctionValue(freq);
-        }
-
-        float FrequencyResponse(float normalizedFreq) const override
-        {
-            return std::abs(TransferFunctionValue(normalizedFreq));
-        }
-    };
-};
-
 // One sample per call for every channel. Process takes the amplitude
 // envelope from the caller; ProcessWithAHD runs the source's own AHD.
 //
 template <size_t Size>
-struct PhysicalModelingSourceGeneric : PhysicalModelingSourceBase
+struct PhysicalModelingSourceGeneric
 {
     using Vector = MultiChannelNumber<float, Size>;
+
+    struct Snapshot : FilterResponseSnapshot
+    {
+        typename LinearStateVariableFilterGeneric<float, Size>::Snapshot m_mainSVF;
+        TunedDecayComb::Snapshot m_combFilter;
+
+        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
+        {
+            return m_mainSVF.ComplexResponse(frequency, 0) * m_combFilter.ComplexResponse(frequency, 0);
+        }
+
+        float MagnitudeResponse(const ResponseFrequency& frequency, size_t) const override
+        {
+            return m_mainSVF.MagnitudeResponse(frequency, 0) * m_combFilter.MagnitudeResponse(frequency, 0);
+        }
+    };
+
+    using UIState = TransferFunctionGeneric<Snapshot>;
+
+    Snapshot MakeSnapshot(size_t channel) const
+    {
+        Snapshot snapshot;
+        snapshot.m_mainSVF = m_mainSVF.MakeSnapshot(channel);
+        snapshot.m_mainSVF.m_weights = m_mainSVF.GetMorphWeights(m_mainSVFMorph[channel]);
+        snapshot.m_combFilter = m_combFilter.MakeSnapshot(channel);
+        return snapshot;
+    }
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer, size_t channel) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot(channel);
+        });
+    }
 
     using Envelope = AHDGeneric<Size>;
 
@@ -219,10 +217,7 @@ struct PhysicalModelingSourceGeneric : PhysicalModelingSourceBase
 
     void PopulateUIState(UIState* uiState, size_t channel) const
     {
-        uiState->m_mainSVFG.store(m_mainSVF.m_g[channel]);
-        uiState->m_mainSVFK.store(m_mainSVF.m_k[channel]);
-        uiState->m_mainSVFMorph.store(m_mainSVFMorph[channel]);
-        m_combFilter.PopulateUIState(&uiState->m_combFilter, channel);
+        uiState->m_history.Push(MakeSnapshot(channel));
     }
 
     void PopulateUIState(UIState* uiState) const

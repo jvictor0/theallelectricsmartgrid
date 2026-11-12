@@ -165,6 +165,12 @@ DOCTEST_TEST_CASE("Spectral markers: invalid vocoder atoms leave the active atom
 DOCTEST_TEST_CASE("Spectral markers: pitch curves require a finite positive center")
 {
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
+    SourceMixer::Source source;
+    for (auto& state : ui->m_squiggleBoyUIState.m_sourceMixerUIState.m_sources)
+    {
+        state.m_history.Push(source.MakeSnapshot());
+    }
+
     auto& voice = ui->m_squiggleBoyUIState.m_deepVocoderUIState.m_voiceUIState[0];
     SourceMixerFrequencyComponent component(ui.get());
     MuteVoices(*ui);

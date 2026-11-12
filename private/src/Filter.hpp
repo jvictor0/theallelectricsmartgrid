@@ -3,7 +3,7 @@
 #include "AsyncLogger.hpp"
 #include "QuadUtils.hpp"
 #include "SampleTimer.hpp"
-#include "TransferFunction.hpp"
+#include "SampledTransferFunction.hpp"
 #include <atomic>
 #include <cmath>
 #include <complex>
@@ -12,6 +12,45 @@ template <typename Number, size_t Size>
 struct OPLowPassFilterGeneric
 {
     using Vector = MultiChannelNumber<Number, Size>;
+
+    struct Snapshot : FilterResponseSnapshot
+    {
+        double m_alpha = 0;
+
+        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
+        {
+            double alpha = m_alpha;
+            double b = 1 - alpha;
+            auto denominator = std::complex<double>(alpha + 2 * b * frequency.m_sinHalf * frequency.m_sinHalf,
+                2 * b * frequency.m_sinHalf * frequency.m_cosHalf);
+            return alpha == 0 ? std::complex<float>{} : static_cast<std::complex<float>>(alpha / denominator);
+        }
+
+        float MagnitudeResponse(const ResponseFrequency& frequency, size_t) const override
+        {
+            double a = m_alpha;
+            double s = frequency.m_sinHalf;
+            return a == 0 ? 0 : static_cast<float>(a / std::sqrt(a * a + 4 * (1 - a) * s * s));
+        }
+    };
+
+    using UIState = TransferFunctionGeneric<Snapshot>;
+
+    Snapshot MakeSnapshot(size_t channel) const
+    {
+        Snapshot snapshot;
+        snapshot.m_alpha = m_alpha[channel];
+        return snapshot;
+    }
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer, size_t channel) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot(channel);
+        });
+    }
+
     static constexpr Number x_maxCutoff = static_cast<Number>(0.499);
     
     Vector m_alpha;
@@ -136,23 +175,9 @@ struct OPLowPassFilterGeneric
 
     static std::complex<float> TransferFunction(float alpha, float freq)
     {
-        // Calculate normalized frequency (omega)
-        //
-        float omega = 2.0f * M_PI * freq;
-        float cosOmega = std::cos(omega);
-        float sinOmega = std::sin(omega);
-        
-        // OPLowPassFilter transfer function: H(z) = alpha / (1 - (1-alpha)z^-1)
-        // H(e^jω) = alpha / (1 - (1-alpha)e^-jω)
-        //         = alpha / (1 - (1-alpha)(cos(ω) - j*sin(ω)))
-        //         = alpha / ((1 - (1-alpha)cos(ω)) + j*(1-alpha)sin(ω))
-        //
-        float den_real = 1.0f - (1.0f - alpha) * cosOmega;
-        float den_imag = (1.0f - alpha) * sinOmega;
-        
-        std::complex<float> numerator(alpha, 0.0f);
-        std::complex<float> denominator(den_real, den_imag);
-        return numerator / denominator;
+        Snapshot snapshot;
+        snapshot.m_alpha = alpha;
+        return snapshot.ComplexResponse(ResponseFrequency::CyclesPerSample(freq), 0);
     }
 
     // Compute group delay of a one-pole low-pass filter in samples.
@@ -204,7 +229,9 @@ struct OPLowPassFilterGeneric
 
     static float FrequencyResponse(float alpha, float freq)
     {
-        return std::abs(TransferFunction(alpha, freq));
+        Snapshot snapshot;
+        snapshot.m_alpha = alpha;
+        return snapshot.MagnitudeResponse(ResponseFrequency::CyclesPerSample(freq), 0);
     }
 };
 
@@ -216,6 +243,46 @@ template <typename Number, size_t Size>
 struct OPHighPassFilterGeneric
 {
     using Vector = MultiChannelNumber<Number, Size>;
+
+    struct Snapshot : FilterResponseSnapshot
+    {
+        double m_alpha = 0;
+
+        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
+        {
+            double s = frequency.m_sinHalf;
+            auto numerator = std::complex<double>(2 * s * s, 2 * s * frequency.m_cosHalf) * m_alpha;
+            auto denominator = std::complex<double>(1 - m_alpha + 2 * m_alpha * s * s,
+                2 * m_alpha * s * frequency.m_cosHalf);
+            return s == 0 ? std::complex<float>{} : static_cast<std::complex<float>>(numerator / denominator);
+        }
+
+        float MagnitudeResponse(const ResponseFrequency& frequency, size_t) const override
+        {
+            double a = m_alpha;
+            double s = frequency.m_sinHalf;
+            return s == 0 ? 0 : static_cast<float>(2 * a * s /
+                std::sqrt((1 - a) * (1 - a) + 4 * a * s * s));
+        }
+    };
+
+    using UIState = TransferFunctionGeneric<Snapshot>;
+
+    Snapshot MakeSnapshot(size_t channel) const
+    {
+        Snapshot snapshot;
+        snapshot.m_alpha = m_alpha[channel];
+        return snapshot;
+    }
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer, size_t channel) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot(channel);
+        });
+    }
+
     
     Vector m_alpha;
     Vector m_output;
@@ -253,76 +320,74 @@ struct OPHighPassFilterGeneric
 
     static std::complex<float> TransferFunction(float alpha, float freq)
     {
-        // Calculate normalized frequency (omega)
-        //
-        float omega = 2.0f * M_PI * freq;
-        float cosOmega = std::cos(omega);
-        float sinOmega = std::sin(omega);
-        
-        // OPHighPassFilter transfer function: H(z) = alpha * (1 - z^-1) / (1 - alpha * z^-1)
-        // H(e^jω) = alpha * (1 - e^-jω) / (1 - alpha * e^-jω)
-        //         = alpha * (1 - (cos(ω) - j*sin(ω))) / (1 - alpha * (cos(ω) - j*sin(ω)))
-        //         = alpha * ((1 - cos(ω)) + j*sin(ω)) / ((1 - alpha*cos(ω)) + j*alpha*sin(ω))
-        //
-        float num_real = alpha * (1.0f - cosOmega);
-        float num_imag = alpha * sinOmega;
-        
-        float den_real = 1.0f - alpha * cosOmega;
-        float den_imag = alpha * sinOmega;
-        
-        std::complex<float> numerator(num_real, num_imag);
-        std::complex<float> denominator(den_real, den_imag);
-        return numerator / denominator;
+        Snapshot snapshot;
+        snapshot.m_alpha = alpha;
+        return snapshot.ComplexResponse(ResponseFrequency::CyclesPerSample(freq), 0);
     }
 
     static float FrequencyResponse(float alpha, float freq)
     {
-        return std::abs(TransferFunction(alpha, freq));
+        Snapshot snapshot;
+        snapshot.m_alpha = alpha;
+        return snapshot.MagnitudeResponse(ResponseFrequency::CyclesPerSample(freq), 0);
     }
 };
 
 using OPHighPassFilter = OPHighPassFilterGeneric<float, 1>;
 using QuadOPHighPassFilter = OPHighPassFilterGeneric<float, 4>;
 
-// Damping filter: HP + LP in series. UI state implements TransferFunction for visualization.
-//
-struct DampingFilter
-{
-    // Base frequency range of the delay and reverb damping filters, in Hz, so
-    // the damping keeps its physical frequencies at any engine rate.
-    //
-    static constexpr double x_minBaseHz = SampleTimer::CycPerHostSampToHz(1.0 / 2048.0);
-    static constexpr double x_maxBaseHz = SampleTimer::CycPerHostSampToHz(0.5);
-
-    struct UIState : TransferFunction
-    {
-        std::atomic<float> m_hpAlpha;
-        std::atomic<float> m_lpAlpha;
-
-        UIState()
-            : m_hpAlpha(0.0f)
-            , m_lpAlpha(0.0f)
-        {
-        }
-
-        float FrequencyResponse(float freq) const override
-        {
-            return OPLowPassFilter::FrequencyResponse(m_lpAlpha.load(), freq)
-                * OPHighPassFilter::FrequencyResponse(m_hpAlpha.load(), freq);
-        }
-
-        std::complex<float> TransferFunctionValue(float freq) const override
-        {
-            return OPLowPassFilter::TransferFunction(m_lpAlpha.load(), freq)
-                * OPHighPassFilter::TransferFunction(m_hpAlpha.load(), freq);
-        }
-    };
-};
-
 template <typename Number, size_t Size>
 struct OPBaseWidthFilterGeneric
 {
     using Vector = MultiChannelNumber<Number, Size>;
+    static constexpr double x_minBaseHz = SampleTimer::CycPerHostSampToHz(1.0 / 2048.0);
+    static constexpr double x_maxBaseHz = SampleTimer::CycPerHostSampToHz(0.5);
+
+    struct Snapshot : FilterResponseSnapshot
+    {
+        typename OPHighPassFilterGeneric<Number, Size>::Snapshot m_hp;
+        typename OPLowPassFilterGeneric<Number, Size>::Snapshot m_lp;
+
+        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
+        {
+            return m_hp.ComplexResponse(frequency, 0) * m_lp.ComplexResponse(frequency, 0);
+        }
+
+        float MagnitudeResponse(const ResponseFrequency& frequency, size_t) const override
+        {
+            return m_hp.MagnitudeResponse(frequency, 0) * m_lp.MagnitudeResponse(frequency, 0);
+        }
+    };
+
+    using MultiSnapshot = FilterSnapshotArray<Snapshot, Size>;
+    using UIState = TransferFunctionGeneric<MultiSnapshot>;
+
+    Snapshot MakeSnapshot(size_t channel) const
+    {
+        Snapshot snapshot;
+        snapshot.m_hp = m_highPassFilter.MakeSnapshot(channel);
+        snapshot.m_lp = m_lowPassFilter.MakeSnapshot(channel);
+        return snapshot;
+    }
+
+    MultiSnapshot MakeSnapshot() const
+    {
+        MultiSnapshot snapshot;
+        for (size_t channel = 0; channel < Size; ++channel)
+        {
+            snapshot.m_lanes[channel] = MakeSnapshot(channel);
+        }
+
+        return snapshot;
+    }
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot();
+        });
+    }
 
     OPHighPassFilterGeneric<Number, Size> m_highPassFilter;
     OPLowPassFilterGeneric<Number, Size> m_lowPassFilter;

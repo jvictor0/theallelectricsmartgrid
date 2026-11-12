@@ -86,31 +86,53 @@ struct SourceMixer
             }
         };
 
-        struct UIState
+        struct Snapshot : FilterResponseSnapshot
         {
-            LinearStateVariableFilter::UIState m_hpFilter[x_numSourceLanes];
-            LinearStateVariableFilter::UIState m_lpFilter[x_numSourceLanes];
-            std::atomic<uint32_t> m_color;
-            std::atomic<SourceWidth> m_width;
+            LinearStateVariableFilterGeneric<float, x_numSourceLanes>::Snapshot m_hp;
+            LinearStateVariableFilterGeneric<float, x_numSourceLanes>::Snapshot m_lp;
 
-            UIState()
-                : m_color(SmartGrid::Color::White.To32Bit())
-                , m_width(SourceWidth::Mono)
+            std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
             {
+                return m_hp.ComplexResponse(frequency, 0) * m_lp.ComplexResponse(frequency, 0);
             }
 
-            float FrequencyResponse(float freq)
+            float MagnitudeResponse(const ResponseFrequency& frequency, size_t) const override
             {
-                float lpResponse = m_lpFilter[0].LowPassFrequencyResponse(freq);
-                float hpResponse = m_hpFilter[0].HighPassFrequencyResponse(freq);
-                return lpResponse * hpResponse;
+                return m_hp.MagnitudeResponse(frequency, 0) * m_lp.MagnitudeResponse(frequency, 0);
             }
+        };
+
+        struct UIState : TransferFunctionGeneric<Snapshot>
+        {
+            using TransferFunctionGeneric<Snapshot>::TransferFunctionGeneric;
+
+            std::atomic<uint32_t> m_color{SmartGrid::Color::White.To32Bit()};
+            std::atomic<SourceWidth> m_width{SourceWidth::Mono};
 
             SmartGrid::Color Color()
             {
                 return SmartGrid::Color::From32Bit(m_color.load());
             }
         };
+
+        SampledSnapshotWriter<UIState> m_responseSampler;
+
+        Snapshot MakeSnapshot() const
+        {
+            Snapshot snapshot;
+            snapshot.m_hp = m_hpFilter.MakeSnapshot(0);
+            snapshot.m_hp.m_weights = {0, 0, 1};
+            snapshot.m_lp = m_lpFilter.MakeSnapshot(0);
+            return snapshot;
+        }
+
+        void PopulateUIStateSample()
+        {
+            m_responseSampler.PopulateUIStateSample([&]
+            {
+                return MakeSnapshot();
+            });
+        }
 
         using Vector = MultiChannelNumber<float, x_numSourceLanes>;
         using Filter = LinearStateVariableFilterGeneric<float, x_numSourceLanes>;
@@ -132,22 +154,15 @@ struct SourceMixer
             m_lpFilter.Process(sample);
             m_hpFilter.Process(m_lpFilter.GetLowPass());
             m_output = m_hpFilter.GetHighPass();
+            PopulateUIStateSample();
 
             m_preFilterScopeSample = 0.5f * (sample[0] + sample[1]);
             m_postFilterScopeSample = 0.5f * (m_output[0] + m_output[1]);
         }
 
-        void PopulateUIState(UIState* uiState)
-        {
-            for (size_t lane = 0; lane < x_numSourceLanes; ++lane)
-            {
-                m_hpFilter.PopulateUIState(&uiState->m_hpFilter[lane], lane);
-                m_lpFilter.PopulateUIState(&uiState->m_lpFilter[lane], lane);
-            }
-        }
-
         void SetupUIState(UIState* uiState, const Input& input)
         {
+            m_responseSampler.Bind(uiState);
             uiState->m_width.store(input.m_config.m_width);
         }
 
@@ -213,7 +228,6 @@ struct SourceMixer
     {
         for (size_t i = 0; i < x_numSources; ++i)
         {
-            m_sources[i].PopulateUIState(&uiState->m_sources[i]);
             uiState->m_sources[i].m_color.store(GetColor(i).To32Bit());
             uiState->m_sources[i].m_width.store(input.m_sources[i].m_config.m_width);
         }

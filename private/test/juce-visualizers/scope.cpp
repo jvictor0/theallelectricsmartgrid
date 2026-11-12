@@ -28,6 +28,16 @@ struct PeakedResponse : TransferFunction
     }
 };
 
+struct FlatSampledResponse : FilterResponseSnapshot
+{
+    float m_gain = 1;
+
+    std::complex<float> ComplexResponse(const ResponseFrequency&, size_t) const override
+    {
+        return {m_gain, 0};
+    }
+};
+
 // Advances the writer to its next stored sample, so each write is stored.
 //
 void AdvanceStoredSample(ScopeWriter& writer)
@@ -102,10 +112,13 @@ DOCTEST_TEST_CASE("Analyser: spectrum and oversampled response share the frequen
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
     ui->m_squiggleBoyUIState.m_activeTrack.store(1);
     auto& filter = ui->m_squiggleBoyUIState.m_voiceFilterUIState[3];
-    filter.m_lpLadder.m_alpha.store(1.0f);
-    filter.m_lpLadder.m_feedback.store(0.0f);
-    filter.m_hp4Pole.m_g.store(0.0f);
-    filter.m_hp4Pole.m_k.store(1.0f);
+    TrioSquiggleBoyShape::Snapshot filterSnapshot;
+    filterSnapshot.m_ladder.m_lp.m_alpha = 1.0f;
+    filterSnapshot.m_ladder.m_lp.m_feedback = 0.0f;
+    filterSnapshot.m_ladder.m_hp.m_stage.m_g = 0.0f;
+    filterSnapshot.m_ladder.m_hp.m_stage.m_k = 1.0f;
+    filterSnapshot.m_ladder.m_hp.m_stage.m_weights = {0, 0, 1};
+    filter.m_history.Push(filterSnapshot);
     auto writer = std::make_unique<ScopeWriterGeneric<3, 3>>(1, 4096);
     int voiceOffset = 0;
 
@@ -192,8 +205,10 @@ DOCTEST_TEST_CASE("Analyser: sub spectrum follows the trio and ignores the main 
 
         DOCTEST_CHECK(peak == 8 + 8 * trio);
         auto& filter = ui->m_squiggleBoyUIState.m_voiceFilterUIState[trio * 3];
-        filter.m_lpLadder.m_alpha.store(0.01f);
-        filter.m_lpLadder.m_feedback.store(3.0f);
+        TrioSquiggleBoyShape::Snapshot filterSnapshot;
+        filterSnapshot.m_ladder.m_lp.m_alpha = 0.01f;
+        filterSnapshot.m_ladder.m_lp.m_feedback = 3.0f;
+        filter.m_history.Push(filterSnapshot);
         AnalyserComponent changedFilter(TrioWindowedFFT(&writer, subScope), &voiceOffset, ui.get(),
             AnalyserComponent::FilterOverlay::None);
         juce::Image unchangedSpectrum(juce::Image::ARGB, 512, 200, true);
@@ -506,5 +521,67 @@ DOCTEST_TEST_CASE("Scope gaps: missing history draws neither zero nor the time-w
     for (int y = 0; y < 200; ++y)
     {
         DOCTEST_CHECK(scopeImage.getPixelAt(256, y).getAlpha() == 0);
+    }
+}
+
+DOCTEST_TEST_CASE("Sampled response rendering: percentile motion creates a feathered band around the median")
+{
+    SampledTransferFunction::Config config;
+    config.m_capacity = 64;
+    config.m_numSamples = 32;
+    TransferFunctionGeneric<FlatSampledResponse> stationary(config);
+    TransferFunctionGeneric<FlatSampledResponse> moving(config);
+    for (size_t i = 0; i < 32; ++i)
+    {
+        FlatSampledResponse snapshot;
+        snapshot.m_gain = 0.4f;
+        stationary.m_history.Push(snapshot);
+        snapshot.m_gain = i < 8 ? 0.1f : i < 24 ? 0.4f : 1.0f;
+        moving.m_history.Push(snapshot);
+    }
+
+    juce::Image still(juce::Image::ARGB, 320, 200, true);
+    juce::Image blur(juce::Image::ARGB, 320, 200, true);
+    juce::Graphics stillGraphics(still);
+    juce::Graphics blurGraphics(blur);
+    PathDrawer drawer(200, 320, 0, 0);
+    drawer.DrawSampledFrequencyResponse(stillGraphics, juce::Colours::cyan, stationary);
+    drawer.DrawSampledFrequencyResponse(blurGraphics, juce::Colours::cyan, moving);
+    int stillRows = 0;
+    int blurRows = 0;
+    for (int y = 0; y < 200; ++y)
+    {
+        stillRows += still.getPixelAt(160, y).getAlpha() > 0 ? 1 : 0;
+        blurRows += blur.getPixelAt(160, y).getAlpha() > 0 ? 1 : 0;
+    }
+
+    DOCTEST_CHECK(stillRows <= 3);
+    DOCTEST_CHECK(blurRows >= 30);
+    DOCTEST_CHECK(FindPeakX(still, [](juce::Colour colour) { return colour.getAlpha() > 128; })
+        == doctest::Approx(FindPeakX(blur, [](juce::Colour colour) { return colour.getAlpha() > 128; })).epsilon(0.01));
+
+    if (const char* outputPath = std::getenv("SMARTGRID_RESPONSE_PREVIEW"))
+    {
+        juce::Image preview(juce::Image::ARGB, 640, 400, true);
+        juce::Graphics graphics(preview);
+        graphics.fillAll(juce::Colours::black);
+        graphics.drawImageAt(still, 0, 0);
+        graphics.drawImageAt(blur, 320, 0);
+        OPLowPassFilter::UIState cutoff(config);
+        OPLowPassFilter lowPass;
+        for (size_t i = 0; i < 32; ++i)
+        {
+            float hz = 2000.0f * std::exp2(2 * std::sin(2 * juce::MathConstants<float>::pi * i / 32));
+            lowPass.SetAlphaFromNatFreq(hz / SampleTimer::x_sampleRate);
+            cutoff.m_history.Push(lowPass.MakeSnapshot(0));
+        }
+
+        PathDrawer responseDrawer(200, 640, 0, 200);
+        responseDrawer.DrawSampledFrequencyResponse(graphics, juce::Colours::orange, cutoff);
+        juce::File file(outputPath);
+        auto stream = file.createOutputStream();
+        DOCTEST_REQUIRE(stream != nullptr);
+        juce::PNGImageFormat png;
+        DOCTEST_CHECK(png.writeImageToStream(preview, *stream));
     }
 }

@@ -123,12 +123,13 @@ Each voice's amp section SHALL contain an ASD muting envelope in addition to its
 - **AND** all gates are low when ToT is stopped, even if the outer transport flag differs
 
 ### Requirement: Voice UI State Exposure
-The system SHALL expose per-voice UI state through `SquiggleBoyWithEncoderBank::UIState` without the UI touching live DSP objects: nine `VoiceFilterUIState` entries (atomic filter coefficients for ladder and SVF stages plus the active filter machine, providing `FrequencyResponse` and `TransferFunctionValue`) populated by `PopulateVoiceFilterUIState`, and nine `VoiceSourceUIState` entries (atomic source machine, physical-modeling, sample-source, buffer-bank, and sample-directory snapshot states) populated by `PopulateVoiceSourceUIState`.
+The system SHALL expose per-voice UI state through `SquiggleBoyWithEncoderBank::UIState` without the UI touching live DSP objects. Nine `VoiceFilterUIState` entries SHALL contain sampled shape responses, including the active filter machine and its coherent LP/HP coefficient pair. A separate atomic filter-machine field SHALL retain periodic label metadata. Nine `VoiceSourceUIState` entries SHALL retain source metadata and sample-directory state, with physical-modeling response histories sampled independently of periodic metadata publication. `PopulateUIStateSample` SHALL capture filter and active physical-modeling coefficients on randomly selected host frames.
 
 #### Scenario: Filter response drawn from UI state
-- **WHEN** the UI draws voice i's filter curve while `m_voiceFilterUIState[i].m_filterMachine` is `Ladder4Pole`
-- **THEN** `FrequencyResponse(freq)` returns the product of the ladder low-pass and SVF4 high-pass responses computed from atomically loaded coefficients
-- **AND** switching the voice to `SVF2Pole` changes the response to the SVF low-pass/high-pass product after the next populate
+- **WHEN** the UI draws voice i's ladder filter response
+- **THEN** each sampled response is the product of that snapshot's ladder low-pass and SVF4 high-pass responses
+- **AND** the UI draws lower/median/upper magnitude order statistics across the sampled batch
+- **AND** switching to `SVF2Pole` starts a new history of coherent SVF low-pass/high-pass snapshots
 
 #### Scenario: Sample directory path snapshot
 - **WHEN** voice i uses the Sample source machine with a loaded `AudioBufferBank`

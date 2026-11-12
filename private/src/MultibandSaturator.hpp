@@ -30,55 +30,67 @@ struct MultibandSaturator
     {
     }
 
-    struct UIState
+    struct Snapshot : FilterResponseSnapshot
     {
-        std::atomic<float> m_gain[NumBands];
-        std::atomic<float> m_masterGain;
-        std::atomic<float> m_crossoverFreq[NumBands - 1];
+        float m_gain[NumBands]{};
+        float m_masterGain = 1;
+        typename Crossover::Snapshot m_crossovers[NumBands - 1];
+
+        void BuildResponses(std::complex<float>* bands, const ResponseFrequency& frequency, size_t count, size_t index) const
+        {
+            if (count == 1)
+            {
+                bands[index] = {1, 0};
+                return;
+            }
+
+            size_t middle = index + count / 2;
+            BuildResponses(bands, frequency, count / 2, index);
+            BuildResponses(bands, frequency, (count + 1) / 2, middle);
+            auto crossover = m_crossovers[middle - 1].Responses(frequency);
+            for (size_t i = index; i < index + count; ++i)
+            {
+                bands[i] *= i < middle ? crossover.m_lowPass : crossover.m_highPass;
+            }
+        }
+
+        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
+        {
+            std::complex<float> bands[NumBands];
+            BuildResponses(bands, frequency, NumBands, 0);
+            std::complex<float> response{};
+            for (size_t i = 0; i < NumBands; ++i)
+            {
+                response += bands[i] * m_gain[i] * m_masterGain;
+            }
+
+            return response;
+        }
+    };
+
+    struct UIState : TransferFunctionGeneric<Snapshot>
+    {
+        using TransferFunctionGeneric<Snapshot>::TransferFunctionGeneric;
 
         MeterReaderGeneric<float, NumChannels> m_meterReader[NumBands];
         MeterReaderGeneric<float, NumChannels> m_masterMeterReader;
 
-        UIState()
-            : m_gain{}
-            , m_masterGain{}
-            , m_crossoverFreq{}
-        {
-            for (size_t i = 0; i < NumBands; ++i)
-            {
-                m_gain[i] = 0.0f;
-            }
-
-            m_masterGain = 0.0f;
-            for (size_t i = 0; i < NumBands - 1; ++i)
-            {
-                m_crossoverFreq[i] = 0.0f;
-            }
-        }
-
         void Process()
         {
-            for (size_t i = 0; i < NumBands; ++i)
+            for (auto& meter : m_meterReader)
             {
-                m_meterReader[i].Process();
+                meter.Process();
             }
 
             m_masterMeterReader.Process();
         }
-
-        std::complex<float> TransferFunction(float freq)
-        {
-            return MultibandSaturator::TransferFunction(this, freq);
-        }
-
-        float FrequencyResponse(float freq)
-        {
-            return std::abs(TransferFunction(freq));
-        }
     };
+
+    SampledSnapshotWriter<UIState> m_responseSampler;
 
     void SetupUIState(UIState* uiState)
     {
+        m_responseSampler.Bind(uiState);
         for (size_t i = 0; i < NumBands; ++i)
         {
             uiState->m_meterReader[i].SetMeter(&m_meter[i]);
@@ -122,22 +134,9 @@ struct MultibandSaturator
 
         void PopulateUIState(UIState* uiState)
         {
-            uiState->m_crossoverFreq[0].store(m_bassFreq.m_expParam);
-            float crossoverFreq = m_bassFreq.m_expParam;
-            for (size_t i = 0; i < NumBands; ++i)
-            {
-                uiState->m_gain[i].store(m_gain[i].m_expParam);
-                if (0 < i && i < NumBands - 1)
-                {
-                    crossoverFreq *= m_crossoverFreqFactor[i - 1].m_expParam;
-                    uiState->m_crossoverFreq[i].store(crossoverFreq);
-                }
-            }
-
-            uiState->m_masterGain.store(m_masterGain.m_expParam);
-
             uiState->Process();
         }
+
     };
 
     template<size_t Count, size_t Index>
@@ -156,61 +155,31 @@ struct MultibandSaturator
         }
     }
 
-    static void TransferFunctionRecursive(UIState* uiState, std::complex<float>* bands, float freq, size_t size, size_t index)
+    Snapshot MakeSnapshot(const Input& input) const
     {
-        if (size == 1)
-        {
-            bands[index] = std::complex<float>(1.0f, 0.0f);
-        }
-        else if (size == 2)
-        {
-            LinkwitzRileyCrossoverBase::ComplexCrossoverOutput crossover = LinkwitzRileyCrossoverBase::TransferFunction(uiState->m_crossoverFreq[index].load(), freq);
-            bands[index] = crossover.m_lowPass;
-            bands[index + 1] = crossover.m_highPass;
-        }
-        else
-        {
-            size_t cutIndex = index + size / 2;
-            TransferFunctionRecursive(uiState, bands, freq, size / 2, index);
-            TransferFunctionRecursive(uiState, bands, freq, (size + 1) / 2, cutIndex);
-
-            LinkwitzRileyCrossoverBase::ComplexCrossoverOutput crossover = LinkwitzRileyCrossoverBase::TransferFunction(uiState->m_crossoverFreq[cutIndex - 1].load(), freq);
-            for (size_t i = index; i < index + size / 2; ++i)
-            {
-                bands[i] *= crossover.m_lowPass;
-            }
-
-            for (size_t i = index + size / 2; i < index + size; ++i)
-            {
-                bands[i] *= crossover.m_highPass;
-            }
-        }
-    }
-
-    static std::complex<float> TransferFunction(UIState* uiState, float freq)
-    {
-        std::complex<float> bands[NumBands];
+        Snapshot snapshot;
         for (size_t i = 0; i < NumBands; ++i)
         {
-            bands[i] = std::complex<float>(0.0f, 0.0f);
+            snapshot.m_gain[i] = input.m_gain[i].m_expParam;
         }
 
-        TransferFunctionRecursive(uiState, bands, freq, NumBands, 0);
-
-        std::complex<float> response(0.0f, 0.0f);
-        for (size_t i = 0; i < NumBands; ++i)
+        snapshot.m_masterGain = input.m_masterGain.m_expParam;
+        for (size_t i = 0; i < NumBands - 1; ++i)
         {
-            response += bands[i] * uiState->m_gain[i].load() * uiState->m_masterGain.load();
+            snapshot.m_crossovers[i] = m_linkwitzRileyCrossover[i].MakeSnapshot();
         }
 
-        return response;
+        return snapshot;
     }
 
-    static float FrequencyResponse(UIState* uiState, float freq)
+    void PopulateUIStateSample(const Input& input)
     {
-        return std::abs(TransferFunction(uiState, freq));
+        m_responseSampler.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot(input);
+        });
     }
-    
+
     template<size_t First>
     void SetCrossoverFrequencies(const float* frequencies)
     {
@@ -234,6 +203,7 @@ struct MultibandSaturator
         }
 
         SetCrossoverFrequencies<0>(frequencies);
+        PopulateUIStateSample(input);
         Vector bands[NumBands];
         BuildBands<NumBands, 0>(bands, in);
 

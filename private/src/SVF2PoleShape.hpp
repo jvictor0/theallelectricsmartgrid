@@ -17,6 +17,42 @@ template <size_t Size>
 struct SVF2PoleShapeGeneric : SquiggleBoyShapeBase
 {
     using Vector = MultiChannelNumber<float, Size>;
+
+    struct Snapshot : FilterResponseSnapshot
+    {
+        typename LinearStateVariableFilterGeneric<float, Size>::Snapshot m_lp;
+        typename LinearStateVariableFilterGeneric<float, Size>::Snapshot m_hp;
+
+        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
+        {
+            return m_lp.ComplexResponse(frequency, 0) * m_hp.ComplexResponse(frequency, 0);
+        }
+
+        float MagnitudeResponse(const ResponseFrequency& frequency, size_t) const override
+        {
+            return m_lp.MagnitudeResponse(frequency, 0) * m_hp.MagnitudeResponse(frequency, 0);
+        }
+    };
+
+    using UIState = TransferFunctionGeneric<Snapshot>;
+
+    Snapshot MakeSnapshot(size_t channel) const
+    {
+        Snapshot snapshot;
+        snapshot.m_lp = m_lpSVF.MakeSnapshot(channel);
+        snapshot.m_hp = m_hpSVF.MakeSnapshot(channel);
+        snapshot.m_hp.m_weights = {0, 0, 1};
+        return snapshot;
+    }
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer, size_t channel) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot(channel);
+        });
+    }
+
     using Saturator = TanhSaturatorGeneric<float, Size, true>;
 
     LinearStateVariableFilterGeneric<float, Size> m_lpSVF;

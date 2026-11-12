@@ -161,9 +161,9 @@ DOCTEST_TEST_CASE("PhysicalModeling: minimum attack is 100 microseconds and deca
 
 DOCTEST_TEST_CASE("PhysicalModeling: UI morph response follows LP BP HP quarter-circle weights")
 {
-    PhysicalModelingSource::UIState ui;
-    ui.m_mainSVFG.store(0.2f);
-    ui.m_mainSVFK.store(1.0f);
+    PhysicalModelingSource::Snapshot snapshot;
+    snapshot.m_mainSVF.m_g = 0.2f;
+    snapshot.m_mainSVF.m_k = 1.0f;
     const float x_blends[] = {-0.2f, 0.0f, 0.25f, 0.499999f, 0.5f, 0.500001f, 0.75f, 1.0f, 1.2f};
     const float x_lp[] = {1.0f, 1.0f, 0.707106781f, 0.00000314159f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
     const float x_bp[] = {0.0f, 0.0f, 0.707106781f, 1.0f, 1.0f, 1.0f, 0.707106781f, 0.0f, 0.0f};
@@ -172,13 +172,13 @@ DOCTEST_TEST_CASE("PhysicalModeling: UI morph response follows LP BP HP quarter-
     {
         for (size_t i = 0; i < sizeof(x_blends) / sizeof(x_blends[0]); ++i)
         {
-            ui.m_mainSVFMorph.store(x_blends[i]);
+            snapshot.m_mainSVF.m_weights = LinearStateVariableFilter::GetMorphWeights(x_blends[i]);
             auto expected = (
                 x_lp[i] * LinearStateVariableFilter::LowPassTransferFunction(0.2f, 1.0f, freq) +
                 x_bp[i] * LinearStateVariableFilter::BandPassTransferFunction(0.2f, 1.0f, freq) +
                 x_hp[i] * LinearStateVariableFilter::HighPassTransferFunction(0.2f, 1.0f, freq)) *
-                ui.m_combFilter.TransferFunctionValue(freq);
-            DOCTEST_CHECK(std::abs(ui.TransferFunctionValue(freq) - expected) < 0.00001f);
+                snapshot.m_combFilter.ComplexResponse(ResponseFrequency::CyclesPerSample(freq), 0);
+            DOCTEST_CHECK(std::abs(snapshot.ComplexResponse(ResponseFrequency::CyclesPerSample(freq), 0) - expected) < 0.00001f);
         }
     }
 }

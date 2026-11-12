@@ -18,6 +18,40 @@ struct Ladder4PoleShapeGeneric : SquiggleBoyShapeBase
 {
     using Vector = MultiChannelNumber<float, Size>;
 
+    struct Snapshot : FilterResponseSnapshot
+    {
+        typename LadderFilterLPGeneric<float, Size>::Snapshot m_lp;
+        typename LinearSVF4PoleHighPassGeneric<float, Size>::Snapshot m_hp;
+
+        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
+        {
+            return m_lp.ComplexResponse(frequency, 0) * m_hp.ComplexResponse(frequency, 0);
+        }
+
+        float MagnitudeResponse(const ResponseFrequency& frequency, size_t) const override
+        {
+            return m_lp.MagnitudeResponse(frequency, 0) * m_hp.MagnitudeResponse(frequency, 0);
+        }
+    };
+
+    using UIState = TransferFunctionGeneric<Snapshot>;
+
+    Snapshot MakeSnapshot(size_t channel) const
+    {
+        Snapshot snapshot;
+        snapshot.m_lp = m_lpLadder.MakeSnapshot(channel);
+        snapshot.m_hp = m_hp4Pole.MakeSnapshot(channel);
+        return snapshot;
+    }
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer, size_t channel) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot(channel);
+        });
+    }
+
     LadderFilterLPGeneric<float, Size> m_lpLadder;
     LinearSVF4PoleHighPassGeneric<float, Size> m_hp4Pole;
     SampleRateReducerGeneric<Size> m_sampleRateReducer;

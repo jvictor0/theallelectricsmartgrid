@@ -466,78 +466,11 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             Sub
         };
 
-        struct VoiceFilterUIState : TransferFunction
+        struct VoiceFilterUIState : TrioSquiggleBoyShape::UIState
         {
-            // Ladder filters (4-pole)
-            //
-            LadderFilterLP::UIState m_lpLadder;
-            LinearSVF4PoleHighPass::UIState m_hp4Pole;
+            using TrioSquiggleBoyShape::UIState::UIState;
 
-            // SVF filters (2-pole)
-            //
-            LinearStateVariableFilter::UIState m_lpSVF;
-            LinearStateVariableFilter::UIState m_hpSVF;
-
-            std::atomic<SquiggleBoyTrack::VoiceConfig::FilterMachine> m_filterMachine;
-
-            VoiceFilterUIState()
-                : m_filterMachine(SquiggleBoyTrack::VoiceConfig::FilterMachine::Ladder4Pole)
-            {
-            }
-
-            float FrequencyResponse(float freq) const override
-            {
-                if (m_filterMachine.load() == SquiggleBoyTrack::VoiceConfig::FilterMachine::Ladder4Pole)
-                {
-                    float lp = LadderFilterLP::FrequencyResponse(
-                        m_lpLadder.m_alpha.load(),
-                        m_lpLadder.m_feedback.load(),
-                        freq);
-                    float hp = LinearSVF4PoleHighPass::FrequencyResponse(
-                        m_hp4Pole.m_g.load(),
-                        m_hp4Pole.m_k.load(),
-                        freq);
-                    return lp * hp;
-                }
-                else
-                {
-                    float lp = LinearStateVariableFilter::LowPassFrequencyResponse(
-                        m_lpSVF.m_g.load(),
-                        m_lpSVF.m_k.load(),
-                        freq);
-                    float hp = LinearStateVariableFilter::HighPassFrequencyResponse(
-                        m_hpSVF.m_g.load(),
-                        m_hpSVF.m_k.load(),
-                        freq);
-                    return lp * hp;
-                }
-            }
-
-            std::complex<float> TransferFunctionValue(float freq) const override
-            {
-                if (m_filterMachine.load() == SquiggleBoyTrack::VoiceConfig::FilterMachine::Ladder4Pole)
-                {
-                    std::complex<float> lp = LadderFilterLP::TransferFunction(
-                        m_lpLadder.m_alpha.load(),
-                        m_lpLadder.m_feedback.load(),
-                        freq);
-                    std::complex<float> hp = LinearSVF4PoleHighPass::TransferFunction(
-                        m_hp4Pole.m_g.load(),
-                        m_hp4Pole.m_k.load(),
-                        freq);
-                    return lp * hp;
-                }
-
-                std::complex<float> lp = LinearStateVariableFilter::LowPassTransferFunction(
-                    m_lpSVF.m_g.load(),
-                    m_lpSVF.m_k.load(),
-                    freq);
-                std::complex<float> hp = LinearStateVariableFilter::HighPassTransferFunction(
-                    m_hpSVF.m_g.load(),
-                    m_hpSVF.m_k.load(),
-                    freq);
-                return lp * hp;
-            }
+            std::atomic<VoiceMachine::FilterMachine> m_filterMachine{VoiceMachine::FilterMachine::Ladder4Pole};
         };
 
         struct VoiceSourceUIState
@@ -588,7 +521,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             };
 
             std::atomic<SquiggleBoyTrack::VoiceConfig::SourceMachine> m_sourceMachine;
-            PhysicalModelingSource::UIState m_physicalModelingUIState;
+            TrioPhysicalModelingSource::UIState m_physicalModelingUIState;
             AudioBufferBank::UIState m_audioBufferBankUIState;
             SampleSource::UIState m_sampleSourceUIState;
             SampleDirectoryUIState m_sampleDirectoryUIState;
@@ -688,19 +621,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         }
 
 
-        void PopulateVoiceFilterUIState(
-            size_t i,
-            SquiggleBoyTrack::Shape* shape,
-            size_t channel,
-            SquiggleBoyTrack::VoiceConfig::FilterMachine filterMachine)
-        {
-            shape->m_ladder4Pole.m_lpLadder.PopulateUIState(&m_voiceFilterUIState[i].m_lpLadder, channel);
-            shape->m_ladder4Pole.m_hp4Pole.PopulateUIState(&m_voiceFilterUIState[i].m_hp4Pole, channel);
-            shape->m_svf2Pole.m_lpSVF.PopulateUIState(&m_voiceFilterUIState[i].m_lpSVF, channel);
-            shape->m_svf2Pole.m_hpSVF.PopulateUIState(&m_voiceFilterUIState[i].m_hpSVF, channel);
-            m_voiceFilterUIState[i].m_filterMachine.store(filterMachine);
-        }
-
         void PopulateVoiceSourceUIState(
             size_t i,
             SquiggleBoyTrack::VoiceConfig* voiceConfig,
@@ -713,11 +633,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             const char* path = (bank && !bank->m_directoryName.empty()) ? bank->m_directoryName.c_str() : "";
             m_voiceSourceUIState[i].m_sampleDirectoryUIState.SetPath(path);
 
-            if (voiceConfig->m_sourceMachine == SquiggleBoyTrack::VoiceConfig::SourceMachine::PhysicalModeling)
-            {
-                squiggleBoySource->m_physicalModeling.PopulateUIState(&m_voiceSourceUIState[i].m_physicalModelingUIState, channel);
-            }
-            else if (voiceConfig->m_sourceMachine == SquiggleBoyTrack::VoiceConfig::SourceMachine::Sample)
+            if (voiceConfig->m_sourceMachine == SquiggleBoyTrack::VoiceConfig::SourceMachine::Sample)
             {
                 squiggleBoySource->m_sampleSource.PopulateUIState(&m_voiceSourceUIState[i].m_sampleSourceUIState, channel);
                 if (bank)
@@ -826,8 +742,44 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         }
     }
 
+    SampledSnapshotWriter<TrioSquiggleBoyShape::UIState> m_filterSamplers[x_numVoices];
+    SampledSnapshotWriter<TrioPhysicalModelingSource::UIState> m_sourceSamplers[x_numVoices];
+
+    void PopulateUIStateSample()
+    {
+        if (!SampleTimer::IsHostFrame())
+        {
+            return;
+        }
+
+        for (size_t voice = 0; voice < x_numVoices; ++voice)
+        {
+            auto& track = m_tracks[voice / x_voicesPerTrack];
+            size_t channel = voice % x_voicesPerTrack;
+            m_filterSamplers[voice].SetSource(static_cast<size_t>(m_voiceConfig[voice].m_filterMachine));
+            m_sourceSamplers[voice].SetSource(static_cast<size_t>(m_voiceConfig[voice].m_sourceMachine));
+            track.m_shape.PopulateUIStateSample(m_filterSamplers[voice], channel, m_voiceConfig[voice].m_filterMachine);
+            if (m_voiceConfig[voice].m_sourceMachine == VoiceMachine::SourceMachine::PhysicalModeling)
+            {
+                track.m_source.m_physicalModeling.PopulateUIStateSample(m_sourceSamplers[voice], channel);
+            }
+        }
+
+        m_delay.PopulateUIStateSample();
+        m_reverb.PopulateUIStateSample();
+    }
+
     void SetupUIState(UIState* uiState)
     {
+        for (size_t voice = 0; voice < x_numVoices; ++voice)
+        {
+            m_filterSamplers[voice].Bind(&uiState->m_voiceFilterUIState[voice]);
+            m_sourceSamplers[voice].Bind(&uiState->m_voiceSourceUIState[voice].m_physicalModelingUIState);
+        }
+
+        m_delay.SetupResponseUIState(&uiState->m_delayUIState);
+        m_reverb.SetupResponseUIState(&uiState->m_reverbUIState);
+
         for (size_t random = 0; random < x_numGangedRandomLFOs; ++random)
         {
             for (size_t track = 0; track < x_numTracks; ++track)
@@ -1413,11 +1365,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             {
                 size_t voice = track * x_voicesPerTrack + i;
                 uiState->SetPos(voice, squiggleBoyTrack.m_pan.m_outputX[i], squiggleBoyTrack.m_pan.m_outputY[i]);
-                uiState->PopulateVoiceFilterUIState(
-                    voice,
-                    &squiggleBoyTrack.m_shape,
-                    i,
-                    m_voiceConfig[voice].m_filterMachine);
+                uiState->m_voiceFilterUIState[voice].m_filterMachine.store(m_voiceConfig[voice].m_filterMachine);
                 uiState->PopulateVoiceSourceUIState(
                     voice,
                     &m_voiceConfig[voice],
@@ -1428,7 +1376,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         m_mixerState.m_masterChainInput.PopulateUIState(&uiState->m_stereoMasteringChainUIState);
         m_delay.PopulateUIState(&uiState->m_delayUIState, m_delayState);
-        m_reverb.PopulateUIState(&uiState->m_reverbUIState);
         m_partialMachine.PopulateUIState(uiState->m_partialMachineUIState, m_partialMachineState);
 
         m_sourceMixer.PopulateUIState(&uiState->m_sourceMixerUIState, m_sourceMixerState);
@@ -1523,5 +1470,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         SetEncoderParameters(input);
 
         this->SquiggleBoy::ProcessSample(audioInputBuffer, input.m_sourceMonitor, input.m_transportRunning);
+        PopulateUIStateSample();
     }
 };

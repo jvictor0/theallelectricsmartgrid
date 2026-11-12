@@ -25,6 +25,51 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
     using Ladder4PoleShape = Ladder4PoleShapeGeneric<Size>;
     using SVF2PoleShape = SVF2PoleShapeGeneric<Size>;
 
+    struct Snapshot : FilterResponseSnapshot
+    {
+        FilterMachine m_filterMachine = FilterMachine::Ladder4Pole;
+        typename Ladder4PoleShape::Snapshot m_ladder;
+        typename SVF2PoleShape::Snapshot m_svf;
+
+        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
+        {
+            return m_filterMachine == FilterMachine::Ladder4Pole
+                ? m_ladder.ComplexResponse(frequency, 0) : m_svf.ComplexResponse(frequency, 0);
+        }
+
+        float MagnitudeResponse(const ResponseFrequency& frequency, size_t) const override
+        {
+            return m_filterMachine == FilterMachine::Ladder4Pole
+                ? m_ladder.MagnitudeResponse(frequency, 0) : m_svf.MagnitudeResponse(frequency, 0);
+        }
+    };
+
+    using UIState = TransferFunctionGeneric<Snapshot>;
+
+    Snapshot MakeSnapshot(size_t channel, FilterMachine machine) const
+    {
+        Snapshot snapshot;
+        snapshot.m_filterMachine = machine;
+        if (machine == FilterMachine::Ladder4Pole)
+        {
+            snapshot.m_ladder = m_ladder4Pole.MakeSnapshot(channel);
+        }
+        else
+        {
+            snapshot.m_svf = m_svf2Pole.MakeSnapshot(channel);
+        }
+
+        return snapshot;
+    }
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer, size_t channel, FilterMachine machine) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot(channel, machine);
+        });
+    }
+
     // DC blocker before the filter machines (5 Hz)
     //
     OPHighPassFilterGeneric<float, Size> m_dcBlocker;

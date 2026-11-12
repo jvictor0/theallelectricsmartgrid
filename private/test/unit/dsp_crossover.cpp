@@ -114,6 +114,23 @@ DOCTEST_TEST_CASE("Crossover: response model retains existing Butterworth branch
     }
 }
 
+DOCTEST_TEST_CASE("Crossover: captured coefficients agree with the lookup response")
+{
+    LinkwitzRileyCrossover filter;
+    for (float cutoff : {0.0001f, 0.001f, 0.1f, 0.25f, 0.49f, 0.499f})
+    {
+        filter.SetCyclesPerSample(cutoff);
+        auto snapshot = filter.MakeSnapshot();
+        for (float frequency : {0.0f, cutoff * 0.8f, cutoff, 0.49f, 0.5f})
+        {
+            auto expected = filter.TransferFunction(cutoff, frequency);
+            auto actual = snapshot.Responses(ResponseFrequency::CyclesPerSample(frequency));
+            DOCTEST_CHECK(std::abs(actual.m_lowPass - expected.m_lowPass) < 0.001f);
+            DOCTEST_CHECK(std::abs(actual.m_highPass - expected.m_highPass) < 0.001f);
+        }
+    }
+}
+
 DOCTEST_TEST_CASE("Crossover: audio-rate cutoff modulation stays bounded and settles after silence")
 {
     using Crossover = LinkwitzRileyCrossoverGeneric<float, 4>;

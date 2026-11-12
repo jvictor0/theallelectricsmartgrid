@@ -4,11 +4,13 @@
 #include <algorithm>
 #include <complex>
 #include "MultiChannelNumber.hpp"
+#include "SampledTransferFunction.hpp"
 
 // Legacy crossover name: the retained Qs produce fourth-order Butterworth
 // branches, not LR4. Cutoff limits and scalar response are shared by all widths.
 //
-struct LinkwitzRileyCrossoverBase
+template<typename Number, size_t Size>
+struct LinkwitzRileyCrossoverGeneric
 {
     static constexpr float x_minCyclesPerSample = 0.0001f;
     static constexpr float x_maxCyclesPerSample = 0.499f;
@@ -33,14 +35,9 @@ struct LinkwitzRileyCrossoverBase
 
     static ComplexCrossoverOutput TransferFunction(float cutoffFreq, float freq)
     {
-        double cutoff = std::clamp(cutoffFreq, x_minCyclesPerSample, x_maxCyclesPerSample);
-        double ratio = std::tan(M_PI * static_cast<double>(freq)) / std::tan(M_PI * cutoff);
-        std::complex<double> denominator =
-            std::complex<double>(1 - ratio * ratio, ratio / Q1())
-            * std::complex<double>(1 - ratio * ratio, ratio / Q2());
-        std::complex<double> low = 1.0 / denominator;
-        std::complex<double> high = (ratio * ratio * ratio * ratio) / denominator;
-        return {static_cast<std::complex<float>>(low), static_cast<std::complex<float>>(high)};
+        Snapshot snapshot;
+        snapshot.m_tangent = Math::TanPi(std::clamp(cutoffFreq, x_minCyclesPerSample, x_maxCyclesPerSample));
+        return snapshot.Responses(ResponseFrequency::CyclesPerSample(freq));
     }
 
     struct ScalarCrossoverOutput
@@ -54,19 +51,52 @@ struct LinkwitzRileyCrossoverBase
         ComplexCrossoverOutput complex = TransferFunction(cutoffFreq, freq);
         return {std::abs(complex.m_lowPass), std::abs(complex.m_highPass)};
     }
-};
 
-// One cutoff shared by every channel; coefficients are computed once.
-//
-template<typename Number, size_t Size>
-struct LinkwitzRileyCrossoverGeneric : LinkwitzRileyCrossoverBase
-{
     using Vector = MultiChannelNumber<Number, Size>;
     struct CrossoverOutput
     {
         Vector m_lowPass;
         Vector m_highPass;
     };
+
+    struct Snapshot : FilterResponseSnapshot
+    {
+        double m_tangent = 0.1;
+
+        ComplexCrossoverOutput Responses(const ResponseFrequency& frequency) const
+        {
+            double gc = m_tangent * frequency.m_cosHalf;
+            double s = frequency.m_sinHalf;
+            auto denominator = std::complex<double>(gc * gc - s * s, gc * s / Q1())
+                * std::complex<double>(gc * gc - s * s, gc * s / Q2());
+            return {static_cast<std::complex<float>>(gc * gc * gc * gc / denominator),
+                static_cast<std::complex<float>>(s * s * s * s / denominator)};
+        }
+
+        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t lane) const override
+        {
+            assert(lane < 2);
+            auto pair = Responses(frequency);
+            return lane == 0 ? pair.m_lowPass : pair.m_highPass;
+        }
+    };
+
+    using UIState = TransferFunctionGeneric<Snapshot>;
+
+    Snapshot MakeSnapshot() const
+    {
+        Snapshot snapshot;
+        snapshot.m_tangent = static_cast<double>(m_first.m_a2) / m_first.m_a1;
+        return snapshot;
+    }
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot();
+        });
+    }
 
     // Linear trapezoidal SVF. Coefficients are shared across audio channels;
     // integrator states retain low-cutoff precision without DF1 pole cancellation.

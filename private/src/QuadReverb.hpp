@@ -140,17 +140,21 @@ struct QuadReverb
 
     struct UIState
     {
-        DampingFilter::UIState m_dampingFilter[4];
+        QuadOPBaseWidthFilter::UIState m_dampingFilter;
     };
 
-    void PopulateUIState(UIState* uiState)
+    SampledSnapshotWriter<QuadOPBaseWidthFilter::UIState> m_responseSampler;
+
+    void SetupResponseUIState(UIState* uiState)
     {
-        for (int i = 0; i < 4; ++i)
-        {
-            uiState->m_dampingFilter[i].m_hpAlpha.store(m_postFeedbackFilter.m_bff.m_highPassFilter.m_alpha[i]);
-            uiState->m_dampingFilter[i].m_lpAlpha.store(m_postFeedbackFilter.m_bff.m_lowPassFilter.m_alpha[i]);
-        }
+        m_responseSampler.Bind(&uiState->m_dampingFilter);
     }
+
+    void PopulateUIStateSample()
+    {
+        m_postFeedbackFilter.m_bff.PopulateUIStateSample(m_responseSampler);
+    }
+
 
     QuadFloat Process(Input& input)
     {
@@ -214,7 +218,7 @@ struct QuadReverbInputSetter
       : m_delayTime(
           QuadReverb::x_minDelayHostSamples * static_cast<float>(QuadReverb::x_oversample),
           QuadReverb::x_maxDelayHostSamples * static_cast<float>(QuadReverb::x_oversample))
-      , m_dampingBase(SampleTimer::HzToCycPerSamp(DampingFilter::x_minBaseHz), SampleTimer::HzToCycPerSamp(DampingFilter::x_maxBaseHz))
+      , m_dampingBase(SampleTimer::HzToCycPerSamp(QuadOPBaseWidthFilter::x_minBaseHz), SampleTimer::HzToCycPerSamp(QuadOPBaseWidthFilter::x_maxBaseHz))
       , m_dampingWidth(1.0, 2048.0)
       , m_wideners
       {

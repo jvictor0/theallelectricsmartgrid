@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include "ScopeWriter.hpp"
 #include "TransferFunction.hpp"
+#include "SampledTransferFunction.hpp"
 
 struct PathDrawer
 {
@@ -202,6 +203,98 @@ struct PathDrawer
     {
         FrequencyResponseFn fn(&transferFunction, freqScale * FrequencyAxisScale());
         DrawPath(g, colour, fn);
+    }
+
+    void DrawSampledFrequencyResponse(
+        juce::Graphics& g,
+        juce::Colour colour,
+        SampledTransferFunction& response,
+        const std::vector<SampledTransferFunction::SampleId>& samples,
+        size_t lane)
+    {
+        if (samples.empty())
+        {
+            return;
+        }
+
+        struct Point
+        {
+            float m_x;
+            float m_lower;
+            float m_median;
+            float m_upper;
+        };
+
+        size_t count = std::clamp(static_cast<size_t>(std::ceil(std::max(1.0f, m_width))) + 1,
+            size_t{2}, x_numPoints);
+        std::vector<Point> points;
+        points.reserve(count);
+        double minHz = x_minFrequency * SampleTimer::x_sampleRate;
+        double minVOct = std::log2(minHz / Tuning::x_middleCHz);
+        double octaves = std::log2(x_maxFrequency / x_minFrequency);
+        for (size_t i = 0; i < count; ++i)
+        {
+            float position = static_cast<float>(i) / (count - 1);
+            auto frequency = m_logX
+                ? ResponseFrequency::VOct(minVOct + octaves * position, SampleTimer::x_sampleRate)
+                : ResponseFrequency::Hz(position * x_maxFrequency * SampleTimer::x_sampleRate, SampleTimer::x_sampleRate);
+            auto values = response.Response(samples, frequency, lane);
+            auto screenY = [&](float magnitude)
+            {
+                return m_yMin + m_height * (1 - AmpToDbNormalized(magnitude) / 2);
+            };
+            points.push_back({m_xMin + m_width * position,
+                screenY(values.m_lower), screenY(values.m_median), screenY(values.m_upper)});
+        }
+
+        // Nested ribbons feather the percentile interval towards the median.
+        // A stationary response has no ribbon area and retains its sharp line.
+        //
+        for (size_t layer = 0; layer < 4; ++layer)
+        {
+            float extent = 1 - static_cast<float>(layer) / 4;
+            juce::Path ribbon;
+            for (size_t i = 0; i < count; ++i)
+            {
+                const auto& point = points[i];
+                float y = point.m_median + extent * (point.m_upper - point.m_median);
+                if (i == 0)
+                {
+                    ribbon.startNewSubPath(point.m_x, y);
+                }
+                else
+                {
+                    ribbon.lineTo(point.m_x, y);
+                }
+            }
+
+            for (size_t i = count; i > 0; --i)
+            {
+                const auto& point = points[i - 1];
+                ribbon.lineTo(point.m_x, point.m_median + extent * (point.m_lower - point.m_median));
+            }
+
+            ribbon.closeSubPath();
+            g.setColour(colour.withMultipliedAlpha(0.09f));
+            g.fillPath(ribbon);
+        }
+
+        juce::Path median;
+        median.startNewSubPath(points.front().m_x, points.front().m_median);
+        for (size_t i = 1; i < count; ++i)
+        {
+            median.lineTo(points[i].m_x, points[i].m_median);
+        }
+
+        g.setColour(colour.withMultipliedAlpha(0.8f));
+        g.strokePath(median, juce::PathStrokeType(1));
+    }
+
+    void DrawSampledFrequencyResponse(juce::Graphics& g, juce::Colour colour,
+        SampledTransferFunction& response)
+    {
+        auto samples = response.Sample();
+        DrawSampledFrequencyResponse(g, colour, response, samples, 0);
     }
 
     struct ScopeReaderFn

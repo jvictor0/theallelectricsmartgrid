@@ -406,11 +406,10 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
             if (m_filterOverlay == FilterOverlay::Voice)
             {
                 color = color.Interpolate(SmartGrid::Color::White, 0.5f);
-                responseDrawer.DrawFrequencyResponse(
+                responseDrawer.DrawSampledFrequencyResponse(
                     g,
                     juce::Colour(color.m_red, color.m_green, color.m_blue),
-                    m_voiceFilterUIState[voiceIx],
-                    1.0f);
+                    m_voiceFilterUIState[voiceIx]);
             }
         }
     }
@@ -500,14 +499,33 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
         switch (type)
         {
             case Type::Delay:
-                return &m_uiState->m_squiggleBoyUIState.m_delayUIState.m_dampingFilter[speakerIx];
             case Type::Reverb:
-                return &m_uiState->m_squiggleBoyUIState.m_reverbUIState.m_dampingFilter[speakerIx];
+                return nullptr;
             case Type::PartialMachine:
                 return &m_uiState->m_squiggleBoyUIState.m_partialMachineUIState.m_quadComponentTransferFunction[speakerIx];
             case Type::Master:
             case Type::Mix:
                 return nullptr;
+        }
+
+        return nullptr;
+    }
+
+    SampledTransferFunction* GetSampledTransferFunction(Type type) const
+    {
+        if (m_type == Type::Mix)
+        {
+            return nullptr;
+        }
+
+        if (type == Type::Delay)
+        {
+            return &m_uiState->m_squiggleBoyUIState.m_delayUIState.m_dampingFilter;
+        }
+
+        if (type == Type::Reverb)
+        {
+            return &m_uiState->m_squiggleBoyUIState.m_reverbUIState.m_dampingFilter;
         }
 
         return nullptr;
@@ -567,6 +585,9 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
 
         m_quadWindowedFFT[fftIx].Compute();
 
+        auto* response = GetSampledTransferFunction(type);
+        auto samples = response ? response->Sample() : std::vector<SampledTransferFunction::SampleId>{};
+
         for (size_t x = 0; x < 2; ++x)
         {
             for (size_t y = 0; y < 2; ++y)
@@ -576,6 +597,11 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
                 QuadDFTFn fn(&m_quadWindowedFFT[fftIx], speakerIx);
                 juce::Colour juceColor(color.m_red, color.m_green, color.m_blue);
                 pathDrawer.DrawPath(g, juceColor, fn);
+
+                if (response)
+                {
+                    pathDrawer.DrawSampledFrequencyResponse(g, juceColor, *response, samples, speakerIx);
+                }
 
                 if (type != Type::Master)
                 {
@@ -757,11 +783,10 @@ struct PhysicalModelingFrequencyResponseComponent : public SmartGridOneMainVisua
             SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(voiceIx);
             PathDrawer responseDrawer(height, width, 0, 0);
             responseDrawer.m_logX = m_logX;
-            responseDrawer.DrawFrequencyResponse(
+            responseDrawer.DrawSampledFrequencyResponse(
                 g,
                 juce::Colour(color.m_red, color.m_green, color.m_blue),
-                sourceUIState.m_physicalModelingUIState,
-                1.0f);
+                sourceUIState.m_physicalModelingUIState);
         }
     }
 

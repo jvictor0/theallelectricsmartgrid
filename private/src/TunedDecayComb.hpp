@@ -1,7 +1,7 @@
 #pragma once
 
 #include "MultiChannelNumber.hpp"
-#include "TransferFunction.hpp"
+#include "SampledTransferFunction.hpp"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -35,80 +35,52 @@ struct TunedDecayCombBase
         double m_delayGain = 0.0;
         bool m_bypass = true;
         double m_sign = 0.0;
-    };
 
-    struct AtomicCoefficients
-    {
-        std::atomic<size_t> m_delay{100};
-        std::atomic<double> m_a{0.0};
-        std::atomic<double> m_g{0.01};
-        std::atomic<double> m_k{x_sqrt2};
-        std::atomic<double> m_gain{1.0};
-        std::atomic<double> m_r{0.9};
-        std::atomic<double> m_delayGain{0.0};
-        std::atomic<bool> m_bypass{true};
-        std::atomic<double> m_sign{0.0};
-
-        void Store(const Coefficients& c)
+        std::complex<double> Numerator(const std::complex<double>& z) const
         {
-            m_delay.store(c.m_delay);
-            m_a.store(c.m_a);
-            m_g.store(c.m_g);
-            m_k.store(c.m_k);
-            m_gain.store(c.m_gain);
-            m_r.store(c.m_r);
-            m_delayGain.store(c.m_delayGain);
-            m_bypass.store(c.m_bypass);
-            m_sign.store(c.m_sign);
-        }
-
-        std::complex<double> Numerator(double omega) const
-        {
-            if (m_bypass.load())
+            if (m_bypass)
             {
                 return 1.0;
             }
 
-            auto q = m_r.load() * std::polar(1.0, -omega);
-            double g = m_g.load();
-            double k = m_k.load();
-            double gain = m_gain.load();
+            auto q = m_r * z;
+            double g = m_g;
+            double k = m_k;
+            double gain = m_gain;
             return gain * g * g * (1.0 + q) * (1.0 + q) /
                 ((1.0 + k * g + g * g) + 2.0 * (g * g - 1.0) * q +
                  (1.0 - k * g + g * g) * q * q);
         }
 
-        std::complex<double> Loop(double omega) const
+        std::complex<double> Loop(const ResponseFrequency& frequency, const std::complex<double>& numerator) const
         {
-            auto z = std::polar(1.0, -omega);
-            auto q = m_r.load() * z;
-            double a = m_a.load();
+            auto z = frequency.m_zInverse;
+            auto q = m_r * z;
+            double a = m_a;
             auto allpass = (a + q) / (1.0 + a * q);
-            return m_sign.load() * m_delayGain.load() *
-                std::polar(1.0, -omega * m_delay.load()) * allpass * Numerator(omega);
+            return m_sign * m_delayGain *
+                static_cast<std::complex<double>>(Math::Polar2pi(1, -frequency.m_cyclesPerSample * m_delay))
+                * allpass * numerator;
         }
     };
 
-    struct UIState : TransferFunction
+    struct Snapshot : FilterResponseSnapshot
     {
-        AtomicCoefficients m_branch[2];
-        std::atomic<double> m_mix{0.0};
+        Coefficients m_branch[2];
+        double m_mix = 0;
 
-        std::complex<float> TransferFunctionValue(float normalizedFreq) const override
+        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
         {
-            double omega = 2.0 * x_pi * std::clamp(static_cast<double>(normalizedFreq), 0.0, 0.5);
-            double mix = m_mix.load();
-            auto loop = (1.0 - mix) * m_branch[0].Loop(omega) + mix * m_branch[1].Loop(omega);
-            auto numerator = (1.0 - mix) * m_branch[0].Numerator(omega) + mix * m_branch[1].Numerator(omega);
-            auto response = numerator / (1.0 - loop);
-            return {static_cast<float>(response.real()), static_cast<float>(response.imag())};
-        }
-
-        float FrequencyResponse(float normalizedFreq) const override
-        {
-            return std::abs(TransferFunctionValue(normalizedFreq));
+            auto first = m_branch[0].Numerator(frequency.m_zInverse);
+            auto second = m_branch[1].Numerator(frequency.m_zInverse);
+            auto loop = (1 - m_mix) * m_branch[0].Loop(frequency, first)
+                + m_mix * m_branch[1].Loop(frequency, second);
+            auto numerator = (1 - m_mix) * first + m_mix * second;
+            return static_cast<std::complex<float>>(numerator / (1.0 - loop));
         }
     };
+
+    using UIState = TransferFunctionGeneric<Snapshot>;
 
     // DECAY maps u = |2 * knob - 1| to T60 = 0.001 * 5000^u seconds, kept as
     // log2(T60), negative feedback below the center and dry at it. DAMP sets the
@@ -420,11 +392,26 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
         m_pending = false;
     }
 
+    Snapshot MakeSnapshot(size_t channel) const
+    {
+        Snapshot snapshot;
+        snapshot.m_branch[0] = m_branch[0].m_coeff.Get(channel);
+        snapshot.m_branch[1] = m_branch[1].m_coeff.Get(channel);
+        snapshot.m_mix = m_mix;
+        return snapshot;
+    }
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer, size_t channel) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot(channel);
+        });
+    }
+
     void PopulateUIState(UIState* state, size_t channel) const
     {
-        state->m_branch[0].Store(m_branch[0].m_coeff.Get(channel));
-        state->m_branch[1].Store(m_branch[1].m_coeff.Get(channel));
-        state->m_mix.store(m_mix);
+        state->m_history.Push(MakeSnapshot(channel));
     }
 
     void PopulateUIState(UIState* state) const

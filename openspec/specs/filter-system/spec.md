@@ -12,7 +12,7 @@ Before either machine, the input passes a shared DC-blocking one-pole high-pass 
 #### Scenario: Filter machine switch redirects processing
 - **WHEN** a voice's `VoiceConfig::FilterMachine` changes from `Ladder4Pole` to `SVF2Pole`
 - **THEN** subsequent samples are processed by the 2-pole SVF low-pass/high-pass pair instead of the ladder/4-pole-HP pair
-- **AND** the per-voice `VoiceFilterUIState::m_filterMachine` atomic reflects `SVF2Pole` after the next UI state population
+- **AND** the per-voice sampled shape history contains `SVF2Pole` snapshots after the next eligible host sample
 
 #### Scenario: DC offset is blocked ahead of the filter machines
 - **WHEN** the source machine output carries a DC offset
@@ -87,26 +87,24 @@ Each filter class SHALL expose static, stateless `TransferFunction` methods retu
 - **THEN** the magnitude equals `1 / k` (the filter's Q)
 - **AND** `HighPassFrequencyResponse(g, k, 0)` evaluates to 0
 
-### Requirement: Filter UIState Coefficient Publication
-Each stateful filter SHALL own a nested `UIState` struct holding only atomic copies of its computed coefficients, populated thread-safely by `PopulateUIState` from the DSP side: `LadderFilterLP::UIState` stores `m_alpha` (per-stage alpha) and `m_feedback` (the clamped effective feedback `m_kEff`); `LinearStateVariableFilter::UIState` and `LinearSVF4PoleHighPass::UIState` store `m_g` and `m_k`.
-A `UIState` contains no audio state (no integrators or history buffers); its member `FrequencyResponse`/`TransferFunction` helpers delegate to the static stateless functions using the loaded atomics, so the UI thread reconstructs the exact response without reading DSP objects.
+### Requirement: Sampled Filter Coefficient Publication
+The one-pole LP/HP, base-width, ladder, SVF, shape, crossover, FIR, physical-model/comb, source-input, and mastering response providers SHALL use `TransferFunctionGeneric<Snapshot>` with coefficient-only snapshots. `SampledSnapshotWriter` SHALL make its sampling decision on the audio thread at host-sample boundaries after coefficient updates. It SHALL publish an entire composite response in one capture, including both base-width stages and all four quad damping lanes. The history capacity, number of recent samples, percentile bounds, and sampling divisor SHALL be configurable. Standalone internal smoothing filters SHALL not allocate response histories unless an owner creates a UI state for them.
 
-#### Scenario: Population copies live coefficients atomically
-- **WHEN** `PopulateUIState` runs after a cutoff or resonance change has recomputed coefficients
-- **THEN** the UIState atomics hold the new coefficient values, and a concurrent UI-thread `FrequencyResponse(freq)` call uses only those atomics
+#### Scenario: Composite samples preserve correlated modulation
+- **WHEN** both stages of a base-width or shape filter are modulated
+- **THEN** one sampling decision captures both stages' coefficients from the same audio instant
+- **AND** the UI composes each captured response before computing order statistics
 
-#### Scenario: UIState response matches the static function
-- **WHEN** the UI thread calls `LadderFilterLP::UIState::FrequencyResponse(f)`
-- **THEN** the result equals `LadderFilterLP::FrequencyResponse(m_alpha.load(), m_feedback.load(), f)`
+#### Scenario: Frozen response math is preserved
+- **WHEN** a captured filter state is evaluated
+- **THEN** its complex response follows the existing frozen linear model, including the ladder's effective feedback
+- **AND** virtual magnitude response defaults to complex magnitude, with equivalent direct magnitude overrides where cheaper
+- **AND** the display does not measure saturation or substitute a different linearization
 
 ### Requirement: Per-Voice Filter Visualization State
-`SquiggleBoy::UIState` SHALL hold one `VoiceFilterUIState` per voice (9 total), each implementing the `TransferFunction` interface over the UIStates of all four component filters (ladder LP, 4-pole SVF HP, SVF LP, SVF HP) plus an atomic copy of the voice's filter machine.
-`PopulateVoiceFilterUIState` populates all four component UIStates and the machine atomic regardless of which machine is active. `FrequencyResponse(freq)` dispatches on the stored machine: in Ladder4Pole mode it returns the ladder low-pass magnitude multiplied by the 4-pole SVF high-pass magnitude; in SVF2Pole mode it returns the SVF low-pass magnitude multiplied by the SVF high-pass magnitude. `TransferFunctionValue(freq)` returns the corresponding complex product. Filter visualizers hold references to these structs and evaluate `FrequencyResponse(freq)` per pixel column, fully decoupled from the audio thread.
-
-#### Scenario: Composite response is the product of the active pair
-- **WHEN** a voice's `VoiceFilterUIState` has `m_filterMachine == Ladder4Pole` and `FrequencyResponse(f)` is called
-- **THEN** it returns `LadderFilterLP::FrequencyResponse(alpha, feedback, f) * LinearSVF4PoleHighPass::FrequencyResponse(g, k, f)` using the stored atomics
+The UI SHALL hold one sampled shape response per voice. Each snapshot SHALL identify the active filter machine and capture its LP/HP pair. A machine change SHALL invalidate the previous machine's history and seed the replacement at the next eligible host sample. The physical-model source SHALL likewise discard stale history when its source selection changes.
 
 #### Scenario: Visualizer follows a machine switch
-- **WHEN** the performer switches a voice from SVF2Pole to Ladder4Pole and the next `PopulateVoiceFilterUIState` runs
-- **THEN** subsequent `FrequencyResponse` calls dispatch through the ladder/4-pole-HP branch and the drawn curve changes to the 4-pole low-pass times high-pass shape without the visualizer touching any DSP filter object
+- **WHEN** a voice changes from SVF2Pole to Ladder4Pole
+- **THEN** its next sampled response contains the ladder/4-pole-HP pair
+- **AND** subsequent percentile calculations exclude the preceding machine's samples

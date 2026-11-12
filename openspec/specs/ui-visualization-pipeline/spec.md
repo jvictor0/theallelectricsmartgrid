@@ -1,7 +1,7 @@
 # UI Visualization Pipeline Specification
 
 ## Purpose
-The visualization pipeline (`private/src/ScopeWriter.hpp`, `TransferFunction.hpp`, and `PopulateUIState` implementations across the DSP modules) carries runtime signal data from the audio thread to the JUCE thread without locks. DSP code writes engine-rate channel vectors and cycle markers into level-zero ScopeWriter rings and publishes completed positions atomically. Before painting, the UI accepts each bank through a captured position and builds its lower levels; waveform and FFT readers use that accepted frame boundary. Derived UIState snapshots retain their atomic publication protocol. A shared TransferFunction interface, implemented exclusively by UIState types, supplies frequency-response overlays. The visualizers that render this data are specified in grid-visualizers; filter UIState providers in filter-system; delay and partial-machine snapshot producers in quad-delay and partial-machine.
+The visualization pipeline (`private/src/ScopeWriter.hpp`, `TransferFunction.hpp`, and `PopulateUIState` implementations across the DSP modules) carries runtime signal data from the audio thread to the JUCE thread without locks. DSP code writes engine-rate channel vectors and cycle markers into level-zero ScopeWriter rings and publishes completed positions atomically. Before painting, the UI accepts each bank through a captured position and builds its lower levels; waveform and FFT readers use that accepted frame boundary. Derived UIState snapshots retain their atomic publication protocol. A shared sampled response interface supplies percentile-band frequency-response overlays from audio-thread coefficient captures. Only the partial machine retains the legacy TransferFunction interface. The visualizers that render this data are specified in grid-visualizers; filter UIState providers in filter-system; delay and partial-machine snapshot producers in quad-delay and partial-machine.
 
 ## Requirements
 
@@ -100,19 +100,28 @@ The system SHALL compute spectra with `WindowedFFTGeneric<Size>`: it pulls a lev
 - **WHEN** two consecutive `Compute` calls process windows with differing bin magnitudes
 - **THEN** each bin's reported value moves toward the new magnitude by its low-pass filter response rather than jumping, and `GetMagDb` interpolates between adjacent smoothed bins
 
-### Requirement: TransferFunction Interface Implemented Only by UIState Types
-The system SHALL define `TransferFunction` (`private/src/TransferFunction.hpp`) as the shared frequency-domain interface with pure virtual `FrequencyResponse(freq)` and `TransferFunctionValue(freq)` (complex). Only UIState snapshot types implement it — `DampingFilter::UIState`, `TunedDecayComb::UIState`, `FIR::UIState`, `PhysicalModelingSource::UIState`, the voice filter UIState, and the partial machine's per-speaker transfer functions; DSP classes running on the audio thread never inherit from it. Implementations read atomic coefficient snapshots, e.g. `DampingFilter::UIState` returns the product of its one-pole high-pass and low-pass responses from `m_hpAlpha`/`m_lpAlpha`.
+### Requirement: Sampled Filter Response Interface
+`SampledTransferFunction` SHALL expose response queries in Hz and volts/octave relative to middle C, returning named lower, median, and upper magnitude order statistics. For N captured magnitudes sorted ascending, percentile p SHALL select index `floor(p * (N - 1))`; the median SHALL use p = 0.5. Default configuration SHALL retain 4096 snapshots, evaluate the latest 32, select the 10th/50th/90th percentiles, and sample approximately one in 25 host frames using an audio-owned xorshift generator independent of sound generation. At 48 kHz this gives the latest 32 captures an expected window of 1/60 second, matching one nominal UI repaint; the actual window varies with the random draws.
 
-#### Scenario: Damping response is the HP and LP product
-- **WHEN** a `DampingFilter::UIState` with stored alphas is queried at frequency f
-- **THEN** `FrequencyResponse(f)` equals the one-pole low-pass response at `m_lpAlpha` times the one-pole high-pass response at `m_hpAlpha`, and `TransferFunctionValue(f)` is the product of the corresponding complex values
+`Sample()` SHALL return IDs into a coherent UI-owned batch, valid until the next `Sample()` call. Every frequency column and lane of a plot SHALL reuse that batch. Frequency conversions and trigonometric terms SHALL be prepared once per column and shared across response evaluations. UI response trigonometry SHALL use the `Math::` lookup functions, including the comb delay phase; lookup approximation error is acceptable for these display curves. DC and Nyquist frequency terms SHALL remain exact. The producer SHALL never wait for a reader or allocate when capturing. Ring overwrite SHALL not mutate a batch already accepted by the UI. Empty histories SHALL draw no curve; stationary histories SHALL have equal bounds.
 
-#### Scenario: Audio-thread DSP objects are not providers
-- **WHEN** an analyzer needs a response curve for a filter, delay, reverb, or partial-machine overlay
-- **THEN** it queries a UIState object's `TransferFunction` methods, and no audio-thread DSP class is reachable through the `TransferFunction` interface
+#### Scenario: Producer wraps during painting
+- **WHEN** the audio producer wraps the retained history after the UI selects samples
+- **THEN** every frequency column still evaluates the selected coefficient copies
+- **AND** publication skips an occupied slot without waiting
+
+#### Scenario: Analyzer draws percentile motion
+- **WHEN** captured response magnitudes vary at a frequency
+- **THEN** the analyzer draws a feathered band between the lower and upper statistics with a median trace
+- **AND** each statistic is separately converted to display dB
+
+#### Scenario: Partial machine retains its specialized interface
+- **WHEN** a partial-machine overlay is drawn
+- **THEN** it continues to use the legacy `TransferFunction` interface and host-rate frequency conversion
+- **AND** other filter response overlays use the sampled interface
 
 ### Requirement: Derived UI Snapshots Populated on the Control Thread
-The system SHALL populate aggregated visualization state in `PopulateUIState(...)` methods executed on the audio thread once per process frame (`ProcessFrame`, every `x_samplesPerProcessFrame` engine samples), writing into atomic UIState fields that the JUCE thread reads directly. LFO common periods SHALL be computed from current participating loop ratios during this publication path, not per engine sample, and their periodic axes SHALL be updated before their scope banks publish. Current producers include `QuadDelay::PopulateUIState` (damping alphas, continuous master-phase head positions, and publication of the common magnitude scope), `AudioBufferBank`/`SampleSource` UIState (waveform min/max buckets, read-head position, and active start/length window), and `PartialMachine::PopulateUIState` (the tracked spectral atom list and frequency-dependent transfer functions).
+The system SHALL populate aggregated visualization state in `PopulateUIState(...)` methods executed on the audio thread once per process frame (`ProcessFrame`, every `x_samplesPerProcessFrame` engine samples), writing into atomic UIState fields that the JUCE thread reads directly. LFO common periods SHALL be computed from current participating loop ratios during this publication path, not per engine sample, and their periodic axes SHALL be updated before their scope banks publish. Filter coefficient histories are sampled separately at the host-sample cadence described above. Current producers include `QuadDelay::PopulateUIState` (continuous master-phase head positions and publication of the common magnitude scope), `AudioBufferBank`/`SampleSource` UIState (waveform min/max buckets, read-head position, and active start/length window), and `PartialMachine::PopulateUIState` (the tracked spectral atom list and frequency-dependent transfer functions).
 
 #### Scenario: Delay envelope uses the common scope
 - **WHEN** the quad delay envelope visualizer renders a frame

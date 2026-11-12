@@ -27,23 +27,6 @@ struct MultibandEQComponent : public SmartGridOneMainVisualizerComponent
         return &m_uiState->m_squiggleBoyUIState.m_stereoMasteringChainUIState;
     }
 
-    struct EQResponseDrawer
-    {
-        MultibandSaturator<4, 2>::UIState* m_uiState;
-
-        EQResponseDrawer(MultibandSaturator<4, 2>::UIState* uiState)
-            : m_uiState(uiState)
-        {
-        }
-
-        // The axis is in cycles per engine sample; the crossovers run at the engine rate.
-        //
-        float operator()(float freq)
-        {
-            return PathDrawer::AmpToDbNormalized(m_uiState->FrequencyResponse(freq)) / 2;
-        }
-    };
-
     void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
     {
         g.fillAll(juce::Colours::black);
@@ -59,7 +42,7 @@ struct MultibandEQComponent : public SmartGridOneMainVisualizerComponent
         }
 
         PathDrawer pathDrawer(height, width, 0, 0);
-        pathDrawer.DrawPath(g, juce::Colours::white, EQResponseDrawer(GetMasteringChainUIState()));
+        pathDrawer.DrawSampledFrequencyResponse(g, juce::Colours::white, *GetMasteringChainUIState());
     }
 };
 
@@ -128,23 +111,6 @@ struct SourceMixerFrequencyComponent : public SmartGridOneMainVisualizerComponen
         return &m_uiState->m_squiggleBoyUIState.m_sourceMixerUIState;
     }
 
-    struct ResponseDrawer
-    {
-        SourceMixer::Source::UIState* m_uiState;
-
-        ResponseDrawer(SourceMixer::Source::UIState* uiState)
-            : m_uiState(uiState)
-        {
-        }
-
-        // The axis is in cycles per engine sample; the source filters run at the engine rate.
-        //
-        float operator()(float freq)
-        {
-            return PathDrawer::AmpToDbNormalized(m_uiState->FrequencyResponse(freq)) / 2;
-        }
-    };
-
     struct VShapeDrawFn
     {
         const DeepVocoder::UIState::VoiceUIState* m_voiceUIState;
@@ -187,7 +153,7 @@ struct SourceMixerFrequencyComponent : public SmartGridOneMainVisualizerComponen
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
             PathDrawer pathDrawer(height, width, 0, 0);
-            pathDrawer.DrawPath(g, J(SourceMixer::GetColor(i)), ResponseDrawer(&GetSourceMixerUIState()->m_sources[i]));
+            pathDrawer.DrawSampledFrequencyResponse(g, J(SourceMixer::GetColor(i)), GetSourceMixerUIState()->m_sources[i]);
         }
 
         // UNDONE(DEEP_VOCODER)

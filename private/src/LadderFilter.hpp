@@ -65,85 +65,85 @@ struct BandPassedEnvelopeFollowerGeneric
 
 using BandPassedEnvelopeFollower = BandPassedEnvelopeFollowerGeneric<float, 1>;
 
-// Width-independent parts of the ladder: constants, UI state and the scalar
-// transfer functions the UI evaluates.
-//
-struct LadderFilterLPBase
+template <typename Number, size_t Size>
+struct LadderFilterLPGeneric
 {
     static constexpr float x_maxCutoff = 0.499f;
     static constexpr float x_dampingEpsilon = 0.0001f;
 
-    struct UIState
-    {
-        std::atomic<float> m_alpha;
-        std::atomic<float> m_feedback;
-
-        UIState()
-            : m_alpha(0.0f)
-            , m_feedback(0.0f)
-        {
-        }
-
-        float FrequencyResponse(float freq)
-        {
-            return LadderFilterLPBase::FrequencyResponse(m_alpha.load(), m_feedback.load(), freq);
-        }
-
-        std::complex<float> TransferFunction(float freq)
-        {
-            return LadderFilterLPBase::TransferFunction(m_alpha.load(), m_feedback.load(), freq);
-        }
-    };
-
     static std::complex<float> TransferFunction(float alpha, float feedback, float freq)
     {
-        // Calculate normalized frequency (omega)
-        //
-        float omega = 2.0f * M_PI * freq;
-        float cosOmega = std::cos(omega);
-        float sinOmega = std::sin(omega);
-        
-        // Single stage complex frequency response for OPLowPassFilter
-        // H(z) = alpha / (1 - (1-alpha)z^-1)
-        // H(e^jω) = alpha / (1 - (1-alpha)e^-jω)
-        //         = alpha / (1 - (1-alpha)(cos(ω) - j*sin(ω)))
-        //         = alpha / ((1 - (1-alpha)cos(ω)) + j*(1-alpha)sin(ω))
-        //
-        float realPart = 1.0f - (1.0f - alpha) * cosOmega;
-        float imagPart = (1.0f - alpha) * sinOmega;
-        
-        std::complex<float> singleStage(alpha, 0.0f);
-        std::complex<float> singleStageDen(realPart, imagPart);
-        singleStage = singleStage / singleStageDen;
-        
-        // Four cascaded stages: H^4
-        //
-        std::complex<float> fourStage = singleStage * singleStage * singleStage * singleStage;
-        
-        // Apply feedback with one-sample delay: z^(-1) = e^(-jω)
-        // H_total = H^4 / (1 + feedback * z^(-1) * H^4)
-        //
-        std::complex<float> zInv(cosOmega, -sinOmega);
-        std::complex<float> feedbackTerm(1.0f, 0.0f);
-        feedbackTerm = feedbackTerm + feedback * zInv * fourStage;
-        std::complex<float> totalTransfer = fourStage / feedbackTerm;
-        
-        // Apply gain compensation (1 + feedback) to maintain unity DC gain
-        //
-        return totalTransfer * (1.0f + feedback);
+        Snapshot snapshot;
+        snapshot.m_alpha = alpha;
+        snapshot.m_feedback = feedback;
+        return snapshot.ComplexResponse(ResponseFrequency::CyclesPerSample(freq), 0);
     }
 
     static float FrequencyResponse(float alpha, float feedback, float freq)
     {
-        return std::abs(TransferFunction(alpha, feedback, freq));
+        Snapshot snapshot;
+        snapshot.m_alpha = alpha;
+        snapshot.m_feedback = feedback;
+        return snapshot.MagnitudeResponse(ResponseFrequency::CyclesPerSample(freq), 0);
     }
-};
 
-template <typename Number, size_t Size>
-struct LadderFilterLPGeneric : LadderFilterLPBase
-{
     using Vector = MultiChannelNumber<Number, Size>;
     using Saturator = TanhSaturatorGeneric<Number, Size, true>;
+
+    struct Snapshot : FilterResponseSnapshot
+    {
+        float m_alpha = 0;
+        float m_feedback = 0;
+
+        // Four one-poles with the existing delayed feedback and DC compensation.
+        // Multiply through by the stage denominator to avoid complex divisions.
+        //
+        std::complex<double> Denominator(const ResponseFrequency& frequency) const
+        {
+            double b = 1 - static_cast<double>(m_alpha);
+            auto stage = std::complex<double>(m_alpha + 2 * b * frequency.m_sinHalf * frequency.m_sinHalf,
+                2 * b * frequency.m_sinHalf * frequency.m_cosHalf);
+            auto square = stage * stage;
+            double a = m_alpha;
+            return square * square + static_cast<double>(m_feedback) * a * a * a * a * frequency.m_zInverse;
+        }
+
+        double Numerator() const
+        {
+            double a = m_alpha;
+            return (1.0 + m_feedback) * a * a * a * a;
+        }
+
+        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
+        {
+            return m_alpha == 0 ? std::complex<float>{}
+                : static_cast<std::complex<float>>(Numerator() / Denominator(frequency));
+        }
+
+        float MagnitudeResponse(const ResponseFrequency& frequency, size_t) const override
+        {
+            return m_alpha == 0 ? 0 : static_cast<float>(Numerator() / std::abs(Denominator(frequency)));
+        }
+
+    };
+
+    using UIState = TransferFunctionGeneric<Snapshot>;
+
+    Snapshot MakeSnapshot(size_t channel) const
+    {
+        Snapshot snapshot;
+        snapshot.m_alpha = m_stage4.m_alpha[channel];
+        snapshot.m_feedback = m_kEff[channel];
+        return snapshot;
+    }
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer, size_t channel) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot(channel);
+        });
+    }
 
     OPLowPassFilterGeneric<Number, Size> m_stage1;
     OPLowPassFilterGeneric<Number, Size> m_stage2;
@@ -198,13 +198,12 @@ struct LadderFilterLPGeneric : LadderFilterLPBase
         SetSaturationGain(Vector::Splat(static_cast<Number>(0.5)));
     }
 
-    void PopulateUIState(UIState* uiState, size_t channel)
+    void PopulateUIState(UIState* uiState, size_t channel) const
     {
-        uiState->m_alpha.store(m_stage4.m_alpha[channel]);
-        uiState->m_feedback.store(m_kEff[channel]);
+        uiState->m_history.Push(MakeSnapshot(channel));
     }
 
-    void PopulateUIState(UIState* uiState)
+    void PopulateUIState(UIState* uiState) const
     {
         static_assert(Size == 1, "multi-channel filters must name the channel to publish");
         PopulateUIState(uiState, 0);

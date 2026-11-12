@@ -3,7 +3,7 @@
 #include "Math.hpp"
 #include "SampleTimer.hpp"
 #include "Slew.hpp"
-#include "TransferFunction.hpp"
+#include "SampledTransferFunction.hpp"
 #include <algorithm>
 #include <atomic>
 #include <complex>
@@ -31,39 +31,40 @@ struct FIR
     float m_blend;
     float m_asymmetry;
 
-    struct UIState : TransferFunction
+    struct Snapshot : FilterResponseSnapshot
     {
-        std::atomic<float> m_taps[Size];
+        std::array<float, Size> m_taps{};
 
-        UIState()
+        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
         {
-            for (size_t i = 0; i < Size; ++i)
+            std::complex<double> response{};
+            std::complex<double> power{1, 0};
+            for (float tap : m_taps)
             {
-                m_taps[i].store(0.0f);
-            }
-        }
-
-        std::complex<float> TransferFunctionValue(float normalizedFreq) const override
-        {
-            float freq = std::max(0.0f, std::min(0.5f, normalizedFreq));
-            float omega = 2.0f * static_cast<float>(M_PI) * freq;
-            std::complex<float> response(0.0f, 0.0f);
-
-            for (size_t n = 0; n < Size; ++n)
-            {
-                float phase = -omega * static_cast<float>(n);
-                std::complex<float> expTerm(Math::Cos(phase), Math::Sin(phase));
-                response += m_taps[n].load() * expTerm;
+                response += static_cast<double>(tap) * power;
+                power *= frequency.m_zInverse;
             }
 
-            return response;
-        }
-
-        float FrequencyResponse(float normalizedFreq) const override
-        {
-            return std::abs(TransferFunctionValue(normalizedFreq));
+            return static_cast<std::complex<float>>(response);
         }
     };
+
+    using UIState = TransferFunctionGeneric<Snapshot>;
+
+    Snapshot MakeSnapshot() const
+    {
+        Snapshot snapshot;
+        std::copy_n(m_slewedTaps, Size, snapshot.m_taps.begin());
+        return snapshot;
+    }
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot();
+        });
+    }
 
     FIR()
         : m_targetTaps{}
@@ -422,9 +423,6 @@ struct FIR
 
     void PopulateUIState(UIState* uiState) const
     {
-        for (size_t i = 0; i < Size; ++i)
-        {
-            uiState->m_taps[i].store(m_slewedTaps[i]);
-        }
+        uiState->m_history.Push(MakeSnapshot());
     }
 };
