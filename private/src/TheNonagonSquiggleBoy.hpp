@@ -1,6 +1,7 @@
 #pragma once
 
 #include "QuadUtils.hpp"
+#include "Filter.hpp"
 #include "SquiggleBoy.hpp"
 #include "TheNonagon.hpp"
 #include "TimerCell.hpp"
@@ -70,6 +71,7 @@ struct TheNonagonSquiggleBoyInternal
     //
     SettlingSlew m_blendSlew;
     SettlingSlew m_faderSlew[SquiggleBoyWithEncoderBank::x_numFaders];
+    OPLowPassFilterGeneric<float, 3> m_sheafyModulatorSlew[SquiggleBoy::x_numVoices];
 
     UIState m_uiState;
 
@@ -392,9 +394,12 @@ struct TheNonagonSquiggleBoyInternal
             m_squiggleBoy.m_trackState[i / SquiggleBoy::x_voicesPerTrack].m_mutingControl[i % SquiggleBoy::x_voicesPerTrack].m_gate =
                 m_nonagon.m_nonagon.m_theoryOfTime.m_sample.m_running && !m_nonagon.m_state.m_trigLogic.m_mute[i];
 
-            m_squiggleBoyState.m_sheafyModulators[i][0] = m_nonagon.m_nonagon.m_output.m_extraTimbre[i][0];
-            m_squiggleBoyState.m_sheafyModulators[i][1] = m_nonagon.m_nonagon.m_output.m_extraTimbre[i][1];
-            m_squiggleBoyState.m_sheafyModulators[i][2] = m_nonagon.m_nonagon.m_output.m_extraTimbre[i][2];
+            auto sheafyModulators = m_sheafyModulatorSlew[i].Process(
+                MultiChannelNumber<float, 3>(m_nonagon.m_nonagon.m_output.m_extraTimbre[i]));
+            for (size_t modulator = 0; modulator < 3; ++modulator)
+            {
+                m_squiggleBoyState.m_sheafyModulators[i][modulator] = sheafyModulators[modulator];
+            }
         }
 
         for (size_t track = 0; track < SquiggleBoy::x_numTracks; ++track)
@@ -662,6 +667,11 @@ struct TheNonagonSquiggleBoyInternal
         for (size_t i = 0; i < SquiggleBoyWithEncoderBank::x_numFaders; ++i)
         {
             m_faderSlew[i].SetAlphaFromNatFreq(x_inputSlewCutoff);
+        }
+
+        for (size_t i = 0; i < SquiggleBoy::x_numVoices; ++i)
+        {
+            m_sheafyModulatorSlew[i].SetAlphaFromNatFreq(x_inputSlewCutoff);
         }
 
         m_nonagon.m_activeTrio = &m_activeTrio;
