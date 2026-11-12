@@ -26,7 +26,6 @@
 #include "VCO.hpp"
 #include "DeepVocoder.hpp"
 #include "PartialMachine.hpp"
-#include "KMixMidi.hpp"
 #include "Math.hpp"
 #include "SampleTimer.hpp"
 #include "StateSaver.hpp"
@@ -774,29 +773,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     };
 
-    void WriteKMixMidi(KMixMidi* kMixMidi)
-    {
-        static const Param x_sourceGains[4] =
-        {
-            Param::Source1Gain,
-            Param::Source2Gain,
-            Param::Source3Gain,
-            Param::Source4Gain
-        };
-
-        for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
-        {
-            float trim = std::max(0.0f, 2 * (m_encoders.GetValue(x_sourceGains[i]) - 0.5f));
-            float ccValue = std::max(0.0f, trim);
-            size_t leftChannel = i * SourceMixer::x_numSourceLanes;
-            size_t rightChannel = leftChannel + 1;
-            bool sourceIsStereo = m_sourceMixerState.m_sources[i].m_config.IsStereo();
-
-            kMixMidi->SetTrim(leftChannel, ccValue);
-            kMixMidi->SetTrim(rightChannel, sourceIsStereo ? ccValue : 0.0f);
-        }
-    }
-
     void SetupScopeWriters(UIState* uiState)
     {
         if (m_theoryOfTime)
@@ -1285,16 +1261,16 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         m_sourceMixerState.m_sources[0].m_hpCutoff.Update(m_encoders.GetValue(Param::Source1HP));
         m_sourceMixerState.m_sources[0].m_lpFactor.Update(m_encoders.GetValue(Param::Source1LP));
-        m_sourceMixerState.m_sources[0].m_gain.Update(std::min(1.0f, 2 * m_encoders.GetValue(Param::Source1Gain)));
+        m_sourceMixerState.m_sources[0].m_gain.Update(m_encoders.GetValue(Param::Source1Gain));
         m_sourceMixerState.m_sources[1].m_hpCutoff.Update(m_encoders.GetValue(Param::Source2HP));
         m_sourceMixerState.m_sources[1].m_lpFactor.Update(m_encoders.GetValue(Param::Source2LP));
-        m_sourceMixerState.m_sources[1].m_gain.Update(std::min(1.0f, 2 * m_encoders.GetValue(Param::Source2Gain)));
+        m_sourceMixerState.m_sources[1].m_gain.Update(m_encoders.GetValue(Param::Source2Gain));
         m_sourceMixerState.m_sources[2].m_hpCutoff.Update(m_encoders.GetValue(Param::Source3HP));
         m_sourceMixerState.m_sources[2].m_lpFactor.Update(m_encoders.GetValue(Param::Source3LP));
-        m_sourceMixerState.m_sources[2].m_gain.Update(std::min(1.0f, 2 * m_encoders.GetValue(Param::Source3Gain)));
+        m_sourceMixerState.m_sources[2].m_gain.Update(m_encoders.GetValue(Param::Source3Gain));
         m_sourceMixerState.m_sources[3].m_hpCutoff.Update(m_encoders.GetValue(Param::Source4HP));
         m_sourceMixerState.m_sources[3].m_lpFactor.Update(m_encoders.GetValue(Param::Source4LP));
-        m_sourceMixerState.m_sources[3].m_gain.Update(std::min(1.0f, 2 * m_encoders.GetValue(Param::Source4Gain)));
+        m_sourceMixerState.m_sources[3].m_gain.Update(m_encoders.GetValue(Param::Source4Gain));
 
         m_deepVocoderState.SetSlew(m_encoders.GetValue(Param::DeepVocoderSlewUp), m_encoders.GetValue(Param::DeepVocoderSlewDown));
         

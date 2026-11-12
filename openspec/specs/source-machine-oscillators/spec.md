@@ -136,7 +136,7 @@ The physical host-rate inputs SHALL be upsampled to the engine rate by an order-
 
 When source lanes are sent to the quad mixer, a Mono source SHALL preserve the existing centered X/Y panning for both lanes. A Stereo source SHALL set each lane's X coordinate from bit 0 of `source * 2 + lane + 1` and SHALL set each lane's Y coordinate from bit 1 of `source * 2 + lane + 1`, so each stereo pair is assigned to opposite quad corners.
 
-When source trim is sent to K-Mix, the system SHALL map each source index to two physical trim channels. Source `i` SHALL set trim for physical even channel `2 * i` from the source's current trim value. If source `i` is Mono, physical odd channel `2 * i + 1` SHALL be trimmed to zero. If source `i` is Stereo, physical odd channel `2 * i + 1` SHALL receive the same current trim value.
+Each source gain knob SHALL use its full normalized range for software gain, with `gain = (8^knob - 1) / 7`: zero silences the source, halfway gives approximately 0.2612 gain, and fully clockwise gives unity gain. The same gain SHALL apply to both source lanes before the source filters. Source gain SHALL NOT send hardware trim MIDI. Existing stored knob values SHALL load unchanged, with no patch migration.
 
 #### Scenario: Four external source slots are available
 - **WHEN** the source mixer input state is initialized
@@ -170,15 +170,13 @@ When source trim is sent to K-Mix, the system SHALL map each source index to two
 - **AND** each source lane sets Y from bit 1 of `source * 2 + lane + 1`
 - **AND** the source's left and right lanes occupy opposite quad corners
 
-#### Scenario: Mono source trim mutes the unused physical input
-- **WHEN** source 1 is configured as Mono and its current trim value is sent to K-Mix
-- **THEN** physical input channel 2 receives the current trim value
-- **AND** physical input channel 3 receives zero trim
+#### Scenario: Upper half of source gain remains active
+- **WHEN** a source gain knob moves from 0.5 through 0.75 to 1.0
+- **THEN** its software gain rises from approximately 0.2612 through 0.5367 to 1.0
 
-#### Scenario: Stereo source trim applies to both physical inputs
-- **WHEN** source 2 is configured as Stereo and its current trim value is sent to K-Mix
-- **THEN** physical input channel 4 receives the current trim value
-- **AND** physical input channel 5 receives the current trim value
+#### Scenario: Source gain reaches silence
+- **WHEN** a source gain knob is set to zero
+- **THEN** both of its source lanes are silent after the gain stage
 
 ### Requirement: Thru Source Machine
 The Thru source machine SHALL pass the external `SourceMixer` source channel assigned by the voice's source assignment through the voice, reading the source lane's current sample every engine sample so the voice's filter and amp sections shape outside audio.

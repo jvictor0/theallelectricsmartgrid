@@ -17,16 +17,11 @@ The JUCE config page SHALL present each device or mode selection through a typed
 - **AND** the page remains usable
 
 ### Requirement: Existing MIDI Configuration Behavior Is Preserved
-The JUCE config page SHALL continue to allow the user to configure the existing controller MIDI inputs, MIDI outputs, and controller shapes with the same routing behavior as before the refactor. Launchpad, Encoder, WrldBldr, Generic, and KMix sections SHALL keep their existing supported dropdowns and omissions.
+The JUCE config page SHALL continue to allow the user to configure the existing controller MIDI inputs, MIDI outputs, and controller shapes with the same routing behavior as before the refactor. Launchpad, Encoder, WrldBldr, and Generic sections SHALL keep their existing supported dropdowns and omissions.
 
 #### Scenario: Launchpad section applies input, output, and shape
 - **WHEN** the user selects a MIDI input, MIDI output, and controller shape for a Launchpad section
 - **THEN** the corresponding Nonagon launchpad/twister input and launchpad output are opened with the selected device identifiers and shape
-
-#### Scenario: KMix section remains output only
-- **WHEN** the config page displays the KMix section
-- **THEN** it provides a MIDI output selection
-- **AND** it does not provide a MIDI input selection
 
 #### Scenario: Generic section does not offer MIDI output choices
 - **WHEN** the config page displays a Generic section

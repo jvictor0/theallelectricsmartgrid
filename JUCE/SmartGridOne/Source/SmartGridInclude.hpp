@@ -10,7 +10,6 @@
 #include "SmartGridOneScopeEnums.hpp"
 #include "WrldBLDRMidi.hpp"
 #include "AudioInputBuffer.hpp"
-#include "KMixMidi.hpp"
 #include "RollingBuffer.hpp"
 #include "Mutex.hpp"
 #include "SampleTimer.hpp"

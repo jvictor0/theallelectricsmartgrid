@@ -354,53 +354,21 @@ struct NonagonWrapperWrldBldr
         }
     };
 
-    struct KMixMidiOutputHandler : ::MidiOutputHandler
-    {
-        TheNonagonSquiggleBoyInternal* m_internal;
-        MidiSender* m_midiSender;
-
-        KMixMidiOutputHandler(TheNonagonSquiggleBoyInternal* internal, MidiSender* midiSender)
-            : ::MidiOutputHandler()
-            , m_internal(internal)
-            , m_midiSender(midiSender)
-        {
-        }
-
-        void Process() override
-        {
-            if (PrepareProcess())
-            {
-                for (auto msg : m_internal->m_ioState.m_kMixMidi)
-                {
-                    m_midiSender->SendMessage(msg, m_routeId);
-                }
-            }
-        }
-
-        void Reset() override
-        {
-            m_internal->m_ioState.m_kMixMidi.Reset();
-        }
-    };
-
     NonagonWrapperWrldBldr(TheNonagonSquiggleBoyInternal* internal, MidiSender* midiSender)
         : m_nonagon(internal)
         , m_internal(internal)
         , m_midiInputHandler(&m_nonagon)
         , m_midiOutputHandler(&m_nonagon, midiSender)
-        , m_kMixMidiOutputHandler(internal, midiSender)
         , m_midiSender(midiSender)
     {
         m_midiSender->AllocateRoute(&m_midiOutputHandler);
         m_midiSender->m_clockRouteId = m_midiOutputHandler.m_routeId;
-        m_midiSender->AllocateRoute(&m_kMixMidiOutputHandler);
     }
 
     void CheckMidiConnections()
     {
         const bool inputOpened = m_midiInputHandler.AttemptConnect();
         const bool outputOpened = m_midiOutputHandler.AttemptConnect();
-        m_kMixMidiOutputHandler.AttemptConnect();
         if ((inputOpened || outputOpened) && IsOpen())
         {
             SendHandshake();
@@ -425,11 +393,6 @@ struct NonagonWrapperWrldBldr
         }
     }
 
-    void OpenKMixOutput(const juce::String &deviceIdentifier)
-    {
-        m_kMixMidiOutputHandler.Open(deviceIdentifier);
-    }
-
     void SendHandshake()
     {
         if (m_midiOutputHandler.IsOpen())
@@ -444,7 +407,6 @@ struct NonagonWrapperWrldBldr
     void SendMidiOutput()
     {
         m_midiOutputHandler.Process();
-        m_kMixMidiOutputHandler.Process();
     }
 
     void ClearLEDs()
@@ -493,17 +455,11 @@ struct NonagonWrapperWrldBldr
         return m_midiOutputHandler.IsOpen() ? m_midiOutputHandler.m_midiOutput.get() : nullptr;
     }
 
-    juce::MidiOutput* GetKMixOutput()
-    {
-        return m_kMixMidiOutputHandler.IsOpen() ? m_kMixMidiOutputHandler.m_midiOutput.get() : nullptr;
-    }
-
     JSON ConfigToJSON(JsonArena& a)
     {
         JSON rootJ = a.Object();
         rootJ.SetNew("midi_input", m_midiInputHandler.ToJSON(a));
         rootJ.SetNew("midi_output", m_midiOutputHandler.ToJSON(a));
-        rootJ.SetNew("kmix_output", m_kMixMidiOutputHandler.ToJSON(a));
         return rootJ;
     }
 
@@ -521,12 +477,6 @@ struct NonagonWrapperWrldBldr
             m_midiOutputHandler.FromJSON(midiOutputJ);
         }
 
-        JSON kmixOutputJ = config.Get("kmix_output");
-        if (!kmixOutputJ.IsNull())
-        {
-            m_kMixMidiOutputHandler.FromJSON(kmixOutputJ);
-        }
-
         if (IsOpen())
         {
             SendHandshake();
@@ -537,7 +487,6 @@ struct NonagonWrapperWrldBldr
     TheNonagonSquiggleBoyInternal* m_internal;
     MidiInputHandler m_midiInputHandler;
     MidiOutputHandler m_midiOutputHandler;
-    KMixMidiOutputHandler m_kMixMidiOutputHandler;
     MidiSender* m_midiSender;
 }; 
 
@@ -701,16 +650,6 @@ struct NonagonWrapper
     juce::MidiOutput* GetMidiOutputWrldBldr()
     {
         return m_wrldBldr.GetMidiOutput();
-    }
-
-    void OpenKMixOutput(const juce::String &deviceIdentifier)
-    {
-        m_wrldBldr.OpenKMixOutput(deviceIdentifier);
-    }
-
-    juce::MidiOutput* GetKMixOutput()
-    {
-        return m_wrldBldr.GetKMixOutput();
     }
 
     JSON ConfigToJSON(JsonArena& a)

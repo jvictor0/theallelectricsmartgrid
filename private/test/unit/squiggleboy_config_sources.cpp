@@ -26,23 +26,6 @@ void SetSourceWidth(
     squiggleBoy.m_sourceMixerState.m_sources[sourceIndex].m_config.m_width = width;
 }
 
-void SetParamValue(
-    SquiggleBoyWithEncoderBank& squiggleBoy,
-    SmartGridOneEncoders::Param param,
-    float value)
-{
-    auto& bank = squiggleBoy.m_encoders.m_encoderBankBank;
-    size_t index = squiggleBoy.m_encoders.EncoderIndex(param, 0);
-    DOCTEST_REQUIRE(bank.GetEncoder(index));
-
-    // Seed the processed parameter caches read by WriteKMixMidi.
-    //
-    for (auto& cache : bank.m_valueCaches)
-    {
-        cache[index] = QuadFloat::Splat(value);
-    }
-}
-
 SourceAssignment AssignmentAt(synthrig::SynthRig& rig, size_t trioIdx, size_t voiceInTrio)
 {
     size_t voiceIdx = trioIdx * TheNonagonInternal::x_voicesPerTrio + voiceInTrio;
@@ -342,23 +325,45 @@ DOCTEST_TEST_CASE("SquiggleBoy mixer copies source monitor state into the source
     DOCTEST_CHECK(squiggleBoy.m_mixerState.m_externals[1].m_monitor);
 }
 
-DOCTEST_TEST_CASE("SquiggleBoy writes source trims to paired physical K-Mix input channels")
+DOCTEST_TEST_CASE("SquiggleBoy source gain uses the full knob travel from silence to unity")
 {
     synthrig::SynthRig rig;
     auto& squiggleBoy = rig.Internal().m_squiggleBoy;
-    KMixMidi kMixMidi;
+    squiggleBoy.m_encoders.SelectBank(SmartGridOneEncoders::Bank::Inputs);
 
-    DOCTEST_REQUIRE(KMixMidi::x_numChannels == SourceMixer::x_numPhysicalInputChannels);
+    struct GainSetting
+    {
+        float m_knob;
+        float m_gain;
+    };
 
-    SetSourceWidth(squiggleBoy, 1, SourceMixer::SourceWidth::Mono);
-    SetSourceWidth(squiggleBoy, 2, SourceMixer::SourceWidth::Stereo);
-    SetParamValue(squiggleBoy, SmartGridOneEncoders::Param::Source2Gain, 0.75f);
-    SetParamValue(squiggleBoy, SmartGridOneEncoders::Param::Source3Gain, 1.0f);
+    static constexpr GainSetting x_settings[] =
+    {
+        {0.0f, 0.0f},
+        {0.25f, 0.09739898f},
+        {0.5f, 0.26120387f},
+        {0.75f, 0.53668976f},
+        {1.0f, 1.0f},
+        {0.0f, 0.0f},
+    };
 
-    squiggleBoy.WriteKMixMidi(&kMixMidi);
+    for (const GainSetting& setting : x_settings)
+    {
+        for (size_t source = 0; source < SourceMixer::x_numSources; ++source)
+        {
+            rig.SetEncoder(static_cast<int>(source), 3, setting.m_knob);
+        }
 
-    DOCTEST_CHECK(kMixMidi.m_trims[2] == 63);
-    DOCTEST_CHECK(kMixMidi.m_trims[3] == 0);
-    DOCTEST_CHECK(kMixMidi.m_trims[4] == 127);
-    DOCTEST_CHECK(kMixMidi.m_trims[5] == 127);
+        // Allow queued input delivery and encoder smoothing to settle.
+        //
+        rig.RunFrames(2);
+        rig.RunHostFrames(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
+        for (size_t source = 0; source < SourceMixer::x_numSources; ++source)
+        {
+            DOCTEST_CAPTURE(source);
+            DOCTEST_CAPTURE(setting.m_knob);
+            float gain = squiggleBoy.m_sourceMixerState.m_sources[source].m_gain.m_expParam;
+            DOCTEST_CHECK(gain == doctest::Approx(setting.m_gain).epsilon(0.0001).scale(1.0));
+        }
+    }
 }

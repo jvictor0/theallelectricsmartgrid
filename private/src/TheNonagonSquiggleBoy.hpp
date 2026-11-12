@@ -59,11 +59,6 @@ struct TheNonagonSquiggleBoyInternal
         }
     };
 
-    struct IOState
-    {
-        KMixMidi m_kMixMidi;
-    };
-
     static constexpr float x_inputSlewCutoff = SampleTimer::HzToCycPerSamp(500.0);
 
     SquiggleBoyWithEncoderBank::Input m_squiggleBoyState;
@@ -77,7 +72,6 @@ struct TheNonagonSquiggleBoyInternal
     SettlingSlew m_faderSlew[SquiggleBoyWithEncoderBank::x_numFaders];
 
     UIState m_uiState;
-    IOState m_ioState;
 
     TheNonagonSmartGrid::Trio m_activeTrio;
 
@@ -603,7 +597,6 @@ struct TheNonagonSquiggleBoyInternal
         m_squiggleBoy.ProcessFrame();
         m_nonagon.ProcessFrame(&m_uiState.m_nonagonUIState);
         PopulateUIState();
-        PopulateIOState();
         HandleStateInterchange();
     }
 
@@ -650,11 +643,6 @@ struct TheNonagonSquiggleBoyInternal
             m_uiState.m_analogUIState.SetValue(i + 1, m_squiggleBoyState.m_faders[i]);
         }
 
-    }
-
-    void PopulateIOState()
-    {
-        m_squiggleBoy.WriteKMixMidi(&m_ioState.m_kMixMidi);
     }
 
     TheNonagonSquiggleBoyInternal()

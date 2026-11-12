@@ -124,7 +124,7 @@ struct ConfigDropdownRow : public juce::Component
 class ConfigPage : public juce::Component
 {
 public:
-    static constexpr size_t x_numControllers = 8;
+    static constexpr size_t x_numControllers = 7;
 
     ConfigPage(NonagonWrapper* nonagon, Configuration* configuration, juce::AudioDeviceManager* audioDeviceManager,
         std::function<juce::String()> resetAudio)
@@ -137,7 +137,6 @@ public:
             ControllerSection("Encoder", ControllerSection::Type::Encoder),
             ControllerSection("Faders", ControllerSection::Type::Generic),
             ControllerSection("WrldBldr", ControllerSection::Type::WrldBldr),
-            ControllerSection("KMix", ControllerSection::Type::KMix),
         }
         , m_audioInputRow("Audio In")
         , m_audioOutputRow("Audio Out")
@@ -305,8 +304,7 @@ public:
             Launchpad,
             Encoder,
             Generic,
-            WrldBldr,
-            KMix
+            WrldBldr
         };
 
         juce::Label m_titleLabel;
@@ -327,7 +325,7 @@ public:
 
         bool HasMidiInputRow() const
         {
-            return m_type != Type::KMix;
+            return true;
         }
 
         bool HasMidiOutputRow() const
@@ -338,8 +336,7 @@ public:
         bool HasControllerShapeRow() const
         {
             return m_type != Type::WrldBldr &&
-                   m_type != Type::Generic &&
-                   m_type != Type::KMix;
+                   m_type != Type::Generic;
         }
 
         void PopulateMidiDevices(const juce::StringArray& midiInputNames, const juce::StringArray& midiOutputNames)
@@ -386,10 +383,6 @@ public:
                 midiInput = nonagon->GetMidiInputWrldBldr();
                 midiOutput = nonagon->GetMidiOutputWrldBldr();
             }
-            else if (m_type == Type::KMix)
-            {
-                midiOutput = nonagon->GetKMixOutput();
-            }
             else
             {
                 midiInput = nonagon->GetMidiInputQuadLaunchpadTwister(index);
@@ -433,15 +426,7 @@ public:
             }
 
             int midiOutIndex = m_midiOutputRow.GetSelectedIndex();
-            if (m_type == Type::KMix)
-            {
-                if (midiOutIndex > 0 && midiOutIndex < midiOutputIds.size())
-                {
-                    auto deviceId = midiOutputIds[midiOutIndex];
-                    nonagon->OpenKMixOutput(deviceId);
-                }
-            }
-            else if (m_type == Type::Launchpad)
+            if (m_type == Type::Launchpad)
             {
                 int shapeIndex = m_controllerShapeRow.GetSelectedIndex();
 
