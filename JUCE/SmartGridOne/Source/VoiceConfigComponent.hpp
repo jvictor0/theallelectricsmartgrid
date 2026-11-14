@@ -141,7 +141,7 @@ struct VoiceConfigComponent : public juce::Component
 
         size_t voiceIndex = trackIx * TheNonagonInternal::x_voicesPerTrio;
         auto sourceMachine = uiState->m_voiceSourceUIState[voiceIndex].m_sourceMachine.load();
-        auto filterMachine = uiState->m_voiceFilterUIState[voiceIndex].m_filterMachine.load();
+        auto filterMachine = uiState->m_voiceFilterUIState[voiceIndex / SquiggleBoy::x_voicesPerTrack].m_filterMachine.load();
 
         juce::String sourceText = VoiceMachine::ToString(sourceMachine);
         juce::String filterText = VoiceMachine::ToString(filterMachine);

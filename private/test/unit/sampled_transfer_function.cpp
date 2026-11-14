@@ -4,6 +4,8 @@
 #include "LadderFilter.hpp"
 #include "MultibandSaturator.hpp"
 #include "StateVariableFilter.hpp"
+#include "TrioUtils.hpp"
+#include "TunedDecayComb.hpp"
 #include "../support/GlobalEnv.hpp"
 #include <atomic>
 #include <thread>
@@ -92,7 +94,7 @@ DOCTEST_TEST_CASE("Sampled response: configured percentiles and frequency units 
     OPLowPassFilter filter;
     filter.SetAlphaFromNatFreq(0.01f);
     OPLowPassFilter::UIState lowPass(TestConfig(4, 1));
-    lowPass.m_history.Push(filter.MakeSnapshot(0));
+    lowPass.m_history.Push(filter.MakeSnapshot());
     auto ids = lowPass.Sample();
     for (double rate : {48000.0, 192000.0})
     {
@@ -130,9 +132,9 @@ DOCTEST_TEST_CASE("Sampled response: audio sampling is host gated and captures c
         filter.SetBaseWidth(QuadFloat(base, base * 2, base * 3, base * 4), QuadFloat::Splat(2));
         for (size_t lane = 0; lane < 4; ++lane)
         {
-            auto expected = filter.MakeSnapshot(lane);
+            auto expected = filter.MakeSnapshot();
             DOCTEST_CHECK(ui.MagnitudeResponse(ids[i], frequency, lane)
-                == doctest::Approx(expected.MagnitudeResponse(frequency, 0)));
+                == doctest::Approx(expected.MagnitudeResponse(frequency, lane)));
         }
     }
 
@@ -213,10 +215,10 @@ DOCTEST_TEST_CASE("Sampled response: optimized magnitudes match complex response
         ladder.SetCutoff(cutoff);
         ladder.SetResonance(0.5f);
         ladder.Process(0.1f);
-        auto low = lp.MakeSnapshot(0);
-        auto high = hp.MakeSnapshot(0);
-        auto state = svf.MakeSnapshot(0);
-        auto ladderState = ladder.MakeSnapshot(0);
+        auto low = lp.MakeSnapshot();
+        auto high = hp.MakeSnapshot();
+        auto state = svf.MakeSnapshot();
+        auto ladderState = ladder.MakeSnapshot();
         for (double frequency : {0.0, 0.000001, 0.001, 0.03, 0.2, 0.499, 0.5})
         {
             auto prepared = ResponseFrequency::CyclesPerSample(frequency);
@@ -317,4 +319,180 @@ DOCTEST_TEST_CASE("Sampled response: concurrent machine switches cannot mix resp
     producer.join();
     DOCTEST_CHECK(coherent);
     DOCTEST_CHECK(ui.Sample().size() == 4);
+}
+
+namespace
+{
+struct TrioGainSnapshot : VectorResponseSnapshot<3>
+{
+    ResponseVector m_gain;
+
+    ComplexVector ComplexResponses(const ResponseFrequency&) const override
+    {
+        return {m_gain.Convert<double>(), DoubleVector()};
+    }
+};
+
+template<typename Snapshot, typename MonoSnapshot>
+void CheckResponseLanes(const Snapshot& snapshot, const std::array<MonoSnapshot, 3>& mono)
+{
+    for (double frequency : {0.0, 0.000001, 0.001, 0.03, 0.2, 0.499, 0.5})
+    {
+        auto prepared = ResponseFrequency::CyclesPerSample(frequency);
+        auto complex = snapshot.ComplexResponses(prepared);
+        auto magnitude = snapshot.MagnitudeResponses(prepared);
+        for (size_t lane = 0; lane < 3; ++lane)
+        {
+            auto reference = mono[lane].ComplexResponse(prepared, 0);
+            DOCTEST_CHECK(std::abs(complex[lane] - static_cast<std::complex<double>>(reference))
+                <= 0.00002 * std::max(1.0f, std::abs(reference)));
+            DOCTEST_CHECK(magnitude[lane] == doctest::Approx(mono[lane].MagnitudeResponse(prepared, 0)).epsilon(0.00002));
+        }
+    }
+}
+}
+
+DOCTEST_TEST_CASE("Sampled vectors: padded order statistics independently sort every lane")
+{
+    for (size_t count : {1, 2, 3, 5, 11, 17, 31, 32, 33, 63})
+    {
+        for (float lower : {0.0f, 0.1f, 0.5f})
+        {
+            auto config = TestConfig(64, count);
+            config.m_lowerPercentile = lower;
+            config.m_upperPercentile = 1 - lower;
+            TransferFunctionGeneric<TrioGainSnapshot> ui(config);
+            TransferFunctionGeneric<GainSnapshot> mono(config);
+            std::array<std::vector<float>, 3> expected;
+            for (size_t sample = 0; sample < count; ++sample)
+            {
+                TrioGainSnapshot snapshot;
+                for (size_t lane = 0; lane < 3; ++lane)
+                {
+                    float value = static_cast<float>((sample * (11 + lane * 2) + lane * 7) % 37);
+                    snapshot.m_gain[lane] = value;
+                    expected[lane].push_back(value);
+                }
+
+                ui.m_history.Push(snapshot);
+                GainSnapshot scalar;
+                scalar.m_gain = snapshot.m_gain[0];
+                mono.m_history.Push(scalar);
+            }
+
+            auto samples = ui.Sample();
+            auto scalarSamples = mono.Sample();
+            auto scalar = mono.ResponseHz(scalarSamples, 1000, 192000, 0);
+            SampledTransferFunction::OrderStatistics actual[3];
+            ui.ResponseAll(samples, ResponseFrequency::Hz(1000, 192000), actual);
+            DOCTEST_CHECK(scalar.m_lower == actual[0].m_lower);
+            DOCTEST_CHECK(scalar.m_median == actual[0].m_median);
+            DOCTEST_CHECK(scalar.m_upper == actual[0].m_upper);
+            for (size_t lane = 0; lane < 3; ++lane)
+            {
+                std::sort(expected[lane].begin(), expected[lane].end());
+                DOCTEST_CHECK(actual[lane].m_lower == expected[lane][static_cast<size_t>(lower * (count - 1))]);
+                DOCTEST_CHECK(actual[lane].m_median == expected[lane][(count - 1) / 2]);
+                DOCTEST_CHECK(actual[lane].m_upper == expected[lane][static_cast<size_t>((1 - lower) * (count - 1))]);
+            }
+        }
+    }
+}
+
+DOCTEST_TEST_CASE("Sampled vectors: captured filter coefficients and responses preserve independent voices")
+{
+    const TrioFloat cutoff(0.0001f, 0.01f, 0.42f);
+    const TrioFloat resonance(0.1f, 0.6f, 0.9f);
+    OPLowPassFilterGeneric<float, 3> lp;
+    OPHighPassFilterGeneric<float, 3> hp;
+    TrioLinearStateVariableFilter svf;
+    LadderFilterLPGeneric<float, 3> ladder;
+    lp.SetAlphaFromNatFreq(cutoff);
+    hp.SetAlphaFromNatFreq(cutoff);
+    svf.SetCutoffAndResonance(cutoff, resonance);
+    ladder.SetCutoff(cutoff);
+    ladder.SetResonance(resonance);
+    ladder.Process(TrioFloat::Splat(0.1f));
+    std::array<OPLowPassFilter::Snapshot, 3> monoLP;
+    std::array<OPHighPassFilter::Snapshot, 3> monoHP;
+    std::array<LinearStateVariableFilter::Snapshot, 3> monoSVF;
+    std::array<LadderFilterLP::Snapshot, 3> monoLadder;
+    auto state = svf.MakeSnapshot();
+    state.m_weights = svf.GetMorphWeights(TrioFloat(0.0f, 0.3f, 0.8f));
+    for (size_t lane = 0; lane < 3; ++lane)
+    {
+        OPLowPassFilter oneLP;
+        OPHighPassFilter oneHP;
+        LinearStateVariableFilter oneSVF;
+        LadderFilterLP oneLadder;
+        oneLP.SetAlphaFromNatFreq(cutoff[lane]);
+        oneHP.SetAlphaFromNatFreq(cutoff[lane]);
+        oneSVF.SetCutoffAndResonance(cutoff[lane], resonance[lane]);
+        oneLadder.SetCutoff(cutoff[lane]);
+        oneLadder.SetResonance(resonance[lane]);
+        oneLadder.Process(0.1f);
+        monoLP[lane] = oneLP.MakeSnapshot();
+        monoHP[lane] = oneHP.MakeSnapshot();
+        monoSVF[lane] = oneSVF.MakeSnapshot();
+        monoSVF[lane].m_weights = oneSVF.GetMorphWeights(std::array<float, 3>{0.0f, 0.3f, 0.8f}[lane]);
+        monoLadder[lane] = oneLadder.MakeSnapshot();
+    }
+
+    DOCTEST_CHECK(lp.MakeSnapshot().m_alpha == lp.m_alpha);
+    DOCTEST_CHECK(svf.MakeSnapshot().m_g == svf.m_g);
+    DOCTEST_CHECK(ladder.MakeSnapshot().m_feedback == ladder.m_kEff);
+    CheckResponseLanes(lp.MakeSnapshot(), monoLP);
+    CheckResponseLanes(hp.MakeSnapshot(), monoHP);
+    CheckResponseLanes(state, monoSVF);
+    CheckResponseLanes(ladder.MakeSnapshot(), monoLadder);
+}
+
+DOCTEST_TEST_CASE("Sampled vectors: physical comb response retains independent delays and crossfade branches")
+{
+    for (double mix : {0.0, 0.25, 1.0})
+    {
+        TrioTunedDecayComb::Snapshot vector;
+        std::array<TunedDecayComb::Snapshot, 3> mono;
+        vector.m_mix = mix;
+        for (size_t lane = 0; lane < 3; ++lane)
+        {
+            mono[lane].m_mix = mix;
+            for (size_t branch = 0; branch < 2; ++branch)
+            {
+                auto coefficients = TunedDecayComb::ComputeCoefficients(
+                    (110.0 + lane * 330 + branch * 25) / SampleTimer::x_sampleRate,
+                    lane == 0 ? 0 : lane == 1 ? -1 : 1, std::log2(0.2 + lane),
+                    1 + lane * 2, SampleTimer::x_sampleRate);
+                vector.m_branch[branch].Set(lane, coefficients);
+                mono[lane].m_branch[branch].Set(0, coefficients);
+            }
+        }
+
+        CheckResponseLanes(vector, mono);
+    }
+}
+
+DOCTEST_TEST_CASE("Sampled vectors: grouped FIR taps match the full complex polynomial")
+{
+    FIR<31> filter;
+    for (float blend : {0.0f, 0.3f, 0.7f, 1.0f})
+    {
+        filter.SetParams(0.13f, blend, 0.37f);
+        std::copy_n(filter.m_targetTaps, 31, filter.m_slewedTaps);
+        auto snapshot = filter.MakeSnapshot();
+        for (double normalized : {0.0, 0.001, 0.1, 0.3, 0.499, 0.5})
+        {
+            auto frequency = ResponseFrequency::CyclesPerSample(normalized);
+            std::complex<double> expected{};
+            std::complex<double> power{1, 0};
+            for (float tap : filter.m_slewedTaps)
+            {
+                expected += power * static_cast<double>(tap);
+                power *= frequency.m_zInverse;
+            }
+
+            auto actual = snapshot.ComplexResponses(frequency)[0];
+            DOCTEST_CHECK(std::abs(actual - expected) < 1e-10);
+        }
+    }
 }

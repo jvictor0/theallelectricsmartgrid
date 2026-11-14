@@ -31,21 +31,40 @@ struct FIR
     float m_blend;
     float m_asymmetry;
 
-    struct Snapshot : FilterResponseSnapshot
+    struct Snapshot : VectorResponseSnapshot<1>
     {
-        std::array<float, Size> m_taps{};
+        using TapVector = MultiChannelNumber<double, 4>;
+        using TapComplex = MultiChannelComplex<double, 4>;
+        std::array<MultiChannelNumber<float, 4>, (Size + 3) / 4> m_taps{};
 
-        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
+        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
         {
-            std::complex<double> response{};
+            auto z = frequency.m_zInverse;
+            TapComplex powers;
             std::complex<double> power{1, 0};
-            for (float tap : m_taps)
+            for (size_t lane = 0; lane < 4; ++lane)
             {
-                response += static_cast<double>(tap) * power;
-                power *= frequency.m_zInverse;
+                powers.SetChannel(lane, power);
+                power *= z;
             }
 
-            return static_cast<std::complex<float>>(response);
+            TapComplex stride(power);
+            TapComplex sum;
+            for (const auto& taps : m_taps)
+            {
+                sum += powers * taps.template Convert<double>();
+                powers *= stride;
+            }
+
+            double real = 0;
+            double imag = 0;
+            for (size_t lane = 0; lane < 4; ++lane)
+            {
+                real += sum.m_real[lane];
+                imag += sum.m_imag[lane];
+            }
+
+            return {real, imag};
         }
     };
 
@@ -54,7 +73,11 @@ struct FIR
     Snapshot MakeSnapshot() const
     {
         Snapshot snapshot;
-        std::copy_n(m_slewedTaps, Size, snapshot.m_taps.begin());
+        for (size_t i = 0; i < Size; ++i)
+        {
+            snapshot.m_taps[i / 4][i % 4] = m_slewedTaps[i];
+        }
+
         return snapshot;
     }
 

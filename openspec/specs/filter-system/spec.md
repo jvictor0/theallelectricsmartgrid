@@ -88,7 +88,7 @@ Each filter class SHALL expose static, stateless `TransferFunction` methods retu
 - **AND** `HighPassFrequencyResponse(g, k, 0)` evaluates to 0
 
 ### Requirement: Sampled Filter Coefficient Publication
-The one-pole LP/HP, base-width, ladder, SVF, shape, crossover, FIR, physical-model/comb, source-input, and mastering response providers SHALL use `TransferFunctionGeneric<Snapshot>` with coefficient-only snapshots. `SampledSnapshotWriter` SHALL make its sampling decision on the audio thread at host-sample boundaries after coefficient updates. It SHALL publish an entire composite response in one capture, including both base-width stages and all four quad damping lanes. The history capacity, number of recent samples, percentile bounds, and sampling divisor SHALL be configurable. Standalone internal smoothing filters SHALL not allocate response histories unless an owner creates a UI state for them.
+The one-pole LP/HP, base-width, ladder, SVF, shape, crossover, FIR, physical-model/comb, source-input, and mastering response providers SHALL use `TransferFunctionGeneric<Snapshot>` with coefficient-only snapshots retaining whole DSP channel vectors. `SampledSnapshotWriter` SHALL make its sampling decision on the audio thread at host-sample boundaries after coefficient updates. It SHALL publish an entire composite response in one capture, including both base-width stages and all four quad damping lanes. The history capacity, number of recent samples, percentile bounds, and sampling divisor SHALL be configurable. Standalone internal smoothing filters SHALL not allocate response histories unless an owner creates a UI state for them.
 
 #### Scenario: Composite samples preserve correlated modulation
 - **WHEN** both stages of a base-width or shape filter are modulated
@@ -102,7 +102,7 @@ The one-pole LP/HP, base-width, ladder, SVF, shape, crossover, FIR, physical-mod
 - **AND** the display does not measure saturation or substitute a different linearization
 
 ### Requirement: Per-Voice Filter Visualization State
-The UI SHALL hold one sampled shape response per voice. Each snapshot SHALL identify the active filter machine and capture its LP/HP pair. A machine change SHALL invalidate the previous machine's history and seed the replacement at the next eligible host sample. The physical-model source SHALL likewise discard stale history when its source selection changes.
+The UI SHALL hold one three-lane sampled shape response per track. Each snapshot SHALL identify the active filter machine and capture the entire trio's LP/HP coefficient vectors. Per-voice queries SHALL select a lane from the shared evaluated batch. A machine change SHALL invalidate the previous machine's history and seed the replacement at the next eligible host sample. The physical-model source SHALL likewise discard stale history when its source selection changes.
 
 #### Scenario: Visualizer follows a machine switch
 - **WHEN** a voice changes from SVF2Pole to Ladder4Pole

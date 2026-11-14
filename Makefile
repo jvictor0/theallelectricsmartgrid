@@ -57,6 +57,13 @@ perf-configure:
 perf-build: perf-configure
 	cmake --build "$(PERF_DIR)" --config Release --parallel "$(JOBS)"
 
+.PHONY: perf-responses-build perf-responses
+perf-responses-build: perf-configure
+	cmake --build "$(PERF_DIR)" --config Release --target perf_responses --parallel "$(JOBS)"
+
+perf-responses: perf-responses-build
+	"$(PERF_DIR)/perf_responses" $(PERF_ARGS)
+
 perf-test: perf-build
 	ctest --test-dir "$(PERF_DIR)" --build-config Release --output-on-failure
 

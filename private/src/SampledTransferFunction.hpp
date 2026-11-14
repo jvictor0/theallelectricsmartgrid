@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Math.hpp"
+#include "MultiChannelComplex.hpp"
 #include "SampleTimer.hpp"
 #include "SnapshotUIState.hpp"
 #include "Tuning.hpp"
@@ -10,6 +11,7 @@
 #include <complex>
 #include <cstdint>
 #include <numeric>
+#include <limits>
 #include <vector>
 
 // Prepare once per frequency column, then reuse across every captured state.
@@ -55,6 +57,14 @@ struct ResponseFrequency
 
 struct FilterResponseSnapshot
 {
+    using ResponseVector = MultiChannelNumber<float, 1>;
+    static constexpr size_t x_numLanes = 1;
+
+    ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const
+    {
+        return MagnitudeResponse(frequency, 0);
+    }
+
     virtual ~FilterResponseSnapshot() = default;
     virtual std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t lane) const = 0;
 
@@ -64,21 +74,34 @@ struct FilterResponseSnapshot
     }
 };
 
-template<typename Snapshot, size_t Size>
-struct FilterSnapshotArray : FilterResponseSnapshot
+// Scalar access is an adapter for tests and individual queries. Plot evaluation
+// uses the vector methods and never extracts lanes inside the response math.
+//
+template<size_t Size>
+struct VectorResponseSnapshot : FilterResponseSnapshot
 {
-    std::array<Snapshot, Size> m_lanes;
+    using ResponseVector = MultiChannelNumber<float, Size>;
+    using DoubleVector = MultiChannelNumber<double, Size>;
+    using ComplexVector = MultiChannelComplex<double, Size>;
+    static constexpr size_t x_numLanes = Size;
+
+    virtual ComplexVector ComplexResponses(const ResponseFrequency& frequency) const = 0;
+
+    virtual ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const
+    {
+        return ComplexResponses(frequency).Abs().template Convert<float>();
+    }
 
     std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t lane) const override
     {
         assert(lane < Size);
-        return m_lanes[lane].ComplexResponse(frequency, 0);
+        return static_cast<std::complex<float>>(ComplexResponses(frequency)[lane]);
     }
 
     float MagnitudeResponse(const ResponseFrequency& frequency, size_t lane) const override
     {
         assert(lane < Size);
-        return m_lanes[lane].MagnitudeResponse(frequency, 0);
+        return MagnitudeResponses(frequency)[lane];
     }
 };
 
@@ -106,7 +129,7 @@ struct SampledTransferFunction
 
     const Config m_config;
     const uint32_t m_samplingThreshold;
-    std::vector<float> m_magnitudes;
+    std::vector<OrderStatistics> m_scalarQuery;
 
     explicit SampledTransferFunction(const Config& config)
         : m_config(config)
@@ -116,7 +139,7 @@ struct SampledTransferFunction
         assert(config.m_numSamples <= config.m_capacity && config.m_samplingDivisor > 0);
         assert(config.m_lowerPercentile >= 0 && config.m_lowerPercentile <= 0.5f);
         assert(config.m_upperPercentile >= 0.5f && config.m_upperPercentile <= 1);
-        m_magnitudes.reserve(config.m_numSamples);
+
     }
 
     virtual ~SampledTransferFunction() = default;
@@ -132,27 +155,16 @@ struct SampledTransferFunction
         return std::abs(ComplexResponse(id, frequency, lane));
     }
 
+    virtual size_t NumLanes() const = 0;
+    virtual void ResponseAll(const std::vector<SampleId>& samples, const ResponseFrequency& frequency,
+        OrderStatistics* output) = 0;
+
     OrderStatistics Response(const std::vector<SampleId>& samples, const ResponseFrequency& frequency, size_t lane)
     {
-        assert(!samples.empty());
-        m_magnitudes.clear();
-        for (SampleId id : samples)
-        {
-            float magnitude = MagnitudeResponse(id, frequency, lane);
-            assert(std::isfinite(magnitude) && magnitude >= 0);
-            m_magnitudes.push_back(magnitude);
-        }
-
-        auto quantile = [&](float percentile)
-        {
-            size_t index = static_cast<size_t>(percentile * (m_magnitudes.size() - 1));
-            std::nth_element(m_magnitudes.begin(), m_magnitudes.begin() + index, m_magnitudes.end());
-            return m_magnitudes[index];
-        };
-        float lower = quantile(m_config.m_lowerPercentile);
-        float median = quantile(0.5f);
-        float upper = quantile(m_config.m_upperPercentile);
-        return {lower, median, upper};
+        assert(lane < NumLanes());
+        m_scalarQuery.resize(NumLanes());
+        ResponseAll(samples, frequency, m_scalarQuery.data());
+        return m_scalarQuery[lane];
     }
 
     OrderStatistics ResponseHz(const std::vector<SampleId>& samples, double frequency, double sampleRate, size_t lane)
@@ -170,6 +182,18 @@ template<typename Snapshot>
 struct TransferFunctionGeneric : SampledTransferFunction
 {
     using SnapshotType = Snapshot;
+    using ResponseVector = typename Snapshot::ResponseVector;
+    static constexpr size_t x_numLanes = Snapshot::x_numLanes;
+
+    struct Comparator
+    {
+        size_t m_low;
+        size_t m_high;
+    };
+
+    std::vector<ResponseVector> m_magnitudes;
+    std::vector<Comparator> m_sortNetwork;
+    size_t m_sortSize = 0;
     SampledSnapshotHistory<Snapshot> m_history;
     std::vector<Snapshot> m_readSnapshots;
     std::vector<Snapshot> m_pendingSnapshots;
@@ -186,6 +210,169 @@ struct TransferFunctionGeneric : SampledTransferFunction
     {
         m_readSnapshots.reserve(config.m_numSamples);
         m_pendingSnapshots.reserve(config.m_numSamples);
+        PrepareSort(config.m_numSamples);
+    }
+
+    size_t NumLanes() const override
+    {
+        return x_numLanes;
+    }
+
+    void PrepareSort(size_t count)
+    {
+        size_t size = x_numLanes == 1 ? 4 : 1;
+        while (size < count)
+        {
+            size *= 2;
+        }
+
+        if (size == m_sortSize)
+        {
+            return;
+        }
+
+        m_sortSize = size;
+        m_magnitudes.resize(size);
+        m_sortNetwork.clear();
+        if constexpr (x_numLanes == 1)
+        {
+            return;
+        }
+
+        for (size_t block = 2; block <= size; block *= 2)
+        {
+            for (size_t stride = block / 2; stride > 0; stride /= 2)
+            {
+                for (size_t i = 0; i < size; ++i)
+                {
+                    size_t other = i ^ stride;
+                    if (other > i)
+                    {
+                        bool ascending = (i & block) == 0;
+                        m_sortNetwork.push_back({ascending ? i : other, ascending ? other : i});
+                    }
+                }
+            }
+        }
+    }
+
+    // A single output curve uses SIMD across captured magnitudes. Wider
+    // responses use SIMD across independent output lanes instead.
+    //
+    void SortMonoMagnitudes()
+    {
+        using Quad = MultiChannelNumber<float, 4>;
+        static_assert(sizeof(ResponseVector) == sizeof(float), "mono sorting stores one float per sample");
+        auto load = [&](size_t index)
+        {
+            typename Quad::Vector vector;
+            std::memcpy(&vector, m_magnitudes.data() + index, sizeof(vector));
+            return Quad::FromVector(vector);
+        };
+        auto save = [&](size_t index, const Quad& value)
+        {
+            auto vector = value.Load();
+            std::memcpy(m_magnitudes.data() + index, &vector, sizeof(vector));
+        };
+        for (size_t block = 2; block <= m_sortSize; block *= 2)
+        {
+            for (size_t stride = block / 2; stride > 0; stride /= 2)
+            {
+                for (size_t i = 0; i < m_sortSize; i += 4)
+                {
+                    bool ascending = (i & block) == 0;
+                    auto a = load(i);
+                    if (stride >= 4)
+                    {
+                        size_t other = i ^ stride;
+                        if (other > i)
+                        {
+                            auto b = load(other);
+                            auto low = Quad::Min(a, b);
+                            auto high = Quad::Max(a, b);
+                            save(i, ascending ? low : high);
+                            save(other, ascending ? high : low);
+                        }
+                    }
+                    else
+                    {
+                        auto v = a.Load();
+                        auto shuffled = stride == 1 ? __builtin_shufflevector(v, v, 1, 0, 3, 2)
+                            : __builtin_shufflevector(v, v, 2, 3, 0, 1);
+                        auto b = Quad::FromVector(shuffled);
+                        auto low = Quad::Min(a, b).Load();
+                        auto high = Quad::Max(a, b).Load();
+                        if (block == 2)
+                        {
+                            save(i, Quad::FromVector(__builtin_shufflevector(low, high, 0, 5, 6, 3)));
+                        }
+                        else if (stride == 1)
+                        {
+                            save(i, Quad::FromVector(ascending
+                                ? __builtin_shufflevector(low, high, 0, 5, 2, 7)
+                                : __builtin_shufflevector(high, low, 0, 5, 2, 7)));
+                        }
+                        else
+                        {
+                            save(i, Quad::FromVector(ascending
+                                ? __builtin_shufflevector(low, high, 0, 1, 6, 7)
+                                : __builtin_shufflevector(high, low, 0, 1, 6, 7)));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    virtual ResponseVector MagnitudeResponses(SampleId id, const ResponseFrequency& frequency) const
+    {
+        return m_readSnapshots[id].MagnitudeResponses(frequency);
+    }
+
+    void ResponseAll(const std::vector<SampleId>& samples, const ResponseFrequency& frequency,
+        OrderStatistics* output) override
+    {
+        assert(!samples.empty() && samples.size() <= m_config.m_numSamples);
+        PrepareSort(samples.size());
+        for (size_t i = 0; i < samples.size(); ++i)
+        {
+            m_magnitudes[i] = MagnitudeResponses(samples[i], frequency);
+            for (size_t lane = 0; lane < x_numLanes; ++lane)
+            {
+                assert(std::isfinite(m_magnitudes[i][lane]) && m_magnitudes[i][lane] >= 0);
+            }
+        }
+
+        for (size_t i = samples.size(); i < m_sortSize; ++i)
+        {
+            m_magnitudes[i] = ResponseVector::Splat(std::numeric_limits<float>::infinity());
+        }
+
+        // Every compare/exchange independently orders all voices in SIMD lanes.
+        // Padding permits arbitrary configured cohort sizes and percentiles.
+        //
+        if constexpr (x_numLanes == 1)
+        {
+            SortMonoMagnitudes();
+        }
+        else
+        {
+            for (const auto& pair : m_sortNetwork)
+            {
+                auto a = m_magnitudes[pair.m_low];
+                auto b = m_magnitudes[pair.m_high];
+                m_magnitudes[pair.m_low] = ResponseVector::Min(a, b);
+                m_magnitudes[pair.m_high] = ResponseVector::Max(a, b);
+            }
+        }
+
+        size_t lower = static_cast<size_t>(m_config.m_lowerPercentile * (samples.size() - 1));
+        size_t median = (samples.size() - 1) / 2;
+        size_t upper = static_cast<size_t>(m_config.m_upperPercentile * (samples.size() - 1));
+        for (size_t lane = 0; lane < x_numLanes; ++lane)
+        {
+            output[lane] = {m_magnitudes[lower][lane], m_magnitudes[median][lane], m_magnitudes[upper][lane]};
+        }
     }
 
     std::vector<SampleId> Sample() override
@@ -234,6 +421,59 @@ struct TransferFunctionGeneric : SampledTransferFunction
     float MagnitudeResponse(SampleId id, const ResponseFrequency& frequency, size_t lane) const override
     {
         return m_readSnapshots.at(id).MagnitudeResponse(frequency, lane);
+    }
+};
+
+// UI-owned frequency grid and evaluated columns. Reuse across paints; evaluate
+// every response lane before any paths are drawn. Frequency setup is shared.
+//
+struct SampledResponsePlot
+{
+    size_t m_numLanes = 0;
+    bool m_logX = true;
+    double m_sampleRate = 0;
+    double m_minHz = 0;
+    std::vector<ResponseFrequency> m_frequencies;
+    std::vector<SampledTransferFunction::OrderStatistics> m_values;
+
+    void Evaluate(SampledTransferFunction& response, size_t points, bool logX, double minHz, double sampleRate)
+    {
+        assert(points > 1 && minHz > 0 && minHz < sampleRate / 2);
+        if (m_frequencies.size() != points || m_logX != logX || m_sampleRate != sampleRate || m_minHz != minHz)
+        {
+            m_logX = logX;
+            m_sampleRate = sampleRate;
+            m_minHz = minHz;
+            m_frequencies.resize(points);
+            double minVOct = std::log2(minHz / Tuning::x_middleCHz);
+            double octaves = std::log2(sampleRate / (2 * minHz));
+            for (size_t i = 0; i < points; ++i)
+            {
+                float position = static_cast<float>(i) / (points - 1);
+                m_frequencies[i] = logX
+                    ? ResponseFrequency::VOct(minVOct + octaves * position, sampleRate)
+                    : ResponseFrequency::Hz(position * sampleRate / 2, sampleRate);
+            }
+        }
+
+        m_numLanes = response.NumLanes();
+        auto samples = response.Sample();
+        m_values.resize(samples.empty() ? 0 : points * m_numLanes);
+        if (samples.empty())
+        {
+            return;
+        }
+
+        for (size_t i = 0; i < points; ++i)
+        {
+            response.ResponseAll(samples, m_frequencies[i], m_values.data() + i * m_numLanes);
+        }
+    }
+
+    const SampledTransferFunction::OrderStatistics& Get(size_t column, size_t lane) const
+    {
+        assert(lane < m_numLanes);
+        return m_values[column * m_numLanes + lane];
     }
 };
 

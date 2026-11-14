@@ -105,6 +105,19 @@ The system SHALL compute spectra with `WindowedFFTGeneric<Size>`: it pulls a lev
 
 `Sample()` SHALL return IDs into a coherent UI-owned batch, valid until the next `Sample()` call. Every frequency column and lane of a plot SHALL reuse that batch. Frequency conversions and trigonometric terms SHALL be prepared once per column and shared across response evaluations. UI response trigonometry SHALL use the `Math::` lookup functions, including the comb delay phase; lookup approximation error is acceptable for these display curves. DC and Nyquist frequency terms SHALL remain exact. The producer SHALL never wait for a reader or allocate when capturing. Ring overwrite SHALL not mutate a batch already accepted by the UI. Empty histories SHALL draw no curve; stationary histories SHALL have equal bounds.
 
+Coefficient snapshots SHALL retain whole DSP channel vectors. Trio filter/source plots and quad damping plots SHALL evaluate all lanes together, using vector magnitude/complex arithmetic and vector compare/exchange percentile selection before drawing any lane. A lane's statistics SHALL be independent of the ordering of other lanes. Partial cohorts and non-power-of-two configured cohort sizes SHALL retain the same percentile definition. Four independent input-filter responses SHALL share one four-lane snapshot and evaluation batch. Multiband crossover evaluations and FIR tap groups SHALL use vector arithmetic for their independent work. Single-curve providers SHALL vectorize percentile sorting across captured magnitudes.
+
+Response overlays SHALL use a width-independent 1024-column frequency grid. Resizing SHALL only change the screen mapping of those columns. Prepared frequency terms SHALL be reused across paints while the axis settings remain unchanged; logarithmic spectrum buckets SHALL be shared instead of rebuilt for every path drawer. This preserves the previous frequency sampling density without claiming to resolve arbitrary sub-column resonances.
+
+#### Scenario: Independent vector response lanes
+- **WHEN** a trio or quad has different coefficients and different magnitude orderings in its lanes
+- **THEN** each lane's returned percentiles match independent scalar sorting
+- **AND** the analyzer computes every lane before issuing the first response path
+
+#### Scenario: Resize a narrow stationary resonance
+- **WHEN** a stationary response plot changes width
+- **THEN** its evaluated frequencies and order statistics remain unchanged
+
 #### Scenario: Producer wraps during painting
 - **WHEN** the audio producer wraps the retained history after the UI selects samples
 - **THEN** every frequency column still evaluates the selected coefficient copies

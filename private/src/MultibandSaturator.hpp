@@ -30,41 +30,59 @@ struct MultibandSaturator
     {
     }
 
-    struct Snapshot : FilterResponseSnapshot
+    struct Snapshot : VectorResponseSnapshot<1>
     {
-        float m_gain[NumBands]{};
-        float m_masterGain = 1;
-        typename Crossover::Snapshot m_crossovers[NumBands - 1];
-
-        void BuildResponses(std::complex<float>* bands, const ResponseFrequency& frequency, size_t count, size_t index) const
+        static constexpr size_t x_responseWidth = []
         {
-            if (count == 1)
+            size_t width = 1;
+            while (width < NumBands)
             {
-                bands[index] = {1, 0};
-                return;
+                width *= 2;
             }
 
-            size_t middle = index + count / 2;
-            BuildResponses(bands, frequency, count / 2, index);
-            BuildResponses(bands, frequency, (count + 1) / 2, middle);
-            auto crossover = m_crossovers[middle - 1].Responses(frequency);
-            for (size_t i = index; i < index + count; ++i)
+            return width;
+        }();
+        using BandVector = MultiChannelNumber<float, x_responseWidth>;
+        using BandComplex = MultiChannelComplex<double, x_responseWidth>;
+        using Cutoffs = CrossoverResponseCoefficients<x_responseWidth>;
+        BandVector m_gain;
+        float m_masterGain = 1;
+        Cutoffs m_crossovers;
+
+        template<size_t Count, size_t Index>
+        static void BuildResponses(BandComplex& bands, const typename Cutoffs::Pair& crossovers)
+        {
+            if constexpr (Count > 1)
             {
-                bands[i] *= i < middle ? crossover.m_lowPass : crossover.m_highPass;
+                constexpr size_t x_middle = Index + Count / 2;
+                BandComplex factors(1.0);
+                for (size_t i = Index; i < Index + Count; ++i)
+                {
+                    factors.SetChannel(i, i < x_middle
+                        ? crossovers.m_lowPass[x_middle - 1] : crossovers.m_highPass[x_middle - 1]);
+                }
+
+                bands *= factors;
+                BuildResponses<Count / 2, Index>(bands, crossovers);
+                BuildResponses<(Count + 1) / 2, x_middle>(bands, crossovers);
             }
         }
 
-        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
+        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
         {
-            std::complex<float> bands[NumBands];
-            BuildResponses(bands, frequency, NumBands, 0);
-            std::complex<float> response{};
+            auto crossovers = m_crossovers.Responses(frequency);
+            BandComplex bands(1.0);
+            BuildResponses<NumBands, 0>(bands, crossovers);
+            bands *= (m_gain * m_masterGain).template Convert<double>();
+            double real = 0;
+            double imag = 0;
             for (size_t i = 0; i < NumBands; ++i)
             {
-                response += bands[i] * m_gain[i] * m_masterGain;
+                real += bands.m_real[i];
+                imag += bands.m_imag[i];
             }
 
-            return response;
+            return {real, imag};
         }
     };
 
@@ -166,7 +184,8 @@ struct MultibandSaturator
         snapshot.m_masterGain = input.m_masterGain.m_expParam;
         for (size_t i = 0; i < NumBands - 1; ++i)
         {
-            snapshot.m_crossovers[i] = m_linkwitzRileyCrossover[i].MakeSnapshot();
+            snapshot.m_crossovers.m_tangent[i] = static_cast<double>(m_linkwitzRileyCrossover[i].m_first.m_a2)
+                / m_linkwitzRileyCrossover[i].m_first.m_a1;
         }
 
         return snapshot;

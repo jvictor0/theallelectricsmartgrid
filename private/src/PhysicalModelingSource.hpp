@@ -33,38 +33,41 @@ struct PhysicalModelingSourceGeneric
 {
     using Vector = MultiChannelNumber<float, Size>;
 
-    struct Snapshot : FilterResponseSnapshot
+    struct Snapshot : VectorResponseSnapshot<Size>
     {
+        using Base = VectorResponseSnapshot<Size>;
+        using typename Base::ComplexVector;
+        using typename Base::ResponseVector;
         typename LinearStateVariableFilterGeneric<float, Size>::Snapshot m_mainSVF;
-        TunedDecayComb::Snapshot m_combFilter;
+        typename TunedDecayCombGeneric<Size>::Snapshot m_combFilter;
 
-        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
+        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
         {
-            return m_mainSVF.ComplexResponse(frequency, 0) * m_combFilter.ComplexResponse(frequency, 0);
+            return m_mainSVF.ComplexResponses(frequency) * m_combFilter.ComplexResponses(frequency);
         }
 
-        float MagnitudeResponse(const ResponseFrequency& frequency, size_t) const override
+        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
         {
-            return m_mainSVF.MagnitudeResponse(frequency, 0) * m_combFilter.MagnitudeResponse(frequency, 0);
+            return m_mainSVF.MagnitudeResponses(frequency) * m_combFilter.MagnitudeResponses(frequency);
         }
     };
 
     using UIState = TransferFunctionGeneric<Snapshot>;
 
-    Snapshot MakeSnapshot(size_t channel) const
+    Snapshot MakeSnapshot() const
     {
         Snapshot snapshot;
-        snapshot.m_mainSVF = m_mainSVF.MakeSnapshot(channel);
-        snapshot.m_mainSVF.m_weights = m_mainSVF.GetMorphWeights(m_mainSVFMorph[channel]);
-        snapshot.m_combFilter = m_combFilter.MakeSnapshot(channel);
+        snapshot.m_mainSVF = m_mainSVF.MakeSnapshot();
+        snapshot.m_mainSVF.m_weights = m_mainSVF.GetMorphWeights(m_mainSVFMorph);
+        snapshot.m_combFilter = m_combFilter.MakeSnapshot();
         return snapshot;
     }
 
-    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer, size_t channel) const
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
     {
         writer.PopulateUIStateSample([&]
         {
-            return MakeSnapshot(channel);
+            return MakeSnapshot();
         });
     }
 
@@ -217,7 +220,7 @@ struct PhysicalModelingSourceGeneric
 
     void PopulateUIState(UIState* uiState, size_t channel) const
     {
-        uiState->m_history.Push(MakeSnapshot(channel));
+        uiState->m_history.Push(MakeSnapshot());
     }
 
     void PopulateUIState(UIState* uiState) const

@@ -20,7 +20,7 @@ struct PathDrawer
     bool m_logX;
     bool m_scaleY;
 
-    float m_bucketExpX[x_numPoints];
+    const std::array<float, x_numPoints>& m_bucketExpX = LogFrequencyBuckets();
 
     PathDrawer()
         : m_height(0)
@@ -30,7 +30,6 @@ struct PathDrawer
         , m_logX(true)
         , m_scaleY(false)
     {
-        ComputeBucketExpX();
     }
 
     PathDrawer(float height, float width, float xMin, float yMin)
@@ -41,16 +40,22 @@ struct PathDrawer
         , m_logX(true)
         , m_scaleY(false)
     {
-        ComputeBucketExpX();
     }
 
-    void ComputeBucketExpX()
+    static const std::array<float, x_numPoints>& LogFrequencyBuckets()
     {
-        for (size_t i = 0; i < x_numPoints; ++i)
+        static const auto x_buckets = []
         {
-            m_bucketExpX[i] = x_minFrequency * std::pow(x_maxFrequency / x_minFrequency,
-                static_cast<float>(i) / (x_numPoints - 1));
-        }
+            std::array<float, x_numPoints> buckets;
+            for (size_t i = 0; i < x_numPoints; ++i)
+            {
+                buckets[i] = x_minFrequency * std::pow(x_maxFrequency / x_minFrequency,
+                    static_cast<float>(i) / (x_numPoints - 1));
+            }
+
+            return buckets;
+        }();
+        return x_buckets;
     }
 
     static float NormalizeDb(float x)
@@ -205,14 +210,19 @@ struct PathDrawer
         DrawPath(g, colour, fn);
     }
 
+    void PrepareSampledResponse(SampledResponsePlot& plot, SampledTransferFunction& response) const
+    {
+        plot.Evaluate(response, x_numPoints, m_logX, x_minFrequency * SampleTimer::x_sampleRate,
+            SampleTimer::x_sampleRate);
+    }
+
     void DrawSampledFrequencyResponse(
         juce::Graphics& g,
         juce::Colour colour,
-        SampledTransferFunction& response,
-        const std::vector<SampledTransferFunction::SampleId>& samples,
+        const SampledResponsePlot& plot,
         size_t lane)
     {
-        if (samples.empty())
+        if (plot.m_values.empty())
         {
             return;
         }
@@ -225,20 +235,13 @@ struct PathDrawer
             float m_upper;
         };
 
-        size_t count = std::clamp(static_cast<size_t>(std::ceil(std::max(1.0f, m_width))) + 1,
-            size_t{2}, x_numPoints);
+        size_t count = plot.m_frequencies.size();
         std::vector<Point> points;
         points.reserve(count);
-        double minHz = x_minFrequency * SampleTimer::x_sampleRate;
-        double minVOct = std::log2(minHz / Tuning::x_middleCHz);
-        double octaves = std::log2(x_maxFrequency / x_minFrequency);
         for (size_t i = 0; i < count; ++i)
         {
             float position = static_cast<float>(i) / (count - 1);
-            auto frequency = m_logX
-                ? ResponseFrequency::VOct(minVOct + octaves * position, SampleTimer::x_sampleRate)
-                : ResponseFrequency::Hz(position * x_maxFrequency * SampleTimer::x_sampleRate, SampleTimer::x_sampleRate);
-            auto values = response.Response(samples, frequency, lane);
+            const auto& values = plot.Get(i, lane);
             auto screenY = [&](float magnitude)
             {
                 return m_yMin + m_height * (1 - AmpToDbNormalized(magnitude) / 2);
@@ -293,8 +296,9 @@ struct PathDrawer
     void DrawSampledFrequencyResponse(juce::Graphics& g, juce::Colour colour,
         SampledTransferFunction& response)
     {
-        auto samples = response.Sample();
-        DrawSampledFrequencyResponse(g, colour, response, samples, 0);
+        SampledResponsePlot plot;
+        PrepareSampledResponse(plot, response);
+        DrawSampledFrequencyResponse(g, colour, plot, 0);
     }
 
     struct ScopeReaderFn

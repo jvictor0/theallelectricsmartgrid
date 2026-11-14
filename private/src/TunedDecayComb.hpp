@@ -64,24 +64,6 @@ struct TunedDecayCombBase
         }
     };
 
-    struct Snapshot : FilterResponseSnapshot
-    {
-        Coefficients m_branch[2];
-        double m_mix = 0;
-
-        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
-        {
-            auto first = m_branch[0].Numerator(frequency.m_zInverse);
-            auto second = m_branch[1].Numerator(frequency.m_zInverse);
-            auto loop = (1 - m_mix) * m_branch[0].Loop(frequency, first)
-                + m_mix * m_branch[1].Loop(frequency, second);
-            auto numerator = (1 - m_mix) * first + m_mix * second;
-            return static_cast<std::complex<float>>(numerator / (1.0 - loop));
-        }
-    };
-
-    using UIState = TransferFunctionGeneric<Snapshot>;
-
     // DECAY maps u = |2 * knob - 1| to T60 = 0.001 * 5000^u seconds, kept as
     // log2(T60), negative feedback below the center and dry at it. DAMP sets the
     // low-pass cutoff 1 to 7 octaves above the fundamental.
@@ -140,7 +122,7 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
     //
     struct ChannelCoefficients
     {
-        size_t m_delay[Size];
+        MultiChannelNumber<size_t, Size> m_delay;
         DoubleVector m_a;
         DoubleVector m_b;
         DoubleVector m_g;
@@ -193,6 +175,83 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
             return c;
         }
     };
+
+    struct Snapshot : VectorResponseSnapshot<Size>
+    {
+        using Base = VectorResponseSnapshot<Size>;
+        using typename Base::ComplexVector;
+        using typename Base::ResponseVector;
+        ChannelCoefficients m_branch[2];
+        double m_mix = 0;
+
+        struct Fraction
+        {
+            ComplexVector m_numerator;
+            ComplexVector m_denominator;
+        };
+
+        static ComplexVector Numerator(const ChannelCoefficients& c, const ResponseFrequency& frequency)
+        {
+            if (c.m_bypass == DoubleVector::Splat(1))
+            {
+                return 1.0;
+            }
+
+            auto q = ComplexVector(frequency.m_zInverse) * c.m_r;
+            auto onePlus = ComplexVector(1.0) + q;
+            auto g2 = c.m_g * c.m_g;
+            auto kg = c.m_k * c.m_g;
+            auto numerator = onePlus * onePlus * (c.m_gain * g2);
+            auto denominator = ComplexVector(DoubleVector::Splat(1) + kg + g2, DoubleVector()) + q * ((g2 - 1) * 2)
+                + q * q * (DoubleVector::Splat(1) - kg + g2);
+            auto response = numerator / denominator;
+            return {DoubleVector::IfLess(c.m_bypass, DoubleVector::Splat(0.5), response.m_real, DoubleVector::Splat(1)),
+                DoubleVector::IfLess(c.m_bypass, DoubleVector::Splat(0.5), response.m_imag, DoubleVector())};
+        }
+
+        static ComplexVector Loop(const ChannelCoefficients& c, const ResponseFrequency& frequency,
+            const ComplexVector& numerator)
+        {
+            if (c.m_sign == DoubleVector())
+            {
+                return {};
+            }
+
+            auto q = ComplexVector(frequency.m_zInverse) * c.m_r;
+            auto allpass = (ComplexVector(c.m_a, DoubleVector()) + q) / (ComplexVector(1.0) + q * c.m_a);
+            auto delay = Math::Polar2pi(ResponseVector::Splat(1),
+                c.m_delay.template Convert<double>() * -frequency.m_cyclesPerSample).template Convert<double>();
+            return delay * allpass * numerator * (c.m_sign * c.m_delayGain);
+        }
+
+        Fraction Evaluate(const ResponseFrequency& frequency) const
+        {
+            auto first = Numerator(m_branch[0], frequency);
+            auto loop = Loop(m_branch[0], frequency, first);
+            if (m_mix == 0)
+            {
+                return {first, ComplexVector(1.0) - loop};
+            }
+
+            auto second = Numerator(m_branch[1], frequency);
+            loop = loop * (1 - m_mix) + Loop(m_branch[1], frequency, second) * m_mix;
+            return {first * (1 - m_mix) + second * m_mix, ComplexVector(1.0) - loop};
+        }
+
+        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
+        {
+            auto response = Evaluate(frequency);
+            return response.m_numerator / response.m_denominator;
+        }
+
+        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
+        {
+            auto response = Evaluate(frequency);
+            return (response.m_numerator.Norm() / response.m_denominator.Norm()).Sqrt().template Convert<float>();
+        }
+    };
+
+    using UIState = TransferFunctionGeneric<Snapshot>;
 
     struct Branch
     {
@@ -392,26 +451,26 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
         m_pending = false;
     }
 
-    Snapshot MakeSnapshot(size_t channel) const
+    Snapshot MakeSnapshot() const
     {
         Snapshot snapshot;
-        snapshot.m_branch[0] = m_branch[0].m_coeff.Get(channel);
-        snapshot.m_branch[1] = m_branch[1].m_coeff.Get(channel);
+        snapshot.m_branch[0] = m_branch[0].m_coeff;
+        snapshot.m_branch[1] = m_branch[1].m_coeff;
         snapshot.m_mix = m_mix;
         return snapshot;
     }
 
-    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer, size_t channel) const
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
     {
         writer.PopulateUIStateSample([&]
         {
-            return MakeSnapshot(channel);
+            return MakeSnapshot();
         });
     }
 
     void PopulateUIState(UIState* state, size_t channel) const
     {
-        state->m_history.Push(MakeSnapshot(channel));
+        state->m_history.Push(MakeSnapshot());
     }
 
     void PopulateUIState(UIState* state) const

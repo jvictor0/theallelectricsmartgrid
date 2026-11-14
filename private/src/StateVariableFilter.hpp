@@ -47,8 +47,8 @@ struct LinearStateVariableFilterGeneric
     static std::complex<float> LowPassTransferFunction(float g, float k, float freq)
     {
         Snapshot snapshot;
-        snapshot.m_g = g;
-        snapshot.m_k = k;
+        snapshot.m_g = Vector::Splat(g);
+        snapshot.m_k = Vector::Splat(k);
         snapshot.m_weights = {1, 0, 0};
         return snapshot.ComplexResponse(ResponseFrequency::CyclesPerSample(freq), 0);
     }
@@ -56,8 +56,8 @@ struct LinearStateVariableFilterGeneric
     static std::complex<float> HighPassTransferFunction(float g, float k, float freq)
     {
         Snapshot snapshot;
-        snapshot.m_g = g;
-        snapshot.m_k = k;
+        snapshot.m_g = Vector::Splat(g);
+        snapshot.m_k = Vector::Splat(k);
         snapshot.m_weights = {0, 0, 1};
         return snapshot.ComplexResponse(ResponseFrequency::CyclesPerSample(freq), 0);
     }
@@ -65,8 +65,8 @@ struct LinearStateVariableFilterGeneric
     static std::complex<float> BandPassTransferFunction(float g, float k, float freq)
     {
         Snapshot snapshot;
-        snapshot.m_g = g;
-        snapshot.m_k = k;
+        snapshot.m_g = Vector::Splat(g);
+        snapshot.m_k = Vector::Splat(k);
         snapshot.m_weights = {0, 1, 0};
         return snapshot.ComplexResponse(ResponseFrequency::CyclesPerSample(freq), 0);
     }
@@ -74,8 +74,8 @@ struct LinearStateVariableFilterGeneric
     static float LowPassFrequencyResponse(float g, float k, float freq)
     {
         Snapshot snapshot;
-        snapshot.m_g = g;
-        snapshot.m_k = k;
+        snapshot.m_g = Vector::Splat(g);
+        snapshot.m_k = Vector::Splat(k);
         snapshot.m_weights = {1, 0, 0};
         return snapshot.MagnitudeResponse(ResponseFrequency::CyclesPerSample(freq), 0);
     }
@@ -83,8 +83,8 @@ struct LinearStateVariableFilterGeneric
     static float HighPassFrequencyResponse(float g, float k, float freq)
     {
         Snapshot snapshot;
-        snapshot.m_g = g;
-        snapshot.m_k = k;
+        snapshot.m_g = Vector::Splat(g);
+        snapshot.m_k = Vector::Splat(k);
         snapshot.m_weights = {0, 0, 1};
         return snapshot.MagnitudeResponse(ResponseFrequency::CyclesPerSample(freq), 0);
     }
@@ -92,71 +92,113 @@ struct LinearStateVariableFilterGeneric
     static float BandPassFrequencyResponse(float g, float k, float freq)
     {
         Snapshot snapshot;
-        snapshot.m_g = g;
-        snapshot.m_k = k;
+        snapshot.m_g = Vector::Splat(g);
+        snapshot.m_k = Vector::Splat(k);
         snapshot.m_weights = {0, 1, 0};
         return snapshot.MagnitudeResponse(ResponseFrequency::CyclesPerSample(freq), 0);
     }
 
     using Vector = MultiChannelNumber<Number, Size>;
 
-    struct Snapshot : FilterResponseSnapshot
+    struct Snapshot : VectorResponseSnapshot<Size>
     {
-        double m_g = 0;
-        double m_k = 1;
-        MorphWeights m_weights{1, 0, 0};
+        using Base = VectorResponseSnapshot<Size>;
+        using typename Base::ComplexVector;
+        using typename Base::DoubleVector;
+        using typename Base::ResponseVector;
 
-        std::complex<double> Numerator(const ResponseFrequency& frequency) const
+        struct Weights
         {
-            double gc = m_g * frequency.m_cosHalf;
+            ResponseVector m_lowPass;
+            ResponseVector m_bandPass;
+            ResponseVector m_highPass;
+
+            Weights(float low, float band, float high)
+                : m_lowPass(ResponseVector::Splat(low))
+                , m_bandPass(ResponseVector::Splat(band))
+                , m_highPass(ResponseVector::Splat(high))
+            {
+            }
+
+            template<typename ScalarWeights>
+            Weights& operator=(const ScalarWeights& weights)
+            {
+                m_lowPass = ResponseVector::Splat(weights.m_lowPass);
+                m_bandPass = ResponseVector::Splat(weights.m_bandPass);
+                m_highPass = ResponseVector::Splat(weights.m_highPass);
+                return *this;
+            }
+        };
+
+        Vector m_g;
+        Vector m_k = Vector::Splat(1);
+        Weights m_weights{1, 0, 0};
+
+        ComplexVector Numerator(const ResponseFrequency& frequency) const
+        {
+            auto gc = m_g.template Convert<double>() * frequency.m_cosHalf;
             double s = frequency.m_sinHalf;
-            return {m_weights.m_lowPass * gc * gc - m_weights.m_highPass * s * s,
-                m_weights.m_bandPass * gc * s};
+            return {m_weights.m_lowPass.template Convert<double>() * gc * gc
+                    - m_weights.m_highPass.template Convert<double>() * (s * s),
+                m_weights.m_bandPass.template Convert<double>() * gc * s};
         }
 
-        std::complex<double> Denominator(const ResponseFrequency& frequency) const
+        ComplexVector Denominator(const ResponseFrequency& frequency) const
         {
-            double gc = m_g * frequency.m_cosHalf;
+            auto gc = m_g.template Convert<double>() * frequency.m_cosHalf;
             double s = frequency.m_sinHalf;
-            return {gc * gc - s * s, m_k * gc * s};
+            return {gc * gc - s * s, m_k.template Convert<double>() * gc * s};
         }
 
-        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
+        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
         {
             if (frequency.m_cyclesPerSample == 0)
             {
-                return {m_weights.m_lowPass, 0};
+                return {m_weights.m_lowPass.template Convert<double>(), DoubleVector()};
             }
 
-            return static_cast<std::complex<float>>(Numerator(frequency) / Denominator(frequency));
+            return Numerator(frequency) / Denominator(frequency);
         }
 
-        float MagnitudeResponse(const ResponseFrequency& frequency, size_t) const override
+        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
         {
             if (frequency.m_cyclesPerSample == 0)
             {
-                return std::abs(m_weights.m_lowPass);
+                return m_weights.m_lowPass.Abs();
             }
 
-            return static_cast<float>(std::sqrt(std::norm(Numerator(frequency)) / std::norm(Denominator(frequency))));
+            return (Numerator(frequency).Norm() / Denominator(frequency).Norm()).Sqrt().template Convert<float>();
         }
     };
 
     using UIState = TransferFunctionGeneric<Snapshot>;
 
-    Snapshot MakeSnapshot(size_t channel) const
+    static typename Snapshot::Weights GetMorphWeights(const Vector& blend)
+    {
+        auto value = Vector::Min(Vector::Splat(1), Vector::Max(Vector(), blend));
+        auto lowPhase = value * 0.5;
+        auto highPhase = (value - 0.5) * 0.5;
+        typename Snapshot::Weights weights{0, 0, 0};
+        auto half = Vector::Splat(0.5);
+        weights.m_lowPass = Vector::IfLess(value, half, Math::Cos2pi(lowPhase), Vector()).template Convert<float>();
+        weights.m_bandPass = Vector::IfLess(value, half, Math::Sin2pi(lowPhase), Math::Cos2pi(highPhase)).template Convert<float>();
+        weights.m_highPass = Vector::IfLess(value, half, Vector(), Math::Sin2pi(highPhase)).template Convert<float>();
+        return weights;
+    }
+
+    Snapshot MakeSnapshot() const
     {
         Snapshot snapshot;
-        snapshot.m_g = m_g[channel];
-        snapshot.m_k = m_k[channel];
+        snapshot.m_g = m_g;
+        snapshot.m_k = m_k;
         return snapshot;
     }
 
-    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer, size_t channel) const
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
     {
         writer.PopulateUIStateSample([&]
         {
-            return MakeSnapshot(channel);
+            return MakeSnapshot();
         });
     }
 
@@ -294,7 +336,7 @@ struct LinearStateVariableFilterGeneric
 
     void PopulateUIState(UIState* uiState, size_t channel) const
     {
-        uiState->m_history.Push(MakeSnapshot(channel));
+        uiState->m_history.Push(MakeSnapshot());
     }
 
     void PopulateUIState(UIState* uiState)
@@ -317,19 +359,22 @@ struct LinearSVF4PoleHighPassGeneric
     static constexpr float x_qMin = SVF::x_qMin;
     static constexpr float x_qMax = SVF::x_qMax;
 
-    struct Snapshot : FilterResponseSnapshot
+    struct Snapshot : VectorResponseSnapshot<Size>
     {
+        using Base = VectorResponseSnapshot<Size>;
+        using typename Base::ComplexVector;
+        using typename Base::ResponseVector;
         typename SVF::Snapshot m_stage;
 
-        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
+        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
         {
-            auto response = m_stage.ComplexResponse(frequency, 0);
+            auto response = m_stage.ComplexResponses(frequency);
             return response * response;
         }
 
-        float MagnitudeResponse(const ResponseFrequency& frequency, size_t) const override
+        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
         {
-            float response = m_stage.MagnitudeResponse(frequency, 0);
+            auto response = m_stage.MagnitudeResponses(frequency);
             return response * response;
         }
     };
@@ -347,19 +392,19 @@ struct LinearSVF4PoleHighPassGeneric
         return std::abs(TransferFunction(g, k, freq));
     }
 
-    Snapshot MakeSnapshot(size_t channel) const
+    Snapshot MakeSnapshot() const
     {
         Snapshot snapshot;
-        snapshot.m_stage = m_stage1.MakeSnapshot(channel);
+        snapshot.m_stage = m_stage1.MakeSnapshot();
         snapshot.m_stage.m_weights = {0, 0, 1};
         return snapshot;
     }
 
-    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer, size_t channel) const
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
     {
         writer.PopulateUIStateSample([&]
         {
-            return MakeSnapshot(channel);
+            return MakeSnapshot();
         });
     }
 
@@ -400,7 +445,7 @@ struct LinearSVF4PoleHighPassGeneric
 
     void PopulateUIState(UIState* uiState, size_t channel) const
     {
-        uiState->m_history.Push(MakeSnapshot(channel));
+        uiState->m_history.Push(MakeSnapshot());
     }
 
     void PopulateUIState(UIState* uiState)

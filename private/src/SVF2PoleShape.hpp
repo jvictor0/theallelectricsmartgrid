@@ -18,38 +18,41 @@ struct SVF2PoleShapeGeneric : SquiggleBoyShapeBase
 {
     using Vector = MultiChannelNumber<float, Size>;
 
-    struct Snapshot : FilterResponseSnapshot
+    struct Snapshot : VectorResponseSnapshot<Size>
     {
+        using Base = VectorResponseSnapshot<Size>;
+        using typename Base::ComplexVector;
+        using typename Base::ResponseVector;
         typename LinearStateVariableFilterGeneric<float, Size>::Snapshot m_lp;
         typename LinearStateVariableFilterGeneric<float, Size>::Snapshot m_hp;
 
-        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
+        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
         {
-            return m_lp.ComplexResponse(frequency, 0) * m_hp.ComplexResponse(frequency, 0);
+            return m_lp.ComplexResponses(frequency) * m_hp.ComplexResponses(frequency);
         }
 
-        float MagnitudeResponse(const ResponseFrequency& frequency, size_t) const override
+        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
         {
-            return m_lp.MagnitudeResponse(frequency, 0) * m_hp.MagnitudeResponse(frequency, 0);
+            return m_lp.MagnitudeResponses(frequency) * m_hp.MagnitudeResponses(frequency);
         }
     };
 
     using UIState = TransferFunctionGeneric<Snapshot>;
 
-    Snapshot MakeSnapshot(size_t channel) const
+    Snapshot MakeSnapshot() const
     {
         Snapshot snapshot;
-        snapshot.m_lp = m_lpSVF.MakeSnapshot(channel);
-        snapshot.m_hp = m_hpSVF.MakeSnapshot(channel);
+        snapshot.m_lp = m_lpSVF.MakeSnapshot();
+        snapshot.m_hp = m_hpSVF.MakeSnapshot();
         snapshot.m_hp.m_weights = {0, 0, 1};
         return snapshot;
     }
 
-    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer, size_t channel) const
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
     {
         writer.PopulateUIStateSample([&]
         {
-            return MakeSnapshot(channel);
+            return MakeSnapshot();
         });
     }
 

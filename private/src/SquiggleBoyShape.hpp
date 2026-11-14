@@ -25,48 +25,51 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
     using Ladder4PoleShape = Ladder4PoleShapeGeneric<Size>;
     using SVF2PoleShape = SVF2PoleShapeGeneric<Size>;
 
-    struct Snapshot : FilterResponseSnapshot
+    struct Snapshot : VectorResponseSnapshot<Size>
     {
+        using Base = VectorResponseSnapshot<Size>;
+        using typename Base::ComplexVector;
+        using typename Base::ResponseVector;
         FilterMachine m_filterMachine = FilterMachine::Ladder4Pole;
         typename Ladder4PoleShape::Snapshot m_ladder;
         typename SVF2PoleShape::Snapshot m_svf;
 
-        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
+        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
         {
             return m_filterMachine == FilterMachine::Ladder4Pole
-                ? m_ladder.ComplexResponse(frequency, 0) : m_svf.ComplexResponse(frequency, 0);
+                ? m_ladder.ComplexResponses(frequency) : m_svf.ComplexResponses(frequency);
         }
 
-        float MagnitudeResponse(const ResponseFrequency& frequency, size_t) const override
+        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
         {
             return m_filterMachine == FilterMachine::Ladder4Pole
-                ? m_ladder.MagnitudeResponse(frequency, 0) : m_svf.MagnitudeResponse(frequency, 0);
+                ? m_ladder.MagnitudeResponses(frequency) : m_svf.MagnitudeResponses(frequency);
         }
     };
 
     using UIState = TransferFunctionGeneric<Snapshot>;
 
-    Snapshot MakeSnapshot(size_t channel, FilterMachine machine) const
+    Snapshot MakeSnapshot(FilterMachine machine) const
     {
         Snapshot snapshot;
         snapshot.m_filterMachine = machine;
         if (machine == FilterMachine::Ladder4Pole)
         {
-            snapshot.m_ladder = m_ladder4Pole.MakeSnapshot(channel);
+            snapshot.m_ladder = m_ladder4Pole.MakeSnapshot();
         }
         else
         {
-            snapshot.m_svf = m_svf2Pole.MakeSnapshot(channel);
+            snapshot.m_svf = m_svf2Pole.MakeSnapshot();
         }
 
         return snapshot;
     }
 
-    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer, size_t channel, FilterMachine machine) const
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer, FilterMachine machine) const
     {
         writer.PopulateUIStateSample([&]
         {
-            return MakeSnapshot(channel, machine);
+            return MakeSnapshot(machine);
         });
     }
 

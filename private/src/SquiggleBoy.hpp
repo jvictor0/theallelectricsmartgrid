@@ -521,7 +521,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             };
 
             std::atomic<SquiggleBoyTrack::VoiceConfig::SourceMachine> m_sourceMachine;
-            TrioPhysicalModelingSource::UIState m_physicalModelingUIState;
             AudioBufferBank::UIState m_audioBufferBankUIState;
             SampleSource::UIState m_sampleSourceUIState;
             SampleDirectoryUIState m_sampleDirectoryUIState;
@@ -550,7 +549,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
         std::atomic<size_t> m_activeTrack = 0;
 
-        VoiceFilterUIState m_voiceFilterUIState[x_numVoices];
+        VoiceFilterUIState m_voiceFilterUIState[x_numTracks];
+        TrioPhysicalModelingSource::UIState m_physicalModelingUIState[x_numTracks];
         VoiceSourceUIState m_voiceSourceUIState[x_numVoices];
 
         std::atomic<float> m_xPos[x_numVoices];
@@ -742,8 +742,8 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         }
     }
 
-    SampledSnapshotWriter<TrioSquiggleBoyShape::UIState> m_filterSamplers[x_numVoices];
-    SampledSnapshotWriter<TrioPhysicalModelingSource::UIState> m_sourceSamplers[x_numVoices];
+    SampledSnapshotWriter<TrioSquiggleBoyShape::UIState> m_filterSamplers[x_numTracks];
+    SampledSnapshotWriter<TrioPhysicalModelingSource::UIState> m_sourceSamplers[x_numTracks];
 
     void PopulateUIStateSample()
     {
@@ -752,16 +752,16 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             return;
         }
 
-        for (size_t voice = 0; voice < x_numVoices; ++voice)
+        for (size_t track = 0; track < x_numTracks; ++track)
         {
-            auto& track = m_tracks[voice / x_voicesPerTrack];
-            size_t channel = voice % x_voicesPerTrack;
-            m_filterSamplers[voice].SetSource(static_cast<size_t>(m_voiceConfig[voice].m_filterMachine));
-            m_sourceSamplers[voice].SetSource(static_cast<size_t>(m_voiceConfig[voice].m_sourceMachine));
-            track.m_shape.PopulateUIStateSample(m_filterSamplers[voice], channel, m_voiceConfig[voice].m_filterMachine);
-            if (m_voiceConfig[voice].m_sourceMachine == VoiceMachine::SourceMachine::PhysicalModeling)
+            auto filter = m_voiceConfig[track * x_voicesPerTrack].m_filterMachine;
+            auto source = m_voiceConfig[track * x_voicesPerTrack].m_sourceMachine;
+            m_filterSamplers[track].SetSource(static_cast<size_t>(filter));
+            m_sourceSamplers[track].SetSource(static_cast<size_t>(source));
+            m_tracks[track].m_shape.PopulateUIStateSample(m_filterSamplers[track], filter);
+            if (source == VoiceMachine::SourceMachine::PhysicalModeling)
             {
-                track.m_source.m_physicalModeling.PopulateUIStateSample(m_sourceSamplers[voice], channel);
+                m_tracks[track].m_source.m_physicalModeling.PopulateUIStateSample(m_sourceSamplers[track]);
             }
         }
 
@@ -771,10 +771,10 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
     void SetupUIState(UIState* uiState)
     {
-        for (size_t voice = 0; voice < x_numVoices; ++voice)
+        for (size_t track = 0; track < x_numTracks; ++track)
         {
-            m_filterSamplers[voice].Bind(&uiState->m_voiceFilterUIState[voice]);
-            m_sourceSamplers[voice].Bind(&uiState->m_voiceSourceUIState[voice].m_physicalModelingUIState);
+            m_filterSamplers[track].Bind(&uiState->m_voiceFilterUIState[track]);
+            m_sourceSamplers[track].Bind(&uiState->m_physicalModelingUIState[track]);
         }
 
         m_delay.SetupResponseUIState(&uiState->m_delayUIState);
@@ -1365,7 +1365,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             {
                 size_t voice = track * x_voicesPerTrack + i;
                 uiState->SetPos(voice, squiggleBoyTrack.m_pan.m_outputX[i], squiggleBoyTrack.m_pan.m_outputY[i]);
-                uiState->m_voiceFilterUIState[voice].m_filterMachine.store(m_voiceConfig[voice].m_filterMachine);
+                uiState->m_voiceFilterUIState[track].m_filterMachine.store(m_voiceConfig[track * x_voicesPerTrack].m_filterMachine);
                 uiState->PopulateVoiceSourceUIState(
                     voice,
                     &m_voiceConfig[voice],

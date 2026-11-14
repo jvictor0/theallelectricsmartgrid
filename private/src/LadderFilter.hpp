@@ -74,74 +74,76 @@ struct LadderFilterLPGeneric
     static std::complex<float> TransferFunction(float alpha, float feedback, float freq)
     {
         Snapshot snapshot;
-        snapshot.m_alpha = alpha;
-        snapshot.m_feedback = feedback;
+        snapshot.m_alpha = Vector::Splat(alpha);
+        snapshot.m_feedback = Vector::Splat(feedback);
         return snapshot.ComplexResponse(ResponseFrequency::CyclesPerSample(freq), 0);
     }
 
     static float FrequencyResponse(float alpha, float feedback, float freq)
     {
         Snapshot snapshot;
-        snapshot.m_alpha = alpha;
-        snapshot.m_feedback = feedback;
+        snapshot.m_alpha = Vector::Splat(alpha);
+        snapshot.m_feedback = Vector::Splat(feedback);
         return snapshot.MagnitudeResponse(ResponseFrequency::CyclesPerSample(freq), 0);
     }
 
     using Vector = MultiChannelNumber<Number, Size>;
     using Saturator = TanhSaturatorGeneric<Number, Size, true>;
 
-    struct Snapshot : FilterResponseSnapshot
+    struct Snapshot : VectorResponseSnapshot<Size>
     {
-        float m_alpha = 0;
-        float m_feedback = 0;
+        using Base = VectorResponseSnapshot<Size>;
+        using typename Base::ComplexVector;
+        using typename Base::DoubleVector;
+        using typename Base::ResponseVector;
+        Vector m_alpha;
+        Vector m_feedback;
 
-        // Four one-poles with the existing delayed feedback and DC compensation.
-        // Multiply through by the stage denominator to avoid complex divisions.
-        //
-        std::complex<double> Denominator(const ResponseFrequency& frequency) const
+        ComplexVector Denominator(const ResponseFrequency& frequency) const
         {
-            double b = 1 - static_cast<double>(m_alpha);
-            auto stage = std::complex<double>(m_alpha + 2 * b * frequency.m_sinHalf * frequency.m_sinHalf,
-                2 * b * frequency.m_sinHalf * frequency.m_cosHalf);
+            auto a = m_alpha.template Convert<double>();
+            auto b = DoubleVector::Splat(1) - a;
+            ComplexVector stage(a + b * (2 * frequency.m_sinHalf * frequency.m_sinHalf),
+                b * (2 * frequency.m_sinHalf * frequency.m_cosHalf));
             auto square = stage * stage;
-            double a = m_alpha;
-            return square * square + static_cast<double>(m_feedback) * a * a * a * a * frequency.m_zInverse;
+            auto denominator = square * square + ComplexVector(frequency.m_zInverse)
+                * (m_feedback.template Convert<double>() * a * a * a * a);
+            denominator.m_real = DoubleVector::IfLess(DoubleVector(), a, denominator.m_real, DoubleVector::Splat(1));
+            return denominator;
         }
 
-        double Numerator() const
+        DoubleVector Numerator() const
         {
-            double a = m_alpha;
-            return (1.0 + m_feedback) * a * a * a * a;
+            auto a = m_alpha.template Convert<double>();
+            return (DoubleVector::Splat(1) + m_feedback.template Convert<double>()) * a * a * a * a;
         }
 
-        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
+        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
         {
-            return m_alpha == 0 ? std::complex<float>{}
-                : static_cast<std::complex<float>>(Numerator() / Denominator(frequency));
+            return ComplexVector(Numerator(), DoubleVector()) / Denominator(frequency);
         }
 
-        float MagnitudeResponse(const ResponseFrequency& frequency, size_t) const override
+        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
         {
-            return m_alpha == 0 ? 0 : static_cast<float>(Numerator() / std::abs(Denominator(frequency)));
+            return (Numerator() / Denominator(frequency).Abs()).template Convert<float>();
         }
-
     };
 
     using UIState = TransferFunctionGeneric<Snapshot>;
 
-    Snapshot MakeSnapshot(size_t channel) const
+    Snapshot MakeSnapshot() const
     {
         Snapshot snapshot;
-        snapshot.m_alpha = m_stage4.m_alpha[channel];
-        snapshot.m_feedback = m_kEff[channel];
+        snapshot.m_alpha = m_stage4.m_alpha;
+        snapshot.m_feedback = m_kEff;
         return snapshot;
     }
 
-    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer, size_t channel) const
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
     {
         writer.PopulateUIStateSample([&]
         {
-            return MakeSnapshot(channel);
+            return MakeSnapshot();
         });
     }
 
@@ -200,7 +202,7 @@ struct LadderFilterLPGeneric
 
     void PopulateUIState(UIState* uiState, size_t channel) const
     {
-        uiState->m_history.Push(MakeSnapshot(channel));
+        uiState->m_history.Push(MakeSnapshot());
     }
 
     void PopulateUIState(UIState* uiState) const

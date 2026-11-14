@@ -6,6 +6,40 @@
 #include "MultiChannelNumber.hpp"
 #include "SampledTransferFunction.hpp"
 
+// Independent cutoff coefficients, evaluated together for multiband responses.
+//
+template<size_t Size>
+struct CrossoverResponseCoefficients
+{
+    using Vector = MultiChannelNumber<double, Size>;
+    using Complex = MultiChannelComplex<double, Size>;
+    Vector m_tangent = Vector::Splat(0.1);
+
+    struct Pair
+    {
+        Complex m_lowPass;
+        Complex m_highPass;
+    };
+
+    Complex Denominator(const ResponseFrequency& frequency) const
+    {
+        auto gc = m_tangent * frequency.m_cosHalf;
+        double s = frequency.m_sinHalf;
+        auto real = gc * gc - s * s;
+        return Complex(real, gc * (s * (2.0f * std::cos(M_PI / 8.0f))))
+            * Complex(real, gc * (s * (2.0f * std::cos(3.0f * M_PI / 8.0f))));
+    }
+
+    Pair Responses(const ResponseFrequency& frequency) const
+    {
+        auto gc = m_tangent * frequency.m_cosHalf;
+        double s = frequency.m_sinHalf;
+        auto denominator = Denominator(frequency);
+        auto inverse = denominator.Conj() / denominator.Norm();
+        return {inverse * (gc * gc * gc * gc), inverse * (s * s * s * s)};
+    }
+};
+
 // Legacy crossover name: the retained Qs produce fourth-order Butterworth
 // branches, not LR4. Cutoff limits and scalar response are shared by all widths.
 //
@@ -36,7 +70,7 @@ struct LinkwitzRileyCrossoverGeneric
     static ComplexCrossoverOutput TransferFunction(float cutoffFreq, float freq)
     {
         Snapshot snapshot;
-        snapshot.m_tangent = Math::TanPi(std::clamp(cutoffFreq, x_minCyclesPerSample, x_maxCyclesPerSample));
+        snapshot.m_coefficients.m_tangent = Math::TanPi(std::clamp(cutoffFreq, x_minCyclesPerSample, x_maxCyclesPerSample));
         return snapshot.Responses(ResponseFrequency::CyclesPerSample(freq));
     }
 
@@ -59,25 +93,33 @@ struct LinkwitzRileyCrossoverGeneric
         Vector m_highPass;
     };
 
-    struct Snapshot : FilterResponseSnapshot
+    struct Snapshot : VectorResponseSnapshot<2>
     {
-        double m_tangent = 0.1;
+        CrossoverResponseCoefficients<1> m_coefficients;
+
+        DoubleVector Numerators(const ResponseFrequency& frequency) const
+        {
+            double gc = m_coefficients.m_tangent[0] * frequency.m_cosHalf;
+            double s = frequency.m_sinHalf;
+            return {gc * gc * gc * gc, s * s * s * s};
+        }
+
+        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
+        {
+            auto denominator = m_coefficients.Denominator(frequency)[0];
+            return ComplexVector(Numerators(frequency), DoubleVector()) / ComplexVector(denominator);
+        }
+
+        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
+        {
+            double magnitude = m_coefficients.Denominator(frequency).Abs()[0];
+            return (Numerators(frequency) / magnitude).template Convert<float>();
+        }
 
         ComplexCrossoverOutput Responses(const ResponseFrequency& frequency) const
         {
-            double gc = m_tangent * frequency.m_cosHalf;
-            double s = frequency.m_sinHalf;
-            auto denominator = std::complex<double>(gc * gc - s * s, gc * s / Q1())
-                * std::complex<double>(gc * gc - s * s, gc * s / Q2());
-            return {static_cast<std::complex<float>>(gc * gc * gc * gc / denominator),
-                static_cast<std::complex<float>>(s * s * s * s / denominator)};
-        }
-
-        std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t lane) const override
-        {
-            assert(lane < 2);
-            auto pair = Responses(frequency);
-            return lane == 0 ? pair.m_lowPass : pair.m_highPass;
+            auto responses = ComplexResponses(frequency);
+            return {static_cast<std::complex<float>>(responses[0]), static_cast<std::complex<float>>(responses[1])};
         }
     };
 
@@ -86,7 +128,7 @@ struct LinkwitzRileyCrossoverGeneric
     Snapshot MakeSnapshot() const
     {
         Snapshot snapshot;
-        snapshot.m_tangent = static_cast<double>(m_first.m_a2) / m_first.m_a1;
+        snapshot.m_coefficients.m_tangent = static_cast<double>(m_first.m_a2) / m_first.m_a1;
         return snapshot;
     }
 

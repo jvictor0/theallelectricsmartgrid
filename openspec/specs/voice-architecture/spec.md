@@ -123,7 +123,7 @@ Each voice's amp section SHALL contain an ASD muting envelope in addition to its
 - **AND** all gates are low when ToT is stopped, even if the outer transport flag differs
 
 ### Requirement: Voice UI State Exposure
-The system SHALL expose per-voice UI state through `SquiggleBoyWithEncoderBank::UIState` without the UI touching live DSP objects. Nine `VoiceFilterUIState` entries SHALL contain sampled shape responses, including the active filter machine and its coherent LP/HP coefficient pair. A separate atomic filter-machine field SHALL retain periodic label metadata. Nine `VoiceSourceUIState` entries SHALL retain source metadata and sample-directory state, with physical-modeling response histories sampled independently of periodic metadata publication. `PopulateUIStateSample` SHALL capture filter and active physical-modeling coefficients on randomly selected host frames.
+The system SHALL expose per-voice UI state through `SquiggleBoyWithEncoderBank::UIState` without the UI touching live DSP objects. Three per-track `VoiceFilterUIState` entries SHALL contain whole-trio sampled shape responses, including the active filter machine and its coherent LP/HP coefficient pair. A separate atomic filter-machine field SHALL retain periodic label metadata. Nine `VoiceSourceUIState` entries SHALL retain source metadata and sample-directory state, with three separate whole-trio physical-modeling response histories sampled independently of periodic metadata publication. `PopulateUIStateSample` SHALL draw one sampling coin per trio provider and capture its complete coefficient vectors on randomly selected host frames.
 
 #### Scenario: Filter response drawn from UI state
 - **WHEN** the UI draws voice i's ladder filter response

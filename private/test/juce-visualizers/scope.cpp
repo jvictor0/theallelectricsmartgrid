@@ -111,12 +111,12 @@ DOCTEST_TEST_CASE("Analyser: spectrum and oversampled response share the frequen
 
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
     ui->m_squiggleBoyUIState.m_activeTrack.store(1);
-    auto& filter = ui->m_squiggleBoyUIState.m_voiceFilterUIState[3];
+    auto& filter = ui->m_squiggleBoyUIState.m_voiceFilterUIState[1];
     TrioSquiggleBoyShape::Snapshot filterSnapshot;
-    filterSnapshot.m_ladder.m_lp.m_alpha = 1.0f;
-    filterSnapshot.m_ladder.m_lp.m_feedback = 0.0f;
-    filterSnapshot.m_ladder.m_hp.m_stage.m_g = 0.0f;
-    filterSnapshot.m_ladder.m_hp.m_stage.m_k = 1.0f;
+    filterSnapshot.m_ladder.m_lp.m_alpha = TrioFloat::Splat(1.0f);
+    filterSnapshot.m_ladder.m_lp.m_feedback = TrioFloat::Splat(0.0f);
+    filterSnapshot.m_ladder.m_hp.m_stage.m_g = TrioFloat::Splat(0.0f);
+    filterSnapshot.m_ladder.m_hp.m_stage.m_k = TrioFloat::Splat(1.0f);
     filterSnapshot.m_ladder.m_hp.m_stage.m_weights = {0, 0, 1};
     filter.m_history.Push(filterSnapshot);
     auto writer = std::make_unique<ScopeWriterGeneric<3, 3>>(1, 4096);
@@ -204,10 +204,10 @@ DOCTEST_TEST_CASE("Analyser: sub spectrum follows the trio and ignores the main 
         }
 
         DOCTEST_CHECK(peak == 8 + 8 * trio);
-        auto& filter = ui->m_squiggleBoyUIState.m_voiceFilterUIState[trio * 3];
+        auto& filter = ui->m_squiggleBoyUIState.m_voiceFilterUIState[trio];
         TrioSquiggleBoyShape::Snapshot filterSnapshot;
-        filterSnapshot.m_ladder.m_lp.m_alpha = 0.01f;
-        filterSnapshot.m_ladder.m_lp.m_feedback = 3.0f;
+        filterSnapshot.m_ladder.m_lp.m_alpha = TrioFloat::Splat(0.01f);
+        filterSnapshot.m_ladder.m_lp.m_feedback = TrioFloat::Splat(3.0f);
         filter.m_history.Push(filterSnapshot);
         AnalyserComponent changedFilter(TrioWindowedFFT(&writer, subScope), &voiceOffset, ui.get(),
             AnalyserComponent::FilterOverlay::None);
@@ -573,7 +573,7 @@ DOCTEST_TEST_CASE("Sampled response rendering: percentile motion creates a feath
         {
             float hz = 2000.0f * std::exp2(2 * std::sin(2 * juce::MathConstants<float>::pi * i / 32));
             lowPass.SetAlphaFromNatFreq(hz / SampleTimer::x_sampleRate);
-            cutoff.m_history.Push(lowPass.MakeSnapshot(0));
+            cutoff.m_history.Push(lowPass.MakeSnapshot());
         }
 
         PathDrawer responseDrawer(200, 640, 0, 200);
@@ -583,5 +583,28 @@ DOCTEST_TEST_CASE("Sampled response rendering: percentile motion creates a feath
         DOCTEST_REQUIRE(stream != nullptr);
         juce::PNGImageFormat png;
         DOCTEST_CHECK(png.writeImageToStream(preview, *stream));
+    }
+}
+
+DOCTEST_TEST_CASE("Sampled response rendering: resizing retains the same narrow-resonance frequency grid")
+{
+    PhysicalModelingSource::UIState response;
+    PhysicalModelingSource::Snapshot snapshot;
+    LinearStateVariableFilter svf;
+    svf.SetCutoffAndResonance(SampleTimer::HzToCycPerSamp(10000), 0.0f);
+    snapshot.m_mainSVF = svf.MakeSnapshot();
+    snapshot.m_combFilter.m_branch[0].Set(0, TunedDecayComb::ComputeCoefficients(
+        1000.0 / SampleTimer::x_sampleRate, 1, std::log2(5.0), 7, SampleTimer::x_sampleRate));
+    response.m_history.Push(snapshot);
+    SampledResponsePlot first;
+    SampledResponsePlot second;
+    PathDrawer(200, 317, 0, 0).PrepareSampledResponse(first, response);
+    PathDrawer(200, 318, 0, 0).PrepareSampledResponse(second, response);
+    DOCTEST_REQUIRE(first.m_values.size() == 1024);
+    DOCTEST_REQUIRE(first.m_values.size() == second.m_values.size());
+    for (size_t i = 0; i < first.m_values.size(); ++i)
+    {
+        DOCTEST_CHECK(first.m_frequencies[i].m_cyclesPerSample == second.m_frequencies[i].m_cyclesPerSample);
+        DOCTEST_CHECK(first.m_values[i].m_median == second.m_values[i].m_median);
     }
 }

@@ -98,7 +98,18 @@ struct MultiChannelComplex
     //
     Vector Abs() const
     {
-        return (m_real * m_real + m_imag * m_imag).Sqrt();
+        return Norm().Sqrt();
+    }
+
+    Vector Norm() const
+    {
+        return m_real * m_real + m_imag * m_imag;
+    }
+
+    template<typename Other>
+    MultiChannelComplex<Other, Size> Convert() const
+    {
+        return {m_real.template Convert<Other>(), m_imag.template Convert<Other>()};
     }
 
     // Per-channel std::arg.
@@ -143,6 +154,13 @@ struct MultiChannelComplex
     MultiChannelComplex operator/(const Vector& scale) const
     {
         return MultiChannelComplex(m_real / scale, m_imag / scale);
+    }
+
+    // Finite response coefficients use the direct quotient in double precision.
+    //
+    MultiChannelComplex operator/(const MultiChannelComplex& other) const
+    {
+        return (*this * other.Conj()) / other.Norm();
     }
 
     MultiChannelComplex operator*(RealType scale) const

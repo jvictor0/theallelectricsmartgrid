@@ -338,6 +338,7 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
 
     bool m_logX;
     FilterOverlay m_filterOverlay;
+    SampledResponsePlot m_responsePlot;
 
     AnalyserComponent(
         const TrioWindowedFFT& windowedFFT,
@@ -383,6 +384,13 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
             numLoops = x_voicesPerTrack;
         }
 
+        PathDrawer responseDrawer(height, width, 0, 0);
+        responseDrawer.m_logX = m_logX;
+        if (m_filterOverlay == FilterOverlay::Voice)
+        {
+            responseDrawer.PrepareSampledResponse(m_responsePlot, m_voiceFilterUIState[baseVoiceIx / x_voicesPerTrack]);
+        }
+
         for (size_t i = 0; i < numLoops; ++i)
         {
             size_t voiceIx = baseVoiceIx + voiceOffset;
@@ -396,8 +404,6 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
             }
 
             SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(voiceIx);
-            PathDrawer responseDrawer(height, width, 0, 0);
-            responseDrawer.m_logX = m_logX;
             responseDrawer.DrawWindowedDFT(
                 g,
                 juce::Colour(color.m_red, color.m_green, color.m_blue),
@@ -409,7 +415,7 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
                 responseDrawer.DrawSampledFrequencyResponse(
                     g,
                     juce::Colour(color.m_red, color.m_green, color.m_blue),
-                    m_voiceFilterUIState[voiceIx]);
+                    m_responsePlot, voiceIx % x_voicesPerTrack);
             }
         }
     }
@@ -577,6 +583,8 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
         }
     }
 
+    SampledResponsePlot m_dampingPlots[2];
+
     void DrawOne(juce::Graphics& g, size_t fftIx, Type type, SmartGrid::Color color, juce::Rectangle<int> boundsRect)
     {
         auto bounds = boundsRect.toFloat();
@@ -586,7 +594,11 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
         m_quadWindowedFFT[fftIx].Compute();
 
         auto* response = GetSampledTransferFunction(type);
-        auto samples = response ? response->Sample() : std::vector<SampledTransferFunction::SampleId>{};
+        auto& plot = m_dampingPlots[type == Type::Reverb ? 1 : 0];
+        if (response)
+        {
+            PathDrawer(height / 2, width / 2, 0, 0).PrepareSampledResponse(plot, *response);
+        }
 
         for (size_t x = 0; x < 2; ++x)
         {
@@ -600,7 +612,7 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
 
                 if (response)
                 {
-                    pathDrawer.DrawSampledFrequencyResponse(g, juceColor, *response, samples, speakerIx);
+                    pathDrawer.DrawSampledFrequencyResponse(g, juceColor, plot, speakerIx);
                 }
 
                 if (type != Type::Master)
@@ -742,6 +754,7 @@ struct PhysicalModelingFrequencyResponseComponent : public SmartGridOneMainVisua
     std::atomic<size_t>* m_voiceIx;
     int* m_voiceOffset;
     bool m_logX;
+    SampledResponsePlot m_responsePlot;
 
     PhysicalModelingFrequencyResponseComponent(
         TheNonagonSquiggleBoyInternal::UIState* uiState,
@@ -766,6 +779,11 @@ struct PhysicalModelingFrequencyResponseComponent : public SmartGridOneMainVisua
         size_t baseVoiceIx = m_voiceIx->load() * x_voicesPerTrack;
         size_t numLoops = voiceOffset == -1 ? x_voicesPerTrack : 1;
 
+        PathDrawer responseDrawer(height, width, 0, 0);
+        responseDrawer.m_logX = m_logX;
+        responseDrawer.PrepareSampledResponse(m_responsePlot,
+            m_uiState->m_squiggleBoyUIState.m_physicalModelingUIState[baseVoiceIx / x_voicesPerTrack]);
+
         for (size_t loopIx = 0; loopIx < numLoops; ++loopIx)
         {
             size_t voiceIx = baseVoiceIx + (voiceOffset == -1 ? loopIx : static_cast<size_t>(voiceOffset));
@@ -781,12 +799,10 @@ struct PhysicalModelingFrequencyResponseComponent : public SmartGridOneMainVisua
             }
 
             SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(voiceIx);
-            PathDrawer responseDrawer(height, width, 0, 0);
-            responseDrawer.m_logX = m_logX;
             responseDrawer.DrawSampledFrequencyResponse(
                 g,
                 juce::Colour(color.m_red, color.m_green, color.m_blue),
-                sourceUIState.m_physicalModelingUIState);
+                m_responsePlot, voiceIx % x_voicesPerTrack);
         }
     }
 

@@ -100,6 +100,39 @@ An explicit `--output` reuses that directory and replaces its result files. Keep
 before/after output directories distinct. `--patch PATH` substitutes another
 patch; the built-in fixture has randomized scene values and connected modulation.
 
+## Sampled transfer responses
+
+```sh
+make perf-responses PERF_ARGS='5 0.025'
+make perf-ipad PERF_ARGS='--case responses --notes "Response grid and SIMD comparison" -- 5 0.025'
+```
+
+`perf_responses [REPEATS] [SECONDS_PER_CASE]` evaluates production snapshot providers
+with the latest 32 deterministic, varied coefficient captures at 321, 641 and
+1024 frequency columns. These correspond to the previous 320/640-pixel grids
+and the restored fixed grid. It reports CPU and wall milliseconds per **whole
+plot**, with the number of output lanes in each row. Trio/quad results include
+all lanes together; they must not be multiplied by lane count. Crossover results
+include its LP and HP pair. Mastering has one shared-control response despite
+stereo audio; FIR is an available 31-tap response, currently without a production
+analyzer. The nonlinear SVF shares the linear SVF snapshot and response kernel.
+PartialMachine retains its old interface and is outside this benchmark.
+
+Both the production magnitude override and a forced `abs(complex response)` path
+use the same snapshots, frequency grid and percentile implementation. The latter
+isolates the shortcut's cost; it is not the historical implementation. Cases run
+serially in seeded shuffled order after a half-second warmup. Snapshot construction
+and coefficient design are outside timing. Sampling/copying, vector response
+math, percentile selection, writing all output columns and checksum consumption
+are inside timing. Frequency preparation is cached as in production. JUCE paths,
+rasterization, FFTs, audio DSP, concurrent history publication and thermal/deadline
+interference are excluded. A 60 Hz frame allows 16.67 ms for **all** UI work; these
+numbers only establish the response-evaluation portion of that budget.
+
+The desktop `perf-responses-build` target builds this case alone in the normal
+stable performance build directory. Device results use the existing named-case
+runner and SQLite report schema. Preserve JSONL output when comparing revisions.
+
 ## Units and measurement boundaries
 
 The main unit is **milliseconds of calling-thread CPU time per second of audio**.

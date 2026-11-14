@@ -29,7 +29,7 @@ add_custom_target(perf_build_info
 add_library(perf_codec STATIC "${REPO_ROOT}/private/src/RecordingFlacCodec.cpp")
 target_compile_definitions(perf_codec PRIVATE SMARTGRID_RECORDING_SYSTEM_FLAC=1)
 target_link_libraries(perf_codec PUBLIC PkgConfig::FLAC)
-foreach(kind voices effects extra auxiliary encoders sgrec density audio_diagnostics)
+foreach(kind voices effects extra auxiliary encoders sgrec density audio_diagnostics responses)
     add_executable(perf_${kind} ${kind}.cpp)
     add_dependencies(perf_${kind} perf_build_info)
     target_include_directories(perf_${kind} PRIVATE
@@ -40,6 +40,7 @@ foreach(kind voices effects extra auxiliary encoders sgrec density audio_diagnos
     target_link_libraries(perf_${kind} PRIVATE perf_codec Threads::Threads)
 endforeach()
 target_sources(perf_density PRIVATE density_main.cpp)
+target_sources(perf_responses PRIVATE responses_main.cpp)
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/build.json" CONTENT
 "{\"compiler\":\"${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\",\"configuration\":\"${CMAKE_BUILD_TYPE}\",\"lto\":true,\"flags\":\"${CMAKE_CXX_FLAGS_RELEASE} -funroll-loops\"}\n")
 enable_testing()
@@ -57,3 +58,6 @@ add_test(NAME perf_ipad_protocol COMMAND "${Python3_EXECUTABLE}" "${REPO_ROOT}/s
 add_test(NAME perf_audio_diagnostics COMMAND "$<TARGET_FILE:perf_audio_diagnostics>" 1000)
 set_tests_properties(perf_smoke perf_protocol perf_sgrec_protocol perf_sgrec_runner PROPERTIES RUN_SERIAL TRUE TIMEOUT 600)
 set_tests_properties(perf_density_reference PROPERTIES RUN_SERIAL TRUE TIMEOUT 60)
+
+add_test(NAME perf_responses_smoke COMMAND "$<TARGET_FILE:perf_responses>" 1 0.001)
+set_tests_properties(perf_responses_smoke PROPERTIES RUN_SERIAL TRUE TIMEOUT 60)

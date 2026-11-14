@@ -86,26 +86,8 @@ struct SourceMixer
             }
         };
 
-        struct Snapshot : FilterResponseSnapshot
+        struct UIState
         {
-            LinearStateVariableFilterGeneric<float, x_numSourceLanes>::Snapshot m_hp;
-            LinearStateVariableFilterGeneric<float, x_numSourceLanes>::Snapshot m_lp;
-
-            std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t) const override
-            {
-                return m_hp.ComplexResponse(frequency, 0) * m_lp.ComplexResponse(frequency, 0);
-            }
-
-            float MagnitudeResponse(const ResponseFrequency& frequency, size_t) const override
-            {
-                return m_hp.MagnitudeResponse(frequency, 0) * m_lp.MagnitudeResponse(frequency, 0);
-            }
-        };
-
-        struct UIState : TransferFunctionGeneric<Snapshot>
-        {
-            using TransferFunctionGeneric<Snapshot>::TransferFunctionGeneric;
-
             std::atomic<uint32_t> m_color{SmartGrid::Color::White.To32Bit()};
             std::atomic<SourceWidth> m_width{SourceWidth::Mono};
 
@@ -114,25 +96,6 @@ struct SourceMixer
                 return SmartGrid::Color::From32Bit(m_color.load());
             }
         };
-
-        SampledSnapshotWriter<UIState> m_responseSampler;
-
-        Snapshot MakeSnapshot() const
-        {
-            Snapshot snapshot;
-            snapshot.m_hp = m_hpFilter.MakeSnapshot(0);
-            snapshot.m_hp.m_weights = {0, 0, 1};
-            snapshot.m_lp = m_lpFilter.MakeSnapshot(0);
-            return snapshot;
-        }
-
-        void PopulateUIStateSample()
-        {
-            m_responseSampler.PopulateUIStateSample([&]
-            {
-                return MakeSnapshot();
-            });
-        }
 
         using Vector = MultiChannelNumber<float, x_numSourceLanes>;
         using Filter = LinearStateVariableFilterGeneric<float, x_numSourceLanes>;
@@ -154,7 +117,6 @@ struct SourceMixer
             m_lpFilter.Process(sample);
             m_hpFilter.Process(m_lpFilter.GetLowPass());
             m_output = m_hpFilter.GetHighPass();
-            PopulateUIStateSample();
 
             m_preFilterScopeSample = 0.5f * (sample[0] + sample[1]);
             m_postFilterScopeSample = 0.5f * (m_output[0] + m_output[1]);
@@ -162,7 +124,6 @@ struct SourceMixer
 
         void SetupUIState(UIState* uiState, const Input& input)
         {
-            m_responseSampler.Bind(uiState);
             uiState->m_width.store(input.m_config.m_width);
         }
 
@@ -209,8 +170,30 @@ struct SourceMixer
         }
     };
 
-    struct UIState
+    // Each stereo source shares one coefficient set. Pack the four independent
+    // sources into response lanes instead of evaluating identical stereo lanes.
+    //
+    struct Snapshot : VectorResponseSnapshot<x_numSources>
     {
+        LinearStateVariableFilterGeneric<float, x_numSources>::Snapshot m_hp;
+        LinearStateVariableFilterGeneric<float, x_numSources>::Snapshot m_lp;
+
+        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
+        {
+            return m_hp.ComplexResponses(frequency) * m_lp.ComplexResponses(frequency);
+        }
+
+        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
+        {
+            return m_hp.MagnitudeResponses(frequency) * m_lp.MagnitudeResponses(frequency);
+        }
+    };
+
+
+    struct UIState : TransferFunctionGeneric<Snapshot>
+    {
+        using TransferFunctionGeneric<Snapshot>::TransferFunctionGeneric;
+
         Source::UIState m_sources[x_numSources];
         
         SmartGrid::Color Color(size_t i)
@@ -224,6 +207,23 @@ struct SourceMixer
         }
     };
 
+    SampledSnapshotWriter<UIState> m_responseSampler;
+
+    Snapshot MakeSnapshot() const
+    {
+        Snapshot snapshot;
+        snapshot.m_hp.m_weights = {0, 0, 1};
+        for (size_t i = 0; i < x_numSources; ++i)
+        {
+            snapshot.m_hp.m_g[i] = m_sources[i].m_hpFilter.m_g[0];
+            snapshot.m_hp.m_k[i] = m_sources[i].m_hpFilter.m_k[0];
+            snapshot.m_lp.m_g[i] = m_sources[i].m_lpFilter.m_g[0];
+            snapshot.m_lp.m_k[i] = m_sources[i].m_lpFilter.m_k[0];
+        }
+
+        return snapshot;
+    }
+
     void PopulateUIState(UIState* uiState, const Input& input)
     {
         for (size_t i = 0; i < x_numSources; ++i)
@@ -235,6 +235,7 @@ struct SourceMixer
 
     void SetupUIState(UIState* uiState, const Input& input)
     {
+        m_responseSampler.Bind(uiState);
         for (size_t i = 0; i < x_numSources; ++i)
         {
             m_sources[i].SetupUIState(&uiState->m_sources[i], input.m_sources[i]);
@@ -253,6 +254,10 @@ struct SourceMixer
             postFilter[i] = m_sources[i].m_postFilterScopeSample;
         }
 
+        m_responseSampler.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot();
+        });
         m_preFilterScopeWriter.Write(preFilter);
         m_postFilterScopeWriter.Write(postFilter);
     }

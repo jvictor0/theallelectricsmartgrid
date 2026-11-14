@@ -13,6 +13,7 @@ struct MultibandEQComponent : public SmartGridOneMainVisualizerComponent
 {
     TheNonagonSquiggleBoyInternal::UIState* m_uiState;
     WindowedFFTGeneric<4> m_windowedFFT;
+    SampledResponsePlot m_responsePlot;
 
     MultibandEQComponent(TheNonagonSquiggleBoyInternal::UIState* uiState)
         : SmartGridOneMainVisualizerComponent()
@@ -42,7 +43,8 @@ struct MultibandEQComponent : public SmartGridOneMainVisualizerComponent
         }
 
         PathDrawer pathDrawer(height, width, 0, 0);
-        pathDrawer.DrawSampledFrequencyResponse(g, juce::Colours::white, *GetMasteringChainUIState());
+        pathDrawer.PrepareSampledResponse(m_responsePlot, *GetMasteringChainUIState());
+        pathDrawer.DrawSampledFrequencyResponse(g, juce::Colours::white, m_responsePlot, 0);
     }
 };
 
@@ -106,6 +108,8 @@ struct SourceMixerFrequencyComponent : public SmartGridOneMainVisualizerComponen
             static_cast<size_t>(SmartGridOne::QuadScopes::SourcePostFilter));
     }
 
+    SampledResponsePlot m_responsePlot;
+
     SourceMixer::UIState* GetSourceMixerUIState()
     {
         return &m_uiState->m_squiggleBoyUIState.m_sourceMixerUIState;
@@ -150,10 +154,11 @@ struct SourceMixerFrequencyComponent : public SmartGridOneMainVisualizerComponen
             pathDrawer.DrawWindowedDFT(g, J(color), &m_windowedFFT[1], i);
         }
 
+        PathDrawer responseDrawer(height, width, 0, 0);
+        responseDrawer.PrepareSampledResponse(m_responsePlot, *GetSourceMixerUIState());
         for (size_t i = 0; i < SourceMixer::x_numSources; ++i)
         {
-            PathDrawer pathDrawer(height, width, 0, 0);
-            pathDrawer.DrawSampledFrequencyResponse(g, J(SourceMixer::GetColor(i)), GetSourceMixerUIState()->m_sources[i]);
+            responseDrawer.DrawSampledFrequencyResponse(g, J(SourceMixer::GetColor(i)), m_responsePlot, i);
         }
 
         // UNDONE(DEEP_VOCODER)

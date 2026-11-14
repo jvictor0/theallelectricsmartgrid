@@ -12,19 +12,19 @@ DOCTEST_TEST_CASE("Sampled response wiring: every displayed filter publishes at 
     }
 
     rig.RunSamples(4096);
-    for (size_t voice = 0; voice < SquiggleBoy::x_numVoices; ++voice)
+    for (size_t track = 0; track < SquiggleBoy::x_numTracks; ++track)
     {
-        DOCTEST_CHECK(ui.m_voiceFilterUIState[voice].Sample().size() > 1);
-        DOCTEST_CHECK(ui.m_voiceSourceUIState[voice].m_physicalModelingUIState.Sample().size() > 1);
+        DOCTEST_CHECK(ui.m_voiceFilterUIState[track].Sample().size() > 1);
+        DOCTEST_CHECK(ui.m_physicalModelingUIState[track].Sample().size() > 1);
     }
 
     DOCTEST_CHECK(ui.m_delayUIState.m_dampingFilter.Sample().size() > 1);
     DOCTEST_CHECK(ui.m_reverbUIState.m_dampingFilter.Sample().size() > 1);
     DOCTEST_CHECK(ui.m_stereoMasteringChainUIState.Sample().size() > 1);
-    for (auto& source : ui.m_sourceMixerUIState.m_sources)
-    {
-        DOCTEST_CHECK(source.Sample().size() > 1);
-    }
+    DOCTEST_CHECK(ui.m_sourceMixerUIState.Sample().size() > 1);
+    DOCTEST_CHECK(ui.m_sourceMixerUIState.NumLanes() == 4);
+    DOCTEST_CHECK(ui.m_voiceFilterUIState[0].NumLanes() == 3);
+    DOCTEST_CHECK(ui.m_physicalModelingUIState[0].NumLanes() == 3);
 
     for (auto& voice : engine.m_voiceConfig)
     {
