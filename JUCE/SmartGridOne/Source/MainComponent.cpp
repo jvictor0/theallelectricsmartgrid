@@ -66,9 +66,9 @@ MainComponent::MainComponent()
     LoadConfig();
     OpenAudioDevice();
 
-    // Start the 60 FPS timer for re-rendering
+    // Keep UI housekeeping at 60 Hz; painting has its own 30 FPS deadline.
     //
-    startTimer(1000 / 60); // 60 FPS
+    startTimer(1000 / 60);
 
 
     // Force initial layout calculation after everything is set up
@@ -548,8 +548,6 @@ void MainComponent::timerCallback()
         m_nonagon.LogRecordingDiagnostics();
     }
 
-    // Re-renderthe component at 60 FPS
-    //
     HandleStateInterchange();
     bool showingVisualizer = !m_showingConfig && !m_showingFile && m_nonagon.m_wrldBldr.IsOpen();
     if (m_wrldBuildrVisualizerPage->isVisible() != showingVisualizer)
@@ -558,9 +556,21 @@ void MainComponent::timerCallback()
     }
 
     m_cpuUsageBuffer.Write(m_deviceManager.getCpuUsage() * 100.0);
-    m_cpuLabel.setText(juce::String(m_cpuUsageBuffer.Max(), 1) + "%", juce::dontSendNotification);
 
-    repaint();
+    const double repaintNowMs = juce::Time::getMillisecondCounterHiRes();
+    if (repaintNowMs >= m_nextRepaintMs)
+    {
+        // Preserve the frame cadence across timer jitter, but skip missed frames.
+        //
+        m_nextRepaintMs += x_repaintIntervalMs;
+        if (m_nextRepaintMs <= repaintNowMs)
+        {
+            m_nextRepaintMs = repaintNowMs + x_repaintIntervalMs;
+        }
+
+        m_cpuLabel.setText(juce::String(m_cpuUsageBuffer.Max(), 1) + "%", juce::dontSendNotification);
+        repaint();
+    }
 
     AsyncLogQueue::s_instance.DoLog();
 }

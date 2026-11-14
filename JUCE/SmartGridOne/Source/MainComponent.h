@@ -257,6 +257,8 @@ private:
     AppObserver m_appObserver;
     static constexpr uint32_t x_midiReconnectIntervalMs = 1000;
     uint32_t m_lastMidiConnectionCheckMs = 0;
+    static constexpr double x_repaintIntervalMs = 1000.0 / 30.0;
+    double m_nextRepaintMs = 0.0;
 
     FileManager m_fileManager{this};
 
