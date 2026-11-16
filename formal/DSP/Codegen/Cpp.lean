@@ -1,0 +1,456 @@
+import Lean
+
+/-! A deliberately small backend for pure, monomorphic processor functions.
+It reads elaborated Lean definitions, resolves their arithmetic instances,
+and emits native C++ records. It is tested, not a verified Lean-to-C++ compiler.
+-/
+
+namespace DSP.Codegen
+
+open Lean Meta Elab Command
+
+inductive Shape where
+  | scalar (type : String)
+  | record (fields : Array (String × Shape))
+  | vector (size : Nat) (element : Shape)
+  deriving Inhabited
+
+inductive Value where
+  | scalar (type text : String)
+  | record (fields : Array Value)
+  | vector (elements : Array Value)
+  deriving Inhabited
+
+structure Emission where
+  lines : Array String := #[]
+  next : Nat := 0
+
+abbrev GenM := StateT Emission MetaM
+abbrev Locals := List (FVarId × Value)
+
+def emit (line : String) : GenM Unit := modify fun s => { s with lines := s.lines.push line }
+
+def fresh : GenM String := do
+  let s ← get
+  set { s with next := s.next + 1 }
+  return s!"v{s.next}"
+
+def scalar (v : Value) : GenM (String × String) :=
+  match v with
+  | .scalar type text => pure (type, text)
+  | _ => throwError "C++ codegen: expected a scalar expression"
+
+def temporary (type text : String) : GenM Value := do
+  let name ← fresh
+  emit s!"const {type} {name} = {text};"
+  return .scalar type name
+
+def scalarType (type : Expr) : MetaM String := do
+  let type ← whnf type
+  match type with
+  | .const ``Float _ => return "double"
+  | .const ``Float32 _ => return "float"
+  | .const ``Bool _ => return "bool"
+  | _ => throwError "C++ codegen: unsupported field type {type}; expected Float, Float32 or Bool"
+
+def validIdentifier (s : String) : Bool :=
+  !s.isEmpty && !s.contains "__" &&
+    s.toList.head!.isAlpha && s.toList.all (fun c => c.toNat < 128 && (c.isAlphanum || c == '_'))
+
+def finSize (type : Expr) : MetaM Nat := do
+  let type ← whnf type
+  unless type.isAppOfArity ``Fin 1 do
+    throwError "C++ codegen: only fixed Fin-indexed vectors are supported; got {type}"
+  let .lit (.natVal n) ← whnf type.getAppArgs[0]!
+    | throwError "C++ codegen: vector dimension must be a literal"
+  unless n ≤ 256 do throwError "C++ codegen: vector dimension exceeds the 256-element export limit"
+  return n
+
+partial def fieldShape (type : Expr) : MetaM Shape := do
+  let type ← whnf type
+  if let .forallE _ domain body _ := type then
+    unless !body.hasLooseBVars do throwError "C++ codegen: dependent vector elements are unsupported"
+    return .vector (← finSize domain) (← fieldShape body)
+  if type.isConstOf ``Float || type.isConstOf ``Float32 || type.isConstOf ``Bool then
+    return .scalar (← scalarType type)
+  let .const name _ := type.getAppFn
+    | throwError "C++ codegen: unsupported field type {type}"
+  let some info := getStructureInfo? (← getEnv) name
+    | throwError "C++ codegen: unsupported field type {type}"
+  if !info.parentInfo.isEmpty then
+    throwError "C++ codegen: inherited records are not supported: {type}"
+  withLocalDeclD `record type fun value => do
+    let mut fields := #[]
+    for i in [:info.fieldNames.size] do
+      let raw := info.fieldNames[i]!.toString
+      let member := if raw.startsWith "m_" then raw else "m_" ++ raw
+      unless validIdentifier member do
+        throwError "C++ codegen: invalid C++ field name {member}"
+      if fields.any (fun f : String × Shape => f.1 == member) then
+        throwError "C++ codegen: duplicate C++ field name {member}"
+      let fieldType ← inferType (.proj name i value)
+      fields := fields.push (member, ← fieldShape fieldType)
+    return .record fields
+
+partial def readValue (shape : Shape) (base : String) : Value :=
+  match shape with
+  | .scalar type => .scalar type base
+  | .record fields => .record (fields.map fun (name, shape) => readValue shape s!"{base}.{name}")
+  | .vector n shape => .vector ((List.range n).toArray.map fun i => readValue shape s!"{base}[{i}]")
+
+def primitive (name : Name) : Bool :=
+  #[``Float.add, ``Float.sub, ``Float.mul, ``Float.div, ``Float.neg,
+    ``Float32.add, ``Float32.sub, ``Float32.mul, ``Float32.div, ``Float32.neg,
+    ``Float.ofNat, ``Float32.ofNat, ``Float.ofScientific, ``Float32.ofScientific,
+    ``Float.lt, ``Float.le, ``Float32.lt, ``Float32.le,
+    ``Float.beq, ``Float32.beq, ``ite, ``Bool.true, ``Bool.false, ``Eq,
+    ``Bool.decEq, ``Float.decLt, ``Float.decLe, ``Float32.decLt, ``Float32.decLe].contains name
+
+/-- Unfold one pure definition at a time, so unknown external implementations
+cannot silently be replaced with their logical bodies. Value bindings stay
+shared, so each is emitted once; only function-typed bindings are inlined. -/
+partial def expose (expression : Expr) : MetaM Expr := withIncRecDepth do
+  let e := expression.consumeMData.headBeta.consumeMData
+  if e.isHeadBetaTarget then return ← expose e
+  match e with
+  | .letE _ type value body _ =>
+    if (← whnf type).isForall then expose (body.instantiate1 value) else return e
+  | .proj name index value =>
+    let value ← expose value
+    if let .letE binder type bound body nondep := value then
+      return .letE binder type bound (.proj name index body) nondep
+    if let .const ctor _ := value.getAppFn then
+      if let .ctorInfo info ← getConstInfo ctor then
+        let args := value.getAppArgs
+        if info.induct == name && info.numParams + index < args.size then
+          return ← expose args[info.numParams + index]!
+    return .proj name index value
+  | _ =>
+    match e.getAppFn with
+    | .const name levels =>
+      if name == ``Nat.zero then return .lit (.natVal 0)
+      if name == ``Nat.succ && e.getAppArgs.size == 1 then
+        if let .lit (.natVal n) ← expose e.getAppArgs[0]! then return .lit (.natVal (n + 1))
+      if let some (_, op) := (#[(``Nat.add, Nat.add), (``Nat.sub, Nat.sub),
+          (``Nat.mul, Nat.mul), (``Nat.mod, Nat.mod), (``Nat.div, Nat.div)]).find?
+          (fun entry => entry.1 == name) then
+        let args := e.getAppArgs
+        if args.size < 2 then return e
+        if args.size == 2 then
+          let a ← expose args[0]!
+          let b ← expose args[1]!
+          if let (.lit (.natVal a), .lit (.natVal b)) := (a, b) then
+            return .lit (.natVal (op a b))
+        throwError "C++ codegen: natural arithmetic must be statically known: {e}"
+      if primitive name then return e
+      let env ← getEnv
+      if (getExternAttrData? env name).isSome || (Compiler.getImplementedBy? env name).isSome then
+        throwError "C++ codegen: unsupported external implementation {name}"
+      let args := e.getAppArgs
+      if let some proj := env.getProjectionFnInfo? name then
+        if args.size > proj.numParams then
+          let ctor ← getConstInfoCtor proj.ctorName
+          let field := Expr.proj ctor.induct proj.i args[proj.numParams]!
+          return ← expose (mkAppN field (args.extract (proj.numParams + 1) args.size))
+      match ← getConstInfo name with
+      | .recInfo info =>
+        unless args.size > info.getMajorIdx do return e
+        if name == ``Eq.rec then
+          if let some reduced ← reduceRecMatcher? e then return ← expose reduced
+          throwError "C++ codegen: proof transport did not reduce"
+        let major ← expose args[info.getMajorIdx]!
+        unless major.isLit || (← isConstructorApp major) do
+          throwError "C++ codegen: recursion requires a statically known constructor: {name}, {major}"
+        let specialized := mkAppN (mkConst name levels) (args.set! info.getMajorIdx major)
+        if let some reduced ← reduceRecMatcher? specialized then return ← expose reduced
+        throwError "C++ codegen: could not specialize recursor {name}"
+      | .defnInfo info =>
+        unless info.safety == .safe do
+          throwError "C++ codegen: unsafe/partial definition {name} is not supported"
+        let body := info.value.instantiateLevelParams info.levelParams levels
+        return ← expose (mkAppN body args)
+      | _ => return e
+    | .proj .. | .letE .. =>
+      let fn ← expose e.getAppFn
+      let next := (mkAppN fn e.getAppArgs).headBeta
+      if next == e then return e else expose next
+    | _ => return e
+
+/-- Exact hexadecimal literals preserve the bits selected by Lean's literal
+conversion, including subnormals, without a second decimal conversion. -/
+def hexLiteral (bits : Nat) (fractionBits exponentBits bias : Nat) (suffix : String) : MetaM String := do
+  if bits == 0 then return "0.0" ++ suffix
+  if bits == bias * 2 ^ fractionBits then return "1.0" ++ suffix
+  let exponent := (bits >>> fractionBits) % (2 ^ exponentBits)
+  let fraction := bits % (2 ^ fractionBits)
+  if exponent == 2 ^ exponentBits - 1 then
+    throwError "C++ codegen: non-finite literals are not supported"
+  let mantissa := if exponent == 0 then fraction else 2 ^ fractionBits + fraction
+  let power : Int := (if exponent == 0 then 1 else Int.ofNat exponent) - bias - fractionBits
+  let sign := if bits >>> (fractionBits + exponentBits) == 0 then "" else "-"
+  return s!"{sign}0x{String.ofList (Nat.toDigits 16 mantissa)}p{power}{suffix}"
+
+def natLiteral : Expr → Option Nat
+  | .lit (.natVal n) => some n
+  | _ => none
+
+def floatLiteral (name : Name) (args : Array Expr) : GenM Value := do
+  let arg ← expose args[0]!
+  let some mantissa := natLiteral arg
+    | throwError "C++ codegen: only literal numeric conversions are supported: {arg}"
+  let scientific := name == ``Float.ofScientific || name == ``Float32.ofScientific
+  let mut negativeExponent := false
+  let mut exponent := 0
+  if scientific then
+    match ← expose args[1]! with
+    | .const ``Bool.true _ => negativeExponent := true
+    | .const ``Bool.false _ => pure ()
+    | _ => throwError "C++ codegen: expected a literal exponent sign"
+    let some n := natLiteral (← expose args[2]!)
+      | throwError "C++ codegen: expected a literal exponent"
+    exponent := n
+  if name == ``Float.ofNat || name == ``Float.ofScientific then
+    let value := if scientific then Float.ofScientific mantissa negativeExponent exponent
+      else Float.ofNat mantissa
+    return .scalar "double" (← hexLiteral value.toBits.toNat 52 11 1023 "")
+  else
+    let value := if scientific then Float32.ofScientific mantissa negativeExponent exponent
+      else Float32.ofNat mantissa
+    return .scalar "float" (← hexLiteral value.toBits.toNat 23 8 127 "f")
+
+def withLocal {α : Type} (name : Name) (type : Expr) (k : Expr → GenM α) : GenM α :=
+  fun state => withLocalDeclD name type fun value => k value state
+
+def selectField (value : Value) (index : Nat) : GenM Value := do
+  let .record fields := value | throwError "C++ codegen: field access on a scalar"
+  let some field := fields[index]? | throwError "C++ codegen: invalid field index {index}"
+  return field
+
+partial def joinValues (yes no : Value) : GenM (Value × Array String × Array String) := do
+  match yes, no with
+  | .scalar ty a, .scalar ty' b =>
+    unless ty == ty' do throwError "C++ codegen: branch type mismatch"
+    let name ← fresh
+    emit s!"{ty} {name};"
+    return (.scalar ty name, #[s!"{name} = {a};"], #[s!"{name} = {b};"])
+  | .record a, .record b =>
+    unless a.size == b.size do throwError "C++ codegen: branch record mismatch"
+    let mut fields := #[]
+    let mut yesLines := #[]
+    let mut noLines := #[]
+    for i in [:a.size] do
+      let (field, ys, ns) ← joinValues a[i]! b[i]!
+      fields := fields.push field
+      yesLines := yesLines ++ ys
+      noLines := noLines ++ ns
+    return (.record fields, yesLines, noLines)
+  | .vector a, .vector b =>
+    let (result, ys, ns) ← joinValues (.record a) (.record b)
+    let .record fields := result | throwError "C++ codegen: invalid vector join"
+    return (.vector fields, ys, ns)
+  | _, _ => throwError "C++ codegen: branch shape mismatch"
+
+partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
+  let e ← expose expression
+  match e with
+  | .fvar id =>
+    let some (_, value) := locals.find? (fun item => item.1 == id)
+      | throwError "C++ codegen: unbound variable {e}"
+    return value
+  | .lam _ domain _ _ =>
+    unless (← whnf domain).isAppOfArity ``Fin 1 do
+      throwError "C++ codegen: unsupported runtime function {e}"
+    let n ← finSize domain
+    let mut values := #[]
+    for i in [:n] do
+      let index ← mkAppOptM ``OfNat.ofNat #[some domain, some (mkNatLit i), none]
+      values := values.push (← evaluate (mkApp e index) locals)
+    return .vector values
+  | .letE name type value body _ =>
+    if (← whnf type).isForall then
+      return ← evaluate (body.instantiate1 value) locals
+    let value ← evaluate value locals
+    withLocal name type fun bound => evaluate (body.instantiate1 bound) ((bound.fvarId!, value) :: locals)
+  | .proj _ index value => selectField (← evaluate value locals) index
+  | _ =>
+    if !e.getAppFn.isConst && e.isApp then
+      let mut value ← evaluate e.getAppFn locals
+      for arg in e.getAppArgs do
+        let .vector elements := value | throwError "C++ codegen: expected a fixed vector"
+        let index ← expose (← mkAppM ``Fin.val #[arg])
+        let .lit (.natVal i) := index | throwError "C++ codegen: vector index must be statically known: {repr index}"
+        let some element := elements[i]? | throwError "C++ codegen: vector index out of bounds"
+        value := element
+      return value
+    let .const name _ := e.getAppFn
+      | throwError "C++ codegen: unsupported expression {e}"
+    let args := e.getAppArgs
+    if name == ``ite && args.size == 5 then
+      let decision ← expose args[2]!
+      let .const decisionName _ := decision.getAppFn
+        | throwError "C++ codegen: unsupported conditional decision {decision}"
+      let decisionArgs := decision.getAppArgs
+      unless decisionArgs.size == 2 do
+        throwError "C++ codegen: unsupported conditional decision {decision}"
+      let conditionExpr ← if decisionName == ``Bool.decEq then
+          pure (mkApp3 (mkConst ``Eq [1]) (mkConst ``Bool) decisionArgs[0]! decisionArgs[1]!)
+        else if let some (_, predicate) := #[(``Float.decLt, ``Float.lt),
+            (``Float.decLe, ``Float.le), (``Float32.decLt, ``Float32.lt),
+            (``Float32.decLe, ``Float32.le)].find? (fun entry => entry.1 == decisionName) then
+          pure (mkAppN (mkConst predicate) decisionArgs)
+        else throwError "C++ codegen: unsupported conditional decision {decision}"
+      let (_, condition) ← scalar (← evaluate conditionExpr locals)
+      let before := (← get).lines
+      modify fun s => { s with lines := #[] }
+      let yes ← evaluate args[3]! locals
+      let yesLines := (← get).lines
+      modify fun s => { s with lines := #[] }
+      let no ← evaluate args[4]! locals
+      let noLines := (← get).lines
+      modify fun s => { s with lines := before }
+      let (result, yesAssign, noAssign) ← joinValues yes no
+      emit s!"if ({condition})"
+      emit "{"
+      for line in yesLines ++ yesAssign do emit ("    " ++ line)
+      emit "}"
+      emit "else"
+      emit "{"
+      for line in noLines ++ noAssign do emit ("    " ++ line)
+      emit "}"
+      emit ""
+      return result
+    if name == ``Eq && args.size == 3 && args[0]!.isConstOf ``Bool then
+      let (_, a) ← scalar (← evaluate args[1]! locals)
+      let (_, b) ← scalar (← evaluate args[2]! locals)
+      return ← temporary "bool" s!"({a} == {b})"
+    if name == ``Bool.true then return .scalar "bool" "true"
+    if name == ``Bool.false then return .scalar "bool" "false"
+    if #[``Float.ofNat, ``Float32.ofNat, ``Float.ofScientific, ``Float32.ofScientific].contains name then
+      return ← floatLiteral name args
+    if let some op := (#[(``Float.add, "+"), (``Float.sub, "-"), (``Float.mul, "*"),
+        (``Float.div, "/"), (``Float32.add, "+"), (``Float32.sub, "-"),
+        (``Float32.mul, "*"), (``Float32.div, "/"), (``Float.lt, "<"), (``Float.le, "<="),
+        (``Float32.lt, "<"), (``Float32.le, "<="), (``Float.beq, "=="), (``Float32.beq, "==")]).find?
+        (fun entry => entry.1 == name) then
+      unless args.size == 2 do throwError "C++ codegen: invalid primitive application {e}"
+      let (_, a) ← scalar (← evaluate args[0]! locals)
+      let (_, b) ← scalar (← evaluate args[1]! locals)
+      let type ← inferType e
+      let cppType ← if ← isProp e then pure "bool" else scalarType type
+      return ← temporary cppType s!"({a} {op.2} {b})"
+    if name == ``Float.neg || name == ``Float32.neg then
+      let (type, value) ← scalar (← evaluate args[0]! locals)
+      return ← temporary type s!"(-{value})"
+    if let .ctorInfo info ← getConstInfo name then
+      unless isStructure (← getEnv) info.induct && args.size == info.numParams + info.numFields do
+        throwError "C++ codegen: unsupported constructor {name}"
+      return .record (← (args.extract info.numParams args.size).mapM (evaluate · locals))
+    throwError "C++ codegen: unsupported expression {e}"
+
+partial def cppElementType (shape : Shape) : MetaM String := do
+  match shape with
+  | .scalar type => return type
+  | .vector n element => return s!"std::array<{← cppElementType element}, {n}>"
+  | .record _ => throwError "C++ codegen: vectors of records are unsupported"
+
+partial def renderField (name : String) (shape : Shape) (indent : String) : MetaM (Array String) := do
+  match shape with
+  | .record fields =>
+    let mut lines := #[indent ++ "struct", indent ++ "{"]
+    for (name, shape) in fields do
+      lines := lines ++ (← renderField name shape (indent ++ "    "))
+    return lines ++ #[indent ++ "} " ++ name ++ ";", ""]
+  | _ => return #[s!"{indent}{← cppElementType shape} {name};"]
+
+def renderRecord (name : String) (shape : Shape) : MetaM (Array String) := do
+  let .record fields := shape | throwError "C++ codegen: expected a named State/Input/Output record"
+  let mut lines := #[s!"    struct {name}", "    {"]
+  for (name, shape) in fields do
+    lines := lines ++ (← renderField name shape "        ")
+  return lines ++ #["    };", ""]
+
+partial def commitValue (shape : Shape) (value : Value) (target : String) : GenM Unit := do
+  match shape, value with
+  | .scalar type, .scalar type' text =>
+    unless type == type' do throwError "C++ codegen: result field type mismatch"
+    emit s!"{target} = {text};"
+  | .record fields, .record values =>
+    unless fields.size == values.size do throwError "C++ codegen: result shape mismatch"
+    for i in [:fields.size] do
+      commitValue fields[i]!.2 values[i]! s!"{target}.{fields[i]!.1}"
+  | .vector n element, .vector values =>
+    unless n == values.size do throwError "C++ codegen: result vector size mismatch"
+    for i in [:n] do commitValue element values[i]! s!"{target}[{i}]"
+  | _, _ => throwError "C++ codegen: result shape mismatch"
+
+/-- Snapshot every returned leaf before assigning either persistent record. -/
+partial def snapshot (value : Value) : GenM Value := do
+  match value with
+  | .scalar type text => temporary type text
+  | .record fields => return .record (← fields.mapM snapshot)
+  | .vector fields => return .vector (← fields.mapM snapshot)
+
+def generate (function : Name) (cppName : String) : MetaM String := do
+  unless validIdentifier cppName && cppName.toList.head!.isUpper do
+    throwError "C++ codegen: processor name must be a simple uppercase C++ identifier"
+  if #["State", "Input", "Output"].contains cppName then
+    throwError "C++ codegen: processor name conflicts with a nested record"
+  let info ← getConstInfo function
+  unless info.levelParams.isEmpty do
+    throwError "C++ codegen: specialize the processor's number type before exporting"
+  forallTelescopeReducing info.type fun parameters resultType => do
+    unless parameters.size == 2 do
+      throwError "C++ codegen: expected State → Input → State or State → Input → State × Output"
+    let stateType ← inferType parameters[0]!
+    let inputType ← inferType parameters[1]!
+    let resultType ← whnf resultType
+    let stateOnly ← isDefEq stateType resultType
+    unless stateOnly || resultType.isAppOfArity ``Prod 2 do
+      throwError "C++ codegen: returned state type differs from input state"
+    let resultArgs := resultType.getAppArgs
+    unless stateOnly do
+      unless ← isDefEq stateType resultArgs[0]! do
+        throwError "C++ codegen: returned state type differs from input state"
+    let stateFields ← fieldShape stateType
+    let inputFields ← fieldShape inputType
+    let outputFields ← if stateOnly then pure none else some <$> fieldShape resultArgs[1]!
+    let locals := [(parameters[0]!.fvarId!, readValue stateFields "m_state"),
+      (parameters[1]!.fvarId!, readValue inputFields "input")]
+    let (_, emission) ← (do
+      let result ← evaluate (mkAppN (mkConst function) parameters) locals
+      match outputFields with
+      | none =>
+        let next ← snapshot result
+        commitValue stateFields next "m_state"
+      | some outputFields =>
+        let next ← snapshot (← selectField result 0)
+        let output ← snapshot (← selectField result 1)
+        commitValue stateFields next "m_state"
+        commitValue outputFields output "m_output").run {}
+    let header := #["#pragma once", "", s!"// Generated from {function}. Do not edit.",
+      "// This backend is validated by tests; it is not a verified compiler.", "//",
+      "// Compile with strict floating-point arithmetic and contraction disabled.", "//", "",
+      "#include <limits>", "#include <array>", "", s!"struct {cppName}", "{",
+      "    static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);",
+      "    static_assert(std::numeric_limits<float>::is_iec559 && std::numeric_limits<float>::digits == 24);", ""]
+    let body := if emission.lines.any (fun line => (line.splitOn "input.").length > 1)
+      then emission.lines else #["static_cast<void>(input);"] ++ emission.lines
+    let outputLines ← match outputFields with
+      | none => pure #["    State m_state;", ""]
+      | some outputFields => do
+        let record ← renderRecord "Output" outputFields
+        pure (record ++ #["    State m_state;", "    Output m_output;", ""])
+    let lines := header ++ (← renderRecord "State" stateFields) ++ (← renderRecord "Input" inputFields) ++
+      outputLines ++ #["    void Process(Input& input)", "    {"] ++
+      body.map (fun line => if line.isEmpty then "" else "        " ++ line) ++
+      #["    }", "", "};", ""]
+    return String.intercalate "\n" lines.toList
+
+elab "#generate_cpp " function:ident " as " cppName:ident " to " path:str : command => do
+  let code ← liftTermElabM <| generate function.getId cppName.getId.toString
+  let output : System.FilePath := path.getString
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  logInfo m!"Generated {output} from {function.getId}"
+
+end DSP.Codegen

@@ -1,0 +1,85 @@
+import DSP.Filters.OnePoleZOHLowPass
+import DSP.Filters.Coupled
+
+namespace DSP.Tests
+
+structure SwapState where
+  left : Float
+  right : Float
+
+structure SwapInput where
+  value : Float
+  reset : Bool
+
+structure SwapOutput where
+  oldLeft : Float
+  sum : Float
+
+def swapProcessor (state : SwapState) (input : SwapInput) : SwapState × SwapOutput :=
+  if input.reset then
+    ({ left := input.value, right := state.left },
+      { oldLeft := state.left, sum := (state.left + state.right) + 0.1 })
+  else
+    ({ left := state.right, right := state.left },
+      { oldLeft := state.left, sum := (state.left + input.value) * state.right })
+
+structure GainState where
+  gain : Float32
+
+structure GainInput where
+  x : Float32
+
+structure GainOutput where
+  y : Float32
+  same : Bool
+
+def gainProcessor (state : GainState) (input : GainInput) : GainState × GainOutput :=
+  let divisor := if input.x < state.gain then 0.1 else 2.0
+  (state, { y := -(input.x / divisor) + state.gain, same := input.x == state.gain })
+
+structure UnsupportedState where
+  count : Nat
+
+def unsupportedField (state : UnsupportedState) (input : GainInput) : UnsupportedState × GainOutput :=
+  (state, { y := input.x, same := false })
+
+def unsupportedExtern (state : DSP.OnePoleZOHLowPass Float) (input : DSP.Sample Float) :
+    DSP.OnePoleZOHLowPass Float :=
+  { state with y := input.x.sin }
+
+unsafe def unsupportedUnsafe (state : GainState) (input : GainInput) : GainState × GainOutput :=
+  (state, { y := input.x, same := true })
+
+def wrongState (state : GainState) (input : GainInput) : GainInput × GainOutput :=
+  (input, { y := state.gain, same := false })
+
+def wrongStateOnly (_state : GainState) (input : GainInput) : GainInput := input
+
+def replacementOne : Nat := 2
+
+@[implemented_by replacementOne] def declaredOne : Nat := 1
+
+def unsupportedLiteral (state : DSP.OnePoleZOHLowPass Float) (_input : DSP.Sample Float) :
+    DSP.OnePoleZOHLowPass Float :=
+  { state with y := Float.ofNat declaredOne }
+
+def nativeDecision (b : Bool) : Decidable (b = true) := Bool.decEq b true
+
+@[implemented_by nativeDecision] def alternativeDecision (b : Bool) : Decidable (b = true) :=
+  Bool.decEq b true
+
+def unsupportedDecision (state : SwapState) (input : SwapInput) : SwapState × SwapOutput :=
+  @ite (SwapState × SwapOutput) (input.reset = true) (alternativeDecision input.reset)
+    (state, { oldLeft := state.left, sum := input.value })
+    (state, { oldLeft := state.right, sum := input.value })
+
+def unsupportedStaticCount (state : GainState) (input : GainInput) : GainState × GainOutput :=
+  (state, { y := StateSpace.orderedSum declaredOne (fun _ => input.x), same := false })
+
+structure OversizedState where
+  q : Fin 257 → Float
+
+def unsupportedSize (_state : OversizedState) (input : DSP.Sample Float) :
+    OversizedState := { q := fun _ => input.x }
+
+end DSP.Tests

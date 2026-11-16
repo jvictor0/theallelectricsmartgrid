@@ -39,6 +39,9 @@ the same command; if it fails, the build stops before compiling or deploying.
 | `make midi-test` | `build/midi/Release/` |
 | `make clang-tidy` | `build/clang-tidy/report.txt` |
 | `make lean-test` | `build/lean/` |
+| `make lean-dsp-test` | `build/lean/` |
+| `make lean-dsp-codegen` / `make lean-dsp-codegen-test` | `build/lean/generated/`, `build/lean/codegen-test/` |
+| `make lean-dsp-generate` | Updates the headers in `formal/DSP/generated/` from build-tree generation |
 
 The CMake families also expose `core-configure` / `core-build`,
 `visualizers-configure` / `visualizers-build`, and `midi-configure` / `midi-build`.
@@ -102,13 +105,28 @@ for duration limits, serial repeats, output files and interpretation limits.
 ## Lean specifications
 
 Run `make lean-setup` once, optionally `make lean-cache` to download the pinned
-Mathlib proof cache, then `make lean-test` to check the encoder and phase-time Lean/Veil
-state machines, contract proofs, proof axioms and C++ source references.
+Mathlib proof cache, then `make lean-test` to check the reusable DSP filter proofs,
+encoder and phase-time Lean/Veil state machines, contract proofs, proof axioms and
+C++ source references.
 Toolchains, dependencies and incremental proof artifacts stay in `build/lean/`;
 the small Lake configuration cache is ignored at `.lake/`. This target does not
 build or launch the audio app. Setup requirements, model coverage and proof
-boundaries are documented in [formal/Encoder/README.md](../formal/Encoder/README.md)
+boundaries are documented in [formal/DSP/README.md](../formal/DSP/README.md),
+[formal/Encoder/README.md](../formal/Encoder/README.md)
 and [formal/PhaseTime/README.md](../formal/PhaseTime/README.md).
+
+`make lean-dsp-test` runs the DSP proofs and axiom audit plus a native executable
+smoke test of the generic one-pole, SVF, morph, ladder and crossover filters with
+`Float` (and `Float32` for the one-poles). The full `lean-test` target also
+includes this executable check.
+The filter arithmetic and state updates are shared by the executable cores and
+the real-number proofs;
+the smoke test does not establish floating-point error bounds.
+It also checks the standalone C++ processor generator, compares native Lean/C++
+execution, and verifies the saved generated headers are current. Run
+`make lean-dsp-generate` to refresh those headers for review. See the
+[codegen guide](../formal/DSP/Codegen/README.md) for the supported Lean subset and
+the distinction between model proofs and code-generation tests.
 
 ## Cleanup and completion
 
