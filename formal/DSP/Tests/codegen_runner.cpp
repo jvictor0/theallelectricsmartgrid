@@ -1,0 +1,268 @@
+#include "OnePoleZOHLowPass.hpp"
+#include "OnePoleTPTLowPass.hpp"
+#include "OnePoleTPTHighPass.hpp"
+#include "TPTBaseWidth.hpp"
+#include "TPTSVF.hpp"
+#include "MorphingTPTSVF.hpp"
+#include "TPTSVF4PoleHighPass.hpp"
+#include "TPTSVF4PoleLowPass.hpp"
+#include "TPTSVF4PoleBandPass.hpp"
+#include "TPTLadder.hpp"
+#include "LinkwitzRileyCrossover.hpp"
+#include "SwapProcessor.hpp"
+#include "GainProcessor.hpp"
+#include "CoupledProcessor.hpp"
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <iostream>
+#include <string>
+
+template<typename Value, typename Bits>
+Value FromBits(Bits bits)
+{
+    static_assert(sizeof(Value) == sizeof(Bits));
+    Value value;
+    std::memcpy(&value, &bits, sizeof(value));
+    return value;
+}
+
+template<typename Bits, typename Value>
+Bits ToBits(Value value)
+{
+    static_assert(sizeof(Value) == sizeof(Bits));
+    Bits bits;
+    std::memcpy(&bits, &value, sizeof(bits));
+    return bits;
+}
+
+// State-only processors whose states are Count doubles in declaration order:
+// read the state and input, process once, and print the next state.
+//
+template<typename Processor, size_t Count>
+bool RunFlat()
+{
+    static_assert(sizeof(typename Processor::State) == Count * sizeof(double));
+    std::array<double, Count> values;
+    for (double& value : values)
+    {
+        uint64_t bits;
+        if (!(std::cin >> bits))
+        {
+            return false;
+        }
+
+        value = FromBits<double>(bits);
+    }
+
+    uint64_t x;
+    if (!(std::cin >> x))
+    {
+        return false;
+    }
+
+    Processor processor{};
+    std::memcpy(&processor.m_state, values.data(), sizeof(values));
+    typename Processor::Input input{FromBits<double>(x)};
+    processor.Process(input);
+    std::memcpy(values.data(), &processor.m_state, sizeof(values));
+    for (size_t i = 0; i < Count; ++i)
+    {
+        std::cout << (i == 0 ? "" : " ") << ToBits<uint64_t>(values[i]);
+    }
+
+    std::cout << '\n';
+    return true;
+}
+
+bool RunMorph()
+{
+    std::array<double, 10> svf;
+    uint64_t cosine, sine, output, x;
+    unsigned upperHalf;
+    for (double& value : svf)
+    {
+        uint64_t bits;
+        if (!(std::cin >> bits))
+        {
+            return false;
+        }
+
+        value = FromBits<double>(bits);
+    }
+
+    if (!(std::cin >> cosine >> sine >> upperHalf >> output >> x))
+    {
+        return false;
+    }
+
+    static_assert(sizeof(MorphingTPTSVF{}.m_state.m_svf) == sizeof(svf));
+    MorphingTPTSVF processor{};
+    std::memcpy(&processor.m_state.m_svf, svf.data(), sizeof(svf));
+    processor.m_state.m_cosine = FromBits<double>(cosine);
+    processor.m_state.m_sine = FromBits<double>(sine);
+    processor.m_state.m_upperHalf = upperHalf != 0;
+    processor.m_state.m_output = FromBits<double>(output);
+    MorphingTPTSVF::Input input{FromBits<double>(x)};
+    processor.Process(input);
+    std::memcpy(svf.data(), &processor.m_state.m_svf, sizeof(svf));
+    for (double value : svf)
+    {
+        std::cout << ToBits<uint64_t>(value) << ' ';
+    }
+
+    std::cout << ToBits<uint64_t>(processor.m_state.m_cosine) << ' '
+              << ToBits<uint64_t>(processor.m_state.m_sine) << ' '
+              << static_cast<unsigned>(processor.m_state.m_upperHalf) << ' '
+              << ToBits<uint64_t>(processor.m_state.m_output) << '\n';
+    return true;
+}
+
+bool RunFlatKind(const std::string& kind, bool& known)
+{
+    known = true;
+    if (kind == "zoh")
+    {
+        return RunFlat<OnePoleZOHLowPass, 2>();
+    }
+
+    if (kind == "tpt")
+    {
+        return RunFlat<OnePoleTPTLowPass, 3>();
+    }
+
+    if (kind == "tptHigh")
+    {
+        return RunFlat<OnePoleTPTHighPass, 4>();
+    }
+
+    if (kind == "baseWidth")
+    {
+        return RunFlat<TPTBaseWidth, 7>();
+    }
+
+    if (kind == "svf")
+    {
+        return RunFlat<TPTSVF, 10>();
+    }
+
+    if (kind == "morph")
+    {
+        return RunMorph();
+    }
+
+    if (kind == "svf4High")
+    {
+        return RunFlat<TPTSVF4PoleHighPass, 20>();
+    }
+
+    if (kind == "svf4Low")
+    {
+        return RunFlat<TPTSVF4PoleLowPass, 20>();
+    }
+
+    if (kind == "svf4Band")
+    {
+        return RunFlat<TPTSVF4PoleBandPass, 20>();
+    }
+
+    if (kind == "ladder")
+    {
+        return RunFlat<TPTLadder, 14>();
+    }
+
+    if (kind == "crossover")
+    {
+        return RunFlat<LinkwitzRileyCrossover, 30>();
+    }
+
+    known = false;
+    return true;
+}
+
+int main()
+{
+    std::string kind;
+    while (std::cin >> kind)
+    {
+        bool known;
+        if (!RunFlatKind(kind, known))
+        {
+            return 1;
+        }
+
+        if (known)
+        {
+            continue;
+        }
+
+        if (kind == "swap")
+        {
+            uint64_t left, right, x;
+            unsigned reset;
+            if (!(std::cin >> left >> right >> x >> reset))
+            {
+                return 1;
+            }
+
+            SwapProcessor processor{{FromBits<double>(left), FromBits<double>(right)}, {0.0, 0.0}};
+            SwapProcessor::Input input{FromBits<double>(x), reset != 0};
+            processor.Process(input);
+            std::cout << ToBits<uint64_t>(processor.m_state.m_left) << ' '
+                      << ToBits<uint64_t>(processor.m_state.m_right) << ' '
+                      << ToBits<uint64_t>(processor.m_output.m_oldLeft) << ' '
+                      << ToBits<uint64_t>(processor.m_output.m_sum) << '\n';
+        }
+        else if (kind == "gain")
+        {
+            uint32_t gain, x;
+            if (!(std::cin >> gain >> x))
+            {
+                return 1;
+            }
+
+            GainProcessor processor{{FromBits<float>(gain)}, {0.0f, false}};
+            GainProcessor::Input input{FromBits<float>(x)};
+            processor.Process(input);
+            std::cout << ToBits<uint32_t>(processor.m_state.m_gain) << ' '
+                      << ToBits<uint32_t>(processor.m_output.m_y) << ' '
+                      << static_cast<unsigned>(processor.m_output.m_same) << '\n';
+        }
+        else if (kind == "coupled")
+        {
+            uint64_t first, second, x;
+            if (!(std::cin >> first >> second >> x))
+            {
+                return 1;
+            }
+
+            CoupledProcessor processor{};
+            processor.m_state.m_model.m_A = {{{0.75, -0.125}, {0.25, 0.5}}};
+            processor.m_state.m_model.m_B = {0.5, -0.25};
+            processor.m_state.m_model.m_C = {0.75, -0.5};
+            processor.m_state.m_model.m_D = 0.125;
+            processor.m_state.m_q = {FromBits<double>(first), FromBits<double>(second)};
+            CoupledProcessor::Input input{FromBits<double>(x)};
+            processor.Process(input);
+            std::cout << ToBits<uint64_t>(processor.m_state.m_model.m_A[0][0]) << ' '
+                      << ToBits<uint64_t>(processor.m_state.m_model.m_A[0][1]) << ' '
+                      << ToBits<uint64_t>(processor.m_state.m_model.m_A[1][0]) << ' '
+                      << ToBits<uint64_t>(processor.m_state.m_model.m_A[1][1]) << ' '
+                      << ToBits<uint64_t>(processor.m_state.m_model.m_B[0]) << ' '
+                      << ToBits<uint64_t>(processor.m_state.m_model.m_B[1]) << ' '
+                      << ToBits<uint64_t>(processor.m_state.m_model.m_C[0]) << ' '
+                      << ToBits<uint64_t>(processor.m_state.m_model.m_C[1]) << ' '
+                      << ToBits<uint64_t>(processor.m_state.m_model.m_D) << ' '
+                      << ToBits<uint64_t>(processor.m_state.m_q[0]) << ' '
+                      << ToBits<uint64_t>(processor.m_state.m_q[1]) << ' '
+                      << ToBits<uint64_t>(processor.m_output.m_y) << '\n';
+        }
+        else
+        {
+            std::cerr << "Unknown processor: " << kind << '\n';
+            return 1;
+        }
+    }
+}

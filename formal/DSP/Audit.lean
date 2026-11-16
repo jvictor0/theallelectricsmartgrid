@@ -1,0 +1,102 @@
+import DSP
+import Lean.Util.CollectAxioms
+
+/-! Check the public correctness results and all transitive dependencies of
+every DSP declaration. Admissions and added axioms are rejected. -/
+
+open Lean in
+run_cmd do
+  let env ← getEnv
+  let required := #[
+    ``DSP.exactAtSamples_iff,
+    ``DSP.DigitalFilter.runState_succ,
+    ``DSP.OnePoleZOHLowPass.process_alpha,
+    ``DSP.OnePoleZOHLowPass.process_y,
+    ``DSP.OnePoleZOHLowPass.step_alpha,
+    ``DSP.OnePoleZOHLowPass.step_y,
+    ``DSP.OnePoleZOHLowPass.step_matches_interval,
+    ``DSP.OnePoleZOHLowPass.coefficient_bounds,
+    ``DSP.OnePoleZOHLowPass.onePole_implements_interval,
+    ``DSP.OnePoleZOHLowPass.onePole_step_at,
+    ``DSP.OnePoleZOHLowPass.analog_matches_digital,
+    ``DSP.OnePoleZOHLowPass.implements,
+    ``DSP.OnePoleTPTLowPass.exported_real_step,
+    ``DSP.OnePoleTPTLowPass.run_eq,
+    ``DSP.OnePoleTPTLowPass.trapezoidal,
+    ``DSP.OnePoleTPTLowPass.discrete_transfer,
+    ``DSP.OnePoleTPTLowPass.prototype_transfer,
+    ``DSP.OnePoleTPTLowPass.bilinear_transfer,
+    ``DSP.OnePoleTPTLowPass.bilinear_modes,
+    ``DSP.OnePoleTPTLowPass.iir_equivalent,
+    ``DSP.OnePoleTPTLowPass.realizes,
+    ``DSP.Step.states_map,
+    ``DSP.Step.states_invariant,
+    ``DSP.Bilinear.bil_ne_zero,
+    ``DSP.Bilinear.sigma_mul,
+    ``DSP.Bilinear.integrator,
+    ``DSP.Bilinear.Realizes.project,
+    ``DSP.Bilinear.driven,
+    ``DSP.Bilinear.Realizes.cascade,
+    ``DSP.Bilinear.Realizes.add,
+    ``DSP.Bilinear.Realizes.sub,
+    ``DSP.Bilinear.Realizes.mul,
+    ``DSP.Bilinear.Realizes.complement,
+    ``DSP.Bilinear.Realizes.congr_of_invariant,
+    ``DSP.OnePoleTPTHighPass.realizes,
+    ``DSP.TPTBaseWidth.realizes,
+    ``DSP.TPTSVF.streams,
+    ``DSP.TPTSVF.realizes_lowPass,
+    ``DSP.TPTSVF.realizes_bandPass,
+    ``DSP.TPTSVF.realizes_highPass,
+    ``DSP.TPTSVF.realizes_notch,
+    ``DSP.MorphingTPTSVF.realizes,
+    ``DSP.MorphingTPTSVF.realizes_blend,
+    ``DSP.MorphingTPTSVF.blendWeights_power,
+    ``DSP.MorphingTPTSVF.numerator_endpoints,
+    ``DSP.TPTSVF4Pole.realizes_highPass,
+    ``DSP.TPTSVF4Pole.realizes_lowPass,
+    ``DSP.TPTSVF4Pole.realizes_bandPass,
+    ``DSP.TPTLadder.loop_solved,
+    ``DSP.TPTLadder.realizes,
+    ``DSP.TPTLadder.realizes_equal,
+    ``DSP.LinkwitzRileyCrossover.realizes_lowPass,
+    ``DSP.LinkwitzRileyCrossover.realizes_highPass,
+    ``DSP.LinkwitzRileyCrossover.butterworth,
+    ``DSP.LinkwitzRileyCrossover.app_dampings,
+    ``DSP.Processor.runState_unique,
+    ``DSP.Processor.run_simulation,
+    ``DSP.StateSpace.snapshot_values,
+    ``DSP.StateSpace.digitalRealization_unique,
+    ``DSP.LinearFlow.held_interval,
+    ``DSP.StateSpace.heldRealization_unique,
+    ``DSP.StateSpace.zoh_sampledState,
+    ``DSP.StateSpace.analog_hasTransfer,
+    ``DSP.StateSpace.digital_hasTransfer,
+    ``DSP.StateSpace.transfer_eq_rationalEvaluation,
+    ``DSP.RationalCoefficients.stateSolution_iff_jet,
+    ``DSP.RationalCoefficients.jet_to_stateSolution,
+    ``DSP.RationalCoefficients.ode_hasTransfer,
+    ``DSP.IIR.iir_run_iff_recurrence,
+    ``DSP.IIR.realize_series,
+    ``DSP.StateSpace.run_seriesEquation,
+    ``DSP.StateSpace.toIIR_correct,
+    ``DSP.StateSpace.zoh_iir_sampledOutput,
+    ``DSP.StateSpace.zoh_iir_endpointOutput,
+    ``DSP.OnePoleZOHLowPass.analog_transfer,
+    ``DSP.OnePoleZOHLowPass.lowpass_iir_equivalent,
+    ``DSP.OnePoleZOHLowPass.exported_real_step,
+    ``DSP.OnePoleZOHLowPass.exported_zoh_step,
+    ``DSP.OnePoleZOHLowPass.analog_iir_endpoint]
+  for name in required do
+    unless (env.find? name).any (fun c => c matches .thmInfo _) do
+      throwError "missing DSP theorem: {name}"
+  let allowed := #[``propext, ``Classical.choice, ``Quot.sound]
+  let mut theorems := 0
+  for (name, info) in env.constants.toList do
+    if name.toString.startsWith "DSP." then
+      if info matches .thmInfo _ then theorems := theorems + 1
+      if info matches .axiomInfo _ then throwError "DSP model introduces an axiom: {name}"
+      for dependency in (← collectAxioms name) do
+        unless allowed.contains dependency do
+          throwError "unapproved axiom {dependency} in {name}"
+  logInfo m!"DSP proof audit: {theorems} theorems; only standard Lean axioms."

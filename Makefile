@@ -35,19 +35,83 @@ $(eval $(call cmake_targets,core,private/test,CORE_CONFIG))
 $(eval $(call cmake_targets,visualizers,private/test/juce-visualizers,VISUALIZERS_CONFIG))
 $(eval $(call cmake_targets,midi,private/test/juce-midi,MIDI_CONFIG))
 
-.PHONY: lean-setup lean-cache lean-test
+.PHONY: lean-setup lean-cache lean-test lean-dsp-test lean-dsp-codegen lean-dsp-generate lean-dsp-codegen-test
 lean-setup:
 	"$(REPO_ROOT)/scripts/lean.sh" setup
 
 lean-cache:
-	"$(REPO_ROOT)/scripts/lean.sh" exe cache get Mathlib.Analysis.SpecialFunctions.Pow.Real Mathlib.Tactic.Linarith Mathlib.Tactic.SplitIfs Mathlib.Tactic.NormNum Mathlib.Tactic.Ring Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds
+	"$(REPO_ROOT)/scripts/lean.sh" exe cache get \
+		Mathlib.Algebra.BigOperators.Field \
+		Mathlib.Algebra.Polynomial.Degree.Support \
+		Mathlib.Analysis.Calculus.Deriv.MeanValue \
+		Mathlib.Analysis.Calculus.Deriv.Mul \
+		Mathlib.Analysis.Calculus.Deriv.Prod \
+		Mathlib.Analysis.Calculus.Deriv.Shift \
+		Mathlib.Analysis.Complex.RealDeriv \
+		Mathlib.Analysis.Normed.Algebra.Exponential \
+		Mathlib.Analysis.Normed.Module.FiniteDimension \
+		Mathlib.Analysis.SpecialFunctions.ExpDeriv \
+		Mathlib.Analysis.SpecialFunctions.Exponential \
+		Mathlib.Analysis.SpecialFunctions.Pow.Real \
+		Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic \
+		Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds \
+		Mathlib.Data.Complex.Basic \
+		Mathlib.Data.Fin.VecNotation \
+		Mathlib.Data.Nat.Basic \
+		Mathlib.Data.Real.Basic \
+		Mathlib.FieldTheory.RatFunc.Basic \
+		Mathlib.LinearAlgebra.Matrix.Charpoly.Coeff \
+		Mathlib.LinearAlgebra.Matrix.NonsingularInverse \
+		Mathlib.LinearAlgebra.Matrix.ToLin \
+		Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus \
+		Mathlib.RingTheory.LaurentSeries \
+		Mathlib.RingTheory.PowerSeries.Basic \
+		Mathlib.RingTheory.PowerSeries.Inverse \
+		Mathlib.RingTheory.PowerSeries.NoZeroDivisors \
+		Mathlib.Tactic.FieldSimp \
+		Mathlib.Tactic.Linarith \
+		Mathlib.Tactic.LinearCombination \
+		Mathlib.Tactic.NormNum \
+		Mathlib.Tactic.Ring \
+		Mathlib.Tactic.SplitIfs
+
+DSP_RUNTIME_MODULES := DSP.Filters.OnePoleZOHLowPass DSP.Filters.OnePoleTPTLowPass \
+	DSP.Filters.OnePoleTPTHighPass DSP.Filters.TPTBaseWidth DSP.Filters.TPTSVF \
+	DSP.Filters.MorphingTPTSVF DSP.Filters.TPTSVF4Pole DSP.Filters.TPTLadder \
+	DSP.Filters.LinkwitzRileyCrossover DSP.Filters.Coupled
+DSP_HEADERS := OnePoleZOHLowPass OnePoleTPTLowPass OnePoleTPTHighPass TPTBaseWidth TPTSVF \
+	MorphingTPTSVF TPTSVF4PoleHighPass TPTSVF4PoleLowPass TPTSVF4PoleBandPass TPTLadder \
+	LinkwitzRileyCrossover CoupledProcessor
+
+lean-dsp-codegen:
+	"$(REPO_ROOT)/scripts/lean.sh" build DSP.Codegen.Cpp $(DSP_RUNTIME_MODULES)
+	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/GenerateDSP.lean"
+
+lean-dsp-generate: lean-dsp-codegen
+	mkdir -p "$(REPO_ROOT)/formal/DSP/generated"
+	for header in $(DSP_HEADERS); do \
+		cp "$(REPO_ROOT)/build/lean/generated/$$header.hpp" "$(REPO_ROOT)/formal/DSP/generated/$$header.hpp" || exit 1; \
+	done
+
+lean-dsp-codegen-test: lean-dsp-codegen
+	"$(REPO_ROOT)/scripts/lean.sh" build DSP.Tests.CodegenFixtures dsp_codegen_reference
+	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/TestDSPCodegen.lean"
+	python3 "$(REPO_ROOT)/scripts/test_dsp_codegen.py"
+
+lean-dsp-test: lean-dsp-codegen-test
+	"$(REPO_ROOT)/scripts/lean.sh" build DSP dsp_filter_smoke
+	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/DSP/Audit.lean"
+	"$(REPO_ROOT)/scripts/lean.sh" exe dsp_filter_smoke
 
 lean-test:
 	python3 "$(REPO_ROOT)/scripts/check_encoder_spec.py"
 	python3 "$(REPO_ROOT)/scripts/check_phase_spec.py"
 	"$(REPO_ROOT)/scripts/lean.sh" build
+	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/DSP/Audit.lean"
+	"$(REPO_ROOT)/scripts/lean.sh" exe dsp_filter_smoke
 	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/Encoder/Audit.lean"
 	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/PhaseTime/Audit.lean"
+	$(MAKE) -f "$(REPO_ROOT)/Makefile" lean-dsp-codegen-test
 
 PERF_DIR := $(REPO_ROOT)/build/tools/perf/Release
 .PHONY: perf-configure perf-build perf-test perf-run perf-sgrec
