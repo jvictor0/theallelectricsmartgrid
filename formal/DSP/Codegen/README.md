@@ -10,6 +10,11 @@ dependency and are not integrated into the audio app. The separate
 [CoupledProcessor.hpp](../generated/CoupledProcessor.hpp) exercises the
 `State × Output` form, nested coefficients and two interacting state variables.
 
+Each also has a `Generic` header, such as
+[TPTSVFGeneric.hpp](../generated/TPTSVFGeneric.hpp), parameterized by
+`Number` (`float` or `double`) and `Size`. These include the app's
+`MultiChannelNumber.hpp`; add `private/src` to the compiler's include path.
+
 The backend in [Cpp.lean](Cpp.lean) reads an elaborated Lean function and its
 record definitions. It does not contain a one-pole arithmetic template.
 
@@ -30,6 +35,23 @@ exports them, for example:
 ```lean
 #generate_cpp DSP.TPTSVF.stepFloat as TPTSVF to "build/lean/generated/TPTSVF.hpp"
 ```
+
+For multichannel output, export the same generic step directly:
+
+```lean
+#generate_cpp_generic DSP.TPTSVF.step as TPTSVFGeneric to "build/lean/generated/TPTSVFGeneric.hpp"
+```
+
+This interprets the step's arithmetic parameter `R` as
+`MultiChannelNumber<Number, Size>`. Its arithmetic instances become vector
+operations, literals become `Vector::Splat`, and `IfLess.ifLess` becomes
+`Vector::IfLess`. All coefficients, state and output fields of type `R` are
+per channel. Fixed `Fin n → R` state dimensions remain `std::array<Vector, n>`;
+the state dimension and the channel count are independent.
+
+The generic export uses the same recurrence as `stepFloat` and the lifted
+proofs. It takes no proof arguments and retains the scalar exporter's tested
+compiler boundary.
 
 Run from the repository root:
 
@@ -52,6 +74,7 @@ Use `CXX=clang++` (or another C++17 compiler) to select the native test compiler
 Fields acquire an `m_` prefix unless they already have it. C++ identifiers must
 be ASCII and cannot contain double underscores. The enclosing processor name
 must start with an uppercase letter and cannot be `State`, `Input` or `Output`.
+Generic exports also reserve `Number`, `Size` and `Vector`.
 
 The generated processor is an aggregate. The caller supplies the initial state,
 including coefficients and stored responses; the backend does not invent an
@@ -63,7 +86,17 @@ OnePoleZOHLowPass::Input input{1.0};
 processor.Process(input);
 ```
 
-The stored output `m_state.m_y` is `0.5` in this example; the coefficient stays
+A three-channel instance, with independent coefficients, is:
+
+```cpp
+using Filter = OnePoleZOHLowPassGeneric<float, 3>;
+using Vector = Filter::Vector;
+Filter processor{{Vector(0.1f, 0.2f, 0.3f), Vector()}};
+Filter::Input input{Vector(1.0f, 2.0f, 3.0f)};
+processor.Process(input);
+```
+
+In the scalar example, the stored output `m_state.m_y` is `0.5`; the coefficient stays
 `0.5`. The coefficient `alpha` is the input weight, ideally `1 - exp(-T/tau)`,
 as in the app's `OPLowPassFilter`. Coefficient preparation, such as an SVF's
 a1, a2 and a3 or a morph's cosine and sine, remains the caller's responsibility.
@@ -99,6 +132,15 @@ zero-delay loops, which depend on the current input.
 - Finite numeric literals. Hexadecimal literals preserve the exact bits selected
   by Lean's literal conversion; zero and one use their exact decimal spellings.
 
+Generic export accepts one leading arithmetic type parameter `R : Type`,
+followed by instances of `Add`, `Sub`, `Mul`, `Div`, `Neg`, `OfNat` (with a
+literal numeral), `OfScientific` and `IfLess`, then the state and input.
+Other generic parameters and operations are rejected. Shared `Bool` fields
+can still control whole-vector branches; channel-dependent selection uses
+`IfLess`, with no conversion to a shared Boolean. Literals are converted by
+Lean separately at both precisions and the C++ template selects the matching
+bits. A generic literal must be finite in both precisions.
+
 Unknown external functions, alternative `implemented_by` implementations,
 unsafe/partial functions, recursion with a runtime major argument, dynamic
 allocation, general pattern matching, integer fields, and unsupported types or
@@ -127,8 +169,8 @@ prove IEEE rounding behavior or the compiled C++ executable. The code generator,
 Lean compiler/runtime used for native reference execution, C++ compiler and
 floating-point environment remain part of the trusted implementation boundary.
 
-The differential test executes the actual Lean source functions and compares
-every generated state/output field bit for bit over 32,256 cases. It covers:
+The scalar differential test executes the actual Lean source functions and
+compares every generated state/output field bit for bit over 32,256 cases. It covers:
 
 - ZOH and TPT one-pole trajectories with changing inputs, endpoint/near-one coefficients,
   signed-zero initial states and subnormal values.
@@ -143,6 +185,15 @@ every generated state/output field bit for bit over 32,256 cases. It covers:
 - Rejection of unsupported field types, external operations, unsafe definitions,
   alternate literal/conditional implementations and mismatched returned state types,
   in both result forms.
+
+The multichannel test packs independently generated native Lean trajectories
+into `float` and `double` vectors of widths 1, 2, 3 and 4. C++ keeps its own
+state between samples, and every logical field/channel is compared bit for
+bit. Three-channel padding is poisoned with NaN and excluded from the logical
+fields. Coverage includes every filter, the coupled state-space processor,
+mixed morph halves, state swaps with old-state outputs, selection at equality
+and NaN, and decimal rounding. Unsupported generic ordering, external literal
+implementations, returned-state mismatches and reserved names are rejected.
 
 The input/reference corpus is retained at `build/lean/codegen-test/reference.txt`.
 Passing these checks is implementation evidence, not a universal compiler proof

@@ -24,26 +24,26 @@ def uniform (r : UInt64) (lo hi : Float) : Float × UInt64 :=
   let r := nextRandom r
   (lo + (hi - lo) * Float.ofNat ((r >>> 11).toNat % 1000001) / 1000000.0, r)
 
-def lowPassFields (f : OnePoleTPTLowPass Float) : List Float := [f.G, f.s, f.y]
+def lowPassFields {R : Type} (f : OnePoleTPTLowPass R) : List R := [f.G, f.s, f.y]
 
-def highPassFields (f : OnePoleTPTHighPass Float) : List Float := lowPassFields f.lowPass ++ [f.y]
+def highPassFields {R : Type} (f : OnePoleTPTHighPass R) : List R := lowPassFields f.lowPass ++ [f.y]
 
-def baseWidthFields (f : TPTBaseWidth Float) : List Float :=
+def baseWidthFields {R : Type} (f : TPTBaseWidth R) : List R :=
   highPassFields f.highPass ++ lowPassFields f.lowPass
 
-def svfFields (f : TPTSVF Float) : List Float :=
+def svfFields {R : Type} (f : TPTSVF R) : List R :=
   [f.k, f.a1, f.a2, f.a3, f.ic1, f.ic2, f.lowPass, f.bandPass, f.highPass, f.notch]
 
-def svf4Fields (f : TPTSVF4Pole Float) : List Float := svfFields f.stage1 ++ svfFields f.stage2
+def svf4Fields {R : Type} (f : TPTSVF4Pole R) : List R := svfFields f.stage1 ++ svfFields f.stage2
 
-def ladderFields (f : TPTLadder Float) : List Float :=
+def ladderFields {R : Type} (f : TPTLadder R) : List R :=
   [f.k, f.drive] ++ lowPassFields f.stage1 ++ lowPassFields f.stage2 ++
     lowPassFields f.stage3 ++ lowPassFields f.stage4
 
-def crossoverFields (f : LinkwitzRileyCrossover Float) : List Float :=
+def crossoverFields {R : Type} (f : LinkwitzRileyCrossover R) : List R :=
   svfFields f.first ++ svfFields f.lowSecond ++ svfFields f.highSecond
 
-def morphFields (f : MorphingTPTSVF Float) : List Float :=
+def morphFields {R : Type} (f : MorphingTPTSVF R) : List R :=
   svfFields f.svf ++ [f.cosine, f.sine, f.blend, f.output]
 
 /-- Random coefficients and states. Gains are solved as the app does, so long
@@ -86,6 +86,31 @@ def emit {S : Type} (out : IO.FS.Stream) (kind : String) (line : S → String)
     state := next
   return r
 
+def bits32 (values : List Float32) : String :=
+  " ".intercalate (values.map fun v => toString v.toBits)
+
+def lowPass32 (f : OnePoleTPTLowPass Float) : OnePoleTPTLowPass Float32 :=
+  ⟨f.G.toFloat32, f.s.toFloat32, f.y.toFloat32⟩
+
+def svf32 (f : TPTSVF Float) : TPTSVF Float32 :=
+  ⟨f.k.toFloat32, f.a1.toFloat32, f.a2.toFloat32, f.a3.toFloat32,
+    f.ic1.toFloat32, f.ic2.toFloat32, f.lowPass.toFloat32, f.bandPass.toFloat32,
+    f.highPass.toFloat32, f.notch.toFloat32⟩
+
+/-- Execute Float32 arithmetic directly; converting the Float result would
+not test the target's rounding at each operation. -/
+def emit32 {S : Type} (out : IO.FS.Stream) (kind : String) (fields : S → List Float32)
+    (step : S → Sample Float32 → S) (initial : S) (seed : UInt64) : IO Unit := do
+  let mut state := initial
+  let mut r := seed
+  for i in [:64] do
+    r := nextRandom r
+    let x := if i == 0 then Float32.ofBits 1 else
+      (Float.ofNat (r.toNat % 2000001) / 1000.0 - 1000.0).toFloat32
+    let next := step state ⟨x⟩
+    out.putStrLn s!"{kind}32 {bits32 (fields state)} {x.toBits} {bits32 (fields next)}"
+    state := next
+
 def main : IO Unit := do
   let out ← IO.getStdout
   let coefficients : Array Float := #[0.0, 1.0, 0.5, 0.999, Float.ofBits 0x3fefffffffffffff,
@@ -95,23 +120,32 @@ def main : IO Unit := do
   let mut random : UInt64 := 0x123456789abcdef
   for alpha in coefficients do
     for initial in seeds do
+      emit32 out "zoh" (fun f : OnePoleZOHLowPass Float32 => [f.alpha, f.y])
+        OnePoleZOHLowPass.step ⟨alpha.toFloat32, initial.toFloat32⟩ random
       random ← emit out "zoh" (fun f : OnePoleZOHLowPass Float => bits [f.alpha, f.y])
         OnePoleZOHLowPass.stepFloat { alpha, y := initial } random 128
   for G in coefficients do
     for initial in seeds do
+      emit32 out "tpt" lowPassFields OnePoleTPTLowPass.step
+        ⟨G.toFloat32, initial.toFloat32, (-initial).toFloat32⟩ random
       random ← emit out "tpt" (fun f => bits (lowPassFields f)) OnePoleTPTLowPass.stepFloat
         { G, s := initial, y := -initial } random 128
   for _ in [:32] do
     let (lowPass, r) := randomLowPass random
     let (y, r) := uniform r (-10.0) 10.0
+    emit32 out "tptHigh" highPassFields OnePoleTPTHighPass.step
+      ⟨lowPass32 lowPass, y.toFloat32⟩ r
     random ← emit out "tptHigh" (fun f => bits (highPassFields f)) OnePoleTPTHighPass.stepFloat
       { lowPass, y } r 64
     let (highLowPass, r) := randomLowPass random
     let (y, r) := uniform r (-10.0) 10.0
     let (lowPass, r) := randomLowPass r
+    emit32 out "baseWidth" baseWidthFields TPTBaseWidth.step
+      ⟨⟨lowPass32 highLowPass, y.toFloat32⟩, lowPass32 lowPass⟩ r
     random ← emit out "baseWidth" (fun f => bits (baseWidthFields f)) TPTBaseWidth.stepFloat
       { highPass := { lowPass := highLowPass, y }, lowPass } r 64
     let (svf, r) := randomSVF random
+    emit32 out "svf" svfFields TPTSVF.step (svf32 svf) r
     random ← emit out "svf" (fun f => bits (svfFields f)) TPTSVF.stepFloat svf r 64
     let (svf, r) := randomSVF random
     let (angle, r) := uniform r 0.0 1.5707963267948966
@@ -120,11 +154,16 @@ def main : IO Unit := do
     let blend := if (r >>> 40) % 4 == 0 then 0.5 else blend
     let morph : MorphingTPTSVF Float :=
       { svf, cosine := angle.cos, sine := angle.sin, blend, output }
+    emit32 out "morph" morphFields MorphingTPTSVF.step
+      ⟨svf32 svf, angle.cos.toFloat32, angle.sin.toFloat32, blend.toFloat32, output.toFloat32⟩ r
     random ← emit out "morph" (fun f => bits (morphFields f)) MorphingTPTSVF.stepFloat morph r 64
     for (kind, step) in [("svf4High", TPTSVF4Pole.stepHighPassFloat),
         ("svf4Low", TPTSVF4Pole.stepLowPassFloat), ("svf4Band", TPTSVF4Pole.stepBandPassFloat)] do
       let (stage1, r) := randomSVF random
       let (stage2, r) := randomSVF r
+      let step32 := if kind == "svf4High" then TPTSVF4Pole.stepHighPass (R := Float32)
+        else if kind == "svf4Low" then TPTSVF4Pole.stepLowPass else TPTSVF4Pole.stepBandPass
+      emit32 out kind svf4Fields step32 ⟨svf32 stage1, svf32 stage2⟩ r
       random ← emit out kind (fun f => bits (svf4Fields f)) step { stage1, stage2 } r 64
     let (k, r) := uniform random 0.0 3.9
     let (drive, r) := uniform r (-10.0) 10.0
@@ -132,11 +171,16 @@ def main : IO Unit := do
     let (stage2, r) := randomLowPass r
     let (stage3, r) := randomLowPass r
     let (stage4, r) := randomLowPass r
+    emit32 out "ladder" ladderFields TPTLadder.step
+      ⟨k.toFloat32, drive.toFloat32, lowPass32 stage1, lowPass32 stage2,
+        lowPass32 stage3, lowPass32 stage4⟩ r
     random ← emit out "ladder" (fun f => bits (ladderFields f)) TPTLadder.stepFloat
       { k, drive, stage1, stage2, stage3, stage4 } r 64
     let (first, r) := randomSVF random
     let (lowSecond, r) := randomSVF r
     let (highSecond, r) := randomSVF r
+    emit32 out "crossover" crossoverFields LinkwitzRileyCrossover.step
+      ⟨svf32 first, svf32 lowSecond, svf32 highSecond⟩ r
     random ← emit out "crossover" (fun f => bits (crossoverFields f))
       LinkwitzRileyCrossover.stepFloat { first, lowSecond, highSecond } r 64
   for i in [:1024] do
@@ -163,3 +207,31 @@ def main : IO Unit := do
     let (next, output) := DSP.Coupled.processorFloat coupled { x }
     out.putStrLn s!"coupled {coupled.q 0 |>.toBits} {coupled.q 1 |>.toBits} {x.toBits} {next.model.A 0 0 |>.toBits} {next.model.A 0 1 |>.toBits} {next.model.A 1 0 |>.toBits} {next.model.A 1 1 |>.toBits} {next.model.B 0 |>.toBits} {next.model.B 1 |>.toBits} {next.model.C 0 |>.toBits} {next.model.C 1 |>.toBits} {next.model.D.toBits} {next.q 0 |>.toBits} {next.q 1 |>.toBits} {output.y.toBits}"
     coupled := next
+
+  let model32 : DSP.StateSpace 2 Float32 :=
+    { A := pair (pair 0.75 (-0.125)) (pair 0.25 0.5)
+      B := pair 0.5 (-0.25), C := pair 0.75 (-0.5), D := 0.125 }
+  for seed in [0.0, -0.0, 1.0, -1.0] do
+    let mut state : DSP.Coupled.State Float32 := { model := model32, q := pair seed (-seed) }
+    for i in [:64] do
+      let x := (Float.ofNat i / 7.0).toFloat32
+      let (next, output) := DSP.Coupled.processor state { x }
+      let fields := [next.model.A 0 0, next.model.A 0 1, next.model.A 1 0, next.model.A 1 1,
+        next.model.B 0, next.model.B 1, next.model.C 0, next.model.C 1, next.model.D,
+        next.q 0, next.q 1, output.y]
+      out.putStrLn s!"coupled32 {(state.q 0).toBits} {(state.q 1).toBits} {x.toBits} {bits32 fields}"
+      state := next
+
+  for seed in [0.0, -0.0, 1.0, -2.0] do
+    let mut state : DSP.Tests.ArithmeticState Float := ⟨seed, seed + 0.125⟩
+    let mut state32 : DSP.Tests.ArithmeticState Float32 := ⟨seed.toFloat32, (seed + 0.125).toFloat32⟩
+    for i in [:64] do
+      let x := if i % 4 == 0 then state.left else if i % 4 == 1 then 0.0
+        else if i % 4 == 2 then -1.0 else Float.ofBits 0x7ff8000000000000
+      let x32 := if i % 4 == 3 then Float32.ofBits 0x7fc00000 else x.toFloat32
+      let (next, output) := DSP.Tests.arithmeticProcessor state ⟨x⟩
+      let (next32, output32) := DSP.Tests.arithmeticProcessor state32 ⟨x32⟩
+      out.putStrLn s!"arithmetic {state.left.toBits} {state.right.toBits} {x.toBits} {bits [next.left, next.right, output.x]}"
+      out.putStrLn s!"arithmetic32 {state32.left.toBits} {state32.right.toBits} {x32.toBits} {bits32 [next32.left, next32.right, output32.x]}"
+      state := next
+      state32 := next32

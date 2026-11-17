@@ -1,5 +1,6 @@
 import DSP.Filters.OnePoleZOHLowPass
 import DSP.Filters.Coupled
+import DSP.IfLess
 
 namespace DSP.Tests
 
@@ -81,5 +82,28 @@ structure OversizedState where
 
 def unsupportedSize (_state : OversizedState) (input : DSP.Sample Float) :
     OversizedState := { q := fun _ => input.x }
+
+structure ArithmeticState (R : Type) where
+  left : R
+  right : R
+
+/-- Exercise simultaneous assignments, old-state output, per-channel selection,
+negation, division and a decimal just above a Float32 rounding midpoint. -/
+def arithmeticProcessor {R : Type} [Add R] [Div R] [Neg R] [OfScientific R] [IfLess R]
+    (state : ArithmeticState R) (input : Sample R) : ArithmeticState R × Sample R :=
+  ({ left := state.right, right := state.left },
+    ⟨IfLess.ifLess input.x state.left (-(state.left / 0.1))
+      (state.right + 1.0000000596046447753906250000000000000000000001)⟩)
+
+def unsupportedGenericOrder {R : Type} [LT R] [DecidableLT R]
+    (state : ArithmeticState R) (input : Sample R) : ArithmeticState R :=
+  if input.x < state.left then { state with left := input.x } else state
+
+def unsupportedGenericLiteral {R : Type} [OfScientific R]
+    (state : ArithmeticState R) (_input : Sample R) : ArithmeticState R :=
+  { state with left := OfScientific.ofScientific declaredOne true 1 }
+
+def wrongGenericState {R : Type} (_state : ArithmeticState R) (input : Sample R) : Sample R :=
+  input
 
 end DSP.Tests

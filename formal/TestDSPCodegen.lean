@@ -4,6 +4,8 @@ import DSP.Tests.CodegenFixtures
 #generate_cpp DSP.Tests.swapProcessor as SwapProcessor to "build/lean/generated/SwapProcessor.hpp"
 #generate_cpp DSP.Tests.gainProcessor as GainProcessor to "build/lean/generated/GainProcessor.hpp"
 
+#generate_cpp_generic DSP.Tests.arithmeticProcessor as ArithmeticProcessorGeneric to "build/lean/generated/ArithmeticProcessorGeneric.hpp"
+
 open Lean Elab Command in
 run_cmd liftTermElabM do
   for (name, expected) in #[
@@ -26,3 +28,22 @@ run_cmd liftTermElabM do
       rejected := true
     unless rejected do throwError "C++ codegen incorrectly accepted {name}"
   logInfo "C++ codegen rejection checks passed."
+
+open Lean Elab Command in
+run_cmd liftTermElabM do
+  for (name, cppName, expected) in #[
+      (``DSP.Tests.swapProcessor, "TestProcessor", "expects one arithmetic type parameter"),
+      (``DSP.Tests.unsupportedGenericOrder, "TestProcessor", "unsupported generic parameter"),
+      (``DSP.Tests.unsupportedGenericLiteral, "TestProcessor", "unsupported external implementation"),
+      (``DSP.Tests.wrongGenericState, "TestProcessor", "returned state type differs"),
+      (``DSP.Tests.arithmeticProcessor, "Vector", "processor name conflicts")] do
+    let mut rejected := false
+    try
+      let _ ← DSP.Codegen.generateGeneric name cppName
+    catch error =>
+      let message ← error.toMessageData.toString
+      unless (message.splitOn expected).length > 1 do
+        throwError "unexpected generic rejection for {name}: {message}"
+      rejected := true
+    unless rejected do throwError "C++ codegen incorrectly accepted generic {name}"
+  logInfo "Generic C++ codegen rejection checks passed."

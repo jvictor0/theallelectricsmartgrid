@@ -1,8 +1,10 @@
 import Lean
+import DSP.IfLess
 
-/-! A deliberately small backend for pure, monomorphic processor functions.
+/-! A deliberately small backend for pure processor functions.
 It reads elaborated Lean definitions, resolves their arithmetic instances,
-and emits native C++ records. It is tested, not a verified Lean-to-C++ compiler.
+and emits native C++ records. Generic export interprets the arithmetic parameter
+as MultiChannelNumber. It is tested, not a verified Lean-to-C++ compiler.
 -/
 
 namespace DSP.Codegen
@@ -24,6 +26,8 @@ inductive Value where
 structure Emission where
   lines : Array String := #[]
   next : Nat := 0
+  numberType : Option Expr := none
+  arithmetic : Array FVarId := #[]
 
 abbrev GenM := StateT Emission MetaM
 abbrev Locals := List (FVarId × Value)
@@ -45,8 +49,9 @@ def temporary (type text : String) : GenM Value := do
   emit s!"const {type} {name} = {text};"
   return .scalar type name
 
-def scalarType (type : Expr) : MetaM String := do
+def scalarType (type : Expr) (numberType : Option Expr) : MetaM String := do
   let type ← whnf type
+  if numberType == some type then return "Vector"
   match type with
   | .const ``Float _ => return "double"
   | .const ``Float32 _ => return "float"
@@ -66,13 +71,14 @@ def finSize (type : Expr) : MetaM Nat := do
   unless n ≤ 256 do throwError "C++ codegen: vector dimension exceeds the 256-element export limit"
   return n
 
-partial def fieldShape (type : Expr) : MetaM Shape := do
+partial def fieldShape (type : Expr) (numberType : Option Expr) : MetaM Shape := do
   let type ← whnf type
+  if numberType == some type then return .scalar "Vector"
   if let .forallE _ domain body _ := type then
     unless !body.hasLooseBVars do throwError "C++ codegen: dependent vector elements are unsupported"
-    return .vector (← finSize domain) (← fieldShape body)
+    return .vector (← finSize domain) (← fieldShape body numberType)
   if type.isConstOf ``Float || type.isConstOf ``Float32 || type.isConstOf ``Bool then
-    return .scalar (← scalarType type)
+    return .scalar (← scalarType type numberType)
   let .const name _ := type.getAppFn
     | throwError "C++ codegen: unsupported field type {type}"
   let some info := getStructureInfo? (← getEnv) name
@@ -89,7 +95,7 @@ partial def fieldShape (type : Expr) : MetaM Shape := do
       if fields.any (fun f : String × Shape => f.1 == member) then
         throwError "C++ codegen: duplicate C++ field name {member}"
       let fieldType ← inferType (.proj name i value)
-      fields := fields.push (member, ← fieldShape fieldType)
+      fields := fields.push (member, ← fieldShape fieldType numberType)
     return .record fields
 
 partial def readValue (shape : Shape) (base : String) : Value :=
@@ -198,7 +204,7 @@ def floatLiteral (name : Name) (args : Array Expr) : GenM Value := do
   let arg ← expose args[0]!
   let some mantissa := natLiteral arg
     | throwError "C++ codegen: only literal numeric conversions are supported: {arg}"
-  let scientific := name == ``Float.ofScientific || name == ``Float32.ofScientific
+  let scientific := #[``Float.ofScientific, ``Float32.ofScientific, ``OfScientific.ofScientific].contains name
   let mut negativeExponent := false
   let mut exponent := 0
   if scientific then
@@ -209,7 +215,16 @@ def floatLiteral (name : Name) (args : Array Expr) : GenM Value := do
     let some n := natLiteral (← expose args[2]!)
       | throwError "C++ codegen: expected a literal exponent"
     exponent := n
-  if name == ``Float.ofNat || name == ``Float.ofScientific then
+  if name == ``OfNat.ofNat || name == ``OfScientific.ofScientific then
+    let single := if scientific then Float32.ofScientific mantissa negativeExponent exponent
+      else Float32.ofNat mantissa
+    let double := if scientific then Float.ofScientific mantissa negativeExponent exponent
+      else Float.ofNat mantissa
+    let singleText ← hexLiteral single.toBits.toNat 23 8 127 "f"
+    let doubleText ← hexLiteral double.toBits.toNat 52 11 1023 ""
+    return .scalar "Vector"
+      s!"Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? {singleText} : {doubleText}))"
+  else if name == ``Float.ofNat || name == ``Float.ofScientific then
     let value := if scientific then Float.ofScientific mantissa negativeExponent exponent
       else Float.ofNat mantissa
     return .scalar "double" (← hexLiteral value.toBits.toNat 52 11 1023 "")
@@ -252,6 +267,28 @@ partial def joinValues (yes no : Value) : GenM (Value × Array String × Array S
 
 partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
   let e ← expose expression
+  if let .proj name 0 (.fvar instanceId) := e.getAppFn then
+    if (← get).arithmetic.contains instanceId then
+      let args := e.getAppArgs
+      if name == ``OfNat then
+        let type ← inferType (.fvar instanceId)
+        return ← floatLiteral ``OfNat.ofNat #[type.getAppArgs[1]!]
+      if name == ``OfScientific then
+        return ← floatLiteral ``OfScientific.ofScientific args
+      let values ← args.mapM fun arg => do
+        let (type, value) ← scalar (← evaluate arg locals)
+        unless type == "Vector" do throwError "C++ codegen: generic arithmetic expects Vector operands"
+        return value
+      if name == ``DSP.IfLess && values.size == 4 then
+        return ← temporary "Vector"
+          s!"Vector::IfLess({values[0]!}, {values[1]!}, {values[2]!}, {values[3]!})"
+      if name == ``Neg && values.size == 1 then
+        return ← temporary "Vector" s!"(-{values[0]!})"
+      if let some (_, op) := #[(``Add, "+"), (``Sub, "-"), (``Mul, "*"), (``Div, "/")].find?
+          (fun item => item.1 == name) then
+        unless values.size == 2 do throwError "C++ codegen: invalid generic arithmetic application"
+        return ← temporary "Vector" s!"({values[0]!} {op} {values[1]!})"
+      throwError "C++ codegen: unsupported generic arithmetic {e}"
   match e with
   | .fvar id =>
     let some (_, value) := locals.find? (fun item => item.1 == id)
@@ -336,7 +373,7 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
       let (_, a) ← scalar (← evaluate args[0]! locals)
       let (_, b) ← scalar (← evaluate args[1]! locals)
       let type ← inferType e
-      let cppType ← if ← isProp e then pure "bool" else scalarType type
+      let cppType ← if ← isProp e then pure "bool" else scalarType type (← get).numberType
       return ← temporary cppType s!"({a} {op.2} {b})"
     if name == ``Float.neg || name == ``Float32.neg then
       let (type, value) ← scalar (← evaluate args[0]! locals)
@@ -390,19 +427,41 @@ partial def snapshot (value : Value) : GenM Value := do
   | .record fields => return .record (← fields.mapM snapshot)
   | .vector fields => return .vector (← fields.mapM snapshot)
 
-def generate (function : Name) (cppName : String) : MetaM String := do
+def generateWithTarget (function : Name) (cppName : String) (generic : Bool) : MetaM String := do
   unless validIdentifier cppName && cppName.toList.head!.isUpper do
     throwError "C++ codegen: processor name must be a simple uppercase C++ identifier"
-  if #["State", "Input", "Output"].contains cppName then
+  if #["State", "Input", "Output"].contains cppName ||
+      (generic && #["Number", "Size", "Vector"].contains cppName) then
     throwError "C++ codegen: processor name conflicts with a nested record"
   let info ← getConstInfo function
   unless info.levelParams.isEmpty do
     throwError "C++ codegen: specialize the processor's number type before exporting"
   forallTelescopeReducing info.type fun parameters resultType => do
-    unless parameters.size == 2 do
+    let mut numberType := none
+    let mut arithmetic := #[]
+    let mut runtime := parameters
+    if generic then
+      unless parameters.size ≥ 3 && (← inferType parameters[0]!) == mkSort (.succ .zero) do
+        throwError "C++ codegen: generic export expects one arithmetic type parameter"
+      let number := parameters[0]!
+      numberType := some number
+      for instanceParam in parameters.extract 1 (parameters.size - 2) do
+        let type ← whnf (← inferType instanceParam)
+        let name := type.getAppFn.constName?
+        let args := type.getAppArgs
+        unless args.size ≥ 1 && args[0]! == number &&
+            #[``Add, ``Sub, ``Mul, ``Div, ``Neg, ``OfNat, ``OfScientific, ``DSP.IfLess].any
+              (fun supported => name == some supported) do
+          throwError "C++ codegen: unsupported generic parameter {type}"
+        if name == some ``OfNat then
+          unless args.size == 2 && (natLiteral (← expose args[1]!)).isSome do
+            throwError "C++ codegen: generic OfNat requires a literal numeral"
+        arithmetic := arithmetic.push instanceParam.fvarId!
+      runtime := parameters.extract (parameters.size - 2) parameters.size
+    unless runtime.size == 2 do
       throwError "C++ codegen: expected State → Input → State or State → Input → State × Output"
-    let stateType ← inferType parameters[0]!
-    let inputType ← inferType parameters[1]!
+    let stateType ← inferType runtime[0]!
+    let inputType ← inferType runtime[1]!
     let resultType ← whnf resultType
     let stateOnly ← isDefEq stateType resultType
     unless stateOnly || resultType.isAppOfArity ``Prod 2 do
@@ -411,11 +470,11 @@ def generate (function : Name) (cppName : String) : MetaM String := do
     unless stateOnly do
       unless ← isDefEq stateType resultArgs[0]! do
         throwError "C++ codegen: returned state type differs from input state"
-    let stateFields ← fieldShape stateType
-    let inputFields ← fieldShape inputType
-    let outputFields ← if stateOnly then pure none else some <$> fieldShape resultArgs[1]!
-    let locals := [(parameters[0]!.fvarId!, readValue stateFields "m_state"),
-      (parameters[1]!.fvarId!, readValue inputFields "input")]
+    let stateFields ← fieldShape stateType numberType
+    let inputFields ← fieldShape inputType numberType
+    let outputFields ← if stateOnly then pure none else some <$> fieldShape resultArgs[1]! numberType
+    let locals := [(runtime[0]!.fvarId!, readValue stateFields "m_state"),
+      (runtime[1]!.fvarId!, readValue inputFields "input")]
     let (_, emission) ← (do
       let result ← evaluate (mkAppN (mkConst function) parameters) locals
       match outputFields with
@@ -426,11 +485,17 @@ def generate (function : Name) (cppName : String) : MetaM String := do
         let next ← snapshot (← selectField result 0)
         let output ← snapshot (← selectField result 1)
         commitValue stateFields next "m_state"
-        commitValue outputFields output "m_output").run {}
+        commitValue outputFields output "m_output").run { numberType, arithmetic }
+    let templateHeader := if generic then
+        #["#include \"MultiChannelNumber.hpp\"", "#include <type_traits>", "",
+          "template<typename Number, size_t Size>", s!"struct {cppName}", "{",
+          "    static_assert(std::is_same_v<Number, float> || std::is_same_v<Number, double>);",
+          "    using Vector = MultiChannelNumber<Number, Size>;", ""]
+      else #[s!"struct {cppName}", "{"]
     let header := #["#pragma once", "", s!"// Generated from {function}. Do not edit.",
       "// This backend is validated by tests; it is not a verified compiler.", "//",
       "// Compile with strict floating-point arithmetic and contraction disabled.", "//", "",
-      "#include <limits>", "#include <array>", "", s!"struct {cppName}", "{",
+      "#include <limits>", "#include <array>", ""] ++ templateHeader ++ #[
       "    static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);",
       "    static_assert(std::numeric_limits<float>::is_iec559 && std::numeric_limits<float>::digits == 24);", ""]
     let body := if emission.lines.any (fun line => (line.splitOn "input.").length > 1)
@@ -446,11 +511,24 @@ def generate (function : Name) (cppName : String) : MetaM String := do
       #["    }", "", "};", ""]
     return String.intercalate "\n" lines.toList
 
+def generate (function : Name) (cppName : String) : MetaM String :=
+  generateWithTarget function cppName false
+
+def generateGeneric (function : Name) (cppName : String) : MetaM String :=
+  generateWithTarget function cppName true
+
 elab "#generate_cpp " function:ident " as " cppName:ident " to " path:str : command => do
   let code ← liftTermElabM <| generate function.getId cppName.getId.toString
   let output : System.FilePath := path.getString
   if let some parent := output.parent then IO.FS.createDirAll parent
   IO.FS.writeFile output code
   logInfo m!"Generated {output} from {function.getId}"
+
+elab "#generate_cpp_generic " function:ident " as " cppName:ident " to " path:str : command => do
+  let code ← liftTermElabM <| generateGeneric function.getId cppName.getId.toString
+  let output : System.FilePath := path.getString
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  logInfo m!"Generated {output} from {function.getId} with MultiChannelNumber arithmetic"
 
 end DSP.Codegen

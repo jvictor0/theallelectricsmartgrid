@@ -123,7 +123,10 @@ The filter arithmetic and state updates are shared by the executable cores and
 the real-number proofs;
 the smoke test does not establish floating-point error bounds.
 It also checks the standalone C++ processor generator, compares native Lean/C++
-execution, and verifies the saved generated headers are current. Run
+execution, and verifies the saved generated headers are current. Both scalar
+headers and `Generic<Number, Size>` headers are checked; the latter use the
+app's `MultiChannelNumber` at widths 1, 2, 3 and 4 with `float` and `double`.
+Run
 `make lean-dsp-generate` to refresh those headers for review. See the
 [codegen guide](../formal/DSP/Codegen/README.md) for the supported Lean subset and
 the distinction between model proofs and code-generation tests.

@@ -33,3 +33,27 @@ import DSP.Filters.Coupled
 #generate_cpp DSP.LinkwitzRileyCrossover.stepFloat as LinkwitzRileyCrossover to "build/lean/generated/LinkwitzRileyCrossover.hpp"
 
 #generate_cpp DSP.Coupled.processorFloat as CoupledProcessor to "build/lean/generated/CoupledProcessor.hpp"
+
+#generate_cpp_generic DSP.OnePoleZOHLowPass.step as OnePoleZOHLowPassGeneric to "build/lean/generated/OnePoleZOHLowPassGeneric.hpp"
+
+#generate_cpp_generic DSP.OnePoleTPTLowPass.step as OnePoleTPTLowPassGeneric to "build/lean/generated/OnePoleTPTLowPassGeneric.hpp"
+
+#generate_cpp_generic DSP.OnePoleTPTHighPass.step as OnePoleTPTHighPassGeneric to "build/lean/generated/OnePoleTPTHighPassGeneric.hpp"
+
+#generate_cpp_generic DSP.TPTBaseWidth.step as TPTBaseWidthGeneric to "build/lean/generated/TPTBaseWidthGeneric.hpp"
+
+#generate_cpp_generic DSP.TPTSVF.step as TPTSVFGeneric to "build/lean/generated/TPTSVFGeneric.hpp"
+
+#generate_cpp_generic DSP.MorphingTPTSVF.step as MorphingTPTSVFGeneric to "build/lean/generated/MorphingTPTSVFGeneric.hpp"
+
+#generate_cpp_generic DSP.TPTSVF4Pole.stepHighPass as TPTSVF4PoleHighPassGeneric to "build/lean/generated/TPTSVF4PoleHighPassGeneric.hpp"
+
+#generate_cpp_generic DSP.TPTSVF4Pole.stepLowPass as TPTSVF4PoleLowPassGeneric to "build/lean/generated/TPTSVF4PoleLowPassGeneric.hpp"
+
+#generate_cpp_generic DSP.TPTSVF4Pole.stepBandPass as TPTSVF4PoleBandPassGeneric to "build/lean/generated/TPTSVF4PoleBandPassGeneric.hpp"
+
+#generate_cpp_generic DSP.TPTLadder.step as TPTLadderGeneric to "build/lean/generated/TPTLadderGeneric.hpp"
+
+#generate_cpp_generic DSP.LinkwitzRileyCrossover.step as LinkwitzRileyCrossoverGeneric to "build/lean/generated/LinkwitzRileyCrossoverGeneric.hpp"
+
+#generate_cpp_generic DSP.Coupled.processor as CoupledProcessorGeneric to "build/lean/generated/CoupledProcessorGeneric.hpp"

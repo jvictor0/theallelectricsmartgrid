@@ -84,13 +84,15 @@ DSP_HEADERS := OnePoleZOHLowPass OnePoleTPTLowPass OnePoleTPTHighPass TPTBaseWid
 	MorphingTPTSVF TPTSVF4PoleHighPass TPTSVF4PoleLowPass TPTSVF4PoleBandPass TPTLadder \
 	LinkwitzRileyCrossover CoupledProcessor
 
+DSP_GENERIC_HEADERS := $(addsuffix Generic,$(DSP_HEADERS))
+
 lean-dsp-codegen:
 	"$(REPO_ROOT)/scripts/lean.sh" build DSP.Codegen.Cpp $(DSP_RUNTIME_MODULES)
 	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/GenerateDSP.lean"
 
 lean-dsp-generate: lean-dsp-codegen
 	mkdir -p "$(REPO_ROOT)/formal/DSP/generated"
-	for header in $(DSP_HEADERS); do \
+	for header in $(DSP_HEADERS) $(DSP_GENERIC_HEADERS); do \
 		cp "$(REPO_ROOT)/build/lean/generated/$$header.hpp" "$(REPO_ROOT)/formal/DSP/generated/$$header.hpp" || exit 1; \
 	done
 

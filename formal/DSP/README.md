@@ -363,8 +363,14 @@ analog solution at the interval endpoint and at every sample time. Channels
 share the sample period T but may have different time constants, arbitrary
 initial states and independently changing input streams.
 
-These theorems cover the exact model over `Fin n → K`. A `MultiChannelNumber`
-code generator target is separate work.
+These theorems cover the exact model over `Fin n → K`. The
+`#generate_cpp_generic` target interprets the same generic `step` with
+`MultiChannelNumber<Number, Size>` arithmetic, producing `Generic` headers for
+the ZOH and TPT filters and the coupled state-space example. Numeric fields
+and temporaries are vectors, literals are splats, and the morph uses
+`Vector::IfLess`. As with scalar export, the shared recurrence connects the
+proofs and code; the exporter is tested rather than verified. See the
+[codegen guide](Codegen/README.md) for the interface and supported operations.
 
 ## Build and evidence
 
@@ -378,8 +384,10 @@ make lean-dsp-test
 The DSP target builds the theory with warnings treated as errors, audits all
 transitive DSP declarations for unexpected axioms/admissions, runs native
 Float/Float32 checks, generates C++ and compares 32,256 native Lean/C++ cases bit
-for bit. The coupled example exercises every stored coefficient, two interacting
-state variables, nonzero feedthrough and simultaneous state updates.
+for bit. It also checks multichannel trajectories against native Lean at both
+precisions and widths 1, 2, 3 and 4. The coupled example exercises every stored
+coefficient, two interacting state variables, nonzero feedthrough and
+simultaneous state updates.
 
 The exact model is proved in Lean. The exporter and C++ compiler are tested,
 not formally verified; floating-point approximation is trusted. Application
