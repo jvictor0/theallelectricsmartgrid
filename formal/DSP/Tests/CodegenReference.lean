@@ -111,8 +111,38 @@ def emit32 {S : Type} (out : IO.FS.Stream) (kind : String) (fields : S → List 
     out.putStrLn s!"{kind}32 {bits32 (fields state)} {x.toBits} {bits32 (fields next)}"
     state := next
 
+/-- Pure response calls have no evolving state. Keep the exact prepared input
+bits, so this comparison tests response arithmetic independently of trig libraries. -/
+def emitMagnitude (out : IO.FS.Stream) (alpha sinHalf : Float) : IO Unit := do
+  let result := OnePoleZOHLowPass.Snapshot.magnitudeSquared ⟨alpha⟩ sinHalf
+  out.putStrLn s!"zohResponse {bits [alpha, sinHalf, result]}"
+
+def emitMagnitude32 (out : IO.FS.Stream) (alpha sinHalf : Float32) : IO Unit := do
+  let result := OnePoleZOHLowPass.Snapshot.magnitudeSquared ⟨alpha⟩ sinHalf
+  out.putStrLn s!"zohResponse32 {bits32 [alpha, sinHalf, result]}"
+
+def emitMagnitudeCases (out : IO.FS.Stream) : IO Unit := do
+  -- Adjacent cases deliberately mix the zero-alpha branch with positive lanes.
+  -- Tiny positive coefficients include subnormal squares in binary32.
+  let alphas : List Float := [0.0, -0.0, 0.5, 1.0, Float.ofBits 0x3fefffffffffffff,
+    0.000001, 1e-12, 1e-150]
+  let alphas32 : List Float32 := [0.0, -0.0, 0.5, 1.0, Float32.ofBits 0x3f7fffff,
+    0.000001, 1e-12, 1e-20]
+  for sinHalf in ([0.0, -0.0, Float.ofBits 1, 1e-150, 0.000001, 0.5, 1.0, -0.5, -1.0] : List Float) do
+    for alpha in alphas do emitMagnitude out alpha sinHalf
+  for sinHalf in ([0.0, -0.0, Float32.ofBits 1, 1e-20, 0.000001, 0.5, 1.0, -0.5, -1.0] : List Float32) do
+    for alpha in alphas32 do emitMagnitude32 out alpha sinHalf
+  let mut random : UInt64 := 0xfedcba987654321
+  for _ in [:2048] do
+    let (alpha, r) := uniform random 0.0 1.0
+    let (sinHalf, r) := uniform r (-1.0) 1.0
+    random := r
+    emitMagnitude out alpha sinHalf
+    emitMagnitude32 out alpha.toFloat32 sinHalf.toFloat32
+
 def main : IO Unit := do
   let out ← IO.getStdout
+  emitMagnitudeCases out
   let coefficients : Array Float := #[0.0, 1.0, 0.5, 0.999, Float.ofBits 0x3fefffffffffffff,
     Float.ofBits 1]
   let seeds : Array Float := #[0.0, -0.0, 1.0, -1.0, 1000.0, Float.ofBits 1,

@@ -18,6 +18,11 @@ Each also has a `Generic` header, such as
 The backend in [Cpp.lean](Cpp.lean) reads an elaborated Lean function and its
 record definitions. It does not contain a one-pole arithmetic template.
 
+The ZOH response also has a separate pure-function header,
+[OnePoleZOHLowPassResponseGeneric.hpp](../generated/OnePoleZOHLowPassResponseGeneric.hpp).
+It contains a coefficient-only `Snapshot` record and a static `MagnitudeSquared`
+method. It is generated from the same Lean definition used in the response proofs.
+
 ## Authoring and generation
 
 Author a pure function of one of these shapes, using named records:
@@ -52,6 +57,39 @@ the state dimension and the channel count are independent.
 The generic export uses the same recurrence as `stepFloat` and the lifted
 proofs. It takes no proof arguments and retains the scalar exporter's tested
 compiler boundary.
+
+For a read-only response, export the shape `Snapshot R → R → R`:
+
+```lean
+#generate_cpp_function_generic DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquared
+  as OnePoleZOHLowPassResponseGeneric method MagnitudeSquared
+  to "build/lean/generated/OnePoleZOHLowPassResponseGeneric.hpp"
+```
+
+This form emits a nested `Snapshot` record and a static method with two const
+reference arguments, named `snapshot` and `input`, returning a `Vector`.
+There are no stored state or output members. The first Lean argument must be
+a named record; the second argument and result must both have type `R`.
+`#generate_cpp_function` exports the same shape specialized to `Float` or
+`Float32`, returning `double` or `float`. Both forms reuse the processor
+exporter's arithmetic evaluator and rejection checks.
+
+For ZOH, `input` means the prepared value `sinHalf = sin(π * frequency)`, where
+frequency is in cycles per sample. No trigonometric operation runs inside the
+generated response. For example, with a prepared three-channel `sinHalf`:
+
+```cpp
+using Response = OnePoleZOHLowPassResponseGeneric<double, 3>;
+using Vector = Response::Vector;
+const Response::Snapshot snapshot{Vector(0.1, 0.2, 0.3)};
+const Vector squared = Response::MagnitudeSquared(snapshot, sinHalf);
+```
+
+The response snapshot contains just `m_alpha`; it has no delay state. The
+kernel explicitly uses FMA and selects a denominator of one when alpha is zero,
+so zero alpha returns zero even at DC. UI sampling, snapshot capture from the
+processor, and conversion from squared magnitude to magnitude remain caller
+integration work.
 
 Run from the repository root:
 
@@ -116,6 +154,8 @@ zero-delay loops, which depend on the current input.
 
 - Monomorphic, pure functions with exactly two arguments, returning either the
   incoming state type or a `State × Output` pair whose first component is it.
+- Pure-function exports of a named snapshot record and numeric input to a
+  result of the same numeric type, with no state mutation.
 - Named records, nested records and fixed `Fin n` vectors/matrices, with
   `Float`, `Float32` or `Bool` leaves. Vectors become `std::array` and dimensions
   are capped at 256 per axis. Inherited records, dependent elements and vectors
@@ -172,6 +212,16 @@ equivalence for the recurrence across all intervals. The TPT filters' `realizes`
 theorems state their transfers from rest. These results share the same generic
 arithmetic and state update as each `stepFloat`.
 
+For the ZOH response, `Snapshot.magnitudeSquared_eq_normSq` in
+[Response/Proofs.lean](../Filters/OnePoleZOHLowPass/Response/Proofs.lean) proves
+that the real interpretation of the exported kernel equals `Complex.normSq`
+of the shared digital transfer at `sinHalf = sin(π * frequency)` for nonnegative
+alpha. The channel lemmas in
+[Channels.lean](../Filters/OnePoleZOHLowPass/Channels.lean) establish pointwise
+evaluation and lift that identity to independently parameterized real channels.
+Generation reads `Snapshot.magnitudeSquared` itself; it does not read or
+reconstruct a formula from the proof term.
+
 The backend is **not a formally verified compiler**, and these theorems do not
 prove IEEE rounding behavior or the compiled C++ executable. The code generator,
 Lean compiler/runtime used for native reference execution, C++ compiler and
@@ -206,5 +256,15 @@ and NaN, decimal rounding, and the explicit FMA cases. Unsupported generic order
 implementations, returned-state mismatches and reserved names are rejected.
 
 The input/reference corpus is retained at `build/lean/codegen-test/reference.txt`.
+It also contains 4,240 native Lean ZOH response cases, executed in both precisions
+and packed into 8,834 pure vector calls at widths 1, 2, 3 and 4. Every result is
+compared bit for bit with both scalar and generic generated C++. Coverage
+includes mixed zero/positive alpha lanes, alpha one and its predecessor, DC,
+Nyquist, signed zero, subnormal inputs and binary32 squared coefficients, and
+random independent coefficients and prepared frequency values. Three-channel
+padding is poisoned. Separate exporter fixtures cover unused arguments and
+direct returns, and rejection checks cover unsupported argument/result shapes,
+external operations and conflicting names.
+
 Passing these checks is implementation evidence, not a universal compiler proof
 or a floating-point error bound.

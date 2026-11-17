@@ -18,6 +18,33 @@ HEADERS = (
     "LinkwitzRileyCrossover.hpp", "CoupledProcessor.hpp",
 )
 HEADERS += tuple(name.replace(".hpp", "Generic.hpp") for name in HEADERS)
+HEADERS += ("OnePoleZOHLowPassResponseGeneric.hpp",)
+
+
+def test_response(cases, output):
+    """Compare pure calls with independently chosen coefficients and inputs per lane."""
+    inputs, expected, labels = [], [], []
+    for precision in (32, 64):
+        tag = "zohResponse32" if precision == 32 else "zohResponse"
+        rows = [case.split()[1:] for case in cases if case.split()[0] == tag]
+        assert rows, f"No {precision}-bit response reference cases"
+        for width in (1, 2, 3, 4):
+            for start in range(0, len(rows), width):
+                lanes = rows[start:start + width]
+                lanes += [lanes[-1]] * (width - len(lanes))
+                inputs.append(f"zohResponse {precision} {width} 1")
+                inputs.append(" ".join(value for lane in lanes for value in lane[:2]))
+                expected.append(" ".join(lane[2] for lane in lanes))
+                labels.append(f"ZOH response, {precision} bits, {width} channels, batch {start}")
+    actual = subprocess.run(
+        [str(output / "channels-runner")], input="\n".join(inputs) + "\n",
+        check=True, capture_output=True, text=True, timeout=30,
+    ).stdout.splitlines()
+    assert len(actual) == len(expected), "Response C++ returned a different number of results"
+    for label, found, wanted in zip(labels, actual, expected):
+        assert found == wanted, f"{label}\nLean: {wanted}\nC++:  {found}"
+    print(f"ZOH response codegen: {len(expected)} pure vector calls match native Lean and scalar C++ "
+          "bit for bit at widths 1, 2, 3, 4 in float and double.")
 
 
 def test_channels(cases, compiler, output, input_counts):
@@ -85,7 +112,8 @@ def main():
         [str(BUILD / "artifacts/bin/dsp_codegen_reference")],
         check=True, capture_output=True, text=True, timeout=30,
     ).stdout
-    cases = reference.splitlines()
+    response_cases = [case for case in reference.splitlines() if case.startswith("zohResponse")]
+    cases = [case for case in reference.splitlines() if not case.startswith("zohResponse")]
     assert cases, "Lean produced no reference cases"
     input_counts = {
         "zoh": 3, "tpt": 4, "tptHigh": 5, "baseWidth": 8, "svf": 11, "morph": 15,
@@ -129,6 +157,7 @@ def main():
         )
     print(f"C++ codegen: {len(scalar_cases)} native Lean/C++ cases match bit for bit; snapshot current.")
     test_channels(cases, compiler, output, input_counts)
+    test_response(response_cases, output)
 
 
 if __name__ == "__main__":

@@ -437,12 +437,62 @@ partial def snapshot (value : Value) : GenM Value := do
   | .record fields => return .record (← fields.mapM snapshot)
   | .vector fields => return .vector (← fields.mapM snapshot)
 
-def generateWithTarget (function : Name) (cppName : String) (generic : Bool) : MetaM String := do
+def renderHeader (function : Name) (cppName : String) (generic : Bool) : Array String :=
+  let templateHeader := if generic then
+      #["#include \"MultiChannelNumber.hpp\"", "#include <type_traits>", "",
+        "template<typename Number, size_t Size>", s!"struct {cppName}", "{",
+        "    static_assert(std::is_same_v<Number, float> || std::is_same_v<Number, double>);",
+        "    using Vector = MultiChannelNumber<Number, Size>;", ""]
+    else #[s!"struct {cppName}", "{"]
+  #["#pragma once", "", s!"// Generated from {function}. Do not edit.",
+    "// This backend is validated by tests; it is not a verified compiler.", "//",
+    "// Compile with strict floating-point arithmetic and implicit contraction disabled.", "//", "",
+    "#include <limits>", "#include <array>", "#include <cmath>", ""] ++ templateHeader ++ #[
+    "    static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);",
+    "    static_assert(std::numeric_limits<float>::is_iec559 && std::numeric_limits<float>::digits == 24);", ""]
+
+/-- Export a read-only record and numeric input to a numeric result. This uses
+the same evaluator as processors, but returns the value without committing state. -/
+def renderFunction (function : Name) (method : String) (parameters runtime : Array Expr)
+    (resultType : Expr) (numberType : Option Expr) (arithmetic : Array FVarId) : MetaM (Array String) := do
+  let snapshotFields ← fieldShape (← inferType runtime[0]!) numberType
+  let .record _ := snapshotFields
+    | throwError "C++ codegen: function export expects a Snapshot record as its first argument"
+  let inputType ← whnf (← inferType runtime[1]!)
+  unless (numberType == some inputType) ||
+      (numberType.isNone && (inputType.isConstOf ``Float || inputType.isConstOf ``Float32)) do
+    throwError "C++ codegen: function export expects a numeric second argument"
+  unless ← isDefEq inputType resultType do
+    throwError "C++ codegen: function result must have the input's numeric type"
+  let cppType ← scalarType inputType numberType
+  let locals := [(runtime[0]!.fvarId!, readValue snapshotFields "snapshot"),
+    (runtime[1]!.fvarId!, Value.scalar cppType "input")]
+  let (_, emission) ← (do
+    let (type, result) ← scalar (← evaluate (mkAppN (mkConst function) parameters) locals)
+    unless type == cppType do throwError "C++ codegen: function result type mismatch"
+    emit s!"return {result};").run { numberType, arithmetic }
+  let mut body := emission.lines
+  for name in #["snapshot", "input"] do
+    unless body.any (fun line =>
+        (line.splitToList fun c => !(c.isAlphanum || c == '_')).contains name) do
+      body := #[s!"static_cast<void>({name});"] ++ body
+  return (← renderRecord "Snapshot" snapshotFields) ++
+    #[s!"    static {cppType} {method}(const Snapshot& snapshot, const {cppType}& input)", "    {"] ++
+    body.map (fun line => if line.isEmpty then "" else "        " ++ line) ++ #["    }", ""]
+
+def generateWithTarget (function : Name) (cppName : String) (generic : Bool)
+    (method : Option String) : MetaM String := do
   unless validIdentifier cppName && cppName.toList.head!.isUpper do
     throwError "C++ codegen: processor name must be a simple uppercase C++ identifier"
   if #["State", "Input", "Output"].contains cppName ||
       (generic && #["Number", "Size", "Vector"].contains cppName) then
     throwError "C++ codegen: processor name conflicts with a nested record"
+  if let some method := method then
+    unless validIdentifier method && method.toList.head!.isUpper do
+      throwError "C++ codegen: method name must be a simple uppercase C++ identifier"
+    if cppName == "Snapshot" || method == cppName ||
+        #["Snapshot", "Number", "Size", "Vector"].contains method then
+      throwError "C++ codegen: function name conflicts with an enclosing or nested name"
   let info ← getConstInfo function
   unless info.levelParams.isEmpty do
     throwError "C++ codegen: specialize the processor's number type before exporting"
@@ -469,7 +519,11 @@ def generateWithTarget (function : Name) (cppName : String) (generic : Bool) : M
         arithmetic := arithmetic.push instanceParam.fvarId!
       runtime := parameters.extract (parameters.size - 2) parameters.size
     unless runtime.size == 2 do
-      throwError "C++ codegen: expected State → Input → State or State → Input → State × Output"
+      throwError "C++ codegen: expected exactly two runtime arguments"
+    let header := renderHeader function cppName generic
+    if let some method := method then
+      let body ← renderFunction function method parameters runtime resultType numberType arithmetic
+      return String.intercalate "\n" (header ++ body ++ #["};", ""]).toList
     let stateType ← inferType runtime[0]!
     let inputType ← inferType runtime[1]!
     let resultType ← whnf resultType
@@ -496,18 +550,6 @@ def generateWithTarget (function : Name) (cppName : String) (generic : Bool) : M
         let output ← snapshot (← selectField result 1)
         commitValue stateFields next "m_state"
         commitValue outputFields output "m_output").run { numberType, arithmetic }
-    let templateHeader := if generic then
-        #["#include \"MultiChannelNumber.hpp\"", "#include <type_traits>", "",
-          "template<typename Number, size_t Size>", s!"struct {cppName}", "{",
-          "    static_assert(std::is_same_v<Number, float> || std::is_same_v<Number, double>);",
-          "    using Vector = MultiChannelNumber<Number, Size>;", ""]
-      else #[s!"struct {cppName}", "{"]
-    let header := #["#pragma once", "", s!"// Generated from {function}. Do not edit.",
-      "// This backend is validated by tests; it is not a verified compiler.", "//",
-      "// Compile with strict floating-point arithmetic and implicit contraction disabled.", "//", "",
-      "#include <limits>", "#include <array>", "#include <cmath>", ""] ++ templateHeader ++ #[
-      "    static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);",
-      "    static_assert(std::numeric_limits<float>::is_iec559 && std::numeric_limits<float>::digits == 24);", ""]
     let body := if emission.lines.any (fun line => (line.splitOn "input.").length > 1)
       then emission.lines else #["static_cast<void>(input);"] ++ emission.lines
     let outputLines ← match outputFields with
@@ -522,10 +564,13 @@ def generateWithTarget (function : Name) (cppName : String) (generic : Bool) : M
     return String.intercalate "\n" lines.toList
 
 def generate (function : Name) (cppName : String) : MetaM String :=
-  generateWithTarget function cppName false
+  generateWithTarget function cppName false none
 
 def generateGeneric (function : Name) (cppName : String) : MetaM String :=
-  generateWithTarget function cppName true
+  generateWithTarget function cppName true none
+
+def generateFunction (function : Name) (cppName method : String) (generic : Bool) : MetaM String :=
+  generateWithTarget function cppName generic (some method)
 
 elab "#generate_cpp " function:ident " as " cppName:ident " to " path:str : command => do
   let code ← liftTermElabM <| generate function.getId cppName.getId.toString
@@ -540,5 +585,23 @@ elab "#generate_cpp_generic " function:ident " as " cppName:ident " to " path:st
   if let some parent := output.parent then IO.FS.createDirAll parent
   IO.FS.writeFile output code
   logInfo m!"Generated {output} from {function.getId} with MultiChannelNumber arithmetic"
+
+elab "#generate_cpp_function " function:ident " as " cppName:ident " method " methodName:ident
+    " to " path:str : command => do
+  let code ← liftTermElabM <| generateFunction function.getId cppName.getId.toString
+    methodName.getId.toString false
+  let output : System.FilePath := path.getString
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  logInfo m!"Generated {output} from {function.getId} as a pure function"
+
+elab "#generate_cpp_function_generic " function:ident " as " cppName:ident " method " methodName:ident
+    " to " path:str : command => do
+  let code ← liftTermElabM <| generateFunction function.getId cppName.getId.toString
+    methodName.getId.toString true
+  let output : System.FilePath := path.getString
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  logInfo m!"Generated {output} from {function.getId} as a pure function with MultiChannelNumber arithmetic"
 
 end DSP.Codegen

@@ -1,5 +1,6 @@
 import DSP.Codegen.Cpp
 import DSP.Filters.OnePoleZOHLowPass
+import DSP.Filters.OnePoleZOHLowPass.Response
 import DSP.Filters.OnePoleTPTLowPass
 import DSP.Filters.OnePoleTPTHighPass
 import DSP.Filters.TPTBaseWidth
@@ -35,6 +36,10 @@ import DSP.Filters.Coupled
 #generate_cpp DSP.Coupled.processorFloat as CoupledProcessor to "build/lean/generated/CoupledProcessor.hpp"
 
 #generate_cpp_generic DSP.OnePoleZOHLowPass.step as OnePoleZOHLowPassGeneric to "build/lean/generated/OnePoleZOHLowPassGeneric.hpp"
+
+#generate_cpp_function_generic DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquared
+  as OnePoleZOHLowPassResponseGeneric method MagnitudeSquared
+  to "build/lean/generated/OnePoleZOHLowPassResponseGeneric.hpp"
 
 #generate_cpp_generic DSP.OnePoleTPTLowPass.step as OnePoleTPTLowPassGeneric to "build/lean/generated/OnePoleTPTLowPassGeneric.hpp"
 

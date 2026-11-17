@@ -1,4 +1,5 @@
 import DSP.Filters.OnePoleZOHLowPass
+import DSP.Filters.OnePoleZOHLowPass.Response
 import DSP.Filters.Coupled
 import DSP.IfLess
 
@@ -113,5 +114,28 @@ def unsupportedGenericLiteral {R : Type} [OfScientific R]
 
 def wrongGenericState {R : Type} (_state : ArithmeticState R) (input : Sample R) : Sample R :=
   input
+
+def zohMagnitudeSquaredFloat := OnePoleZOHLowPass.Snapshot.magnitudeSquared (R := Float)
+def zohMagnitudeSquaredFloat32 := OnePoleZOHLowPass.Snapshot.magnitudeSquared (R := Float32)
+
+/-- Compile both unused arguments, with no arithmetic temporaries to return. -/
+def constantFunction {R : Type} [OfNat R 1] (_snapshot : ArithmeticState R) (_input : R) : R := 1
+
+structure FunctionSnapshot (R : Type) where
+  input : R
+
+/-- A member containing `input` must not hide the unused numeric argument. -/
+def snapshotFunction {R : Type} (s : FunctionSnapshot R) (_input : R) : R := s.input
+
+def functionWithoutSnapshot (a b : Float) : Float := a + b
+
+def functionRecordInput (snapshot : GainState) (input : GainInput) : Float32 :=
+  snapshot.gain + input.x
+
+def functionRecordResult (snapshot : GainState) (_input : Float32) : GainState := snapshot
+
+def functionExtern (_snapshot : GainState) (input : Float32) : Float32 := input.sin
+
+def functionWrongArity (input : Float) : Float := input
 
 end DSP.Tests

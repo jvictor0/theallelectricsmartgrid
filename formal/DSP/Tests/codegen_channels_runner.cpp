@@ -1,4 +1,9 @@
 #include "OnePoleZOHLowPassGeneric.hpp"
+#include "OnePoleZOHLowPassResponseGeneric.hpp"
+#include "OnePoleZOHLowPassResponse.hpp"
+#include "OnePoleZOHLowPassResponse32.hpp"
+#include "ConstantFunctionGeneric.hpp"
+#include "SnapshotFunctionGeneric.hpp"
 #include "OnePoleTPTLowPassGeneric.hpp"
 #include "OnePoleTPTHighPassGeneric.hpp"
 #include "TPTBaseWidthGeneric.hpp"
@@ -236,9 +241,73 @@ bool Run(size_t steps)
     return true;
 }
 
+// The pure-function path loads a fresh snapshot and prepared frequency for
+// each call. Compare scalar C++ too, and poison the unused SIMD padding.
+//
+template<typename Number, size_t Size>
+bool RunResponse(size_t calls)
+{
+    using Response = OnePoleZOHLowPassResponseGeneric<Number, Size>;
+    using ScalarResponse = std::conditional_t<std::is_same_v<Number, float>,
+        OnePoleZOHLowPassResponse32, OnePoleZOHLowPassResponse>;
+    using Bits = std::conditional_t<std::is_same_v<Number, float>, uint32_t, uint64_t>;
+    using Constant = ConstantFunctionGeneric<Number, Size>;
+    using SnapshotOnly = SnapshotFunctionGeneric<Number, Size>;
+    for (size_t call = 0; call < calls; ++call)
+    {
+        typename Response::Snapshot snapshot{};
+        typename Response::Vector sinHalf{};
+        for (size_t channel = 0; channel < Size; ++channel)
+        {
+            Bits alphaBits = 0;
+            Bits sinBits = 0;
+            std::cin >> alphaBits >> sinBits;
+            snapshot.m_alpha[channel] = FromBits<Number>(alphaBits);
+            sinHalf[channel] = FromBits<Number>(sinBits);
+        }
+
+        if (!std::cin)
+        {
+            return false;
+        }
+
+        if constexpr (Size == 3)
+        {
+            snapshot.m_alpha.m_values[3] = std::numeric_limits<Number>::quiet_NaN();
+            sinHalf.m_values[3] = std::numeric_limits<Number>::quiet_NaN();
+        }
+
+        const auto result = Response::MagnitudeSquared(snapshot, sinHalf);
+        const auto constant = Constant::Evaluate({}, sinHalf);
+        const auto snapshotOnly = SnapshotOnly::Evaluate({snapshot.m_alpha}, sinHalf);
+        for (size_t channel = 0; channel < Size; ++channel)
+        {
+            const auto scalar = ScalarResponse::MagnitudeSquared(
+                {snapshot.m_alpha[channel]}, sinHalf[channel]);
+            if (ToBits<Bits>(result[channel]) != ToBits<Bits>(scalar) ||
+                constant[channel] != static_cast<Number>(1) ||
+                ToBits<Bits>(snapshotOnly[channel]) != ToBits<Bits>(snapshot.m_alpha[channel]))
+            {
+                return false;
+            }
+
+            std::cout << (channel == 0 ? "" : " ") << ToBits<Bits>(result[channel]);
+        }
+
+        std::cout << '\n';
+    }
+
+    return true;
+}
+
 template<typename Number, size_t Size>
 bool RunKind(const std::string& kind, size_t steps)
 {
+    if (kind == "zohResponse")
+    {
+        return RunResponse<Number, Size>(steps);
+    }
+
     if (kind == "fma")
     {
         return Run<FMAProcessorGeneric<Number, Size>, Number, Size>(steps);
