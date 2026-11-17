@@ -125,7 +125,7 @@ zero-delay loops, which depend on the current input.
   local bindings and statically specialized structural recursion over closed
   natural numbers. Each value binding is emitted once and shared; function-valued
   bindings and helpers are specialized before emission.
-- Floating-point addition, subtraction, multiplication, division, negation,
+- Floating-point addition, subtraction, multiplication, division, negation, explicit `FMA`,
   `<`, `<=` and Boolean equality tests; `if` expressions over supported Boolean
   conditions using the standard Boolean/float decision functions. Each branch's
   operations stay inside that branch in C++.
@@ -134,7 +134,7 @@ zero-delay loops, which depend on the current input.
 
 Generic export accepts one leading arithmetic type parameter `R : Type`,
 followed by instances of `Add`, `Sub`, `Mul`, `Div`, `Neg`, `OfNat` (with a
-literal numeral), `OfScientific` and `IfLess`, then the state and input.
+literal numeral), `OfScientific`, `IfLess` and `FMA`, then the state and input.
 Other generic parameters and operations are rejected. Shared `Bool` fields
 can still control whole-vector branches; channel-dependent selection uses
 `IfLess`, with no conversion to a shared Boolean. Literals are converted by
@@ -148,10 +148,18 @@ operations fail generation. There is no fallback to hand-translated arithmetic.
 The exporter reads the number-type specialization explicitly; it never silently
 replaces `ℝ` with floating point.
 
-Compile generated code with strict floating-point arithmetic and contraction
+Compile generated code with strict floating-point arithmetic and implicit contraction
 disabled (`-fno-fast-math -ffp-contract=off` in the test harness). Operation order
 is preserved; the backend does not apply real-number algebraic rewrites or
-introduce fused multiply-add. The native comparisons use the host's normal
+fuse ordinary multiply/add expressions. Explicit `FMA.fma a b c` in the source
+maps to `std::fma(a, b, c)` for scalar export and
+`Vector::FusedMultiplyAdd(a, b, c)` for generic export. Native Lean calls `fma`
+or `fmaf`, so these operations round once even with implicit contraction disabled.
+The exact-arithmetic instance in `DSP.FMA.Algebra` interprets FMA as `a*b+c`;
+`LawfulFMA` records this law for proofs, with no such instance for floating point.
+The ZOH, TPT, SVF, morph and ladder steps and state-space/IIR accumulations
+use explicit FMA; composite filters inherit it. These outputs may differ in
+low bits from the earlier separate multiply/add versions. The native comparisons use the host's normal
 floating-point environment. Different rounding modes, flush-to-zero settings,
 compiler options or target platforms require their own validation.
 
@@ -170,7 +178,7 @@ Lean compiler/runtime used for native reference execution, C++ compiler and
 floating-point environment remain part of the trusted implementation boundary.
 
 The scalar differential test executes the actual Lean source functions and
-compares every generated state/output field bit for bit over 32,256 cases. It covers:
+compares every generated state/output field bit for bit over 32,268 cases. It covers:
 
 - ZOH and TPT one-pole trajectories with changing inputs, endpoint/near-one coefficients,
   signed-zero initial states and subnormal values.
@@ -182,6 +190,8 @@ compares every generated state/output field bit for bit over 32,256 cases. It co
   constants, with both conditional branches exercised.
 - A coupled two-state processor using generic state-space arithmetic, nested
   coefficient records, fixed vectors/matrices and nonzero direct feedthrough.
+- Explicit FMA at both precisions, checked against known bit patterns for
+  cancellation, intermediate overflow, subnormals, signed zero and infinity.
 - Rejection of unsupported field types, external operations, unsafe definitions,
   alternate literal/conditional implementations and mismatched returned state types,
   in both result forms.
@@ -192,7 +202,7 @@ state between samples, and every logical field/channel is compared bit for
 bit. Three-channel padding is poisoned with NaN and excluded from the logical
 fields. Coverage includes every filter, the coupled state-space processor,
 mixed morph halves, state swaps with old-state outputs, selection at equality
-and NaN, and decimal rounding. Unsupported generic ordering, external literal
+and NaN, decimal rounding, and the explicit FMA cases. Unsupported generic ordering, external literal
 implementations, returned-state mismatches and reserved names are rejected.
 
 The input/reference corpus is retained at `build/lean/codegen-test/reference.txt`.

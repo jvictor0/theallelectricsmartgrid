@@ -3,11 +3,12 @@
 // Generated from DSP.OnePoleZOHLowPass.step. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
-// Compile with strict floating-point arithmetic and contraction disabled.
+// Compile with strict floating-point arithmetic and implicit contraction disabled.
 //
 
 #include <limits>
 #include <array>
+#include <cmath>
 
 #include "MultiChannelNumber.hpp"
 #include <type_traits>
@@ -38,12 +39,11 @@ struct OnePoleZOHLowPassGeneric
     {
         const Vector v0 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) - m_state.m_alpha);
         const Vector v1 = (v0 * m_state.m_y);
-        const Vector v2 = (m_state.m_alpha * input.m_x);
-        const Vector v3 = (v1 + v2);
-        const Vector v4 = m_state.m_alpha;
-        const Vector v5 = v3;
-        m_state.m_alpha = v4;
-        m_state.m_y = v5;
+        const Vector v2 = Vector::FusedMultiplyAdd(m_state.m_alpha, input.m_x, v1);
+        const Vector v3 = m_state.m_alpha;
+        const Vector v4 = v2;
+        m_state.m_alpha = v3;
+        m_state.m_y = v4;
     }
 
 };

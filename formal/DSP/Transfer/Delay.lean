@@ -91,9 +91,9 @@ theorem run_series_state (s : StateSpace n R) (u : ℕ → R) :
   | zero => simp [IIR.series, Processor.runState]
   | succ t =>
     simp only [Pi.smul_apply, smul_eq_mul, PowerSeries.coeff_succ_X_mul,
-      advance, dot, orderedSum_eq_sum, map, map_add,
+      advance, fma_eq, dot_eq_dotProduct, dotProduct, map, map_add,
       map_sum, PowerSeries.coeff_C_mul, IIR.series, PowerSeries.coeff_mk]
-    simp [Processor.runState_succ, processor, advance, dot, orderedSum_eq_sum]
+    simp [Processor.runState_succ, processor, advance, fma_eq, dot_eq_dotProduct, dotProduct]
 
 theorem run_series_output (s : StateSpace n R) (u : ℕ → R) :
     IIR.series (Processor.run s.processor u (fun _ => 0)) =
@@ -102,9 +102,9 @@ theorem run_series_output (s : StateSpace n R) (u : ℕ → R) :
         (IIR.series u) := by
   apply PowerSeries.ext
   intro t
-  simp only [observe, dot, orderedSum_eq_sum, map, map_add, map_sum,
+  simp only [observe, fma_eq, dot_eq_dotProduct, dotProduct, map, map_add, map_sum,
     PowerSeries.coeff_C_mul, IIR.series, PowerSeries.coeff_mk]
-  simp [Processor.run, processor, observe, dot, orderedSum_eq_sum]
+  simp [Processor.run, processor, observe, fma_eq, dot_eq_dotProduct, dotProduct]
 
 theorem run_seriesEquation (s : StateSpace n R) (u : ℕ → R) :
     (s.delayDenominator : PowerSeries R) * IIR.series (Processor.run s.processor u (fun _ => 0)) =

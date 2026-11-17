@@ -3,11 +3,12 @@
 // Generated from DSP.OnePoleZOHLowPass.stepFloat. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
-// Compile with strict floating-point arithmetic and contraction disabled.
+// Compile with strict floating-point arithmetic and implicit contraction disabled.
 //
 
 #include <limits>
 #include <array>
+#include <cmath>
 
 struct OnePoleZOHLowPass
 {
@@ -31,12 +32,11 @@ struct OnePoleZOHLowPass
     {
         const double v0 = (1.0 - m_state.m_alpha);
         const double v1 = (v0 * m_state.m_y);
-        const double v2 = (m_state.m_alpha * input.m_x);
-        const double v3 = (v1 + v2);
-        const double v4 = m_state.m_alpha;
-        const double v5 = v3;
-        m_state.m_alpha = v4;
-        m_state.m_y = v5;
+        const double v2 = std::fma(m_state.m_alpha, input.m_x, v1);
+        const double v3 = m_state.m_alpha;
+        const double v4 = v2;
+        m_state.m_alpha = v3;
+        m_state.m_y = v4;
     }
 
 };

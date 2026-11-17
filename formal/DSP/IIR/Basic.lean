@@ -17,10 +17,10 @@ def shift {R : Type} (x : R) : {n : Nat} → (Fin n → R) → Fin n → R
   | _ + 1, h =>
     Fin.cases x (fun j => h j.castSucc)
 
-variable {m n : Nat} {R : Type} [OfNat R 0] [Add R] [Sub R] [Mul R]
+variable {m n : Nat} {R : Type} [OfNat R 0] [Sub R] [Mul R] [FMA R]
 
 def processor (c : Coefficients m n R) : Processor (State m n R) R R := fun s x =>
-  let y := (c.b0 * x + StateSpace.dot c.b s.inputs) - StateSpace.dot c.a s.outputs
+  let y := (FMA.fma c.b0 x (StateSpace.dot c.b s.inputs)) - StateSpace.dot c.a s.outputs
   let inputs := StateSpace.snapshot m (shift x s.inputs)
   let outputs := StateSpace.snapshot n (shift y s.outputs)
   ({ inputs := inputs.values, outputs := outputs.values }, y)

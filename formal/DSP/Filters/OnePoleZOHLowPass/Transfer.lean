@@ -51,7 +51,7 @@ theorem exported_real_step (state : OnePoleZOHLowPass ℝ) (input : Sample ℝ) 
     (fun _ : Fin 1 => (step state input).y, (step state input).y) =
       (discrete state.alpha).observeNext.processor (fun _ => state.y) input.x := by
   rw [StateSpace.observeNext_equiv]
-  simp [StateSpace.processorNext, StateSpace.observe, StateSpace.dot, StateSpace.orderedSum, discrete,
+  simp [StateSpace.processorNext, StateSpace.observe, StateSpace.dot, discrete,
     step, process, onePoleStep, StateSpace.advance, StateSpace.snapshot_values]
   rfl
 
@@ -77,7 +77,7 @@ theorem analog_iir_endpoint (T τ : ℝ) (hT : 0 ≤ T) (u : ℕ → ℝ)
     Processor.run (IIR.processor ((continuousSystem τ).zoh T).observeNext.toIIR) u IIR.zeroState k =
       q.segment k T 0 := by
   have h := (continuousSystem τ).zoh_iir_endpointOutput T hT u q k
-  simpa [continuousSystem, StateSpace.observe, StateSpace.dot, StateSpace.orderedSum] using h
+  simpa [continuousSystem, StateSpace.observe, StateSpace.dot] using h
 
 open Bilinear in
 /-- From rest, the stored endpoint realizes α / (1 - (1 - α) q), with q the
@@ -94,7 +94,7 @@ theorem realizes {K : Type} [Field K] (f : OnePoleZOHLowPass K) (hy : f.y = 0) :
     rw [← ser_mul, ← ser_mul, ← ser_add]
     apply ser_congr
     intro n
-    simp only [st, Step.states_succ, step_y, onePoleStep_eq, ha]
+    simp only [fma_eq, st, Step.states_succ, step_y, onePoleStep_eq, ha, add_comm]
   have hshift := ser_shift (fun n => (st n).y)
   change ser (fun n => (st n).y) = const f.y + _ at hshift
   rw [hy, const_zero, zero_add] at hshift

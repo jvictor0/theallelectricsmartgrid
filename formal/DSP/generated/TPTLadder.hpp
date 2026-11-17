@@ -3,11 +3,12 @@
 // Generated from DSP.TPTLadder.stepFloat. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
-// Compile with strict floating-point arithmetic and contraction disabled.
+// Compile with strict floating-point arithmetic and implicit contraction disabled.
 //
 
 #include <limits>
 #include <array>
+#include <cmath>
 
 struct TPTLadder
 {
@@ -58,69 +59,60 @@ struct TPTLadder
     void Process(Input& input)
     {
         const double v0 = (0.0 - m_state.m_stage1.m_s);
-        const double v1 = (v0 * m_state.m_stage1.m_G);
-        const double v2 = (v1 + m_state.m_stage1.m_s);
-        const double v3 = (v2 - m_state.m_stage2.m_s);
-        const double v4 = (v3 * m_state.m_stage2.m_G);
-        const double v5 = (v4 + m_state.m_stage2.m_s);
-        const double v6 = (v5 - m_state.m_stage3.m_s);
-        const double v7 = (v6 * m_state.m_stage3.m_G);
-        const double v8 = (v7 + m_state.m_stage3.m_s);
-        const double v9 = (v8 - m_state.m_stage4.m_s);
+        const double v1 = std::fma(v0, m_state.m_stage1.m_G, m_state.m_stage1.m_s);
+        const double v2 = (v1 - m_state.m_stage2.m_s);
+        const double v3 = std::fma(v2, m_state.m_stage2.m_G, m_state.m_stage2.m_s);
+        const double v4 = (v3 - m_state.m_stage3.m_s);
+        const double v5 = std::fma(v4, m_state.m_stage3.m_G, m_state.m_stage3.m_s);
+        const double v6 = (v5 - m_state.m_stage4.m_s);
+        const double v7 = std::fma(v6, m_state.m_stage4.m_G, m_state.m_stage4.m_s);
+        const double v8 = (m_state.m_stage1.m_G * m_state.m_stage2.m_G);
+        const double v9 = (v8 * m_state.m_stage3.m_G);
         const double v10 = (v9 * m_state.m_stage4.m_G);
-        const double v11 = (v10 + m_state.m_stage4.m_s);
-        const double v12 = (m_state.m_stage1.m_G * m_state.m_stage2.m_G);
-        const double v13 = (v12 * m_state.m_stage3.m_G);
-        const double v14 = (v13 * m_state.m_stage4.m_G);
-        const double v15 = (m_state.m_k * v11);
-        const double v16 = (input.m_x - v15);
-        const double v17 = (m_state.m_k * v14);
-        const double v18 = (1.0 + v17);
-        const double v19 = (v16 / v18);
-        const double v20 = (v19 - m_state.m_stage1.m_s);
-        const double v21 = (v20 * m_state.m_stage1.m_G);
-        const double v22 = (v21 + m_state.m_stage1.m_s);
-        const double v23 = (v22 + v21);
-        const double v24 = (v22 - m_state.m_stage2.m_s);
-        const double v25 = (v24 * m_state.m_stage2.m_G);
-        const double v26 = (v25 + m_state.m_stage2.m_s);
-        const double v27 = (v26 + v25);
-        const double v28 = (v26 - m_state.m_stage3.m_s);
-        const double v29 = (v28 * m_state.m_stage3.m_G);
-        const double v30 = (v29 + m_state.m_stage3.m_s);
-        const double v31 = (v30 + v29);
-        const double v32 = (v30 - m_state.m_stage4.m_s);
-        const double v33 = (v32 * m_state.m_stage4.m_G);
-        const double v34 = (v33 + m_state.m_stage4.m_s);
-        const double v35 = (v34 + v33);
-        const double v36 = m_state.m_k;
-        const double v37 = v19;
-        const double v38 = m_state.m_stage1.m_G;
-        const double v39 = v23;
-        const double v40 = v22;
-        const double v41 = m_state.m_stage2.m_G;
-        const double v42 = v27;
-        const double v43 = v26;
-        const double v44 = m_state.m_stage3.m_G;
-        const double v45 = v31;
-        const double v46 = v30;
-        const double v47 = m_state.m_stage4.m_G;
-        const double v48 = v35;
-        const double v49 = v34;
-        m_state.m_k = v36;
-        m_state.m_drive = v37;
-        m_state.m_stage1.m_G = v38;
-        m_state.m_stage1.m_s = v39;
-        m_state.m_stage1.m_y = v40;
-        m_state.m_stage2.m_G = v41;
-        m_state.m_stage2.m_s = v42;
-        m_state.m_stage2.m_y = v43;
-        m_state.m_stage3.m_G = v44;
-        m_state.m_stage3.m_s = v45;
-        m_state.m_stage3.m_y = v46;
-        m_state.m_stage4.m_G = v47;
-        m_state.m_stage4.m_s = v48;
-        m_state.m_stage4.m_y = v49;
+        const double v11 = (-m_state.m_k);
+        const double v12 = std::fma(v11, v7, input.m_x);
+        const double v13 = std::fma(m_state.m_k, v10, 1.0);
+        const double v14 = (v12 / v13);
+        const double v15 = (v14 - m_state.m_stage1.m_s);
+        const double v16 = std::fma(v15, m_state.m_stage1.m_G, m_state.m_stage1.m_s);
+        const double v17 = std::fma(v15, m_state.m_stage1.m_G, v16);
+        const double v18 = (v16 - m_state.m_stage2.m_s);
+        const double v19 = std::fma(v18, m_state.m_stage2.m_G, m_state.m_stage2.m_s);
+        const double v20 = std::fma(v18, m_state.m_stage2.m_G, v19);
+        const double v21 = (v19 - m_state.m_stage3.m_s);
+        const double v22 = std::fma(v21, m_state.m_stage3.m_G, m_state.m_stage3.m_s);
+        const double v23 = std::fma(v21, m_state.m_stage3.m_G, v22);
+        const double v24 = (v22 - m_state.m_stage4.m_s);
+        const double v25 = std::fma(v24, m_state.m_stage4.m_G, m_state.m_stage4.m_s);
+        const double v26 = std::fma(v24, m_state.m_stage4.m_G, v25);
+        const double v27 = m_state.m_k;
+        const double v28 = v14;
+        const double v29 = m_state.m_stage1.m_G;
+        const double v30 = v17;
+        const double v31 = v16;
+        const double v32 = m_state.m_stage2.m_G;
+        const double v33 = v20;
+        const double v34 = v19;
+        const double v35 = m_state.m_stage3.m_G;
+        const double v36 = v23;
+        const double v37 = v22;
+        const double v38 = m_state.m_stage4.m_G;
+        const double v39 = v26;
+        const double v40 = v25;
+        m_state.m_k = v27;
+        m_state.m_drive = v28;
+        m_state.m_stage1.m_G = v29;
+        m_state.m_stage1.m_s = v30;
+        m_state.m_stage1.m_y = v31;
+        m_state.m_stage2.m_G = v32;
+        m_state.m_stage2.m_s = v33;
+        m_state.m_stage2.m_y = v34;
+        m_state.m_stage3.m_G = v35;
+        m_state.m_stage3.m_s = v36;
+        m_state.m_stage3.m_y = v37;
+        m_state.m_stage4.m_G = v38;
+        m_state.m_stage4.m_s = v39;
+        m_state.m_stage4.m_y = v40;
     }
 
 };

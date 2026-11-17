@@ -1,3 +1,4 @@
+import DSP.IIR.Basic
 import DSP.Filters.OnePoleZOHLowPass
 import DSP.Filters.OnePoleTPTLowPass
 import DSP.Filters.OnePoleTPTHighPass
@@ -96,4 +97,26 @@ def main : IO Unit := do
     (constant 4000 1.0)
   unless close split.lowSecond.lowPass 1.0 && close split.highSecond.highPass 0.0 do
     throw (IO.userError "Float crossover DC split failed")
-  IO.println "Filter native execution: one-pole, SVF, morph, ladder and crossover checks passed."
+  -- Direct-form IIR uses explicit FMA while retaining the input/output histories.
+  let a := Float.ofBits 0x3ff0000000000001
+  let b := Float.ofBits 0x3feffffffffffffe
+  let coefficients : IIR.Coefficients 1 1 Float :=
+    { b0 := a, b := fun _ => -1, a := fun _ => 0 }
+  let history : IIR.State 1 1 Float := { inputs := fun _ => 1, outputs := fun _ => 0 }
+  let (next, result) := IIR.processor coefficients history b
+  unless result.toBits == 0xb970000000000000 && (next.inputs 0).toBits == b.toBits &&
+      (next.outputs 0).toBits == result.toBits do
+    throw (IO.userError "Float IIR fused cancellation/history failed")
+  let coefficients32 : IIR.Coefficients 1 1 Float32 :=
+    { b0 := Float32.ofBits 0x3f800001, b := fun _ => -1, a := fun _ => 0 }
+  let history32 : IIR.State 1 1 Float32 := { inputs := fun _ => 1, outputs := fun _ => 0 }
+  let (next32, result32) := IIR.processor coefficients32 history32 (Float32.ofBits 0x3f7ffffe)
+  unless result32.toBits == 0xa8800000 && (next32.inputs 0).toBits == 0x3f7ffffe &&
+      (next32.outputs 0).toBits == result32.toBits do
+    throw (IO.userError "Float32 IIR fused cancellation/history failed")
+  let triple (x y z : Float) : Fin 3 → Float := Fin.cases x (Fin.cases y (fun _ => z))
+  unless (StateSpace.dot (triple (-1) a 0) (triple 1 b 1)).toBits == 0xb970000000000000 &&
+      (StateSpace.dot (n := 0) Fin.elim0 Fin.elim0 : Float).toBits == 0 &&
+      (StateSpace.dot (n := 1) (fun _ => (-0.0 : Float)) (fun _ => 1)).toBits == 0x8000000000000000 do
+    throw (IO.userError "Fused dot-product accumulation/empty/singleton failed")
+  IO.println "Filter native execution: one-pole, SVF, morph, ladder, crossover, IIR and fused dot-product checks passed."

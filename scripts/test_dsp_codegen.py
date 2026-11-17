@@ -90,11 +90,12 @@ def main():
     input_counts = {
         "zoh": 3, "tpt": 4, "tptHigh": 5, "baseWidth": 8, "svf": 11, "morph": 15,
         "svf4High": 21, "svf4Low": 21, "svf4Band": 21, "ladder": 15, "crossover": 31,
-        "swap": 4, "gain": 2, "coupled": 3, "arithmetic": 3,
+        "swap": 4, "gain": 2, "coupled": 3, "arithmetic": 3, "fma": 3, "fma32": 3,
     }
     inputs, expected = [], []
     scalar_cases = [case for case in cases
-                    if not case.split()[0].endswith("32") and case.split()[0] != "arithmetic"]
+                    if (not case.split()[0].endswith("32") or case.split()[0] == "fma32")
+                    and case.split()[0] != "arithmetic"]
     for case in scalar_cases:
         columns = case.split()
         split = 1 + input_counts[columns[0]]

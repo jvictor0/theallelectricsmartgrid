@@ -3,11 +3,12 @@
 // Generated from DSP.OnePoleTPTHighPass.step. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
-// Compile with strict floating-point arithmetic and contraction disabled.
+// Compile with strict floating-point arithmetic and implicit contraction disabled.
 //
 
 #include <limits>
 #include <array>
+#include <cmath>
 
 #include "MultiChannelNumber.hpp"
 #include <type_traits>
@@ -43,18 +44,17 @@ struct OnePoleTPTHighPassGeneric
     void Process(Input& input)
     {
         const Vector v0 = (input.m_x - m_state.m_lowPass.m_s);
-        const Vector v1 = (v0 * m_state.m_lowPass.m_G);
-        const Vector v2 = (v1 + m_state.m_lowPass.m_s);
-        const Vector v3 = (v2 + v1);
-        const Vector v4 = (input.m_x - v2);
-        const Vector v5 = m_state.m_lowPass.m_G;
-        const Vector v6 = v3;
-        const Vector v7 = v2;
-        const Vector v8 = v4;
-        m_state.m_lowPass.m_G = v5;
-        m_state.m_lowPass.m_s = v6;
-        m_state.m_lowPass.m_y = v7;
-        m_state.m_y = v8;
+        const Vector v1 = Vector::FusedMultiplyAdd(v0, m_state.m_lowPass.m_G, m_state.m_lowPass.m_s);
+        const Vector v2 = Vector::FusedMultiplyAdd(v0, m_state.m_lowPass.m_G, v1);
+        const Vector v3 = (input.m_x - v1);
+        const Vector v4 = m_state.m_lowPass.m_G;
+        const Vector v5 = v2;
+        const Vector v6 = v1;
+        const Vector v7 = v3;
+        m_state.m_lowPass.m_G = v4;
+        m_state.m_lowPass.m_s = v5;
+        m_state.m_lowPass.m_y = v6;
+        m_state.m_y = v7;
     }
 
 };

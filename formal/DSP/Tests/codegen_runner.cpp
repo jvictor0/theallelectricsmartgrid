@@ -11,6 +11,8 @@
 #include "LinkwitzRileyCrossover.hpp"
 #include "SwapProcessor.hpp"
 #include "GainProcessor.hpp"
+#include "FMAProcessor.hpp"
+#include "FMAProcessor32.hpp"
 #include "CoupledProcessor.hpp"
 
 #include <array>
@@ -139,6 +141,25 @@ bool RunFlatKind(const std::string& kind, bool& known)
     return true;
 }
 
+template<typename Processor, typename Number, typename Bits>
+bool RunFMA()
+{
+    Bits a, c, b;
+    if (!(std::cin >> a >> c >> b))
+    {
+        return false;
+    }
+
+    Processor processor{};
+    processor.m_state = {FromBits<Number>(a), FromBits<Number>(c)};
+    typename Processor::Input input{FromBits<Number>(b)};
+    processor.Process(input);
+    std::cout << ToBits<Bits>(processor.m_state.m_left) << ' '
+              << ToBits<Bits>(processor.m_state.m_right) << ' '
+              << ToBits<Bits>(processor.m_output.m_x) << '\n';
+    return true;
+}
+
 int main()
 {
     std::string kind;
@@ -155,7 +176,16 @@ int main()
             continue;
         }
 
-        if (kind == "swap")
+        if (kind == "fma" || kind == "fma32")
+        {
+            const bool success = kind == "fma" ? RunFMA<FMAProcessor, double, uint64_t>()
+                : RunFMA<FMAProcessor32, float, uint32_t>();
+            if (!success)
+            {
+                return 1;
+            }
+        }
+        else if (kind == "swap")
         {
             uint64_t left, right, x;
             unsigned reset;

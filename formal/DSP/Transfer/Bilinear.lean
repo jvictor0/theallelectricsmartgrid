@@ -1,3 +1,4 @@
+import DSP.FMA.Algebra
 import DSP.Step
 import Mathlib.RingTheory.LaurentSeries
 import Mathlib.RingTheory.PowerSeries.Inverse

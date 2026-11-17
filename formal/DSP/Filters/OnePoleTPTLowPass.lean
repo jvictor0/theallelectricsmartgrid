@@ -1,4 +1,5 @@
 import DSP.Step
+import DSP.FMA
 
 namespace DSP
 
@@ -13,22 +14,22 @@ structure OnePoleTPTLowPass (R : Type) where
 
 namespace OnePoleTPTLowPass
 
-variable {R : Type} [Add R] [Sub R] [Mul R]
+variable {R : Type} [Sub R] [FMA R]
 
 /-! The zero-delay feedback loop y = s + g (x - y) is solved by the
-coefficient G, so each sample is explicit: v = (x - s) G, y = s + v, and the
-trapezoidal integrator advances to y + v. The real-number proofs interpret
-this exact operation order; Float need not satisfy their algebraic laws.
+coefficient G, so each sample is explicit: delta = x - s, y = fma(delta, G, s),
+and the trapezoidal integrator advances to fma(delta, G, y). The real-number
+proofs interpret this exact operation order; Float need not satisfy their algebraic laws.
 -/
 
 /-- The output this filter would produce for input x, without advancing. -/
 def respond (f : OnePoleTPTLowPass R) (x : R) : R :=
-  (x - f.s) * f.G + f.s
+  FMA.fma (x - f.s) f.G f.s
 
 def step (f : OnePoleTPTLowPass R) (input : Sample R) : OnePoleTPTLowPass R :=
-  let v := (input.x - f.s) * f.G
-  let y := v + f.s
-  { f with s := y + v, y := y }
+  let delta := input.x - f.s
+  let y := FMA.fma delta f.G f.s
+  { f with s := FMA.fma delta f.G y, y := y }
 
 def stepFloat : Step (OnePoleTPTLowPass Float) (Sample Float) := step
 
@@ -36,12 +37,12 @@ def stepFloat : Step (OnePoleTPTLowPass Float) (Sample Float) := step
     (step f input).G = f.G := rfl
 
 @[simp] theorem step_s (f : OnePoleTPTLowPass R) (input : Sample R) :
-    (step f input).s = ((input.x - f.s) * f.G + f.s) + (input.x - f.s) * f.G := rfl
+    (step f input).s = FMA.fma (input.x - f.s) f.G (f.respond input.x) := rfl
 
 @[simp] theorem step_y (f : OnePoleTPTLowPass R) (input : Sample R) :
     (step f input).y = f.respond input.x := rfl
 
-theorem respond_eq (f : OnePoleTPTLowPass R) (x : R) : f.respond x = (x - f.s) * f.G + f.s := rfl
+theorem respond_eq (f : OnePoleTPTLowPass R) (x : R) : f.respond x = FMA.fma (x - f.s) f.G f.s := rfl
 
 end OnePoleTPTLowPass
 end DSP

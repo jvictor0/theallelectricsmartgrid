@@ -55,7 +55,7 @@ theorem realizes (f : MorphingTPTSVF K) (g : K) (ht : f.svf.Tuned g) (hr : f.svf
     (fun s => (stateWeights s).high) (fun s x => by rw [stateWeights_step])
   refine (((low.add band).add high).congr ?_).transfer_eq ?_
   · intro s x
-    simp only [step, stateWeights, weights, upperHalf, LawfulIfLess.ifLess_eq]
+    simp only [fma_eq, step, stateWeights, weights, upperHalf, LawfulIfLess.ifLess_eq]
     cases LawfulIfLess.less (0.5 : K) s.blend <;> simp <;> ring
   · simp only [Bilinear.const_mul_analog, Bilinear.analog_add, numerator]
 

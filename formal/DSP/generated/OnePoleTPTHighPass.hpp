@@ -3,11 +3,12 @@
 // Generated from DSP.OnePoleTPTHighPass.stepFloat. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
-// Compile with strict floating-point arithmetic and contraction disabled.
+// Compile with strict floating-point arithmetic and implicit contraction disabled.
 //
 
 #include <limits>
 #include <array>
+#include <cmath>
 
 struct OnePoleTPTHighPass
 {
@@ -36,18 +37,17 @@ struct OnePoleTPTHighPass
     void Process(Input& input)
     {
         const double v0 = (input.m_x - m_state.m_lowPass.m_s);
-        const double v1 = (v0 * m_state.m_lowPass.m_G);
-        const double v2 = (v1 + m_state.m_lowPass.m_s);
-        const double v3 = (v2 + v1);
-        const double v4 = (input.m_x - v2);
-        const double v5 = m_state.m_lowPass.m_G;
-        const double v6 = v3;
-        const double v7 = v2;
-        const double v8 = v4;
-        m_state.m_lowPass.m_G = v5;
-        m_state.m_lowPass.m_s = v6;
-        m_state.m_lowPass.m_y = v7;
-        m_state.m_y = v8;
+        const double v1 = std::fma(v0, m_state.m_lowPass.m_G, m_state.m_lowPass.m_s);
+        const double v2 = std::fma(v0, m_state.m_lowPass.m_G, v1);
+        const double v3 = (input.m_x - v1);
+        const double v4 = m_state.m_lowPass.m_G;
+        const double v5 = v2;
+        const double v6 = v1;
+        const double v7 = v3;
+        m_state.m_lowPass.m_G = v4;
+        m_state.m_lowPass.m_s = v5;
+        m_state.m_lowPass.m_y = v6;
+        m_state.m_y = v7;
     }
 
 };

@@ -87,6 +87,14 @@ structure ArithmeticState (R : Type) where
   left : R
   right : R
 
+/-- A standalone FMA keeps its three operands independent in rounding tests. -/
+def fmaProcessor {R : Type} [FMA R] (state : ArithmeticState R) (input : Sample R) :
+    ArithmeticState R × Sample R :=
+  (state, ⟨FMA.fma state.left input.x state.right⟩)
+
+def fmaProcessorFloat := fmaProcessor (R := Float)
+def fmaProcessorFloat32 := fmaProcessor (R := Float32)
+
 /-- Exercise simultaneous assignments, old-state output, per-channel selection,
 negation, division and a decimal just above a Float32 rounding midpoint. -/
 def arithmeticProcessor {R : Type} [Add R] [Div R] [Neg R] [OfScientific R] [IfLess R]

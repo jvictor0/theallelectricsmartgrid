@@ -8,6 +8,8 @@ open Lean in
 run_cmd do
   let env ← getEnv
   let required := #[
+    ``DSP.fma_eq,
+    ``DSP.StateSpace.dot_eq_dotProduct,
     ``DSP.exactAtSamples_iff,
     ``DSP.DigitalFilter.runState_succ,
     ``DSP.OnePoleZOHLowPass.process_alpha,

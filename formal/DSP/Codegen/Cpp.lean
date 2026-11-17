@@ -1,5 +1,6 @@
 import Lean
 import DSP.IfLess
+import DSP.FMA
 
 /-! A deliberately small backend for pure processor functions.
 It reads elaborated Lean definitions, resolves their arithmetic instances,
@@ -105,7 +106,7 @@ partial def readValue (shape : Shape) (base : String) : Value :=
   | .vector n shape => .vector ((List.range n).toArray.map fun i => readValue shape s!"{base}[{i}]")
 
 def primitive (name : Name) : Bool :=
-  #[``Float.add, ``Float.sub, ``Float.mul, ``Float.div, ``Float.neg,
+  #[``FMA.float, ``FMA.float32, ``Float.add, ``Float.sub, ``Float.mul, ``Float.div, ``Float.neg,
     ``Float32.add, ``Float32.sub, ``Float32.mul, ``Float32.div, ``Float32.neg,
     ``Float.ofNat, ``Float32.ofNat, ``Float.ofScientific, ``Float32.ofScientific,
     ``Float.lt, ``Float.le, ``Float32.lt, ``Float32.le,
@@ -282,6 +283,9 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
       if name == ``DSP.IfLess && values.size == 4 then
         return ← temporary "Vector"
           s!"Vector::IfLess({values[0]!}, {values[1]!}, {values[2]!}, {values[3]!})"
+      if name == ``DSP.FMA && values.size == 3 then
+        return ← temporary "Vector"
+          s!"Vector::FusedMultiplyAdd({values[0]!}, {values[1]!}, {values[2]!})"
       if name == ``Neg && values.size == 1 then
         return ← temporary "Vector" s!"(-{values[0]!})"
       if let some (_, op) := #[(``Add, "+"), (``Sub, "-"), (``Mul, "*"), (``Div, "/")].find?
@@ -375,6 +379,12 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
       let type ← inferType e
       let cppType ← if ← isProp e then pure "bool" else scalarType type (← get).numberType
       return ← temporary cppType s!"({a} {op.2} {b})"
+    if name == ``FMA.float || name == ``FMA.float32 then
+      unless args.size == 3 do throwError "C++ codegen: invalid FMA application {e}"
+      let (type, a) ← scalar (← evaluate args[0]! locals)
+      let (_, b) ← scalar (← evaluate args[1]! locals)
+      let (_, c) ← scalar (← evaluate args[2]! locals)
+      return ← temporary type s!"std::fma({a}, {b}, {c})"
     if name == ``Float.neg || name == ``Float32.neg then
       let (type, value) ← scalar (← evaluate args[0]! locals)
       return ← temporary type s!"(-{value})"
@@ -450,7 +460,7 @@ def generateWithTarget (function : Name) (cppName : String) (generic : Bool) : M
         let name := type.getAppFn.constName?
         let args := type.getAppArgs
         unless args.size ≥ 1 && args[0]! == number &&
-            #[``Add, ``Sub, ``Mul, ``Div, ``Neg, ``OfNat, ``OfScientific, ``DSP.IfLess].any
+            #[``Add, ``Sub, ``Mul, ``Div, ``Neg, ``OfNat, ``OfScientific, ``DSP.IfLess, ``DSP.FMA].any
               (fun supported => name == some supported) do
           throwError "C++ codegen: unsupported generic parameter {type}"
         if name == some ``OfNat then
@@ -494,8 +504,8 @@ def generateWithTarget (function : Name) (cppName : String) (generic : Bool) : M
       else #[s!"struct {cppName}", "{"]
     let header := #["#pragma once", "", s!"// Generated from {function}. Do not edit.",
       "// This backend is validated by tests; it is not a verified compiler.", "//",
-      "// Compile with strict floating-point arithmetic and contraction disabled.", "//", "",
-      "#include <limits>", "#include <array>", ""] ++ templateHeader ++ #[
+      "// Compile with strict floating-point arithmetic and implicit contraction disabled.", "//", "",
+      "#include <limits>", "#include <array>", "#include <cmath>", ""] ++ templateHeader ++ #[
       "    static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);",
       "    static_assert(std::numeric_limits<float>::is_iec559 && std::numeric_limits<float>::digits == 24);", ""]
     let body := if emission.lines.any (fun line => (line.splitOn "input.").length > 1)

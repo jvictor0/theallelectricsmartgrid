@@ -39,13 +39,13 @@ def denominator (k g₁ g₂ g₃ g₄ : K) : K[X] :=
 theorem loop_solved (f : TPTLadder K) (input : Sample K) (h : 1 + f.k * f.gain ≠ 0) :
     (step f input).drive = input.x - f.k * (step f input).stage4.y := by
   simp only [gain] at h
-  simp only [step, OnePoleTPTLowPass.step_y]
+  simp only [step, OnePoleTPTLowPass.step_y, fma_eq, neg_mul, ← sub_eq_neg_add]
   set d := (input.x - f.k * f.stage4.respond (f.stage3.respond (f.stage2.respond
-    (f.stage1.respond 0)))) / (1 + f.k * (f.stage1.G * f.stage2.G * f.stage3.G * f.stage4.G))
-  have hd : d * (1 + f.k * (f.stage1.G * f.stage2.G * f.stage3.G * f.stage4.G)) =
+    (f.stage1.respond 0)))) / (f.k * (f.stage1.G * f.stage2.G * f.stage3.G * f.stage4.G) + 1)
+  have hd : d * (f.k * (f.stage1.G * f.stage2.G * f.stage3.G * f.stage4.G) + 1) =
       input.x - f.k * f.stage4.respond (f.stage3.respond (f.stage2.respond (f.stage1.respond 0))) :=
-    div_mul_cancel₀ _ h
-  simp only [OnePoleTPTLowPass.respond_eq] at hd ⊢
+    div_mul_cancel₀ _ (by simpa only [add_comm] using h)
+  simp only [fma_eq, OnePoleTPTLowPass.respond_eq] at hd ⊢
   linear_combination hd
 
 theorem denominator_ne_zero (f : TPTLadder K) (g₁ g₂ g₃ g₄ : K) (h : f.Ready g₁ g₂ g₃ g₄) :

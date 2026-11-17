@@ -11,6 +11,7 @@
 #include "LinkwitzRileyCrossoverGeneric.hpp"
 #include "CoupledProcessorGeneric.hpp"
 #include "ArithmeticProcessorGeneric.hpp"
+#include "FMAProcessorGeneric.hpp"
 
 #include <cstdint>
 #include <cstring>
@@ -140,6 +141,18 @@ auto StateFields(ArithmeticProcessorGeneric<Number, Size>& processor)
     return std::tie(processor.m_state.m_left, processor.m_state.m_right);
 }
 
+template<typename Number, size_t Size>
+auto StateFields(FMAProcessorGeneric<Number, Size>& processor)
+{
+    return std::tie(processor.m_state.m_left, processor.m_state.m_right);
+}
+
+template<typename Number, size_t Size>
+auto ResultFields(FMAProcessorGeneric<Number, Size>& processor)
+{
+    return std::tuple_cat(StateFields(processor), std::tie(processor.m_output.m_x));
+}
+
 template<typename Processor>
 auto ResultFields(Processor& processor)
 {
@@ -226,6 +239,11 @@ bool Run(size_t steps)
 template<typename Number, size_t Size>
 bool RunKind(const std::string& kind, size_t steps)
 {
+    if (kind == "fma")
+    {
+        return Run<FMAProcessorGeneric<Number, Size>, Number, Size>(steps);
+    }
+
     if (kind == "arithmetic")
     {
         return Run<ArithmeticProcessorGeneric<Number, Size>, Number, Size>(steps);

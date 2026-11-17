@@ -73,27 +73,28 @@ theorem streams (g : K) (ht : f.Tuned g) (hr : f.AtRest) :
   refine ⟨?_, ?_, ?_⟩
   · apply Bilinear.integrator (fun n => (trajectory f u n).ic1) _ _ g hr.ic1
     · intro n
-      simp only [Bilinear.response, Step.states_succ, step]
+      simp only [fma_eq, Bilinear.response, Step.states_succ, step]
       ring
     · intro n
       obtain ⟨hk, h1, h2, h3⟩ := hc n
-      simp only [Bilinear.response, Step.states_succ, step, hk, h1, h2, h3]
+      simp only [fma_eq, Bilinear.response, Step.states_succ, step, hk, h1, h2, h3]
       rw [ht.a3, ht.a2]
       linear_combination ((trajectory f u n).ic1 + g * (u n - (trajectory f u n).ic2)) * ht.solve
   · apply Bilinear.integrator (fun n => (trajectory f u n).ic2) _ _ g hr.ic2
     · intro n
-      simp only [Bilinear.response, Step.states_succ, step]
+      simp only [fma_eq, Bilinear.response, Step.states_succ, step]
       ring
     · intro n
       obtain ⟨hk, h1, h2, h3⟩ := hc n
-      simp only [Bilinear.response, Step.states_succ, step, hk, h1, h2, h3]
+      simp only [fma_eq, Bilinear.response, Step.states_succ, step, hk, h1, h2, h3]
       rw [ht.a3, ht.a2]
       ring
   · rw [← Bilinear.ser_mul, ← Bilinear.ser_sub, ← Bilinear.ser_sub]
     apply Bilinear.ser_congr
     intro n
     obtain ⟨hk, -⟩ := hc n
-    simp only [Bilinear.response, Step.states_succ, step, hk]
+    simp only [fma_eq, Bilinear.response, Step.states_succ, step, hk]
+    ring
 
 end Streams
 

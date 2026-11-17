@@ -95,7 +95,7 @@ theorem zoh_advance_eq (T τ input initial : ℝ) (hT : 0 ≤ T) :
   rw [hi] at he
   rw [← he]
   funext i
-  simp only [q, onePoleStep_eq]
+  simp only [q, onePoleStep_eq, fma_eq]
   ring
 
 theorem onePole_implements_interval (T τ input initial : ℝ)

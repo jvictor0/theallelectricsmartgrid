@@ -1,3 +1,4 @@
+import DSP.FMA.Algebra
 import DSP.StateSpace.Basic
 import Mathlib.LinearAlgebra.Matrix.ToLin
 import Mathlib.Data.Fin.VecNotation
@@ -18,16 +19,21 @@ theorem orderedSum_eq_sum [AddCommMonoid R] (n : ℕ) (f : Fin n → R) :
       rw [orderedSum, ih]
       exact (Fin.sum_univ_castSucc f).symm
 
-theorem dot_eq_dotProduct [Semiring R] (a b : Fin n → R) : dot a b = a ⬝ᵥ b :=
-  orderedSum_eq_sum _ _
+theorem dot_eq_dotProduct [Semiring R] (a b : Fin n → R) : dot a b = a ⬝ᵥ b := by
+  induction n using Nat.twoStepInduction with
+  | zero => simp [dot, dotProduct]
+  | one => simp [dot, dotProduct]
+  | more n _ ih =>
+      rw [dot, fma_eq, ih]
+      simpa [dotProduct, add_comm] using (Fin.sum_univ_castSucc (fun i => a i * b i)).symm
 
 theorem advance_eq [Semiring R] (s : StateSpace n R) (q : Fin n → R) (u : R) :
     s.advance q u = s.A *ᵥ q + (fun i => s.B i * u) := by
   funext i
-  simp [advance, dot_eq_dotProduct, mulVec]
+  simp [advance, dot_eq_dotProduct, mulVec, add_comm]
 
 theorem observe_eq [Semiring R] (s : StateSpace n R) (q : Fin n → R) (u : R) :
-    s.observe q u = s.C ⬝ᵥ q + s.D * u := by rw [observe, dot_eq_dotProduct]
+    s.observe q u = s.C ⬝ᵥ q + s.D * u := by simp [observe, dot_eq_dotProduct, add_comm]
 
 theorem advance_smul [CommSemiring R] (s : StateSpace n R) (c : R) (q : Fin n → R) (u : R) :
     s.advance (c • q) (c * u) = c • s.advance q u := by

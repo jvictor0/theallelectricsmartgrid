@@ -18,12 +18,12 @@ structure TPTLadder (R : Type) where
 
 namespace TPTLadder
 
-variable {R : Type} [OfNat R 0] [OfNat R 1] [Add R] [Sub R] [Mul R] [Div R]
+variable {R : Type} [OfNat R 0] [OfNat R 1] [Sub R] [Neg R] [Mul R] [FMA R] [Div R]
 
 def step (f : TPTLadder R) (input : Sample R) : TPTLadder R :=
   let response := f.stage4.respond (f.stage3.respond (f.stage2.respond (f.stage1.respond 0)))
   let gain := f.stage1.G * f.stage2.G * f.stage3.G * f.stage4.G
-  let drive := (input.x - f.k * response) / (1 + f.k * gain)
+  let drive := (FMA.fma (-f.k) response input.x) / (FMA.fma f.k gain 1)
   let stage1 := f.stage1.step ⟨drive⟩
   let stage2 := f.stage2.step ⟨stage1.y⟩
   let stage3 := f.stage3.step ⟨stage2.y⟩

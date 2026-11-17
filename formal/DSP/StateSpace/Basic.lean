@@ -1,4 +1,5 @@
 import DSP.Processor.Run
+import DSP.FMA
 
 namespace DSP
 
@@ -38,14 +39,20 @@ def snapshot {R : Type} : (n : Nat) → (Fin n → R) → Snapshot n R
     · rfl
     · exact congrFun (ih (fun i => f i.succ)) j
 
-variable {n : Nat} {R : Type} [OfNat R 0] [Add R] [Mul R]
+/-- Ascending dot product, accumulating with one FMA per additional term.
+A singleton is just a product; an empty dot product is zero. -/
+def dot {R : Type} [OfNat R 0] [Mul R] [FMA R] : {n : Nat} → (Fin n → R) → (Fin n → R) → R
+  | 0, _, _ => 0
+  | 1, a, b => a 0 * b 0
+  | n + 2, a, b => FMA.fma (a (Fin.last (n + 1))) (b (Fin.last (n + 1)))
+      (dot (fun i => a i.castSucc) (fun i => b i.castSucc))
 
-def dot (a b : Fin n → R) : R := orderedSum n (fun i => a i * b i)
+variable {n : Nat} {R : Type} [OfNat R 0] [Mul R] [FMA R]
 
 def advance (s : StateSpace n R) (q : Fin n → R) (u : R) : Fin n → R :=
-  fun i => dot (s.A i) q + s.B i * u
+  fun i => FMA.fma (s.B i) u (dot (s.A i) q)
 
-def observe (s : StateSpace n R) (q : Fin n → R) (u : R) : R := dot s.C q + s.D * u
+def observe (s : StateSpace n R) (q : Fin n → R) (u : R) : R := FMA.fma s.D u (dot s.C q)
 
 def processor (s : StateSpace n R) : Processor (Fin n → R) R R :=
   fun q u =>

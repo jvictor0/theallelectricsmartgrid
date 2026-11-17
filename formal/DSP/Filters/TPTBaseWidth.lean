@@ -11,7 +11,7 @@ structure TPTBaseWidth (R : Type) where
 
 namespace TPTBaseWidth
 
-variable {R : Type} [Add R] [Sub R] [Mul R]
+variable {R : Type} [Sub R] [FMA R]
 
 def step (f : TPTBaseWidth R) (input : Sample R) : TPTBaseWidth R :=
   let highPass := f.highPass.step input

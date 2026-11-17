@@ -13,7 +13,7 @@ structure LinkwitzRileyCrossover (R : Type) where
 
 namespace LinkwitzRileyCrossover
 
-variable {R : Type} [Add R] [Sub R] [Mul R] [OfNat R 2]
+variable {R : Type} [Add R] [Sub R] [Neg R] [Mul R] [FMA R] [OfNat R 2]
 
 def step (f : LinkwitzRileyCrossover R) (input : Sample R) : LinkwitzRileyCrossover R :=
   let first := f.first.step input

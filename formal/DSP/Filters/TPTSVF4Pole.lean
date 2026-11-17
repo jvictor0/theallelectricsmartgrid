@@ -11,7 +11,7 @@ structure TPTSVF4Pole (R : Type) where
 
 namespace TPTSVF4Pole
 
-variable {R : Type} [Add R] [Sub R] [Mul R] [OfNat R 2]
+variable {R : Type} [Add R] [Sub R] [Neg R] [Mul R] [FMA R] [OfNat R 2]
 
 def stepHighPass (f : TPTSVF4Pole R) (input : Sample R) : TPTSVF4Pole R :=
   let stage1 := f.stage1.step input

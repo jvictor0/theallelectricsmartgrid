@@ -45,8 +45,9 @@ Every TPT filter passes through the same stages. `TPTSVF` as an example:
    the compiled header side by side, requires bit-identical results, and audits
    the theorems' axioms.
 
-Stages 1 to 4 are proved. Stages 5 and 6 are tested: the exporter and the C++
-compiler are trusted, and floating-point error is outside the theorems.
+The proofs cover the exact-arithmetic interpretation of the shared recurrence.
+Floating-point specialization and C++ export are tested; floating-point error
+and compiler correctness are outside the theorems.
 
 ZOH and TPT discretize the same analog prototype differently. ZOH solves the
 ODE exactly for an input held constant across each sample, so its samples equal
@@ -67,6 +68,7 @@ than sample-exact in time.
 | [Signals](Signals.lean), [Filter](Filter.lean) | Signal sampling and the independent analog/digital `Implements` contract |
 | [Processor](Processor.lean), [Run](Processor/Run.lean), [Simulation](Processor/Simulation.lean) | `State → Input → State × Output`, stream execution, uniqueness and simulation |
 | [Step](Step.lean) | State-only `State → Input → State` filters, the shared `Sample` input, trajectories, component projection and invariants |
+| [FMA](FMA.lean), [FMA.Algebra](FMA/Algebra.lean) | Explicit fused multiply-add for `Float`, `Float32` and channels; exact multiply-add interpretation for the proofs |
 | [IfLess](IfLess.lean) | The per-channel select `a < b ? x : y` for `Float`, `Float32` and channels, and its lawful scalar form |
 | [Transfer.Bilinear](Transfer/Bilinear.lean) | Streams as Laurent series, the bilinear homomorphism, `Realizes`, the trapezoidal integrator and composition lemmas |
 | [StateSpace.Basic](StateSpace/Basic.lean) | Fixed-dimensional A/B/C/D, ordered executable arithmetic, `advance`, `observe`, `processor`, `processorNext` |
@@ -94,7 +96,12 @@ Each filter's runtime definition is beside its `Proofs` module.
 `DSP.Filters.TPTSVF`, `DSP.StateSpace.Basic` or `DSP.IIR.Basic` to use only
 Lean's executable core, without Mathlib. Runtime definitions require arithmetic
 operations rather than field laws, so they accept `Float` and `Float32` without
-asserting false algebraic identities about floating-point arithmetic.
+asserting false algebraic identities about floating-point arithmetic. `FMA`
+follows the same arithmetic-operation pattern as `IfLess`: native `fma`/`fmaf`
+for floating point, pointwise for channels, and exact `a*b+c` in the proofs.
+`LawfulFMA` is available only for the exact interpretation. Scalar and channel
+proofs continue to cover the shared steps; runtime tests check the fused
+rounding. Explicit FMA can change low bits compared with separate operations.
 
 ## State space, transfer and ODEs
 
@@ -106,7 +113,7 @@ discrete:   q[k+1] = A q[k] + B u[k], y[k] = C q[k] + D u[k]
 ```
 
 The interpretations are separate. A discrete `advance` is executable, and
-`advance_eq` proves that its ascending, left-associated sums equal matrix
+`advance_eq` proves that its ascending FMA accumulations equal matrix
 arithmetic over exact rings. `snapshot` evaluates every new coordinate before
 returning the state; histories do the same on shift. This prevents function-backed
 vectors from retaining deferred computations across samples. The initial state
@@ -199,11 +206,10 @@ we do not discard its natural response.
 
 ```
 alpha = 1 - exp(-T/τ)
-yNext = (1-alpha)*y + alpha*x
+yNext = fma(alpha, x, (1-alpha)*y)
 ```
 
-Apart from the app's fused multiply-add, this is the app's recurrence; IEEE
-addition is commutative, so the operand order of the sum does not matter.
+This matches the app's recurrence, including its explicit fused multiply-add.
 `OnePoleZOHLowPass.onePoleStep` delegates to `StateSpace.advance` in dimension one;
 `step` stores the updated output `y` as the state.
 `zoh_advance_eq` identifies that operation with generic exact discretization;
@@ -220,9 +226,9 @@ zero-delay-feedback coefficient G = g/(1+g), the trapezoidal integrator state s
 and the most recent output y:
 
 ```
-v = (x - s)*G
-y = v + s
-sNext = y + v
+delta = x - s
+y = fma(delta, G, s)
+sNext = fma(delta, G, y)
 ```
 
 The stored output observes the current input. `exported_real_step` and `run_eq` prove
@@ -283,7 +289,7 @@ All proofs reuse a few lemmas:
 | `TPTLadder` | `stage4.y` | g₁g₂g₃g₄/(∏(s+gᵢ) + k g₁g₂g₃g₄) |
 | `LinkwitzRileyCrossover` | `lowSecond.lowPass`, `highSecond.highPass` | products of the sections' lowpass or highpass responses |
 
-`TPTSVF` follows the app's `LinearStateVariableFilter` operation order with
+`TPTSVF` uses the app's `LinearStateVariableFilter` recurrence with explicit FMA and
 a1 = 1/(1+g(g+k)), a2 = g a1, a3 = g a2; `streams` derives the analog SVF's two
 integrator equations and summing junction from the stored responses, and the
 four transfers are solved from them. The notch is stored as lowpass plus
@@ -291,7 +297,7 @@ highpass, so its theorem is the sum of theirs.
 
 `MorphingTPTSVF` stores the clamped `blend` and its `cosine` and `sine`, computed
 by the caller. Like the app's `GetMorphedOutput`, it mixes both the
-lowpass/bandpass and the bandpass/highpass halves in the app's operation order,
+lowpass/bandpass and the bandpass/highpass halves, using FMA for each sum,
 then selects with `IfLess 0.5 blend`, the app's `Vector::IfLess`. `IfLess` is a
 small arithmetic operation: an ordinary branch on `Float`, and pointwise on
 channels, so every channel picks its own half. `LawfulIfLess` exposes a scalar
@@ -368,7 +374,7 @@ These theorems cover the exact model over `Fin n → K`. The
 `MultiChannelNumber<Number, Size>` arithmetic, producing `Generic` headers for
 the ZOH and TPT filters and the coupled state-space example. Numeric fields
 and temporaries are vectors, literals are splats, and the morph uses
-`Vector::IfLess`. As with scalar export, the shared recurrence connects the
+`Vector::IfLess`; explicit FMA uses `Vector::FusedMultiplyAdd`. As with scalar export, the shared recurrence connects the
 proofs and code; the exporter is tested rather than verified. See the
 [codegen guide](Codegen/README.md) for the interface and supported operations.
 
@@ -383,7 +389,7 @@ make lean-dsp-test
 
 The DSP target builds the theory with warnings treated as errors, audits all
 transitive DSP declarations for unexpected axioms/admissions, runs native
-Float/Float32 checks, generates C++ and compares 32,256 native Lean/C++ cases bit
+Float/Float32 checks, generates C++ and compares 32,268 native Lean/C++ cases bit
 for bit. It also checks multichannel trajectories against native Lean at both
 precisions and widths 1, 2, 3 and 4. The coupled example exercises every stored
 coefficient, two interacting state variables, nonzero feedthrough and

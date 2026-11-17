@@ -3,11 +3,12 @@
 // Generated from DSP.Coupled.processor. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
-// Compile with strict floating-point arithmetic and contraction disabled.
+// Compile with strict floating-point arithmetic and implicit contraction disabled.
 //
 
 #include <limits>
 #include <array>
+#include <cmath>
 
 #include "MultiChannelNumber.hpp"
 #include <type_traits>
@@ -50,44 +51,38 @@ struct CoupledProcessorGeneric
     void Process(Input& input)
     {
         const Vector v0 = (m_state.m_model.m_A[0][0] * m_state.m_q[0]);
-        const Vector v1 = (m_state.m_model.m_A[0][1] * m_state.m_q[1]);
-        const Vector v2 = (v0 + v1);
-        const Vector v3 = (m_state.m_model.m_B[0] * input.m_x);
-        const Vector v4 = (v2 + v3);
-        const Vector v5 = (m_state.m_model.m_A[1][0] * m_state.m_q[0]);
-        const Vector v6 = (m_state.m_model.m_A[1][1] * m_state.m_q[1]);
-        const Vector v7 = (v5 + v6);
-        const Vector v8 = (m_state.m_model.m_B[1] * input.m_x);
-        const Vector v9 = (v7 + v8);
-        const Vector v10 = (m_state.m_model.m_C[0] * m_state.m_q[0]);
-        const Vector v11 = (m_state.m_model.m_C[1] * m_state.m_q[1]);
-        const Vector v12 = (v10 + v11);
-        const Vector v13 = (m_state.m_model.m_D * input.m_x);
-        const Vector v14 = (v12 + v13);
-        const Vector v15 = m_state.m_model.m_A[0][0];
-        const Vector v16 = m_state.m_model.m_A[0][1];
-        const Vector v17 = m_state.m_model.m_A[1][0];
-        const Vector v18 = m_state.m_model.m_A[1][1];
-        const Vector v19 = m_state.m_model.m_B[0];
-        const Vector v20 = m_state.m_model.m_B[1];
-        const Vector v21 = m_state.m_model.m_C[0];
-        const Vector v22 = m_state.m_model.m_C[1];
-        const Vector v23 = m_state.m_model.m_D;
-        const Vector v24 = v4;
-        const Vector v25 = v9;
-        const Vector v26 = v14;
-        m_state.m_model.m_A[0][0] = v15;
-        m_state.m_model.m_A[0][1] = v16;
-        m_state.m_model.m_A[1][0] = v17;
-        m_state.m_model.m_A[1][1] = v18;
-        m_state.m_model.m_B[0] = v19;
-        m_state.m_model.m_B[1] = v20;
-        m_state.m_model.m_C[0] = v21;
-        m_state.m_model.m_C[1] = v22;
-        m_state.m_model.m_D = v23;
-        m_state.m_q[0] = v24;
-        m_state.m_q[1] = v25;
-        m_output.m_y = v26;
+        const Vector v1 = Vector::FusedMultiplyAdd(m_state.m_model.m_A[0][1], m_state.m_q[1], v0);
+        const Vector v2 = Vector::FusedMultiplyAdd(m_state.m_model.m_B[0], input.m_x, v1);
+        const Vector v3 = (m_state.m_model.m_A[1][0] * m_state.m_q[0]);
+        const Vector v4 = Vector::FusedMultiplyAdd(m_state.m_model.m_A[1][1], m_state.m_q[1], v3);
+        const Vector v5 = Vector::FusedMultiplyAdd(m_state.m_model.m_B[1], input.m_x, v4);
+        const Vector v6 = (m_state.m_model.m_C[0] * m_state.m_q[0]);
+        const Vector v7 = Vector::FusedMultiplyAdd(m_state.m_model.m_C[1], m_state.m_q[1], v6);
+        const Vector v8 = Vector::FusedMultiplyAdd(m_state.m_model.m_D, input.m_x, v7);
+        const Vector v9 = m_state.m_model.m_A[0][0];
+        const Vector v10 = m_state.m_model.m_A[0][1];
+        const Vector v11 = m_state.m_model.m_A[1][0];
+        const Vector v12 = m_state.m_model.m_A[1][1];
+        const Vector v13 = m_state.m_model.m_B[0];
+        const Vector v14 = m_state.m_model.m_B[1];
+        const Vector v15 = m_state.m_model.m_C[0];
+        const Vector v16 = m_state.m_model.m_C[1];
+        const Vector v17 = m_state.m_model.m_D;
+        const Vector v18 = v2;
+        const Vector v19 = v5;
+        const Vector v20 = v8;
+        m_state.m_model.m_A[0][0] = v9;
+        m_state.m_model.m_A[0][1] = v10;
+        m_state.m_model.m_A[1][0] = v11;
+        m_state.m_model.m_A[1][1] = v12;
+        m_state.m_model.m_B[0] = v13;
+        m_state.m_model.m_B[1] = v14;
+        m_state.m_model.m_C[0] = v15;
+        m_state.m_model.m_C[1] = v16;
+        m_state.m_model.m_D = v17;
+        m_state.m_q[0] = v18;
+        m_state.m_q[1] = v19;
+        m_output.m_y = v20;
     }
 
 };

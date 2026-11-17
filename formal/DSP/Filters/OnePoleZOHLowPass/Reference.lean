@@ -1,3 +1,4 @@
+import DSP.FMA.Algebra
 import DSP.Filter
 import DSP.Filters.OnePoleZOHLowPass
 import Mathlib.Analysis.Calculus.Deriv.MeanValue
@@ -78,7 +79,7 @@ theorem onePole_implements_interval (T τ input initial : ℝ)
       _ = Real.exp (-T / τ) * g T := by dsimp [g]; ring
       _ = Real.exp (-T / τ) * g 0 := by rw [hconstant]
       _ = Real.exp (-T / τ) * (initial - input) := by simp [g, hinit]
-  simp only [onePoleStep_eq]
+  simp only [onePoleStep_eq, fma_eq]
   linear_combination hresidual
 
 /-- The exported step's real specialization returns the analog endpoint. -/

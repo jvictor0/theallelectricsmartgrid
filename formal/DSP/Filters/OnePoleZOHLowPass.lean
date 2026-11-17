@@ -11,7 +11,7 @@ structure OnePoleZOHLowPass (R : Type) where
 
 namespace OnePoleZOHLowPass
 
-variable {R : Type} [OfNat R 0] [OfNat R 1] [Add R] [Sub R] [Mul R]
+variable {R : Type} [OfNat R 0] [OfNat R 1] [Sub R] [Mul R] [FMA R]
 
 /-! The same arithmetic is interpreted by the chosen number type. These
 definitions require operations, not algebraic laws: Float need not satisfy
@@ -29,7 +29,7 @@ def discrete (alpha : R) : StateSpace 1 R where
   (discrete alpha).advance (fun _ => state) input 0
 
 @[simp] theorem onePoleStep_eq (alpha input state : R) :
-    onePoleStep alpha input state = (1 - alpha) * state + alpha * input := rfl
+    onePoleStep alpha input state = FMA.fma alpha input ((1 - alpha) * state) := rfl
 
 @[inline] def process (f : OnePoleZOHLowPass R) (input : R) : OnePoleZOHLowPass R :=
   { f with y := onePoleStep f.alpha input f.y }

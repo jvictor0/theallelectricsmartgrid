@@ -44,10 +44,10 @@ the stored output is the state-space observation of the old state. -/
 theorem exported_real_step (f : OnePoleTPTLowPass K) (input : Sample K) :
     (fun _ : Fin 1 => (step f input).s, (step f input).y) =
       (discrete f.G).processor (fun _ => f.s) input.x := by
-  simp only [StateSpace.processor, StateSpace.snapshot_values, StateSpace.observe,
-    StateSpace.dot, StateSpace.orderedSum, discrete, step_s, step_y, respond_eq]
+  simp only [fma_eq, StateSpace.processor, StateSpace.snapshot_values, StateSpace.observe,
+    StateSpace.dot, discrete, step_s, step_y, respond_eq]
   refine Prod.ext (funext fun _ => ?_) ?_ <;>
-    simp only [StateSpace.advance, StateSpace.dot, StateSpace.orderedSum] <;> ring
+    simp only [StateSpace.advance, StateSpace.dot, fma_eq] <;> ring
 
 theorem states_eq (u : ℕ → K) (initial : OnePoleTPTLowPass K) (n : ℕ) :
     (Step.states step (fun k => ⟨u k⟩) initial n).G = initial.G ∧
@@ -83,7 +83,7 @@ theorem trapezoidal [Field K] (g : K) (hg : 1 + g ≠ 0) (u : ℕ → K) (s y₀
     y (n + 1) = y n + g * ((u (n + 1) - y (n + 1)) + (u n - y n)) := by
   intro y
   have hG := fun k => (states_eq u ({ G := g / (1 + g), s := s, y := y₀ } : OnePoleTPTLowPass K) k).1
-  simp only [y, Step.states_succ, step_y, step_s, respond_eq, hG]
+  simp only [fma_eq, y, Step.states_succ, step_y, step_s, respond_eq, hG]
   field_simp
   ring
 
@@ -110,9 +110,9 @@ theorem realizes [Field K] (f : OnePoleTPTLowPass K) (g : K) (hG : f.G * (1 + g)
   have hGn : ∀ n, (st n).G = f.G := fun n => Step.states_invariant step (·.G) (fun _ _ => rfl) _ f n
   have hI := Bilinear.integrator (fun n => (st n).s) (fun n => (st (n + 1)).y)
     (fun n => u n - (st (n + 1)).y) g hs
-    (fun n => by simp only [st, Step.states_succ, step_s, step_y, respond_eq]; ring)
+    (fun n => by simp only [fma_eq, st, Step.states_succ, step_s, step_y, respond_eq]; ring)
     (fun n => by
-      simp only [st, Step.states_succ, step_y, respond_eq]
+      simp only [fma_eq, st, Step.states_succ, step_y, respond_eq]
       rw [hGn]
       linear_combination (u n - (st n).s) * hG)
   rw [Bilinear.ser_sub] at hI

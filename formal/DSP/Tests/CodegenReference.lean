@@ -235,3 +235,30 @@ def main : IO Unit := do
       out.putStrLn s!"arithmetic32 {state32.left.toBits} {state32.right.toBits} {x32.toBits} {bits32 [next32.left, next32.right, output32.x]}"
       state := next
       state32 := next32
+
+  -- Known IEEE results cover cancellation, intermediate overflow, subnormals,
+  -- signed zero and infinity. Separate multiply/add fails the first two cases.
+  let fusedCases : List (UInt64 × UInt64 × UInt64 × UInt64) := [
+    (0x3ff0000000000001, 0x3feffffffffffffe, 0xbff0000000000000, 0xb970000000000000),
+    (0x7fefffffffffffff, 0x4000000000000000, 0xffefffffffffffff, 0x7fefffffffffffff),
+    (0x0010000000000000, 0x3fe0000000000000, 0x8000000000000001, 0x0007ffffffffffff),
+    (0x8000000000000000, 0x3ff0000000000000, 0x8000000000000000, 0x8000000000000000),
+    (0x0000000000000000, 0x3ff0000000000000, 0x8000000000000000, 0x0000000000000000),
+    (0x7ff0000000000000, 0x3ff0000000000000, 0x3ff0000000000000, 0x7ff0000000000000)]
+  for (a, b, c, expected) in fusedCases do
+    let (state, output) := DSP.Tests.fmaProcessor ⟨Float.ofBits a, Float.ofBits c⟩ ⟨Float.ofBits b⟩
+    unless output.x.toBits == expected do
+      throw (IO.userError s!"Float FMA rounding failed: {a} {b} {c}; got {output.x.toBits}, expected {expected}")
+    out.putStrLn s!"fma {a} {c} {b} {bits [state.left, state.right, output.x]}"
+  let fusedCases32 : List (UInt32 × UInt32 × UInt32 × UInt32) := [
+    (0x3f800001, 0x3f7ffffe, 0xbf800000, 0xa8800000),
+    (0x7f7fffff, 0x40000000, 0xff7fffff, 0x7f7fffff),
+    (0x00800000, 0x3f000000, 0x80000001, 0x003fffff),
+    (0x80000000, 0x3f800000, 0x80000000, 0x80000000),
+    (0x00000000, 0x3f800000, 0x80000000, 0x00000000),
+    (0x7f800000, 0x3f800000, 0x3f800000, 0x7f800000)]
+  for (a, b, c, expected) in fusedCases32 do
+    let (state, output) := DSP.Tests.fmaProcessor ⟨Float32.ofBits a, Float32.ofBits c⟩ ⟨Float32.ofBits b⟩
+    unless output.x.toBits == expected do
+      throw (IO.userError s!"Float32 FMA rounding failed: {a} {b} {c}; got {output.x.toBits}, expected {expected}")
+    out.putStrLn s!"fma32 {a} {c} {b} {bits32 [state.left, state.right, output.x]}"

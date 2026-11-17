@@ -3,11 +3,12 @@
 // Generated from DSP.MorphingTPTSVF.stepFloat. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
-// Compile with strict floating-point arithmetic and contraction disabled.
+// Compile with strict floating-point arithmetic and implicit contraction disabled.
 //
 
 #include <limits>
 #include <array>
+#include <cmath>
 
 struct MorphingTPTSVF
 {
@@ -47,65 +48,60 @@ struct MorphingTPTSVF
     {
         const double v0 = (input.m_x - m_state.m_svf.m_ic2);
         const double v1 = (m_state.m_svf.m_a1 * m_state.m_svf.m_ic1);
-        const double v2 = (m_state.m_svf.m_a2 * v0);
-        const double v3 = (v1 + v2);
-        const double v4 = (m_state.m_svf.m_a2 * m_state.m_svf.m_ic1);
-        const double v5 = (m_state.m_svf.m_ic2 + v4);
-        const double v6 = (m_state.m_svf.m_a3 * v0);
-        const double v7 = (v5 + v6);
-        const double v8 = (m_state.m_svf.m_k * v3);
-        const double v9 = (input.m_x - v8);
-        const double v10 = (v9 - v7);
-        const double v11 = (v3 * 0x10000000000000p-51);
-        const double v12 = (v11 - m_state.m_svf.m_ic1);
-        const double v13 = (v7 * 0x10000000000000p-51);
-        const double v14 = (v13 - m_state.m_svf.m_ic2);
-        const double v15 = (v7 + v10);
-        const double v16 = (v7 * m_state.m_cosine);
-        const double v17 = (v3 * m_state.m_sine);
-        const double v18 = (v16 + v17);
-        const double v19 = (v3 * m_state.m_cosine);
-        const double v20 = (v10 * m_state.m_sine);
-        const double v21 = (v19 + v20);
-        const bool v22 = (0x10000000000000p-53 < m_state.m_blend);
-        double v23;
-        if (v22)
+        const double v2 = std::fma(m_state.m_svf.m_a2, v0, v1);
+        const double v3 = std::fma(m_state.m_svf.m_a2, m_state.m_svf.m_ic1, m_state.m_svf.m_ic2);
+        const double v4 = std::fma(m_state.m_svf.m_a3, v0, v3);
+        const double v5 = (-m_state.m_svf.m_k);
+        const double v6 = std::fma(v5, v2, input.m_x);
+        const double v7 = (v6 - v4);
+        const double v8 = (-m_state.m_svf.m_ic1);
+        const double v9 = std::fma(v2, 0x10000000000000p-51, v8);
+        const double v10 = (-m_state.m_svf.m_ic2);
+        const double v11 = std::fma(v4, 0x10000000000000p-51, v10);
+        const double v12 = (v4 + v7);
+        const double v13 = (v4 * m_state.m_cosine);
+        const double v14 = std::fma(v2, m_state.m_sine, v13);
+        const double v15 = (v2 * m_state.m_cosine);
+        const double v16 = std::fma(v7, m_state.m_sine, v15);
+        const bool v17 = (0x10000000000000p-53 < m_state.m_blend);
+        double v18;
+        if (v17)
         {
-            v23 = v21;
+            v18 = v16;
         }
         else
         {
-            v23 = v18;
+            v18 = v14;
         }
 
-        const double v24 = m_state.m_svf.m_k;
-        const double v25 = m_state.m_svf.m_a1;
-        const double v26 = m_state.m_svf.m_a2;
-        const double v27 = m_state.m_svf.m_a3;
+        const double v19 = m_state.m_svf.m_k;
+        const double v20 = m_state.m_svf.m_a1;
+        const double v21 = m_state.m_svf.m_a2;
+        const double v22 = m_state.m_svf.m_a3;
+        const double v23 = v9;
+        const double v24 = v11;
+        const double v25 = v4;
+        const double v26 = v2;
+        const double v27 = v7;
         const double v28 = v12;
-        const double v29 = v14;
-        const double v30 = v7;
-        const double v31 = v3;
-        const double v32 = v10;
-        const double v33 = v15;
-        const double v34 = m_state.m_cosine;
-        const double v35 = m_state.m_sine;
-        const double v36 = m_state.m_blend;
-        const double v37 = v23;
-        m_state.m_svf.m_k = v24;
-        m_state.m_svf.m_a1 = v25;
-        m_state.m_svf.m_a2 = v26;
-        m_state.m_svf.m_a3 = v27;
-        m_state.m_svf.m_ic1 = v28;
-        m_state.m_svf.m_ic2 = v29;
-        m_state.m_svf.m_lowPass = v30;
-        m_state.m_svf.m_bandPass = v31;
-        m_state.m_svf.m_highPass = v32;
-        m_state.m_svf.m_notch = v33;
-        m_state.m_cosine = v34;
-        m_state.m_sine = v35;
-        m_state.m_blend = v36;
-        m_state.m_output = v37;
+        const double v29 = m_state.m_cosine;
+        const double v30 = m_state.m_sine;
+        const double v31 = m_state.m_blend;
+        const double v32 = v18;
+        m_state.m_svf.m_k = v19;
+        m_state.m_svf.m_a1 = v20;
+        m_state.m_svf.m_a2 = v21;
+        m_state.m_svf.m_a3 = v22;
+        m_state.m_svf.m_ic1 = v23;
+        m_state.m_svf.m_ic2 = v24;
+        m_state.m_svf.m_lowPass = v25;
+        m_state.m_svf.m_bandPass = v26;
+        m_state.m_svf.m_highPass = v27;
+        m_state.m_svf.m_notch = v28;
+        m_state.m_cosine = v29;
+        m_state.m_sine = v30;
+        m_state.m_blend = v31;
+        m_state.m_output = v32;
     }
 
 };
