@@ -60,9 +60,10 @@ clang-tidy:
 	cd "$(APP_DIR)" && clang-tidy Source/MainComponent.cpp Source/IOUtils.cpp \
 		--checks='-*,cppcoreguidelines-pro-type-member-init' \
 		--header-filter='private/src/.*' \
-		-- -std=c++17 \
+		-- -std=c++17 -fno-fast-math -ffp-contract=off \
 		-I"$(APP_DIR)/JuceLibraryCode" \
 		-I"$(REPO_ROOT)/private/src" \
+		-I"$(REPO_ROOT)/formal/DSP/generated" \
 		-I"$(REPO_ROOT)/third_party/JUCE/modules" \
 		-I/opt/homebrew/include \
 		-isysroot $$(xcrun --sdk macosx --show-sdk-path) \

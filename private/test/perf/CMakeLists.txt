@@ -33,16 +33,16 @@ foreach(kind voices effects extra auxiliary encoders sgrec density audio_diagnos
     add_executable(perf_${kind} ${kind}.cpp)
     add_dependencies(perf_${kind} perf_build_info)
     target_include_directories(perf_${kind} PRIVATE
-        "${REPO_ROOT}/private/test" "${REPO_ROOT}/private/src" "${BUILD_INFO_DIR}")
+        "${REPO_ROOT}/private/test" "${REPO_ROOT}/private/src" "${REPO_ROOT}/formal/DSP/generated" "${BUILD_INFO_DIR}")
     target_compile_definitions(perf_${kind} PRIVATE
         SMARTGRID_RECORDING_SYSTEM_FLAC=1 SMARTGRID_REPO_ROOT="${REPO_ROOT}")
-    target_compile_options(perf_${kind} PRIVATE -funroll-loops)
+    target_compile_options(perf_${kind} PRIVATE -fno-fast-math -ffp-contract=off -funroll-loops)
     target_link_libraries(perf_${kind} PRIVATE perf_codec Threads::Threads)
 endforeach()
 target_sources(perf_density PRIVATE density_main.cpp)
 target_sources(perf_responses PRIVATE responses_main.cpp)
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/build.json" CONTENT
-"{\"compiler\":\"${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\",\"configuration\":\"${CMAKE_BUILD_TYPE}\",\"lto\":true,\"flags\":\"${CMAKE_CXX_FLAGS_RELEASE} -funroll-loops\"}\n")
+"{\"compiler\":\"${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\",\"configuration\":\"${CMAKE_BUILD_TYPE}\",\"lto\":true,\"flags\":\"${CMAKE_CXX_FLAGS_RELEASE} -fno-fast-math -ffp-contract=off -funroll-loops\"}\n")
 enable_testing()
 add_test(NAME perf_smoke COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run.py"
     --bin-dir "${CMAKE_CURRENT_BINARY_DIR}" --smoke

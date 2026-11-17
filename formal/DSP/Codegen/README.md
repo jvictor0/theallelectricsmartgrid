@@ -6,7 +6,9 @@ three `TPTSVF4Pole` variants, `TPTLadder` and `LinkwitzRileySplitter4BandGeneric
 standalone C++17 header with nested `State` and `Input` records, stored
 `m_state`, and `void Process(Input& input)`. Their processing steps are state-only:
 every audio output they expose is a field of `m_state`. Headers have no Lean runtime
-dependency and are not integrated into the audio app. The separate
+dependency. Delay and reverb now use `TPTBaseWidthGeneric<float, 4>` through
+the app wrapper [TPTBaseWidthFilter.hpp](../../../private/src/TPTBaseWidthFilter.hpp);
+the other generated filters remain separate from app audio processing. The separate
 [CoupledProcessor.hpp](../generated/CoupledProcessor.hpp) exercises the
 `State × Output` form, nested coefficients and two interacting state variables.
 

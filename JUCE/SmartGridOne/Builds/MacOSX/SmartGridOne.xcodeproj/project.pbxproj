@@ -499,12 +499,14 @@
 					"JucePlugin_Build_LV2=0",
 				);
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				OTHER_CPLUSPLUSFLAGS = "$(inherited) -fno-fast-math -ffp-contract=off";
 			HEADER_SEARCH_PATHS = (
 				"$(PROJECT_TEMP_DIR)/SmartGridBuildInfo",
 				"$(PROJECT_TEMP_DIR)/SmartGridJuceModules",
 				"$(SRCROOT)/../../JuceLibraryCode",
 					"$(SRCROOT)/../../../../third_party/JUCE/modules",
 					"$(SRCROOT)/../../../../private/src",
+					"$(SRCROOT)/../../../../formal/DSP/generated",
 					"/opt/homebrew/include",
 					"$(inherited)",
 				);
@@ -571,12 +573,14 @@
 					"JucePlugin_Build_LV2=0",
 				);
 				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				OTHER_CPLUSPLUSFLAGS = "$(inherited) -fno-fast-math -ffp-contract=off";
 			HEADER_SEARCH_PATHS = (
 				"$(PROJECT_TEMP_DIR)/SmartGridBuildInfo",
 				"$(PROJECT_TEMP_DIR)/SmartGridJuceModules",
 				"$(SRCROOT)/../../JuceLibraryCode",
 					"$(SRCROOT)/../../../../third_party/JUCE/modules",
 					"$(SRCROOT)/../../../../private/src",
+					"$(SRCROOT)/../../../../formal/DSP/generated",
 					"/opt/homebrew/include",
 					"$(inherited)",
 				);

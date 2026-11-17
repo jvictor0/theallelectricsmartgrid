@@ -131,6 +131,12 @@ Run
 [codegen guide](../formal/DSP/Codegen/README.md) for the supported Lean subset and
 the distinction between model proofs and code-generation tests.
 
+The app's delay/reverb damping filters now include the checked-in generated TPT
+base-width header. CMake targets and both Xcode projects include
+`formal/DSP/generated` and compile with `-fno-fast-math -ffp-contract=off`, matching
+the codegen arithmetic contract. Explicit `FusedMultiplyAdd` calls remain fused.
+App builds consume the checked-in C++ headers without invoking Lean.
+
 ## Cleanup and completion
 
 When keeping a worktree, `make clean` removes these complete disposable trees,
