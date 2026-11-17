@@ -11,6 +11,18 @@ structure OnePoleZOHLowPass (R : Type) where
 
 namespace OnePoleZOHLowPass
 
+/-- Coefficients determining the frozen filter's transfer function.
+The accumulated output `y` affects transients, not this response. -/
+structure Snapshot (R : Type) where
+  alpha : R
+
+/-- Capture the coefficient currently used by the processing step. -/
+def makeSnapshot {R : Type} (f : OnePoleZOHLowPass R) : Snapshot R :=
+  { alpha := f.alpha }
+
+@[simp] theorem makeSnapshot_alpha {R : Type} (f : OnePoleZOHLowPass R) :
+    f.makeSnapshot.alpha = f.alpha := rfl
+
 variable {R : Type} [OfNat R 0] [OfNat R 1] [Sub R] [Mul R] [FMA R]
 
 /-! The same arithmetic is interpreted by the chosen number type. These
@@ -51,6 +63,10 @@ def stepFloat : Step (OnePoleZOHLowPass Float) (Sample Float) := step
 
 @[simp] theorem step_y (f : OnePoleZOHLowPass R) (input : Sample R) :
     (step f input).y = onePoleStep f.alpha input.x f.y := rfl
+
+/-- Processing changes the output history while preserving the coefficients. -/
+@[simp] theorem makeSnapshot_step (f : OnePoleZOHLowPass R) (input : Sample R) :
+    (step f input).makeSnapshot = f.makeSnapshot := rfl
 
 end OnePoleZOHLowPass
 end DSP

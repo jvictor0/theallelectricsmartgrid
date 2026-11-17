@@ -11,12 +11,19 @@ noncomputable section
 namespace DSP
 
 deriving instance Functor for OnePoleZOHLowPass
+deriving instance Functor for OnePoleZOHLowPass.Snapshot
 
 namespace OnePoleZOHLowPass
 
 open Channels
 
-variable {n : ℕ} {K : Type} [Field K]
+variable {n : ℕ} {K : Type}
+
+/-- Capturing all channels and reading one is the same as capturing that channel. -/
+theorem makeSnapshot_channel (f : OnePoleZOHLowPass (Fin n → K)) (i : Fin n) :
+    channel i f.makeSnapshot = (channel i f).makeSnapshot := rfl
+
+variable [Field K]
 
 theorem natural : Natural (n := n) (step (R := Fin n → K)) step := fun _ _ _ => rfl
 
