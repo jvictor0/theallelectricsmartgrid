@@ -1,4 +1,5 @@
 import DSP.Tests.CodegenFixtures
+import DSP.Tests.ResponseCases
 import DSP.Filters.OnePoleTPTLowPass
 import DSP.Filters.OnePoleTPTHighPass
 import DSP.Filters.TPTBaseWidth
@@ -150,9 +151,35 @@ def emitMagnitudeCases (out : IO.FS.Stream) : IO Unit := do
     emitMagnitude out alpha sinHalf
     emitMagnitude32 out alpha.toFloat32 sinHalf.toFloat32
 
+/-- Each line is one snapshot cohort and one prepared frequency, followed by
+all fourteen TPT response outputs. Float32 is executed independently. -/
+def emitAllResponses (out : IO.FS.Stream) (v : Array Float) (sinHalf cosHalf : Float) : IO Unit := do
+  let f : ResponseFrequency Float := ⟨sinHalf / 2, sinHalf, cosHalf, ⟨-sinHalf, cosHalf⟩⟩
+  let values := DSP.Tests.responseValues v[0]! v[1]! v[2]! v[3]! v[4]! v[5]! v[6]! v[7]! v[8]! v[9]! f
+  out.putStrLn s!"allResponses {bits (v.toList ++ [f.cyclesPerSample, f.sinHalf, f.cosHalf, f.zInverse.real, f.zInverse.imag] ++ values)}"
+  let w := v.map Float.toFloat32
+  let f32 : ResponseFrequency Float32 := ⟨f.cyclesPerSample.toFloat32, sinHalf.toFloat32,
+    cosHalf.toFloat32, ⟨f.zInverse.real.toFloat32, f.zInverse.imag.toFloat32⟩⟩
+  let values32 := DSP.Tests.responseValues w[0]! w[1]! w[2]! w[3]! w[4]! w[5]! w[6]! w[7]! w[8]! w[9]! f32
+  out.putStrLn s!"allResponses32 {bits32 (w.toList ++ [f32.cyclesPerSample, f32.sinHalf, f32.cosHalf,
+    f32.zInverse.real, f32.zInverse.imag] ++ values32)}"
+
+def emitAllResponseCases (out : IO.FS.Stream) : IO Unit := do
+  for g in ([0.0, 1e-6, 0.1, 1.0, 100.0] : List Float) do
+    for pair in ([(0.0,1.0),(1.0,0.0),(0.5,0.8660254037844386)] : List (Float × Float)) do
+      emitAllResponses out #[g, 0.7, 0.3, 1.5, 0.5, 1.0, 1.5, 1.0, -0.3, 0.7] pair.1 pair.2
+  let mut random : UInt64 := 0xabcdef012345
+  for _ in [:512] do
+    let (v, r) := randomValues random 10 0.01 2.0
+    let (s, r) := uniform r 0.0 1.0
+    let (c, r) := uniform r 0.0 1.0
+    random := r
+    emitAllResponses out v s c
+
 def main : IO Unit := do
   let out ← IO.getStdout
   emitMagnitudeCases out
+  emitAllResponseCases out
   let coefficients : Array Float := #[0.0, 1.0, 0.5, 0.999, Float.ofBits 0x3fefffffffffffff,
     Float.ofBits 1]
   let seeds : Array Float := #[0.0, -0.0, 1.0, -1.0, 1000.0, Float.ofBits 1,

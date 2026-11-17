@@ -18,10 +18,14 @@ Each also has a `Generic` header, such as
 The backend in [Cpp.lean](Cpp.lean) reads an elaborated Lean function and its
 record definitions. It does not contain a one-pole arithmetic template.
 
-The [ZOH header](../generated/OnePoleZOHLowPassGeneric.hpp) also contains a
-coefficient-only nested `Snapshot` and static `MagnitudeSquared` method, alongside
-its processing state and `Process`. The scalar ZOH header has the same organization.
-The response is generated from the same Lean definition used in its proofs.
+Every generated filter header also contains a coefficient-only nested
+`Snapshot` and static squared-magnitude response methods, alongside its
+processing state and `Process`. Scalar and Generic headers have the same
+organization. Single-output filters use `MagnitudeSquared`; the SVF and
+crossover provide named methods for their individual outputs. The responses
+are generated from the same Lean definitions used in their proofs. See the
+[response proof walkthrough](../Filters/Responses/README.md) for the transfer
+connection, cascade/mixing/feedback composition, tuning contracts and endpoints.
 
 ## Authoring and generation
 
@@ -76,6 +80,21 @@ to `::ResponseFrequencyGeneric<Vector>` from the app's
 [ResponseFrequency.hpp](../../../private/src/ResponseFrequency.hpp). There is
 no separate response struct or generated frequency copy. `#generate_cpp_filter`
 does the same for a scalar specialization.
+
+Filters with several outputs name each method explicitly. They share a single
+snapshot and frequency type, which the exporter checks by Lean type identity:
+
+```lean
+#generate_cpp_filter_responses_generic DSP.TPTSVF.step
+  [DSP.TPTSVF.Snapshot.lowPassMagnitudeSquared as LowPassMagnitudeSquared,
+   DSP.TPTSVF.Snapshot.bandPassMagnitudeSquared as BandPassMagnitudeSquared,
+   DSP.TPTSVF.Snapshot.highPassMagnitudeSquared as HighPassMagnitudeSquared,
+   DSP.TPTSVF.Snapshot.notchMagnitudeSquared as NotchMagnitudeSquared]
+  as TPTSVFGeneric to "build/lean/generated/TPTSVFGeneric.hpp"
+```
+
+The scalar form is `#generate_cpp_filter_responses`. Empty lists, duplicate or
+reserved method names and mismatched snapshot/frequency types are rejected.
 
 The common C++ record stores `m_cyclesPerSample`, `m_sinHalf`, and `m_cosHalf`
 as vectors, and `m_zInverse` as `MultiChannelComplex`. That existing complex

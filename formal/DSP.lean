@@ -29,3 +29,4 @@ import DSP.Filters.LinkwitzRileyCrossover
 import DSP.Filters.LinkwitzRileyCrossover.Proofs
 import DSP.Transfer.Channels
 import DSP.Filters.Channels
+import DSP.Filters.Responses.Channels

@@ -10,6 +10,8 @@
 #include <array>
 #include <cmath>
 
+#include "ResponseFrequency.hpp"
+
 struct TPTLadder
 {
     static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);
@@ -113,6 +115,64 @@ struct TPTLadder
         m_state.m_stage4.m_G = v38;
         m_state.m_stage4.m_s = v39;
         m_state.m_stage4.m_y = v40;
+    }
+
+    // Response generated from DSP.TPTLadder.Snapshot.magnitudeSquaredFloat.
+    //
+
+    using Frequency = ::ResponseFrequencyGeneric<double>;
+
+    struct Snapshot
+    {
+        double m_g1;
+        double m_g2;
+        double m_g3;
+        double m_g4;
+        double m_k;
+    };
+
+    static double MagnitudeSquared(const Snapshot& snapshot, const Frequency& input)
+    {
+        const double v0 = (snapshot.m_g1 * input.m_cosHalf);
+        const double v1 = (snapshot.m_g2 * input.m_cosHalf);
+        const double v2 = (snapshot.m_g3 * input.m_cosHalf);
+        const double v3 = (snapshot.m_g4 * input.m_cosHalf);
+        const double v4 = (input.m_sinHalf * input.m_sinHalf);
+        const double v5 = (-v4);
+        const double v6 = std::fma(v0, v1, v5);
+        const double v7 = (input.m_sinHalf * v1);
+        const double v8 = std::fma(v0, input.m_sinHalf, v7);
+        const double v9 = (v8 * input.m_sinHalf);
+        const double v10 = (-v9);
+        const double v11 = std::fma(v6, v2, v10);
+        const double v12 = (v8 * v2);
+        const double v13 = std::fma(v6, input.m_sinHalf, v12);
+        const double v14 = (v0 * v1);
+        const double v15 = (v14 * v2);
+        const double v16 = (v15 * v3);
+        const double v17 = (v13 * input.m_sinHalf);
+        const double v18 = (-v17);
+        const double v19 = std::fma(v11, v3, v18);
+        const double v20 = std::fma(snapshot.m_k, v16, v19);
+        const double v21 = (v13 * v3);
+        const double v22 = std::fma(v11, input.m_sinHalf, v21);
+        const double v23 = (v16 * v16);
+        const double v24 = (v16 * v16);
+        const bool v25 = (0.0 < v24);
+        double v28;
+        if (v25)
+        {
+            const double v26 = (v22 * v22);
+            const double v27 = std::fma(v20, v20, v26);
+            v28 = v27;
+        }
+        else
+        {
+            v28 = 1.0;
+        }
+
+        const double v29 = (v23 / v28);
+        return v29;
     }
 
 };

@@ -1,5 +1,6 @@
 import DSP.Codegen.Cpp
 import DSP.Tests.CodegenFixtures
+import DSP.Filters.Responses
 
 #use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
 
@@ -112,3 +113,24 @@ run_cmd liftTermElabM do
       rejected := true
     unless rejected do throwError "C++ codegen incorrectly accepted record {name}"
   logInfo "Shared-record C++ codegen rejection checks passed."
+
+open Lean Elab Command in
+run_cmd liftTermElabM do
+  let low := ``DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquared
+  let high := ``DSP.OnePoleTPTHighPass.Snapshot.magnitudeSquared
+  for (responses, expected) in #[
+      (#[], "at least one response"),
+      (#[(low, "MagnitudeSquared"), (low, "MagnitudeSquared")], "duplicate or reserved"),
+      (#[(low, "Process")], "duplicate or reserved"),
+      (#[(low, "State")], "duplicate or reserved"),
+      (#[(low, "Low"), (high, "High")], "same snapshot and frequency types")] do
+    let mut rejected := false
+    try
+      let _ ← DSP.Codegen.generateFilterResponses ``DSP.OnePoleTPTLowPass.step responses "TestFilter" true
+    catch error =>
+      let message ← error.toMessageData.toString
+      unless (message.splitOn expected).length > 1 do
+        throwError "unexpected response-list rejection: {message}"
+      rejected := true
+    unless rejected do throwError "C++ codegen incorrectly accepted invalid response list"
+  logInfo "Multiple-response C++ codegen rejection checks passed."

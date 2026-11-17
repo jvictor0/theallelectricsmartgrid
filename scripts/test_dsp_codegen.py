@@ -106,13 +106,45 @@ def test_channels(cases, compiler, output, input_counts):
           "at widths 1, 2, 3, 4 in float and double.")
 
 
+def test_all_responses(cases, compiler, output):
+    """Every TPT response at both precisions, independent coefficients in each lane."""
+    runner = output / "responses-runner"
+    subprocess.run(compiler + [
+        "-std=c++17", "-O2", "-fno-fast-math", "-ffp-contract=off",
+        "-Wall", "-Wextra", "-Werror", "-I", str(GENERATED), "-I", str(ROOT / "private/src"),
+        str(ROOT / "formal/DSP/Tests/codegen_responses_runner.cpp"), "-o", str(runner),
+    ], check=True)
+    inputs, expected, labels = [], [], []
+    for precision in (32, 64):
+        tag = "allResponses32" if precision == 32 else "allResponses"
+        rows = [case.split()[1:] for case in cases if case.split()[0] == tag]
+        assert rows, f"No TPT response cases for precision {precision}"
+        for width in (1, 2, 3, 4):
+            for start in range(0, len(rows), width):
+                lanes = rows[start:start + width]
+                lanes += [lanes[-1]] * (width - len(lanes))
+                inputs.append(f"{precision} {width}")
+                inputs.append(" ".join(value for lane in lanes for value in lane[:15]))
+                expected.append(" ".join(value for lane in lanes for value in lane[15:]))
+                labels.append(f"TPT responses, {precision} bits, width {width}, row {start}")
+    actual = subprocess.run([str(runner)], input="\n".join(inputs) + "\n", check=True,
+                            capture_output=True, text=True, timeout=30).stdout.splitlines()
+    assert len(actual) == len(expected), "Different number of TPT response results"
+    for label, found, wanted in zip(labels, actual, expected):
+        assert found == wanted, f"{label}\nLean: {wanted}\nC++: {found}"
+    print(f"TPT response codegen: {len(expected)} vector batches, 14 responses each, match native Lean "
+          "bit for bit in float/double at widths 1, 2, 3, 4; scalar double and independent complex checks pass.")
+
+
 def main():
     reference = subprocess.run(
         [str(BUILD / "artifacts/bin/dsp_codegen_reference")],
         check=True, capture_output=True, text=True, timeout=30,
     ).stdout
     response_cases = [case for case in reference.splitlines() if case.startswith("zohResponse")]
-    cases = [case for case in reference.splitlines() if not case.startswith("zohResponse")]
+    all_response_cases = [case for case in reference.splitlines() if case.startswith("allResponses")]
+    cases = [case for case in reference.splitlines()
+             if not case.startswith(("zohResponse", "allResponses"))]
     assert cases, "Lean produced no reference cases"
     input_counts = {
         "zoh": 3, "tpt": 4, "tptHigh": 5, "baseWidth": 8, "svf": 11, "morph": 15,
@@ -157,6 +189,7 @@ def main():
     print(f"C++ codegen: {len(scalar_cases)} native Lean/C++ cases match bit for bit; snapshot current.")
     test_channels(cases, compiler, output, input_counts)
     test_response(response_cases, output)
+    test_all_responses(all_response_cases, compiler, output)
 
 
 if __name__ == "__main__":

@@ -10,6 +10,8 @@
 #include <array>
 #include <cmath>
 
+#include "ResponseFrequency.hpp"
+
 #include "MultiChannelNumber.hpp"
 #include <type_traits>
 
@@ -99,6 +101,47 @@ struct MorphingTPTSVFGeneric
         m_state.m_sine = v29;
         m_state.m_blend = v30;
         m_state.m_output = v31;
+    }
+
+    // Response generated from DSP.MorphingTPTSVF.Snapshot.magnitudeSquared.
+    //
+
+    using Frequency = ::ResponseFrequencyGeneric<Vector>;
+
+    struct Snapshot
+    {
+        struct
+        {
+            Vector m_g;
+            Vector m_k;
+        } m_svf;
+
+        Vector m_low;
+        Vector m_band;
+        Vector m_high;
+    };
+
+    static Vector MagnitudeSquared(const Snapshot& snapshot, const Frequency& input)
+    {
+        const Vector v0 = (snapshot.m_svf.m_g * input.m_cosHalf);
+        const Vector v1 = (v0 * v0);
+        const Vector v2 = (input.m_sinHalf * input.m_sinHalf);
+        const Vector v3 = (v0 * input.m_sinHalf);
+        const Vector v4 = (snapshot.m_low * v1);
+        const Vector v5 = (snapshot.m_high * v2);
+        const Vector v6 = (v4 - v5);
+        const Vector v7 = (snapshot.m_band * v3);
+        const Vector v8 = (v1 - v2);
+        const Vector v9 = (snapshot.m_svf.m_k * v3);
+        const Vector v10 = (v7 * v7);
+        const Vector v11 = Vector::FusedMultiplyAdd(v6, v6, v10);
+        const Vector v12 = (v7 * v7);
+        const Vector v13 = Vector::FusedMultiplyAdd(v6, v6, v12);
+        const Vector v14 = (v9 * v9);
+        const Vector v15 = Vector::FusedMultiplyAdd(v8, v8, v14);
+        const Vector v16 = Vector::IfLess(Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0)), v13, v15, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
+        const Vector v17 = (v11 / v16);
+        return v17;
     }
 
 };

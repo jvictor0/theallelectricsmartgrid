@@ -10,6 +10,8 @@
 #include <array>
 #include <cmath>
 
+#include "ResponseFrequency.hpp"
+
 struct OnePoleTPTHighPass
 {
     static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);
@@ -48,6 +50,39 @@ struct OnePoleTPTHighPass
         m_state.m_lowPass.m_s = v5;
         m_state.m_lowPass.m_y = v6;
         m_state.m_y = v7;
+    }
+
+    // Response generated from DSP.OnePoleTPTHighPass.Snapshot.magnitudeSquaredFloat.
+    //
+
+    using Frequency = ::ResponseFrequencyGeneric<double>;
+
+    struct Snapshot
+    {
+        double m_g;
+    };
+
+    static double MagnitudeSquared(const Snapshot& snapshot, const Frequency& input)
+    {
+        const double v0 = (input.m_sinHalf * input.m_sinHalf);
+        const double v1 = (input.m_sinHalf * input.m_sinHalf);
+        const bool v2 = (0.0 < v1);
+        double v7;
+        if (v2)
+        {
+            const double v3 = (snapshot.m_g * input.m_cosHalf);
+            const double v4 = (snapshot.m_g * input.m_cosHalf);
+            const double v5 = (input.m_sinHalf * input.m_sinHalf);
+            const double v6 = std::fma(v3, v4, v5);
+            v7 = v6;
+        }
+        else
+        {
+            v7 = 1.0;
+        }
+
+        const double v8 = (v0 / v7);
+        return v8;
     }
 
 };

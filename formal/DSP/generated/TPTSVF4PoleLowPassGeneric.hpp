@@ -10,6 +10,8 @@
 #include <array>
 #include <cmath>
 
+#include "ResponseFrequency.hpp"
+
 #include "MultiChannelNumber.hpp"
 #include <type_traits>
 
@@ -129,6 +131,69 @@ struct TPTSVF4PoleLowPassGeneric
         m_state.m_stage2.m_bandPass = v43;
         m_state.m_stage2.m_highPass = v44;
         m_state.m_stage2.m_notch = v45;
+    }
+
+    // Response generated from DSP.TPTSVF4Pole.Snapshot.lowPassMagnitudeSquared.
+    //
+
+    using Frequency = ::ResponseFrequencyGeneric<Vector>;
+
+    struct Snapshot
+    {
+        struct
+        {
+            Vector m_g;
+            Vector m_k;
+        } m_stage1;
+
+        struct
+        {
+            Vector m_g;
+            Vector m_k;
+        } m_stage2;
+
+    };
+
+    static Vector MagnitudeSquared(const Snapshot& snapshot, const Frequency& input)
+    {
+        const Vector v0 = (snapshot.m_stage1.m_g * input.m_cosHalf);
+        const Vector v1 = (v0 * v0);
+        const Vector v2 = (input.m_sinHalf * input.m_sinHalf);
+        const Vector v3 = (v0 * input.m_sinHalf);
+        const Vector v4 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) * v1);
+        const Vector v5 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0)) * v2);
+        const Vector v6 = (v4 - v5);
+        const Vector v7 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0)) * v3);
+        const Vector v8 = (v1 - v2);
+        const Vector v9 = (snapshot.m_stage1.m_k * v3);
+        const Vector v10 = (v7 * v7);
+        const Vector v11 = Vector::FusedMultiplyAdd(v6, v6, v10);
+        const Vector v12 = (v7 * v7);
+        const Vector v13 = Vector::FusedMultiplyAdd(v6, v6, v12);
+        const Vector v14 = (v9 * v9);
+        const Vector v15 = Vector::FusedMultiplyAdd(v8, v8, v14);
+        const Vector v16 = Vector::IfLess(Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0)), v13, v15, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
+        const Vector v17 = (v11 / v16);
+        const Vector v18 = (snapshot.m_stage2.m_g * input.m_cosHalf);
+        const Vector v19 = (v18 * v18);
+        const Vector v20 = (input.m_sinHalf * input.m_sinHalf);
+        const Vector v21 = (v18 * input.m_sinHalf);
+        const Vector v22 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) * v19);
+        const Vector v23 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0)) * v20);
+        const Vector v24 = (v22 - v23);
+        const Vector v25 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0)) * v21);
+        const Vector v26 = (v19 - v20);
+        const Vector v27 = (snapshot.m_stage2.m_k * v21);
+        const Vector v28 = (v25 * v25);
+        const Vector v29 = Vector::FusedMultiplyAdd(v24, v24, v28);
+        const Vector v30 = (v25 * v25);
+        const Vector v31 = Vector::FusedMultiplyAdd(v24, v24, v30);
+        const Vector v32 = (v27 * v27);
+        const Vector v33 = Vector::FusedMultiplyAdd(v26, v26, v32);
+        const Vector v34 = Vector::IfLess(Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0)), v31, v33, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
+        const Vector v35 = (v29 / v34);
+        const Vector v36 = (v17 * v35);
+        return v36;
     }
 
 };

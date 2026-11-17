@@ -10,6 +10,8 @@
 #include <array>
 #include <cmath>
 
+#include "ResponseFrequency.hpp"
+
 #include "MultiChannelNumber.hpp"
 #include <type_traits>
 
@@ -47,6 +49,28 @@ struct OnePoleTPTLowPassGeneric
         m_state.m_G = v3;
         m_state.m_s = v4;
         m_state.m_y = v5;
+    }
+
+    // Response generated from DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquared.
+    //
+
+    using Frequency = ::ResponseFrequencyGeneric<Vector>;
+
+    struct Snapshot
+    {
+        Vector m_g;
+    };
+
+    static Vector MagnitudeSquared(const Snapshot& snapshot, const Frequency& input)
+    {
+        const Vector v0 = (snapshot.m_g * input.m_cosHalf);
+        const Vector v1 = (v0 * v0);
+        const Vector v2 = (v0 * v0);
+        const Vector v3 = (input.m_sinHalf * input.m_sinHalf);
+        const Vector v4 = Vector::FusedMultiplyAdd(v0, v0, v3);
+        const Vector v5 = Vector::IfLess(Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0)), v2, v4, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
+        const Vector v6 = (v1 / v5);
+        return v6;
     }
 
 };

@@ -10,6 +10,8 @@
 #include <array>
 #include <cmath>
 
+#include "ResponseFrequency.hpp"
+
 struct TPTBaseWidth
 {
     static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);
@@ -68,6 +70,66 @@ struct TPTBaseWidth
         m_state.m_lowPass.m_G = v11;
         m_state.m_lowPass.m_s = v12;
         m_state.m_lowPass.m_y = v13;
+    }
+
+    // Response generated from DSP.TPTBaseWidth.Snapshot.magnitudeSquaredFloat.
+    //
+
+    using Frequency = ::ResponseFrequencyGeneric<double>;
+
+    struct Snapshot
+    {
+        struct
+        {
+            double m_g;
+        } m_highPass;
+
+        struct
+        {
+            double m_g;
+        } m_lowPass;
+
+    };
+
+    static double MagnitudeSquared(const Snapshot& snapshot, const Frequency& input)
+    {
+        const double v0 = (input.m_sinHalf * input.m_sinHalf);
+        const double v1 = (input.m_sinHalf * input.m_sinHalf);
+        const bool v2 = (0.0 < v1);
+        double v7;
+        if (v2)
+        {
+            const double v3 = (snapshot.m_highPass.m_g * input.m_cosHalf);
+            const double v4 = (snapshot.m_highPass.m_g * input.m_cosHalf);
+            const double v5 = (input.m_sinHalf * input.m_sinHalf);
+            const double v6 = std::fma(v3, v4, v5);
+            v7 = v6;
+        }
+        else
+        {
+            v7 = 1.0;
+        }
+
+        const double v8 = (v0 / v7);
+        const double v9 = (snapshot.m_lowPass.m_g * input.m_cosHalf);
+        const double v10 = (v9 * v9);
+        const double v11 = (v9 * v9);
+        const bool v12 = (0.0 < v11);
+        double v15;
+        if (v12)
+        {
+            const double v13 = (input.m_sinHalf * input.m_sinHalf);
+            const double v14 = std::fma(v9, v9, v13);
+            v15 = v14;
+        }
+        else
+        {
+            v15 = 1.0;
+        }
+
+        const double v16 = (v10 / v15);
+        const double v17 = (v8 * v16);
+        return v17;
     }
 
 };

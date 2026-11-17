@@ -10,6 +10,8 @@
 #include <array>
 #include <cmath>
 
+#include "ResponseFrequency.hpp"
+
 #include "MultiChannelNumber.hpp"
 #include <type_traits>
 
@@ -120,6 +122,54 @@ struct TPTLadderGeneric
         m_state.m_stage4.m_G = v38;
         m_state.m_stage4.m_s = v39;
         m_state.m_stage4.m_y = v40;
+    }
+
+    // Response generated from DSP.TPTLadder.Snapshot.magnitudeSquared.
+    //
+
+    using Frequency = ::ResponseFrequencyGeneric<Vector>;
+
+    struct Snapshot
+    {
+        Vector m_g1;
+        Vector m_g2;
+        Vector m_g3;
+        Vector m_g4;
+        Vector m_k;
+    };
+
+    static Vector MagnitudeSquared(const Snapshot& snapshot, const Frequency& input)
+    {
+        const Vector v0 = (snapshot.m_g1 * input.m_cosHalf);
+        const Vector v1 = (snapshot.m_g2 * input.m_cosHalf);
+        const Vector v2 = (snapshot.m_g3 * input.m_cosHalf);
+        const Vector v3 = (snapshot.m_g4 * input.m_cosHalf);
+        const Vector v4 = (input.m_sinHalf * input.m_sinHalf);
+        const Vector v5 = (-v4);
+        const Vector v6 = Vector::FusedMultiplyAdd(v0, v1, v5);
+        const Vector v7 = (input.m_sinHalf * v1);
+        const Vector v8 = Vector::FusedMultiplyAdd(v0, input.m_sinHalf, v7);
+        const Vector v9 = (v8 * input.m_sinHalf);
+        const Vector v10 = (-v9);
+        const Vector v11 = Vector::FusedMultiplyAdd(v6, v2, v10);
+        const Vector v12 = (v8 * v2);
+        const Vector v13 = Vector::FusedMultiplyAdd(v6, input.m_sinHalf, v12);
+        const Vector v14 = (v0 * v1);
+        const Vector v15 = (v14 * v2);
+        const Vector v16 = (v15 * v3);
+        const Vector v17 = (v13 * input.m_sinHalf);
+        const Vector v18 = (-v17);
+        const Vector v19 = Vector::FusedMultiplyAdd(v11, v3, v18);
+        const Vector v20 = Vector::FusedMultiplyAdd(snapshot.m_k, v16, v19);
+        const Vector v21 = (v13 * v3);
+        const Vector v22 = Vector::FusedMultiplyAdd(v11, input.m_sinHalf, v21);
+        const Vector v23 = (v16 * v16);
+        const Vector v24 = (v16 * v16);
+        const Vector v25 = (v22 * v22);
+        const Vector v26 = Vector::FusedMultiplyAdd(v20, v20, v25);
+        const Vector v27 = Vector::IfLess(Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0)), v24, v26, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
+        const Vector v28 = (v23 / v27);
+        return v28;
     }
 
 };

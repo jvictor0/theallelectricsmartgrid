@@ -486,7 +486,8 @@ def renderHeader (function : Name) (cppName : String) (generic : Bool)
 /-- Export a read-only snapshot and numeric or shared-record input to a numeric result. This uses
 the same evaluator as processors, but returns the value without committing state. -/
 def renderFunction (function : Name) (method : String) (parameters runtime : Array Expr)
-    (resultType : Expr) (numberType : Option Expr) (arithmetic : Array FVarId) (inputName : String) :
+    (resultType : Expr) (numberType : Option Expr) (arithmetic : Array FVarId) (inputName : String)
+    (declareRecords : Bool) :
     MetaM (Array String × Array String) := do
   let snapshotFields ← fieldShape (← inferType runtime[0]!) numberType
   let .record _ := snapshotFields
@@ -524,12 +525,14 @@ def renderFunction (function : Name) (method : String) (parameters runtime : Arr
     unless body.any (fun line =>
         (line.splitToList fun c => !(c.isAlphanum || c == '_')).contains name) do
       body := #[s!"static_cast<void>({name});"] ++ body
-  return (includes, aliases ++ (← renderRecord "Snapshot" snapshotFields) ++
+  let record ← renderRecord "Snapshot" snapshotFields
+  let declarations := if declareRecords then aliases ++ record else #[]
+  return (includes, declarations ++
     #[s!"    static {cppType} {method}(const Snapshot& snapshot, const {inputCppType}& input)", "    {"] ++
     body.map (fun line => if line.isEmpty then "" else "        " ++ line) ++ #["    }", ""])
 
 def generateParts (function : Name) (cppName : String) (generic : Bool)
-    (method : Option String) (inputName : String) : MetaM (Array String × Array String) := do
+    (method : Option String) (inputName : String) (declareRecords : Bool := true) : MetaM (Array String × Array String) := do
   unless validIdentifier cppName && cppName.toList.head!.isUpper do
     throwError "C++ codegen: processor name must be a simple uppercase C++ identifier"
   if #["State", "Input", "Output"].contains cppName ||
@@ -573,7 +576,7 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
     unless runtime.size == 2 do
       throwError "C++ codegen: expected exactly two runtime arguments"
     if let some method := method then
-      return ← renderFunction function method parameters runtime resultType numberType arithmetic inputName
+      return ← renderFunction function method parameters runtime resultType numberType arithmetic inputName declareRecords
     let stateType ← inferType runtime[0]!
     let inputType ← inferType runtime[1]!
     let resultType ← whnf resultType
@@ -620,14 +623,35 @@ def generateWithTarget (function : Name) (cppName : String) (generic : Bool)
 
 /-- Assemble processing and response definitions in one enclosing filter.
 They share the same scalar/vector target; each retains its own Lean source. -/
-def generateFilter (step response : Name) (cppName : String) (generic : Bool) : MetaM String := do
+def generateFilterResponses (step : Name) (responses : Array (Name × String))
+    (cppName : String) (generic : Bool) : MetaM String := do
   if #["Snapshot", "Frequency"].contains cppName then
     throwError "C++ codegen: filter name conflicts with a response member"
+  if responses.isEmpty then throwError "C++ codegen: filter needs at least one response"
   let (stepIncludes, stepBody) ← generateParts step cppName generic none "Input"
-  let (responseIncludes, responseBody) ← generateParts response cppName generic (some "MagnitudeSquared") "Frequency"
-  let source := #[s!"    // Response generated from {response}.", "    //", ""]
-  return String.intercalate "\n" (renderHeader step cppName generic (stepIncludes ++ responseIncludes) ++
-    stepBody ++ source ++ responseBody ++ #["};", ""]).toList
+  let mut includes := stepIncludes
+  let mut body := stepBody
+  let mut methods := #["Process", "State", "Output"]
+  let mut signature : Option Expr := none
+  for (response, method) in responses do
+    if methods.contains method then throwError "C++ codegen: duplicate or reserved response method {method}"
+    methods := methods.push method
+    -- Compare the full Lean function types, including arithmetic parameters
+    -- and snapshot identity. Equal layouts alone are insufficient.
+    let type := (← getConstInfo response).type
+    match signature with
+    | none => signature := some type
+    | some expected =>
+      unless ← isDefEq type expected do
+        throwError "C++ codegen: response methods must have the same snapshot and frequency types"
+    let (extraIncludes, responseBody) ← generateParts response cppName generic (some method) "Frequency" (body == stepBody)
+    for line in extraIncludes do
+      unless includes.contains line do includes := includes.push line
+    body := body ++ #[s!"    // Response generated from {response}.", "    //", ""] ++ responseBody
+  return String.intercalate "\n" (renderHeader step cppName generic includes ++ body ++ #["};", ""]).toList
+
+def generateFilter (step response : Name) (cppName : String) (generic : Bool) : MetaM String :=
+  generateFilterResponses step #[(response, "MagnitudeSquared")] cppName generic
 
 def generate (function : Name) (cppName : String) : MetaM String :=
   generateWithTarget function cppName false none
@@ -668,6 +692,33 @@ elab "#generate_cpp_filter_generic " step:ident " response " responseFunction:id
   if let some parent := output.parent then IO.FS.createDirAll parent
   IO.FS.writeFile output code
   logInfo m!"Generated {output} with processing and response members using MultiChannelNumber arithmetic"
+
+declare_syntax_cat cppResponse
+syntax ident " as " ident : cppResponse
+
+elab "#generate_cpp_filter_responses " step:ident
+    "[" entries:cppResponse,* "]" " as " cppName:ident " to " path:str : command => do
+  let pairs ← entries.getElems.mapM fun entry => do
+    match entry with
+    | `(cppResponse| $r:ident as $m:ident) => pure (r.getId, m.getId.toString)
+    | _ => throwError "C++ codegen: invalid response entry"
+  let code ← liftTermElabM <| generateFilterResponses step.getId pairs cppName.getId.toString false
+  let output : System.FilePath := path.getString
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  logInfo m!"Generated {output} with named response members"
+
+elab "#generate_cpp_filter_responses_generic " step:ident
+    "[" entries:cppResponse,* "]" " as " cppName:ident " to " path:str : command => do
+  let pairs ← entries.getElems.mapM fun entry => do
+    match entry with
+    | `(cppResponse| $r:ident as $m:ident) => pure (r.getId, m.getId.toString)
+    | _ => throwError "C++ codegen: invalid response entry"
+  let code ← liftTermElabM <| generateFilterResponses step.getId pairs cppName.getId.toString true
+  let output : System.FilePath := path.getString
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  logInfo m!"Generated {output} with named response members"
 
 elab "#generate_cpp_record " record:ident " as " cppName:ident " to " path:str : command => do
   let recordName := record.getId
