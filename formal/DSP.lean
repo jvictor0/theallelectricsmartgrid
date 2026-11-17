@@ -8,6 +8,7 @@ import DSP.Transfer.Rational
 import DSP.Discretization.Pipeline
 import DSP.Filters.Coupled
 import DSP.Filters.OnePoleZOHLowPass.Transfer
+import DSP.Filters.OnePoleZOHLowPass.Response.Proofs
 import DSP.Filters.OnePoleTPTLowPass
 import DSP.Filters.OnePoleTPTLowPass.Proofs
 import DSP.Step

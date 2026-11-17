@@ -219,6 +219,28 @@ transfer is alpha/(1-(1-alpha)q). `lowpass_iir_equivalent` establishes its
 direct-form IIR realization. The original scalar calculus proof remains in
 `Reference` and is not a premise of these public ZOH proofs.
 
+The coefficient-only `Snapshot R` captures the processing step's `alpha`.
+[Response](Filters/OnePoleZOHLowPass/Response.lean) names the shared rational
+formula `transfer alpha q = alpha / (1 - (1 - alpha) * q)`. The existing
+`realizes` theorem now uses that definition with the formal one-sample delay.
+[Response.Proofs](Filters/OnePoleZOHLowPass/Response/Proofs.lean) specializes it
+to complex `q = exp(-2πif)`, with `f` in cycles per sample, and proves
+
+```
+|H(f)|² = alpha² / (alpha² + 4(1-alpha) sin²(πf)).
+```
+
+`Snapshot.magnitudeSquared` is the executable real-arithmetic kernel. It accepts
+the prepared `sin(πf)` value and uses explicit FMA. At zero alpha it selects a
+denominator of one before division, giving the zero response from rest even at
+DC. The raw denominator is proved positive for `0 < alpha ≤ 1`.
+`magnitudeSquared_eq_normSq` connects this kernel to the complex transfer;
+`magnitude_eq_norm` proves that taking its square root gives magnitude.
+`magnitudeSquared_channels` lifts the identity to independently captured channel
+coefficients at a shared frequency. These are exact-real identities; native
+Float/Float32 checks cover the implementation, not a universal rounding bound.
+The complex definition is proof-only. Response C++ emission is a subsequent step.
+
 ## Generated TPT lowpass
 
 [OnePoleTPTLowPass.hpp](generated/OnePoleTPTLowPass.hpp) stores the solved

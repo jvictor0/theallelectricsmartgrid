@@ -1,4 +1,4 @@
-import DSP.Filters.OnePoleZOHLowPass.Transfer
+import DSP.Filters.OnePoleZOHLowPass.Response.Proofs
 import DSP.Transfer.Channels
 
 /-! Pointwise ZOH lowpasses with independent coefficients, states and inputs.
@@ -23,6 +23,20 @@ variable {n : ℕ} {K : Type}
 theorem makeSnapshot_channel (f : OnePoleZOHLowPass (Fin n → K)) (i : Fin n) :
     channel i f.makeSnapshot = (channel i f).makeSnapshot := rfl
 
+/-- The magnitude kernel uses only pointwise operations, including its zero guard. -/
+theorem magnitudeSquared_channel [OfNat K 0] [OfNat K 1] [OfNat K 4]
+    [Sub K] [Mul K] [Div K] [FMA K] [IfLess K]
+    (s : Snapshot (Fin n → K)) (sinHalf : Fin n → K) (i : Fin n) :
+    s.magnitudeSquared sinHalf i = (channel i s).magnitudeSquared (sinHalf i) := rfl
+
+/-- One shared frequency, with each channel's own captured coefficient.
+The scalar magnitude proof applies directly after selecting a channel. -/
+theorem magnitudeSquared_channels (s : Snapshot (Fin n → ℝ)) (frequency : ℝ)
+    (ha : ∀ i, 0 ≤ s.alpha i) (i : Fin n) :
+    s.magnitudeSquared (fun _ => Real.sin (Real.pi * frequency)) i =
+      Complex.normSq ((channel i s).response frequency) :=
+  Snapshot.magnitudeSquared_eq_normSq (channel i s) frequency (ha i)
+
 variable [Field K]
 
 theorem natural : Natural (n := n) (step (R := Fin n → K)) step := fun _ _ _ => rfl
@@ -36,7 +50,7 @@ theorem states_channel (f : OnePoleZOHLowPass (Fin n → K)) (u : ℕ → Fin n 
 
 theorem realizes_channels (f : OnePoleZOHLowPass (Fin n → K)) (hy : ∀ i, f.y i = 0) :
     Channels.Realizes step f (·.y) fun i =>
-      Bilinear.const (f.alpha i) / (1 - Bilinear.const (1 - f.alpha i) * Bilinear.delay) :=
+      transfer (Bilinear.const (f.alpha i)) Bilinear.delay :=
   Channels.realizes natural (fun i => realizes (channel i f) (hy i)) fun _ _ => rfl
 
 /-- One vector step returns every channel's analog endpoint under its own

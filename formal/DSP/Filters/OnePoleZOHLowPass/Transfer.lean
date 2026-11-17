@@ -1,4 +1,5 @@
 import DSP.Filters.OnePoleZOHLowPass.Proofs
+import DSP.Filters.OnePoleZOHLowPass.Response
 import DSP.Discretization.Pipeline
 import DSP.Transfer.Analog
 import DSP.Transfer.Bilinear
@@ -80,11 +81,19 @@ theorem analog_iir_endpoint (T τ : ℝ) (hT : 0 ≤ T) (u : ℕ → ℝ)
   simpa [continuousSystem, StateSpace.observe, StateSpace.dot] using h
 
 open Bilinear in
+/-- The named transfer formula specializes to the expression used by the
+stream proof. `const` preserves subtraction and the constant one. -/
+theorem transfer_series {K : Type} [Field K] (alpha : K) :
+    transfer (const alpha) delay = const alpha / (1 - const (1 - alpha) * delay) := by
+  simp [transfer, const]
+
+open Bilinear in
 /-- From rest, the stored endpoint realizes α / (1 - (1 - α) q), with q the
 unit delay. This is the ZOH recurrence's digital transfer, without a bilinear
 substitution of the analog prototype. -/
 theorem realizes {K : Type} [Field K] (f : OnePoleZOHLowPass K) (hy : f.y = 0) :
-    Realizes step f (·.y) (const f.alpha / (1 - const (1 - f.alpha) * delay)) := by
+    Realizes step f (·.y) (transfer (const f.alpha) delay) := by
+  rw [transfer_series]
   intro u
   let st := Step.states step (fun k => ⟨u k⟩) f
   have ha : ∀ n, (st n).alpha = f.alpha :=

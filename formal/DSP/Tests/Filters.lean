@@ -1,5 +1,6 @@
 import DSP.IIR.Basic
 import DSP.Filters.OnePoleZOHLowPass
+import DSP.Filters.OnePoleZOHLowPass.Response
 import DSP.Filters.OnePoleTPTLowPass
 import DSP.Filters.OnePoleTPTHighPass
 import DSP.Filters.TPTSVF
@@ -119,4 +120,20 @@ def main : IO Unit := do
       (StateSpace.dot (n := 0) Fin.elim0 Fin.elim0 : Float).toBits == 0 &&
       (StateSpace.dot (n := 1) (fun _ => (-0.0 : Float)) (fun _ => 1)).toBits == 0x8000000000000000 do
     throw (IO.userError "Fused dot-product accumulation/empty/singleton failed")
-  IO.println "Filter native execution: one-pole, SVF, morph, ladder, crossover, IIR and fused dot-product checks passed."
+  -- Compare the optimized real kernel with the complex denominator's components.
+  -- Include DC, Nyquist and zero coefficients to catch unsafe division and branches.
+  for alpha in [0.0, -0.0, 0.000001, 0.01, 0.5, 1.0] do
+    for frequency in [0.0, 0.000001, 0.001, 0.1, 0.499, 0.5] do
+      let theta := 2.0 * 3.141592653589793 * frequency
+      let sinHalf := (3.141592653589793 * frequency).sin
+      let reference := fun (a : Float) =>
+        let re := 1.0 - (1.0 - a) * theta.cos
+        let im := (1.0 - a) * theta.sin
+        if a == 0.0 then 0.0 else a * a / (re * re + im * im)
+      let squared := (⟨alpha⟩ : OnePoleZOHLowPass.Snapshot Float).magnitudeSquared sinHalf
+      let alpha32 := alpha.toFloat32
+      let squared32 := (⟨alpha32⟩ : OnePoleZOHLowPass.Snapshot Float32).magnitudeSquared sinHalf.toFloat32
+      unless (squared - reference alpha).abs < 1.0e-8 &&
+          (squared32.toFloat - reference alpha32.toFloat).abs < 2.0e-6 do
+        throw (IO.userError s!"ZOH magnitude mismatch at alpha={alpha}, frequency={frequency}")
+  IO.println "Filter native execution: one-pole, SVF, morph, ladder, crossover, IIR, fused dot-product and ZOH magnitude checks passed."

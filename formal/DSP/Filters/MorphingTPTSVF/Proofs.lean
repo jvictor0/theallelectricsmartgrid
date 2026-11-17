@@ -1,5 +1,6 @@
 import DSP.Filters.MorphingTPTSVF
 import DSP.Filters.TPTSVF.Proofs
+import DSP.IfLess.Real
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
 
 noncomputable section
@@ -63,12 +64,6 @@ end Transfer
 
 /-! The blend parameter, as the app maps it: clamp to [0, 1]; the phase is a
 quarter turn across each half. -/
-
-noncomputable instance : IfLess ℝ := ⟨fun a b x y => if a < b then x else y⟩
-
-noncomputable instance : LawfulIfLess ℝ where
-  less a b := decide (a < b)
-  ifLess_eq a b x y := by simp [IfLess.ifLess]
 
 def clamped (blend : ℝ) : ℝ := min 1 (max 0 blend)
 
