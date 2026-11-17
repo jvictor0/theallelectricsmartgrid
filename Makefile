@@ -68,6 +68,7 @@ lean-cache:
 		Mathlib.RingTheory.PowerSeries.Basic \
 		Mathlib.RingTheory.PowerSeries.Inverse \
 		Mathlib.RingTheory.PowerSeries.NoZeroDivisors \
+		Mathlib.Tactic.DeriveTraversable \
 		Mathlib.Tactic.FieldSimp \
 		Mathlib.Tactic.Linarith \
 		Mathlib.Tactic.LinearCombination \

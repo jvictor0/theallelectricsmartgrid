@@ -77,49 +77,6 @@ bool RunFlat()
     return true;
 }
 
-bool RunMorph()
-{
-    std::array<double, 10> svf;
-    uint64_t cosine, sine, output, x;
-    unsigned upperHalf;
-    for (double& value : svf)
-    {
-        uint64_t bits;
-        if (!(std::cin >> bits))
-        {
-            return false;
-        }
-
-        value = FromBits<double>(bits);
-    }
-
-    if (!(std::cin >> cosine >> sine >> upperHalf >> output >> x))
-    {
-        return false;
-    }
-
-    static_assert(sizeof(MorphingTPTSVF{}.m_state.m_svf) == sizeof(svf));
-    MorphingTPTSVF processor{};
-    std::memcpy(&processor.m_state.m_svf, svf.data(), sizeof(svf));
-    processor.m_state.m_cosine = FromBits<double>(cosine);
-    processor.m_state.m_sine = FromBits<double>(sine);
-    processor.m_state.m_upperHalf = upperHalf != 0;
-    processor.m_state.m_output = FromBits<double>(output);
-    MorphingTPTSVF::Input input{FromBits<double>(x)};
-    processor.Process(input);
-    std::memcpy(svf.data(), &processor.m_state.m_svf, sizeof(svf));
-    for (double value : svf)
-    {
-        std::cout << ToBits<uint64_t>(value) << ' ';
-    }
-
-    std::cout << ToBits<uint64_t>(processor.m_state.m_cosine) << ' '
-              << ToBits<uint64_t>(processor.m_state.m_sine) << ' '
-              << static_cast<unsigned>(processor.m_state.m_upperHalf) << ' '
-              << ToBits<uint64_t>(processor.m_state.m_output) << '\n';
-    return true;
-}
-
 bool RunFlatKind(const std::string& kind, bool& known)
 {
     known = true;
@@ -150,7 +107,7 @@ bool RunFlatKind(const std::string& kind, bool& known)
 
     if (kind == "morph")
     {
-        return RunMorph();
+        return RunFlat<MorphingTPTSVF, 14>();
     }
 
     if (kind == "svf4High")

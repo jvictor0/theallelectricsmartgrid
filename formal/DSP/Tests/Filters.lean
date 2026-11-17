@@ -69,7 +69,7 @@ def main : IO Unit := do
       close svf.notch 1.0 do
     throw (IO.userError "Float SVF DC responses failed")
   let morphed : MorphingTPTSVF Float :=
-    { svf := tunedSVF 0.5 1.0, cosine := 1.0, sine := 0.0, upperHalf := false, output := 0.0 }
+    { svf := tunedSVF 0.5 1.0, cosine := 1.0, sine := 0.0, blend := 0.0, output := 0.0 }
   let inputs := [1.0, -2.0, 0.5, 3.0]
   let (morphs, _) := observe MorphingTPTSVF.step (·.output) morphed inputs
   let (lows, _) := observe TPTSVF.step (·.lowPass) (tunedSVF 0.5 1.0) inputs

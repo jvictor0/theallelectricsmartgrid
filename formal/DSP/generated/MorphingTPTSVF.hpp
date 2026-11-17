@@ -32,7 +32,7 @@ struct MorphingTPTSVF
 
         double m_cosine;
         double m_sine;
-        bool m_upperHalf;
+        double m_blend;
         double m_output;
     };
 
@@ -61,21 +61,21 @@ struct MorphingTPTSVF
         const double v13 = (v7 * 0x10000000000000p-51);
         const double v14 = (v13 - m_state.m_svf.m_ic2);
         const double v15 = (v7 + v10);
-        const bool v16 = (m_state.m_upperHalf == true);
+        const double v16 = (v7 * m_state.m_cosine);
+        const double v17 = (v3 * m_state.m_sine);
+        const double v18 = (v16 + v17);
+        const double v19 = (v3 * m_state.m_cosine);
+        const double v20 = (v10 * m_state.m_sine);
+        const double v21 = (v19 + v20);
+        const bool v22 = (0x10000000000000p-53 < m_state.m_blend);
         double v23;
-        if (v16)
+        if (v22)
         {
-            const double v17 = (v3 * m_state.m_cosine);
-            const double v18 = (v10 * m_state.m_sine);
-            const double v19 = (v17 + v18);
-            v23 = v19;
+            v23 = v21;
         }
         else
         {
-            const double v20 = (v7 * m_state.m_cosine);
-            const double v21 = (v3 * m_state.m_sine);
-            const double v22 = (v20 + v21);
-            v23 = v22;
+            v23 = v18;
         }
 
         const double v24 = m_state.m_svf.m_k;
@@ -90,7 +90,7 @@ struct MorphingTPTSVF
         const double v33 = v15;
         const double v34 = m_state.m_cosine;
         const double v35 = m_state.m_sine;
-        const bool v36 = m_state.m_upperHalf;
+        const double v36 = m_state.m_blend;
         const double v37 = v23;
         m_state.m_svf.m_k = v24;
         m_state.m_svf.m_a1 = v25;
@@ -104,7 +104,7 @@ struct MorphingTPTSVF
         m_state.m_svf.m_notch = v33;
         m_state.m_cosine = v34;
         m_state.m_sine = v35;
-        m_state.m_upperHalf = v36;
+        m_state.m_blend = v36;
         m_state.m_output = v37;
     }
 

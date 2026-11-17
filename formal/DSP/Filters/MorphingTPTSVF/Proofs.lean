@@ -16,7 +16,7 @@ structure Weights (K : Type) where
 
 section Transfer
 
-variable {K : Type} [Field K]
+variable {K : Type} [Field K] [IfLess K] [LawfulIfLess K]
 
 def weights (cosine sine : K) (upperHalf : Bool) : Weights K :=
   if upperHalf then ⟨0, cosine, sine⟩ else ⟨cosine, sine, 0⟩
@@ -27,11 +27,15 @@ def numerator (g : K) (w : Weights K) : K[X] :=
   C w.low * TPTSVF.lowPassNumerator g + C w.band * TPTSVF.bandPassNumerator g +
     C w.high * TPTSVF.highPassNumerator
 
-def stateWeights (f : MorphingTPTSVF K) : Weights K := weights f.cosine f.sine f.upperHalf
+/-- The selection compares the stored blend with one half. -/
+def upperHalf (f : MorphingTPTSVF K) : Bool := LawfulIfLess.less 0.5 f.blend
+
+def stateWeights (f : MorphingTPTSVF K) : Weights K := weights f.cosine f.sine (upperHalf f)
 
 theorem stateWeights_step (f : MorphingTPTSVF K) (input : Sample K) :
     stateWeights (step f input) = stateWeights f := rfl
 
+omit [LawfulIfLess K] in
 /-- Every response of the inner SVF keeps its specification. -/
 theorem realizes_svf (f : MorphingTPTSVF K) {field : TPTSVF K → K} {H : Bilinear.Stream K}
     (h : Bilinear.Realizes TPTSVF.step f.svf field H) :
@@ -51,14 +55,20 @@ theorem realizes (f : MorphingTPTSVF K) (g : K) (ht : f.svf.Tuned g) (hr : f.svf
     (fun s => (stateWeights s).high) (fun s x => by rw [stateWeights_step])
   refine (((low.add band).add high).congr ?_).transfer_eq ?_
   · intro s x
-    simp only [step, stateWeights, weights]
-    cases s.upperHalf <;> simp <;> ring
+    simp only [step, stateWeights, weights, upperHalf, LawfulIfLess.ifLess_eq]
+    cases LawfulIfLess.less (0.5 : K) s.blend <;> simp <;> ring
   · simp only [Bilinear.const_mul_analog, Bilinear.analog_add, numerator]
 
 end Transfer
 
 /-! The blend parameter, as the app maps it: clamp to [0, 1]; the phase is a
 quarter turn across each half. -/
+
+noncomputable instance : IfLess ℝ := ⟨fun a b x y => if a < b then x else y⟩
+
+noncomputable instance : LawfulIfLess ℝ where
+  less a b := decide (a < b)
+  ifLess_eq a b x y := by simp [IfLess.ifLess]
 
 def clamped (blend : ℝ) : ℝ := min 1 (max 0 blend)
 
@@ -114,10 +124,13 @@ theorem blendWeights_one : blendWeights 1 = ⟨0, 0, 1⟩ := by
 morph at that blend. -/
 theorem realizes_blend (f : MorphingTPTSVF ℝ) (g blend : ℝ) (ht : f.svf.Tuned g)
     (hr : f.svf.AtRest) (hc : f.cosine = Real.cos (2 * Real.pi * phase blend))
-    (hs : f.sine = Real.sin (2 * Real.pi * phase blend)) (hu : f.upperHalf = upperHalfOf blend) :
+    (hs : f.sine = Real.sin (2 * Real.pi * phase blend)) (hb : f.blend = clamped blend) :
     Bilinear.Realizes step f (·.output)
       (Bilinear.analog (numerator g (blendWeights blend)) (TPTSVF.denominator g f.svf.k)) := by
   have h := realizes f g ht hr
+  have hu : upperHalf f = upperHalfOf blend := by
+    change decide ((0.5 : ℝ) < f.blend) = decide (1 / 2 < clamped blend)
+    norm_num [hb]
   rwa [stateWeights, hc, hs, hu] at h
 
 /-- At blend 0, 1/2 and 1 the morph is exactly the lowpass, bandpass and highpass. -/

@@ -26,3 +26,5 @@ import DSP.Filters.TPTLadder
 import DSP.Filters.TPTLadder.Proofs
 import DSP.Filters.LinkwitzRileyCrossover
 import DSP.Filters.LinkwitzRileyCrossover.Proofs
+import DSP.Transfer.Channels
+import DSP.Filters.Channels

@@ -67,6 +67,7 @@ than sample-exact in time.
 | [Signals](Signals.lean), [Filter](Filter.lean) | Signal sampling and the independent analog/digital `Implements` contract |
 | [Processor](Processor.lean), [Run](Processor/Run.lean), [Simulation](Processor/Simulation.lean) | `State → Input → State × Output`, stream execution, uniqueness and simulation |
 | [Step](Step.lean) | State-only `State → Input → State` filters, the shared `Sample` input, trajectories, component projection and invariants |
+| [IfLess](IfLess.lean) | The per-channel select `a < b ? x : y` for `Float`, `Float32` and channels, and its lawful scalar form |
 | [Transfer.Bilinear](Transfer/Bilinear.lean) | Streams as Laurent series, the bilinear homomorphism, `Realizes`, the trapezoidal integrator and composition lemmas |
 | [StateSpace.Basic](StateSpace/Basic.lean) | Fixed-dimensional A/B/C/D, ordered executable arithmetic, `advance`, `observe`, `processor`, `processorNext` |
 | [StateSpace.Digital](StateSpace/Digital.lean) | Matrix interpretation, digital realization uniqueness, `observeNext_equiv` |
@@ -84,6 +85,7 @@ than sample-exact in time.
 | [OnePoleTPTHighPass](Filters/OnePoleTPTHighPass.lean), [TPTBaseWidth](Filters/TPTBaseWidth.lean) | Highpass as input minus a stored lowpass; highpass into lowpass band |
 | [TPTSVF](Filters/TPTSVF.lean), [MorphingTPTSVF](Filters/MorphingTPTSVF.lean), [TPTSVF4Pole](Filters/TPTSVF4Pole.lean) | The app's linear SVF with stored lowpass/bandpass/highpass/notch, its equal-power morph and two-stage cascades |
 | [TPTLadder](Filters/TPTLadder.lean), [LinkwitzRileyCrossover](Filters/LinkwitzRileyCrossover.lean) | Idealized zero-delay four-pole ladder; the app's three-section crossover and its Butterworth dampings |
+| [Transfer.Channels](Transfer/Channels.lean), [Filters/Channels](Filters/Channels.lean) | Pointwise multi-channel filters: channel projection, naturality and per-channel `Realizes` for every TPT filter |
 | [Coupled](Filters/Coupled.lean) | Two-state executable example with nested coefficients, cross-coupling and direct feedthrough |
 | [Codegen](Codegen/README.md), [Audit](Audit.lean) | C++ export, native differential checks and transitive axiom checks |
 
@@ -287,9 +289,13 @@ integrator equations and summing junction from the stored responses, and the
 four transfers are solved from them. The notch is stored as lowpass plus
 highpass, so its theorem is the sum of theirs.
 
-`MorphingTPTSVF` stores the morph as coefficients `cosine`, `sine` and
-`upperHalf`, computed by the caller as in the app's `GetMorphedOutput`, and
-mixes lowpass/bandpass or bandpass/highpass in the app's operation order. The
+`MorphingTPTSVF` stores the clamped `blend` and its `cosine` and `sine`, computed
+by the caller. Like the app's `GetMorphedOutput`, it mixes both the
+lowpass/bandpass and the bandpass/highpass halves in the app's operation order,
+then selects with `IfLess 0.5 blend`, the app's `Vector::IfLess`. `IfLess` is a
+small arithmetic operation: an ordinary branch on `Float`, and pointwise on
+channels, so every channel picks its own half. `LawfulIfLess` exposes a scalar
+selection's decision as a `Bool`; `ℝ` decides by its order. The
 morph is part of the analog model: its numerator is the weighted sum of the
 three SVF numerators. `realizes_blend` states the transfer for a blend
 parameter with the app's clamp and quarter-turn phase; `blendWeights_power`
@@ -321,6 +327,33 @@ Coefficients are still supplied by the caller. Matrix exponentials, integrals
 and symbolic polynomial manipulation are mathematical construction APIs, not
 floating-point coefficient routines emitted into `Process`. The code generator
 specializes a chosen executable arithmetic processor with fixed dimension.
+
+## Multi-channel filters
+
+The app's `MultiChannelNumber` is the product ring Kⁿ with pointwise
+arithmetic. Each filter record is generic in its arithmetic, so `TPTSVF (Fin n → K)`
+is an n-channel SVF with per-channel coefficients and the same `step`. Kⁿ has
+zero divisors and is not a field, so it does not fit `Bilinear` directly.
+Instead, [Transfer.Channels](Transfer/Channels.lean) lifts scalar theorems:
+
+- Every filter record derives `Functor`; `channel i` reads every scalar at i.
+- `Natural multi scalar`: stepping n channels and reading channel i equals
+  stepping channel i alone.
+- `Channels.realizes`: if a step is natural and each channel's scalar filter
+  realizes H i, then channel i of the stored field realizes H i for channel i of
+  every input.
+
+[Filters/Channels](Filters/Channels.lean) instantiates this for every TPT
+filter. Lean has no parametricity theorem, so naturality is checked once per
+step, but each check is `rfl`. Each `realizes_*_channels` theorem is a one-line
+application of the scalar theorem, with per-channel hypotheses and transfers
+such as g_i²/(s² + k_i g_i s + g_i²). Every coefficient is per channel,
+including the morph's blend: `realizes_blend_channels` gives each channel the
+transfer of its own blend. Decimal literals such as the morph's 0.5 are the
+same in every channel, like `Vector::Splat`. The ZOH lowpass is not lifted.
+
+These theorems cover the exact model over `Fin n → K`. A `MultiChannelNumber`
+code generator target is separate work.
 
 ## Build and evidence
 

@@ -43,8 +43,8 @@ def ladderFields (f : TPTLadder Float) : List Float :=
 def crossoverFields (f : LinkwitzRileyCrossover Float) : List Float :=
   svfFields f.first ++ svfFields f.lowSecond ++ svfFields f.highSecond
 
-def morphLine (f : MorphingTPTSVF Float) : String :=
-  s!"{bits (svfFields f.svf ++ [f.cosine, f.sine])} {if f.upperHalf then 1 else 0} {f.output.toBits}"
+def morphFields (f : MorphingTPTSVF Float) : List Float :=
+  svfFields f.svf ++ [f.cosine, f.sine, f.blend, f.output]
 
 /-- Random coefficients and states. Gains are solved as the app does, so long
 trajectories stay finite; states and stored outputs start anywhere. -/
@@ -116,9 +116,11 @@ def main : IO Unit := do
     let (svf, r) := randomSVF random
     let (angle, r) := uniform r 0.0 1.5707963267948966
     let (output, r) := uniform r (-10.0) 10.0
+    let (blend, r) := uniform r 0.0 1.0
+    let blend := if (r >>> 40) % 4 == 0 then 0.5 else blend
     let morph : MorphingTPTSVF Float :=
-      { svf, cosine := angle.cos, sine := angle.sin, upperHalf := r % 2 == 0, output }
-    random ← emit out "morph" morphLine MorphingTPTSVF.stepFloat morph r 64
+      { svf, cosine := angle.cos, sine := angle.sin, blend, output }
+    random ← emit out "morph" (fun f => bits (morphFields f)) MorphingTPTSVF.stepFloat morph r 64
     for (kind, step) in [("svf4High", TPTSVF4Pole.stepHighPassFloat),
         ("svf4Low", TPTSVF4Pole.stepLowPassFloat), ("svf4Band", TPTSVF4Pole.stepBandPassFloat)] do
       let (stage1, r) := randomSVF random
