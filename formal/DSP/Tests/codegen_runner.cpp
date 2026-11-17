@@ -8,7 +8,6 @@
 #include "TPTSVF4PoleLowPass.hpp"
 #include "TPTSVF4PoleBandPass.hpp"
 #include "TPTLadder.hpp"
-#include "LinkwitzRileyCrossover.hpp"
 #include "SwapProcessor.hpp"
 #include "GainProcessor.hpp"
 #include "FMAProcessor.hpp"
@@ -104,37 +103,32 @@ bool RunFlatKind(const std::string& kind, bool& known)
 
     if (kind == "svf")
     {
-        return RunFlat<TPTSVF, 10>();
+        return RunFlat<TPTSVF, 11>();
     }
 
     if (kind == "morph")
     {
-        return RunFlat<MorphingTPTSVF, 14>();
+        return RunFlat<MorphingTPTSVF, 15>();
     }
 
     if (kind == "svf4High")
     {
-        return RunFlat<TPTSVF4PoleHighPass, 20>();
+        return RunFlat<TPTSVF4PoleHighPass, 22>();
     }
 
     if (kind == "svf4Low")
     {
-        return RunFlat<TPTSVF4PoleLowPass, 20>();
+        return RunFlat<TPTSVF4PoleLowPass, 22>();
     }
 
     if (kind == "svf4Band")
     {
-        return RunFlat<TPTSVF4PoleBandPass, 20>();
+        return RunFlat<TPTSVF4PoleBandPass, 22>();
     }
 
     if (kind == "ladder")
     {
         return RunFlat<TPTLadder, 14>();
-    }
-
-    if (kind == "crossover")
-    {
-        return RunFlat<LinkwitzRileyCrossover, 30>();
     }
 
     known = false;

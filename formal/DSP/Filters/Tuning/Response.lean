@@ -130,25 +130,4 @@ theorem equal_cutoff_gains (stage : TPTSVF.LogicalSpec ℝ) (h : stage.Valid) :
   constructor <;> ring
 end TPTSVF4Pole
 
-namespace LinkwitzRileyCrossover
-
-def LogicalSpec.Valid (spec : LogicalSpec ℝ) : Prop := Tuning.ValidCutoff spec.cutoff
-def LogicalSpec.stage (spec : LogicalSpec ℝ) : TPTSVF.LogicalSpec ℝ :=
-  ⟨spec.cutoff, Trig.cos2pi (1/8)⟩
-def LogicalSpec.snapshot (spec : LogicalSpec ℝ) : Snapshot ℝ :=
-  ⟨spec.stage.snapshot, spec.stage.snapshot, spec.stage.snapshot⟩
-
-theorem cutoff_quarter_power (spec : LogicalSpec ℝ) (h : spec.Valid) :
-    spec.snapshot.lowPassMagnitudeSquared (ofCyclesPerSample spec.cutoff) = 1/4 ∧
-    spec.snapshot.highPassMagnitudeSquared (ofCyclesPerSample spec.cutoff) = 1/4 := by
-  have hs : spec.stage.Valid := ⟨h, Tuning.butterworth_q_pos⟩
-  obtain ⟨hl,_,hh,_⟩ := TPTSVF.cutoff_gains spec.stage hs
-  change spec.stage.snapshot.lowPassMagnitudeSquared (ofCyclesPerSample spec.stage.cutoff) *
-      spec.stage.snapshot.lowPassMagnitudeSquared (ofCyclesPerSample spec.stage.cutoff) = 1/4 ∧
-    spec.stage.snapshot.highPassMagnitudeSquared (ofCyclesPerSample spec.stage.cutoff) *
-      spec.stage.snapshot.highPassMagnitudeSquared (ofCyclesPerSample spec.stage.cutoff) = 1/4
-  rw [hl, hh]
-  simp only [LogicalSpec.stage, Tuning.butterworth_q_squared]
-  norm_num
-end LinkwitzRileyCrossover
 end DSP

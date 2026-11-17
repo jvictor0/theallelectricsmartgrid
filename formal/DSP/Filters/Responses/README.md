@@ -1,11 +1,10 @@
 # Proved response kernels for the generated TPT filters
 
-Every generated TPT filter now has a coefficient `Snapshot` and static squared
+The response-bearing generated TPT filters have a coefficient `Snapshot` and static squared
 magnitude methods in its processor header. Single-output exports use
 `MagnitudeSquared`; `TPTSVF` exposes `LowPassMagnitudeSquared`,
 `BandPassMagnitudeSquared`, `HighPassMagnitudeSquared`, and
-`NotchMagnitudeSquared`. `LinkwitzRileyCrossover` exposes the lowpass and
-highpass methods. All use the existing C++ `ResponseFrequencyGeneric`.
+`NotchMagnitudeSquared` and `AllPassMagnitudeSquared`. All use the existing C++ `ResponseFrequencyGeneric`.
 The three four-pole processor variants each use `MagnitudeSquared` for their
 selected output. `CoupledProcessor` remains a codegen fixture, not a filter
 with one of these response specifications.
@@ -93,8 +92,7 @@ m1*m2 = normSq(H1*H2)
 
 Consequently the base-width response is the highpass squared magnitude times
 the lowpass squared magnitude. Each four-pole SVF response multiplies the two
-selected stage responses. Each crossover branch does the same with its own
-second stage. Their gains and dampings may differ; the proof never assumes
+selected stage responses. Their gains and dampings may differ; the proof never assumes
 identical stages. Squaring one stage's response is only the equal-stage case.
 No square roots are needed until the UI wants ordinary magnitude.
 
@@ -149,3 +147,8 @@ simultaneous numerator/denominator zero as a proved canceled or limiting
 frequency response. For example, a zero-gain TPT highpass at DC is outside the
 positive-gain plotting contract. Floating-point overflow and underflow remain
 outside the real-number proofs.
+
+The [Linkwitz–Riley splitter](../LinkwitzRileySplitter/README.md) captures a
+snapshot but emits no response methods. Its general tree proofs give each
+complex band transfer and unit-magnitude reconstruction. A later consumer
+should form the complex weighted sum before taking its magnitude.

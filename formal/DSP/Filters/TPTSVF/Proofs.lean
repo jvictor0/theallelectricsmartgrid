@@ -135,6 +135,21 @@ theorem realizes_notch (f : TPTSVF K) (g : K) (ht : f.Tuned g) (hr : f.AtRest) :
   refine (((realizes_lowPass f g ht hr).add (realizes_highPass f g ht hr)).congr (fun _ _ => rfl)).transfer_eq ?_
   rw [Bilinear.analog_add, lowPassNumerator, highPassNumerator, notchNumerator, add_comm]
 
+/-- An all-pass tap shares both integrators with the other SVF responses. -/
+theorem realizes_allPass (f : TPTSVF K) (g : K) (ht : f.Tuned g) (hr : f.AtRest) :
+    Bilinear.Realizes step f (·.allPass)
+      (Bilinear.analog (denominator g (-f.k)) (denominator g f.k)) := by
+  have scaled := Bilinear.Realizes.mul (p := step) (fun s : TPTSVF K => s.k * 2)
+    (fun _ _ => rfl) (realizes_bandPass f g ht hr)
+  refine (scaled.complement (d := fun s => s.allPass) ?_).transfer_eq ?_
+  · intro s x
+    simp only [step, fma_eq]
+    ring
+  · rw [Bilinear.const_mul_analog, Bilinear.one_sub_analog _ _ (denominator_ne_zero f g ht)]
+    congr 1
+    simp only [denominator, bandPassNumerator, map_mul, map_ofNat, map_neg]
+    ring
+
 end DSP.TPTSVF
 
 end

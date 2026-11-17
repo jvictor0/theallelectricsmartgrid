@@ -4,9 +4,9 @@ import DSP.Filters.OnePoleZOHLowPass.Response
 import DSP.Filters.OnePoleTPTLowPass
 import DSP.Filters.OnePoleTPTHighPass
 import DSP.Filters.TPTSVF
+import DSP.Tests.Splitter
 import DSP.Filters.MorphingTPTSVF
 import DSP.Filters.TPTLadder
-import DSP.Filters.LinkwitzRileyCrossover
 
 /-! Native execution checks for the generic definitions. These are runtime
 tests, not proofs of floating-point equivalence to the real-number model. -/
@@ -25,11 +25,12 @@ def constant (n : Nat) (x : Float) : List Float := List.replicate n x
 def tunedSVF (g k : Float) : TPTSVF Float :=
   let a1 := 1.0 / (g * (g + k) + 1.0)
   { k, a1, a2 := g * a1, a3 := g * (g * a1), ic1 := 0.0, ic2 := 0.0, lowPass := 0.0,
-    bandPass := 0.0, highPass := 0.0, notch := 0.0 }
+    bandPass := 0.0, highPass := 0.0, notch := 0.0, allPass := 0.0 }
 
 def close (a b : Float) : Bool := (a - b).abs < 1.0e-9
 
 def main : IO Unit := do
+  DSP.Tests.Splitter.check
   let (zoh, zohFinal) := observe OnePoleZOHLowPass.step (·.y)
     ({ alpha := 0.5, y := 0.0 } : OnePoleZOHLowPass Float) [1.0, 0.0, -1.0]
   unless zoh == [0.5, 0.25, -0.375] && zohFinal.alpha == 0.5 do
@@ -91,13 +92,6 @@ def main : IO Unit := do
   unless close settled.stage4.y (1.0 / 3.0) do
     throw (IO.userError s!"Float ladder DC gain 1 / (1 + k) failed: {settled.stage4.y}")
 
-  let crossover : LinkwitzRileyCrossover Float :=
-    { first := tunedSVF 0.3 1.8478, lowSecond := tunedSVF 0.3 0.7654,
-      highSecond := tunedSVF 0.3 0.7654 }
-  let (_, split) := observe LinkwitzRileyCrossover.step (·.lowSecond.lowPass) crossover
-    (constant 4000 1.0)
-  unless close split.lowSecond.lowPass 1.0 && close split.highSecond.highPass 0.0 do
-    throw (IO.userError "Float crossover DC split failed")
   -- Direct-form IIR uses explicit FMA while retaining the input/output histories.
   let a := Float.ofBits 0x3ff0000000000001
   let b := Float.ofBits 0x3feffffffffffffe
@@ -139,4 +133,4 @@ def main : IO Unit := do
       unless (squared - reference alpha).abs < 1.0e-8 &&
           (squared32.toFloat - reference alpha32.toFloat).abs < 2.0e-6 do
         throw (IO.userError s!"ZOH magnitude mismatch at alpha={alpha}, frequency={frequency}")
-  IO.println "Filter native execution: one-pole, SVF, morph, ladder, crossover, IIR, fused dot-product and ZOH magnitude checks passed."
+  IO.println "Filter native execution: one-pole, SVF, morph, ladder, IIR, fused dot-product and ZOH magnitude checks passed."

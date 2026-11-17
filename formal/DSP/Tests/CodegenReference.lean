@@ -1,6 +1,7 @@
 import DSP.Filters.Tuning
 import DSP.Tests.CodegenFixtures
 import DSP.Tests.ResponseCases
+import DSP.Tests.Splitter
 import DSP.Filters.OnePoleTPTLowPass
 import DSP.Filters.OnePoleTPTHighPass
 import DSP.Filters.TPTBaseWidth
@@ -8,7 +9,6 @@ import DSP.Filters.TPTSVF
 import DSP.Filters.MorphingTPTSVF
 import DSP.Filters.TPTSVF4Pole
 import DSP.Filters.TPTLadder
-import DSP.Filters.LinkwitzRileyCrossover
 
 /-! Generate inputs and expected raw IEEE bits by executing the Lean functions.
 The C++ differential harness consumes the same inputs and compares every field.
@@ -34,16 +34,13 @@ def baseWidthFields {R : Type} (f : TPTBaseWidth R) : List R :=
   highPassFields f.highPass ++ lowPassFields f.lowPass
 
 def svfFields {R : Type} (f : TPTSVF R) : List R :=
-  [f.k, f.a1, f.a2, f.a3, f.ic1, f.ic2, f.lowPass, f.bandPass, f.highPass, f.notch]
+  [f.k, f.a1, f.a2, f.a3, f.ic1, f.ic2, f.lowPass, f.bandPass, f.highPass, f.notch, f.allPass]
 
 def svf4Fields {R : Type} (f : TPTSVF4Pole R) : List R := svfFields f.stage1 ++ svfFields f.stage2
 
 def ladderFields {R : Type} (f : TPTLadder R) : List R :=
   [f.k, f.drive] ++ lowPassFields f.stage1 ++ lowPassFields f.stage2 ++
     lowPassFields f.stage3 ++ lowPassFields f.stage4
-
-def crossoverFields {R : Type} (f : LinkwitzRileyCrossover R) : List R :=
-  svfFields f.first ++ svfFields f.lowSecond ++ svfFields f.highSecond
 
 def morphFields {R : Type} (f : MorphingTPTSVF R) : List R :=
   svfFields f.svf ++ [f.cosine, f.sine, f.blend, f.output]
@@ -67,12 +64,12 @@ def randomLowPass (r : UInt64) : OnePoleTPTLowPass Float × UInt64 :=
 def randomSVF (r : UInt64) : TPTSVF Float × UInt64 :=
   let (g, r) := uniform r 0.0 3.0
   let (k, r) := uniform r 0.05 2.0
-  let (state, r) := randomValues r 6 (-10.0) 10.0
+  let (state, r) := randomValues r 7 (-10.0) 10.0
   let a1 := 1.0 / (g * (g + k) + 1.0)
   let svf : TPTSVF Float :=
     { k := k, a1 := a1, a2 := g * a1, a3 := g * (g * a1), ic1 := state[0]!
       ic2 := state[1]!, lowPass := state[2]!, bandPass := state[3]!, highPass := state[4]!
-      notch := state[5]! }
+      notch := state[5]!, allPass := state[6]! }
   (svf, r)
 
 def emit {S : Type} (out : IO.FS.Stream) (kind : String) (line : S → String)
@@ -97,7 +94,7 @@ def lowPass32 (f : OnePoleTPTLowPass Float) : OnePoleTPTLowPass Float32 :=
 def svf32 (f : TPTSVF Float) : TPTSVF Float32 :=
   ⟨f.k.toFloat32, f.a1.toFloat32, f.a2.toFloat32, f.a3.toFloat32,
     f.ic1.toFloat32, f.ic2.toFloat32, f.lowPass.toFloat32, f.bandPass.toFloat32,
-    f.highPass.toFloat32, f.notch.toFloat32⟩
+    f.highPass.toFloat32, f.notch.toFloat32, f.allPass.toFloat32⟩
 
 /-- Execute Float32 arithmetic directly; converting the Float result would
 not test the target's rounding at each operation. -/
@@ -180,18 +177,17 @@ def emitAllResponseCases (out : IO.FS.Stream) : IO Unit := do
 /-- Independent native transcendental reference for coefficient tuning. Generated
 C++ deliberately uses the Math4096 approximation instead. -/
 def tuningRows {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 8]
-    [Add R] [Sub R] [Mul R] [Div R] [FMA R] [IfLess R] [Trig R] [ExpDecay R]
+    [Add R] [Sub R] [Neg R] [Mul R] [Div R] [FMA R] [IfLess R] [Trig R] [ExpDecay R]
     (fc1 fc2 q1 q2 blend feedback seed : R) : List (String × List R × List R × List R) :=
   let zoh : OnePoleZOHLowPass R := ⟨0,seed⟩
   let lp : OnePoleTPTLowPass R := ⟨0,seed,seed+1⟩
   let hp : OnePoleTPTHighPass R := ⟨lp,seed-1⟩
-  let svf : TPTSVF R := ⟨0,0,0,0,seed,seed+1,seed-1,seed+2,seed-2,seed+8⟩
-  let second : TPTSVF R := ⟨0,0,0,0,seed-8,seed+2,seed+1,seed,seed-1,seed-2⟩
+  let svf : TPTSVF R := ⟨0,0,0,0,seed,seed+1,seed-1,seed+2,seed-2,seed+8,seed+1⟩
+  let second : TPTSVF R := ⟨0,0,0,0,seed-8,seed+2,seed+1,seed,seed-1,seed-2,seed-8⟩
   let base : TPTBaseWidth R := ⟨hp,⟨0,seed+2,seed-2⟩⟩
   let morph : MorphingTPTSVF R := ⟨svf,0,0,0,seed+8⟩
   let four : TPTSVF4Pole R := ⟨svf,second⟩
   let ladder : TPTLadder R := ⟨0,seed,lp,⟨0,seed+2,seed-2⟩,lp,⟨0,seed+8,seed-8⟩⟩
-  let cross : LinkwitzRileyCrossover R := ⟨svf,second,svf⟩
   let z := OnePoleZOHLowPass.computeCoefficients ⟨fc1⟩ zoh
   let zfields := fun f : OnePoleZOHLowPass R => [f.alpha,f.y]
   let rows := [
@@ -208,8 +204,10 @@ def tuningRows {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 8]
       morphFields (MorphingTPTSVF.computeCoefficients ⟨⟨fc1,q1⟩,blend⟩ morph)),
     ("TPTLadder", [fc1,feedback], ladderFields ladder,
       ladderFields (TPTLadder.computeCoefficients ⟨fc1,feedback⟩ ladder)),
-    ("LinkwitzRileyCrossover", [fc1], crossoverFields cross,
-      crossoverFields (LinkwitzRileyCrossover.computeCoefficients ⟨fc1⟩ cross))]
+    ("LinkwitzRileySplitter4Band", [fc1,fc2,fc1],
+      DSP.Tests.Splitter.fields svfFields (DSP.Tests.Splitter.seeded 4 seed),
+      DSP.Tests.Splitter.fields svfFields (LinkwitzRileySplitter.computeCoefficients
+        (DSP.Tests.Splitter.spec4 fc1 fc2 fc1) (DSP.Tests.Splitter.seeded 4 seed)))]
   rows ++ ["TPTSVF4PoleLowPass", "TPTSVF4PoleBandPass", "TPTSVF4PoleHighPass"].map (fun name =>
     (name, [fc1,q1,fc2,q2], svf4Fields four,
       svf4Fields (TPTSVF4Pole.computeCoefficients ⟨⟨fc1,q1⟩,⟨fc2,q2⟩⟩ four)))
@@ -303,13 +301,17 @@ def main : IO Unit := do
         lowPass32 stage3, lowPass32 stage4⟩ r
     random ← emit out "ladder" (fun f => bits (ladderFields f)) TPTLadder.stepFloat
       { k, drive, stage1, stage2, stage3, stage4 } r 64
-    let (first, r) := randomSVF random
-    let (lowSecond, r) := randomSVF r
-    let (highSecond, r) := randomSVF r
-    emit32 out "crossover" crossoverFields LinkwitzRileyCrossover.step
-      ⟨svf32 first, svf32 lowSecond, svf32 highSecond⟩ r
-    random ← emit out "crossover" (fun f => bits (crossoverFields f))
-      LinkwitzRileyCrossover.stepFloat { first, lowSecond, highSecond } r 64
+  for j in [:16] do
+    let seed := Float.ofNat j / 8 - 1
+    let spec := DSP.Tests.Splitter.spec4 (0.12 + Float.ofNat j / 200) 0.023 0.37
+    let initial := LinkwitzRileySplitter.computeCoefficients spec (DSP.Tests.Splitter.seeded 4 seed)
+    random ← emit out "splitter" (fun f => bits (DSP.Tests.Splitter.fields svfFields f))
+      LinkwitzRileySplitter.step4Band initial random 64
+    let spec32 := DSP.Tests.Splitter.spec4 spec.tree.value.toFloat32
+      spec.tree.low.value.toFloat32 spec.tree.high.value.toFloat32
+    let initial32 := LinkwitzRileySplitter.computeCoefficients spec32
+      (DSP.Tests.Splitter.seeded 4 seed.toFloat32)
+    emit32 out "splitter" (DSP.Tests.Splitter.fields svfFields) LinkwitzRileySplitter.step4Band initial32 random
   for i in [:1024] do
     random := nextRandom random
     let left := Float.ofNat (random.toNat % 100001) / 100.0 - 500.0

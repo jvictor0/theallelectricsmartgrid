@@ -93,6 +93,16 @@ theorem notchMagnitudeSquared_channels_prepared {n : ℕ} (s : Snapshot (Fin n �
     s.notchMagnitudeSquared p i = Complex.normSq ((channel i s).notchResponse (frequency i)) := by
   rw [notchMagnitudeSquared_channel, hp i]
   exact (channel i s).notchMagnitudeSquared_eq_normSq (frequency i)
+theorem allPassMagnitudeSquared_channel {n : ℕ} (s : Snapshot (Fin n → ℝ))
+    (p : ResponseFrequency (Fin n → ℝ)) (i : Fin n) :
+    s.allPassMagnitudeSquared p i = (channel i s).allPassMagnitudeSquared (channel i p) := rfl
+
+theorem allPassMagnitudeSquared_channels_prepared {n : ℕ} (s : Snapshot (Fin n → ℝ))
+    (p : ResponseFrequency (Fin n → ℝ)) (frequency : Fin n → ℝ)
+    (hp : ∀ i, (channel i p).Represents (frequency i)) (i : Fin n) :
+    s.allPassMagnitudeSquared p i = Complex.normSq ((channel i s).allPassResponse (frequency i)) := by
+  rw [allPassMagnitudeSquared_channel, hp i]
+  exact (channel i s).allPassMagnitudeSquared_eq_normSq (frequency i)
 end TPTSVF
 
 namespace MorphingTPTSVF
@@ -145,30 +155,6 @@ theorem highPassMagnitudeSquared_channels_prepared {n : ℕ} (s : Snapshot (Fin 
   exact (channel i s).highPassMagnitudeSquared_eq_normSq (frequency i)
 end TPTSVF4Pole
 
-namespace LinkwitzRileyCrossover
-
-theorem lowPassMagnitudeSquared_channel {n : ℕ} (s : Snapshot (Fin n → ℝ))
-    (p : ResponseFrequency (Fin n → ℝ)) (i : Fin n) :
-    s.lowPassMagnitudeSquared p i = (channel i s).lowPassMagnitudeSquared (channel i p) := rfl
-
-theorem lowPassMagnitudeSquared_channels_prepared {n : ℕ} (s : Snapshot (Fin n → ℝ))
-    (p : ResponseFrequency (Fin n → ℝ)) (frequency : Fin n → ℝ)
-    (hp : ∀ i, (channel i p).Represents (frequency i)) (i : Fin n) :
-    s.lowPassMagnitudeSquared p i = Complex.normSq ((channel i s).lowPassResponse (frequency i)) := by
-  rw [lowPassMagnitudeSquared_channel, hp i]
-  exact (channel i s).lowPassMagnitudeSquared_eq_normSq (frequency i)
-
-theorem highPassMagnitudeSquared_channel {n : ℕ} (s : Snapshot (Fin n → ℝ))
-    (p : ResponseFrequency (Fin n → ℝ)) (i : Fin n) :
-    s.highPassMagnitudeSquared p i = (channel i s).highPassMagnitudeSquared (channel i p) := rfl
-
-theorem highPassMagnitudeSquared_channels_prepared {n : ℕ} (s : Snapshot (Fin n → ℝ))
-    (p : ResponseFrequency (Fin n → ℝ)) (frequency : Fin n → ℝ)
-    (hp : ∀ i, (channel i p).Represents (frequency i)) (i : Fin n) :
-    s.highPassMagnitudeSquared p i = Complex.normSq ((channel i s).highPassResponse (frequency i)) := by
-  rw [highPassMagnitudeSquared_channel, hp i]
-  exact (channel i s).highPassMagnitudeSquared_eq_normSq (frequency i)
-end LinkwitzRileyCrossover
 
 namespace TPTLadder
 

@@ -16,8 +16,6 @@
 #include "TPTSVF4PoleHighPassGeneric.hpp"
 #include "TPTLadder.hpp"
 #include "TPTLadderGeneric.hpp"
-#include "LinkwitzRileyCrossover.hpp"
-#include "LinkwitzRileyCrossoverGeneric.hpp"
 
 #include <array>
 #include <cassert>
@@ -37,7 +35,7 @@ To Bits(From value)
     return result;
 }
 
-std::array<double, 14> ScalarResponses(const std::array<double, 10>& v,
+std::array<double, 13> ScalarResponses(const std::array<double, 10>& v,
     const ResponseFrequencyGeneric<double>& frequency)
 {
     return {
@@ -48,18 +46,17 @@ std::array<double, 14> ScalarResponses(const std::array<double, 10>& v,
         TPTSVF::BandPassMagnitudeSquared({v[0], v[4]}, frequency),
         TPTSVF::HighPassMagnitudeSquared({v[0], v[4]}, frequency),
         TPTSVF::NotchMagnitudeSquared({v[0], v[4]}, frequency),
+        TPTSVF::AllPassMagnitudeSquared({v[0], v[4]}, frequency),
         MorphingTPTSVF::MagnitudeSquared({{v[0], v[4]}, v[7], v[8], v[9]}, frequency),
         TPTSVF4PoleLowPass::MagnitudeSquared({{v[0], v[4]}, {v[1], v[5]}}, frequency),
         TPTSVF4PoleBandPass::MagnitudeSquared({{v[0], v[4]}, {v[1], v[5]}}, frequency),
         TPTSVF4PoleHighPass::MagnitudeSquared({{v[0], v[4]}, {v[1], v[5]}}, frequency),
         TPTLadder::MagnitudeSquared({v[0], v[1], v[2], v[3], v[4]}, frequency),
-        LinkwitzRileyCrossover::LowPassMagnitudeSquared({{v[0], v[4]}, {v[1], v[5]}, {v[2], v[6]}}, frequency),
-        LinkwitzRileyCrossover::HighPassMagnitudeSquared({{v[0], v[4]}, {v[1], v[5]}, {v[2], v[6]}}, frequency),
     };
 }
 
 template<typename Number, size_t Size>
-std::array<MultiChannelNumber<Number, Size>, 14> VectorResponses(const std::array<MultiChannelNumber<Number, Size>, 10>& v,
+std::array<MultiChannelNumber<Number, Size>, 13> VectorResponses(const std::array<MultiChannelNumber<Number, Size>, 10>& v,
     const ResponseFrequencyGeneric<MultiChannelNumber<Number, Size>>& frequency)
 {
     return {
@@ -70,20 +67,19 @@ std::array<MultiChannelNumber<Number, Size>, 14> VectorResponses(const std::arra
         TPTSVFGeneric<Number, Size>::BandPassMagnitudeSquared({v[0], v[4]}, frequency),
         TPTSVFGeneric<Number, Size>::HighPassMagnitudeSquared({v[0], v[4]}, frequency),
         TPTSVFGeneric<Number, Size>::NotchMagnitudeSquared({v[0], v[4]}, frequency),
+        TPTSVFGeneric<Number, Size>::AllPassMagnitudeSquared({v[0], v[4]}, frequency),
         MorphingTPTSVFGeneric<Number, Size>::MagnitudeSquared({{v[0], v[4]}, v[7], v[8], v[9]}, frequency),
         TPTSVF4PoleLowPassGeneric<Number, Size>::MagnitudeSquared({{v[0], v[4]}, {v[1], v[5]}}, frequency),
         TPTSVF4PoleBandPassGeneric<Number, Size>::MagnitudeSquared({{v[0], v[4]}, {v[1], v[5]}}, frequency),
         TPTSVF4PoleHighPassGeneric<Number, Size>::MagnitudeSquared({{v[0], v[4]}, {v[1], v[5]}}, frequency),
         TPTLadderGeneric<Number, Size>::MagnitudeSquared({v[0], v[1], v[2], v[3], v[4]}, frequency),
-        LinkwitzRileyCrossoverGeneric<Number, Size>::LowPassMagnitudeSquared({{v[0], v[4]}, {v[1], v[5]}, {v[2], v[6]}}, frequency),
-        LinkwitzRileyCrossoverGeneric<Number, Size>::HighPassMagnitudeSquared({{v[0], v[4]}, {v[1], v[5]}, {v[2], v[6]}}, frequency),
     };
 }
 
 // An independent complex transfer calculation uses the digital delay q.
 // It exercises the half-angle bridge, output selection, mixing and cascades.
 //
-std::array<double, 14> ComplexReference(const std::array<double, 10>& v, double cycles)
+std::array<double, 13> ComplexReference(const std::array<double, 10>& v, double cycles)
 {
     using C = std::complex<double>;
     const C q = cycles == 0 ? C(1, 0) : cycles == 0.5 ? C(-1, 0) : std::polar(1.0, -2 * std::acos(-1.0) * cycles);
@@ -106,14 +102,13 @@ std::array<double, 14> ComplexReference(const std::array<double, 10>& v, double 
     };
     const auto first = svf(v[0], v[4]);
     const auto second = svf(v[1], v[5]);
-    const auto third = svf(v[2], v[6]);
     const C cascade = lp(v[0]) * lp(v[1]) * lp(v[2]) * lp(v[3]);
     return {std::norm(lp(v[0])), std::norm(hp(v[0])), std::norm(hp(v[0]) * lp(v[1])),
         std::norm(first[0]), std::norm(first[1]), std::norm(first[2]), std::norm(first[0] + first[2]),
+        std::norm(first[0] - v[4] * first[1] + first[2]),
         std::norm(v[7] * first[0] + v[8] * first[1] + v[9] * first[2]),
         std::norm(first[0] * second[0]), std::norm(first[1] * second[1]), std::norm(first[2] * second[2]),
-        std::norm(cascade / (1.0 + v[4] * cascade)),
-        std::norm(first[0] * second[0]), std::norm(first[2] * third[2])};
+        std::norm(cascade / (1.0 + v[4] * cascade))};
 }
 
 void CheckComplexReference()

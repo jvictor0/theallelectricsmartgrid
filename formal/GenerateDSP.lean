@@ -8,10 +8,10 @@ import DSP.Filters.TPTSVF
 import DSP.Filters.MorphingTPTSVF
 import DSP.Filters.TPTSVF4Pole
 import DSP.Filters.TPTLadder
-import DSP.Filters.LinkwitzRileyCrossover
 import DSP.Filters.Coupled
 import DSP.Filters.Responses
 import DSP.Filters.Tuning
+import DSP.Filters.LinkwitzRileySplitter
 
 #use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
 
@@ -35,7 +35,8 @@ import DSP.Filters.Tuning
   [DSP.TPTSVF.Snapshot.lowPassMagnitudeSquaredFloat as LowPassMagnitudeSquared,
     DSP.TPTSVF.Snapshot.bandPassMagnitudeSquaredFloat as BandPassMagnitudeSquared,
     DSP.TPTSVF.Snapshot.highPassMagnitudeSquaredFloat as HighPassMagnitudeSquared,
-    DSP.TPTSVF.Snapshot.notchMagnitudeSquaredFloat as NotchMagnitudeSquared]
+    DSP.TPTSVF.Snapshot.notchMagnitudeSquaredFloat as NotchMagnitudeSquared,
+    DSP.TPTSVF.Snapshot.allPassMagnitudeSquaredFloat as AllPassMagnitudeSquared]
   as TPTSVF to "build/lean/generated/TPTSVF.hpp"
 
 #generate_cpp_tuned_filter DSP.MorphingTPTSVF.stepFloat DSP.MorphingTPTSVF.computeCoefficientsFloat
@@ -57,11 +58,6 @@ import DSP.Filters.Tuning
 #generate_cpp_tuned_filter DSP.TPTLadder.stepFloat DSP.TPTLadder.computeCoefficientsFloat
   [DSP.TPTLadder.Snapshot.magnitudeSquaredFloat as MagnitudeSquared]
   as TPTLadder to "build/lean/generated/TPTLadder.hpp"
-
-#generate_cpp_tuned_filter DSP.LinkwitzRileyCrossover.stepFloat DSP.LinkwitzRileyCrossover.computeCoefficientsFloat
-  [DSP.LinkwitzRileyCrossover.Snapshot.lowPassMagnitudeSquaredFloat as LowPassMagnitudeSquared,
-    DSP.LinkwitzRileyCrossover.Snapshot.highPassMagnitudeSquaredFloat as HighPassMagnitudeSquared]
-  as LinkwitzRileyCrossover to "build/lean/generated/LinkwitzRileyCrossover.hpp"
 
 #generate_cpp DSP.Coupled.processorFloat as CoupledProcessor to "build/lean/generated/CoupledProcessor.hpp"
 
@@ -85,7 +81,8 @@ import DSP.Filters.Tuning
   [DSP.TPTSVF.Snapshot.lowPassMagnitudeSquared as LowPassMagnitudeSquared,
     DSP.TPTSVF.Snapshot.bandPassMagnitudeSquared as BandPassMagnitudeSquared,
     DSP.TPTSVF.Snapshot.highPassMagnitudeSquared as HighPassMagnitudeSquared,
-    DSP.TPTSVF.Snapshot.notchMagnitudeSquared as NotchMagnitudeSquared]
+    DSP.TPTSVF.Snapshot.notchMagnitudeSquared as NotchMagnitudeSquared,
+    DSP.TPTSVF.Snapshot.allPassMagnitudeSquared as AllPassMagnitudeSquared]
   as TPTSVFGeneric to "build/lean/generated/TPTSVFGeneric.hpp"
 
 #generate_cpp_tuned_filter_generic DSP.MorphingTPTSVF.step DSP.MorphingTPTSVF.computeCoefficients
@@ -108,9 +105,8 @@ import DSP.Filters.Tuning
   [DSP.TPTLadder.Snapshot.magnitudeSquared as MagnitudeSquared]
   as TPTLadderGeneric to "build/lean/generated/TPTLadderGeneric.hpp"
 
-#generate_cpp_tuned_filter_generic DSP.LinkwitzRileyCrossover.step DSP.LinkwitzRileyCrossover.computeCoefficients
-  [DSP.LinkwitzRileyCrossover.Snapshot.lowPassMagnitudeSquared as LowPassMagnitudeSquared,
-    DSP.LinkwitzRileyCrossover.Snapshot.highPassMagnitudeSquared as HighPassMagnitudeSquared]
-  as LinkwitzRileyCrossoverGeneric to "build/lean/generated/LinkwitzRileyCrossoverGeneric.hpp"
-
 #generate_cpp_generic DSP.Coupled.processor as CoupledProcessorGeneric to "build/lean/generated/CoupledProcessorGeneric.hpp"
+
+#generate_cpp_tuned_snapshot_generic DSP.LinkwitzRileySplitter.step4Band
+  DSP.LinkwitzRileySplitter.computeCoefficients4Band DSP.LinkwitzRileySplitter.makeSnapshot4Band
+  as LinkwitzRileySplitter4BandGeneric to "build/lean/generated/LinkwitzRileySplitter4BandGeneric.hpp"

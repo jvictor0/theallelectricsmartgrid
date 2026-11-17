@@ -17,9 +17,10 @@ HEADERS = (
     "OnePoleZOHLowPass.hpp", "OnePoleTPTLowPass.hpp", "OnePoleTPTHighPass.hpp",
     "TPTBaseWidth.hpp", "TPTSVF.hpp", "MorphingTPTSVF.hpp", "TPTSVF4PoleHighPass.hpp",
     "TPTSVF4PoleLowPass.hpp", "TPTSVF4PoleBandPass.hpp", "TPTLadder.hpp",
-    "LinkwitzRileyCrossover.hpp", "CoupledProcessor.hpp",
+    "CoupledProcessor.hpp",
 )
 HEADERS += tuple(name.replace(".hpp", "Generic.hpp") for name in HEADERS)
+HEADERS += ("LinkwitzRileySplitter4BandGeneric.hpp",)
 
 
 def test_response(cases, output):
@@ -134,7 +135,7 @@ def test_all_responses(cases, compiler, output):
     assert len(actual) == len(expected), "Different number of TPT response results"
     for label, found, wanted in zip(labels, actual, expected):
         assert found == wanted, f"{label}\nLean: {wanted}\nC++: {found}"
-    print(f"TPT response codegen: {len(expected)} vector batches, 14 responses each, match native Lean "
+    print(f"TPT response codegen: {len(expected)} vector batches, 13 responses each, match native Lean "
           "bit for bit in float/double at widths 1, 2, 3, 4; scalar double and independent complex checks pass.")
 
 
@@ -150,14 +151,14 @@ def main():
              if not case.startswith(("zohResponse", "allResponses", "tuning"))]
     assert cases, "Lean produced no reference cases"
     input_counts = {
-        "zoh": 3, "tpt": 4, "tptHigh": 5, "baseWidth": 8, "svf": 11, "morph": 15,
-        "svf4High": 21, "svf4Low": 21, "svf4Band": 21, "ladder": 15, "crossover": 31,
+        "zoh": 3, "tpt": 4, "tptHigh": 5, "baseWidth": 8, "svf": 12, "morph": 16,
+        "svf4High": 23, "svf4Low": 23, "svf4Band": 23, "ladder": 15, "splitter": 105,
         "swap": 4, "gain": 2, "coupled": 3, "arithmetic": 3, "fma": 3, "fma32": 3,
     }
     inputs, expected = [], []
     scalar_cases = [case for case in cases
                     if (not case.split()[0].endswith("32") or case.split()[0] == "fma32")
-                    and case.split()[0] != "arithmetic"]
+                    and case.split()[0] not in ("arithmetic", "splitter")]
     for case in scalar_cases:
         columns = case.split()
         split = 1 + input_counts[columns[0]]
@@ -189,6 +190,11 @@ def main():
         assert snapshot.read_bytes() == (GENERATED / name).read_bytes(), (
             f"Generated {name} is stale; run make lean-dsp-generate and review its diff"
         )
+    splitter_header = (GENERATED / "LinkwitzRileySplitter4BandGeneric.hpp").read_text()
+    assert "template<typename Number, size_t Size>" in splitter_header
+    assert "static Snapshot MakeSnapshot(const LogicalSpec& spec)" in splitter_header
+    assert "MagnitudeSquared" not in splitter_header
+    assert "std::vector" not in splitter_header
     print(f"C++ codegen: {len(scalar_cases)} native Lean/C++ cases match bit for bit; snapshot current.")
     test_channels(cases, compiler, output, input_counts)
     test_response(response_cases, output)

@@ -5,7 +5,6 @@ import DSP.Filters.TPTBaseWidth.Proofs
 import DSP.Filters.MorphingTPTSVF.Proofs
 import DSP.Filters.TPTSVF4Pole.Proofs
 import DSP.Filters.TPTLadder.Proofs
-import DSP.Filters.LinkwitzRileyCrossover.Proofs
 
 /-!
 Multi-channel instances of the ZOH and TPT filters. Each record is a functor, each step
@@ -24,7 +23,6 @@ deriving instance Functor for TPTSVF
 deriving instance Functor for MorphingTPTSVF
 deriving instance Functor for TPTSVF4Pole
 deriving instance Functor for TPTLadder
-deriving instance Functor for LinkwitzRileyCrossover
 
 open Polynomial Channels
 
@@ -100,6 +98,12 @@ theorem realizes_notch_channels :
       Bilinear.analog (notchNumerator (g i)) (denominator (g i) (f.k i)) :=
   Channels.realizes natural
     (fun i => realizes_notch (channel i f) (g i) (ht i) (hr i)) fun _ _ => rfl
+
+theorem realizes_allPass_channels :
+    Channels.Realizes step f (·.allPass) fun i =>
+      Bilinear.analog (denominator (g i) (-f.k i)) (denominator (g i) (f.k i)) :=
+  Channels.realizes natural
+    (fun i => realizes_allPass (channel i f) (g i) (ht i) (hr i)) fun _ _ => rfl
 
 end TPTSVF
 
@@ -195,25 +199,6 @@ theorem realizes_equal_channels (f : TPTLadder (Fin n → K)) (g : Fin n → K)
 
 end TPTLadder
 
-namespace LinkwitzRileyCrossover
-
-theorem natural : Natural (n := n) (step (R := Fin n → K)) step := fun _ _ _ => rfl
-
-theorem realizes_lowPass_channels (f : LinkwitzRileyCrossover (Fin n → K)) (g : Fin n → K)
-    (h : ∀ i, (channel i f).Ready (g i)) :
-    Channels.Realizes step f (·.lowSecond.lowPass) fun i =>
-      Bilinear.analog (TPTSVF.lowPassNumerator (g i) * TPTSVF.lowPassNumerator (g i))
-        (TPTSVF.denominator (g i) (f.lowSecond.k i) * TPTSVF.denominator (g i) (f.first.k i)) :=
-  Channels.realizes natural (fun i => realizes_lowPass (channel i f) (g i) (h i)) fun _ _ => rfl
-
-theorem realizes_highPass_channels (f : LinkwitzRileyCrossover (Fin n → K)) (g : Fin n → K)
-    (h : ∀ i, (channel i f).Ready (g i)) :
-    Channels.Realizes step f (·.highSecond.highPass) fun i =>
-      Bilinear.analog (TPTSVF.highPassNumerator * TPTSVF.highPassNumerator)
-        (TPTSVF.denominator (g i) (f.highSecond.k i) * TPTSVF.denominator (g i) (f.first.k i)) :=
-  Channels.realizes natural (fun i => realizes_highPass (channel i f) (g i) (h i)) fun _ _ => rfl
-
-end LinkwitzRileyCrossover
 
 end DSP
 

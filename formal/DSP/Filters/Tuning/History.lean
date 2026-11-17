@@ -92,7 +92,7 @@ instance logicalSpecFunctor : Functor LogicalSpec where
   map f s := ⟨f s.cutoff, f s.q⟩
 
 def history {R : Type} (s : TPTSVF R) : List R :=
-  [s.ic1, s.ic2, s.lowPass, s.bandPass, s.highPass, s.notch]
+  [s.ic1, s.ic2, s.lowPass, s.bandPass, s.highPass, s.notch, s.allPass]
 
 theorem computeCoefficients_preserves_history {R : Type} [OfNat R 1] [Add R] [Mul R] [Div R] [FMA R] [Trig R]
     (spec : LogicalSpec R) (state : TPTSVF R) :
@@ -174,27 +174,4 @@ theorem computeCoefficients_channel {R : Type} [OfNat R 1] [Add R] [Div R] [Trig
       computeCoefficients (channel i spec) (channel i state) := rfl
 end TPTLadder
 
-namespace LinkwitzRileyCrossover
-instance logicalSpecFunctor : Functor LogicalSpec where
-  map f s := ⟨f s.cutoff⟩
-
-def history {R : Type} (s : LinkwitzRileyCrossover R) : List R :=
-  TPTSVF.history s.first ++ TPTSVF.history s.lowSecond ++ TPTSVF.history s.highSecond
-
-theorem computeCoefficients_preserves_history {R : Type} [OfNat R 1] [OfNat R 8]
-    [Add R] [Mul R] [Div R] [FMA R] [Trig R]
-    (spec : LogicalSpec R) (state : LinkwitzRileyCrossover R) :
-    history (computeCoefficients spec state) = history state := rfl
-
-theorem computeCoefficients_idempotent {R : Type} [OfNat R 1] [OfNat R 8]
-    [Add R] [Mul R] [Div R] [FMA R] [Trig R]
-    (spec : LogicalSpec R) (state : LinkwitzRileyCrossover R) :
-    computeCoefficients spec (computeCoefficients spec state) = computeCoefficients spec state := rfl
-
-theorem computeCoefficients_channel {R : Type} [OfNat R 1] [OfNat R 8]
-    [Add R] [Mul R] [Div R] [FMA R] [Trig R] {n : ℕ}
-    (spec : LogicalSpec (Fin n → R)) (state : LinkwitzRileyCrossover (Fin n → R)) (i : Fin n) :
-    channel i (computeCoefficients spec state) =
-      computeCoefficients (channel i spec) (channel i state) := rfl
-end LinkwitzRileyCrossover
 end DSP

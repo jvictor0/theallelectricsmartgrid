@@ -81,21 +81,6 @@ theorem computeCoefficients_stable (spec : LogicalSpec ℝ) (h : spec.Valid) :
     (TPTSVF.computeCoefficients_hurwitz _ h.2)).bilinear
 end TPTSVF4Pole
 
-namespace LinkwitzRileyCrossover
-theorem computeCoefficients_tuned (spec : LogicalSpec ℝ) (state : LinkwitzRileyCrossover ℝ)
-    (h : spec.Valid) :
-    (computeCoefficients spec state).first.Tuned (Tuning.warp spec.cutoff) ∧
-    (computeCoefficients spec state).lowSecond.Tuned (Tuning.warp spec.cutoff) ∧
-    (computeCoefficients spec state).highSecond.Tuned (Tuning.warp spec.cutoff) :=
-  ⟨TPTSVF.computeCoefficients_tuned spec.stage _ ⟨h,Tuning.butterworth_q_pos⟩,
-   TPTSVF.computeCoefficients_tuned spec.stage _ ⟨h,Tuning.butterworth_q_pos⟩,
-   TPTSVF.computeCoefficients_tuned spec.stage _ ⟨h,Tuning.butterworth_q_pos⟩⟩
-
-theorem computeCoefficients_stable (spec : LogicalSpec ℝ) (h : spec.Valid) :
-    Stability.BilinearStable (fun p => spec.stage.denominator p * spec.stage.denominator p) :=
-  let hs := TPTSVF.computeCoefficients_hurwitz spec.stage ⟨h,Tuning.butterworth_q_pos⟩
-  (hs.cascade hs).bilinear
-end LinkwitzRileyCrossover
 
 namespace TPTLadder
 theorem computeCoefficients_ready (spec : LogicalSpec ℝ) (state : TPTLadder ℝ) (h : spec.Valid)

@@ -13,7 +13,7 @@ Public ZOH lowpass correctness now follows the generic state-space/ZOH machinery
 `OnePoleTPTLowPass` is the trapezoidal counterpart, related to its analog
 prototype through the bilinear transform. The trapezoidal (TPT) filters compose:
 highpass, base-width band, state-variable filter, morphing SVF, four-pole SVF
-cascades, an idealized ladder and the app's crossover are each proved to realize
+cascades, an idealized ladder and a general Linkwitz–Riley splitter are each proved to realize
 the bilinear image of their analog prototype.
 
 ## Pipeline: analog prototype to C++
@@ -33,7 +33,7 @@ Every TPT filter passes through the same stages. `TPTSVF` as an example:
    prototype with s replaced by the bilinear σ. `streams` derives the analog
    SVF's integrator equations from the recurrence using the shared `integrator`
    lemma. Composites reuse these theorems: `MorphingTPTSVF`, `TPTSVF4Pole` and
-   `LinkwitzRileyCrossover` never re-analyze the SVF recurrence.
+   `LinkwitzRileySplitter` never re-analyze the SVF recurrence.
 4. **Float specialization.** `stepFloat` is the same `step` at `R = Float`;
    the proved and exported functions share one definition.
 5. **Export.** [GenerateDSP.lean](../GenerateDSP.lean) runs
@@ -85,8 +85,8 @@ than sample-exact in time.
 | [OnePoleZOHLowPass](Filters/OnePoleZOHLowPass.lean), [Proofs](Filters/OnePoleZOHLowPass/Proofs.lean), [Transfer](Filters/OnePoleZOHLowPass/Transfer.lean) | ZOH lowpass specialization of the generic update, sampling theorem and rational transfer |
 | [OnePoleTPTLowPass](Filters/OnePoleTPTLowPass.lean), [Proofs](Filters/OnePoleTPTLowPass/Proofs.lean) | Trapezoidal lowpass: state-space realization, trapezoidal rule, bilinear transfer, IIR realization and `realizes` |
 | [OnePoleTPTHighPass](Filters/OnePoleTPTHighPass.lean), [TPTBaseWidth](Filters/TPTBaseWidth.lean) | Highpass as input minus a stored lowpass; highpass into lowpass band |
-| [TPTSVF](Filters/TPTSVF.lean), [MorphingTPTSVF](Filters/MorphingTPTSVF.lean), [TPTSVF4Pole](Filters/TPTSVF4Pole.lean) | The app's linear SVF with stored lowpass/bandpass/highpass/notch, its equal-power morph and two-stage cascades |
-| [TPTLadder](Filters/TPTLadder.lean), [LinkwitzRileyCrossover](Filters/LinkwitzRileyCrossover.lean) | Idealized zero-delay four-pole ladder; the app's three-section crossover and its Butterworth dampings |
+| [TPTSVF](Filters/TPTSVF.lean), [MorphingTPTSVF](Filters/MorphingTPTSVF.lean), [TPTSVF4Pole](Filters/TPTSVF4Pole.lean) | The app's linear SVF with stored lowpass/bandpass/highpass/notch/all-pass, its equal-power morph and two-stage cascades |
+| [TPTLadder](Filters/TPTLadder.lean), [LinkwitzRileySplitter](Filters/LinkwitzRileySplitter/README.md) | Idealized zero-delay four-pole ladder; general LR4 tree with all-pass phase compensation and flat reconstruction |
 | [Transfer.Channels](Transfer/Channels.lean), [Filters/Channels](Filters/Channels.lean) | Pointwise multi-channel filters: channel projection, naturality and per-channel `Realizes` for every TPT filter |
 | [Coupled](Filters/Coupled.lean) | Two-state executable example with nested coefficients, cross-coupling and direct feedthrough |
 | [Codegen](Codegen/README.md), [Audit](Audit.lean) | C++ export, native differential checks and transitive axiom checks |
@@ -309,7 +309,7 @@ All proofs reuse a few lemmas:
 | `MorphingTPTSVF` | `output` | (w_low g² + w_band gs + w_high s²)/D |
 | `TPTSVF4Pole` | `stage2.highPass`, `lowPass`, `bandPass` | product of the two stages' responses |
 | `TPTLadder` | `stage4.y` | g₁g₂g₃g₄/(∏(s+gᵢ) + k g₁g₂g₃g₄) |
-| `LinkwitzRileyCrossover` | `lowSecond.lowPass`, `highSecond.highPass` | products of the sections' lowpass or highpass responses |
+| `LinkwitzRileySplitter` | `bands i` | split responses along the path, compensated by sibling all-pass factors |
 
 `TPTSVF` uses the app's `LinearStateVariableFilter` recurrence with explicit FMA and
 a1 = 1/(1+g(g+k)), a2 = g a1, a3 = g a2; `streams` derives the analog SVF's two
@@ -341,17 +341,19 @@ e = (x - k S)/(1 + k G₁G₂G₃G₄). `loop_solved` proves the stored `drive` 
 the loop exactly, and `realizes` composes the four stages with the loop. Stages
 may have different gains; `realizes_equal` gives g⁴/((s+g)⁴ + k g⁴).
 
-`LinkwitzRileyCrossover` follows the app's three sections: a first SVF whose
-lowpass and highpass each pass through a second SVF. As the app's comment notes,
-its dampings make fourth-order Butterworth branches, not LR4: `butterworth`
-proves that dampings with k₁²+k₂² = 4 and k₁²k₂² = 2 give a denominator with
-B(s)B(-s) = s⁸+g⁸, and `app_dampings` that 2cos(π/8) and 2cos(3π/8) qualify.
+[LinkwitzRileySplitter](Filters/LinkwitzRileySplitter/README.md) uses shared
+SVF lowpass and all-pass taps in a general balanced tree. Each node has true
+LR4 branches, and sibling all-pass compensation makes the sum have unit
+magnitude for any positive band count. Its proofs cover actual stored band
+outputs, logical tuning, snapshot capture and independent channels. Only the
+four-band processing/tuning/snapshot specialization is emitted.
 
-These are transfer statements from rest. Responses from a nonzero state, the
-coefficient formulas themselves (for example g = tan(πf)), parameter changes
-between samples and floating-point error are outside these theorems.
+These are transfer statements from rest. Responses from a nonzero state,
+parameter changes between samples and floating-point error are outside these
+theorems.
 
-Coefficients are still supplied by the caller. Matrix exponentials, integrals
+Logical coefficient preparation is generated for the executable filters.
+Matrix exponentials, integrals
 and symbolic polynomial manipulation are mathematical construction APIs, not
 floating-point coefficient routines emitted into `Process`. The code generator
 specializes a chosen executable arithmetic processor with fixed dimension.

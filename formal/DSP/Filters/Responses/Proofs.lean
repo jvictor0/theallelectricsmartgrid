@@ -20,8 +20,6 @@ instance morphSnapshotFunctor : Functor MorphingTPTSVF.Snapshot where
   map f s := ⟨f <$> s.svf, f s.low, f s.band, f s.high⟩
 instance svf4SnapshotFunctor : Functor TPTSVF4Pole.Snapshot where
   map f s := ⟨f <$> s.stage1, f <$> s.stage2⟩
-instance crossoverSnapshotFunctor : Functor LinkwitzRileyCrossover.Snapshot where
-  map f s := ⟨f <$> s.first, f <$> s.lowSecond, f <$> s.highSecond⟩
 instance ladderSnapshotFunctor : Functor TPTLadder.Snapshot where
   map f s := ⟨f s.g1, f s.g2, f s.g3, f s.g4, f s.k⟩
 
@@ -206,6 +204,26 @@ theorem Snapshot.notchResponse_delay (s : Snapshot ℝ) (f : ℝ) :
     s.notchResponse f = (Complex.ofReal <$> s).notchTransfer
       (1 - ResponseFrequency.unitDelay f) (1 + ResponseFrequency.unitDelay f) :=
   Response.frequency_eq_delay _ (Snapshot.weightedTransfer_scale _ 1 0 1) f
+def Snapshot.allPassTransfer {K : Type} [Field K] (s : Snapshot K) (a b : K) : K :=
+  s.weightedTransfer 1 (-s.k) 1 a b
+
+def Snapshot.allPassResponse (s : Snapshot ℝ) (f : ℝ) : ℂ :=
+  (Complex.ofReal <$> s).allPassTransfer ⟨0, Real.sin (Real.pi*f)⟩ (Real.cos (Real.pi*f))
+
+theorem Snapshot.allPassMagnitudeSquared_prepared (s : Snapshot ℝ) (f : ResponseFrequency ℝ) :
+    s.allPassMagnitudeSquared f = Complex.normSq ((Complex.ofReal <$> s).allPassTransfer
+      ⟨0, f.sinHalf⟩ f.cosHalf) := by
+  simpa [Snapshot.allPassMagnitudeSquared, Snapshot.allPassTransfer, Functor.map] using
+    s.weightedMagnitudeSquared_prepared 1 (-s.k) 1 f
+
+theorem Snapshot.allPassMagnitudeSquared_eq_normSq (s : Snapshot ℝ) (f : ℝ) :
+    s.allPassMagnitudeSquared (ResponseFrequency.ofCyclesPerSample f) = Complex.normSq (s.allPassResponse f) :=
+  s.allPassMagnitudeSquared_prepared _
+
+theorem Snapshot.allPassResponse_delay (s : Snapshot ℝ) (f : ℝ) :
+    s.allPassResponse f = (Complex.ofReal <$> s).allPassTransfer
+      (1 - ResponseFrequency.unitDelay f) (1 + ResponseFrequency.unitDelay f) :=
+  Response.frequency_eq_delay _ (Snapshot.weightedTransfer_scale _ 1 _ 1) f
 end TPTSVF
 
 namespace MorphingTPTSVF
@@ -332,54 +350,6 @@ theorem Snapshot.highPassMagnitudeSquared_eq_normSq (s : Snapshot ℝ) (f : ℝ)
   s.highPassMagnitudeSquared_prepared _
 end TPTSVF4Pole
 
-namespace LinkwitzRileyCrossover
-
-def Snapshot.lowPassTransfer {K : Type} [Field K] (s : Snapshot K) (a b : K) : K :=
-  s.first.lowPassTransfer a b * s.lowSecond.lowPassTransfer a b
-
-theorem Snapshot.lowPassTransfer_scale (s : Snapshot ℂ) (a b t : ℂ) (ht : t ≠ 0) :
-    s.lowPassTransfer (t*a) (t*b) = s.lowPassTransfer a b := by
-  exact congrArg₂ (· * ·) (s.first.weightedTransfer_scale 1 0 0 a b t ht) (s.lowSecond.weightedTransfer_scale 1 0 0 a b t ht)
-
-def Snapshot.lowPassResponse (s : Snapshot ℝ) (f : ℝ) : ℂ :=
-  (Complex.ofReal <$> s).lowPassTransfer ⟨0, Real.sin (Real.pi*f)⟩ (Real.cos (Real.pi*f))
-
-theorem Snapshot.lowPassResponse_delay (s : Snapshot ℝ) (f : ℝ) :
-    s.lowPassResponse f = (Complex.ofReal <$> s).lowPassTransfer
-      (1 - ResponseFrequency.unitDelay f) (1 + ResponseFrequency.unitDelay f) :=
-  Response.frequency_eq_delay _ (Snapshot.lowPassTransfer_scale _) f
-
-theorem Snapshot.lowPassMagnitudeSquared_prepared (s : Snapshot ℝ) (f : ResponseFrequency ℝ) :
-    s.lowPassMagnitudeSquared f = Complex.normSq ((Complex.ofReal <$> s).lowPassTransfer ⟨0, f.sinHalf⟩ f.cosHalf) :=
-  Response.cascade _ _ _ _ (s.first.lowPassMagnitudeSquared_prepared f) (s.lowSecond.lowPassMagnitudeSquared_prepared f)
-
-theorem Snapshot.lowPassMagnitudeSquared_eq_normSq (s : Snapshot ℝ) (f : ℝ) :
-    s.lowPassMagnitudeSquared (ResponseFrequency.ofCyclesPerSample f) = Complex.normSq (s.lowPassResponse f) :=
-  s.lowPassMagnitudeSquared_prepared _
-
-def Snapshot.highPassTransfer {K : Type} [Field K] (s : Snapshot K) (a b : K) : K :=
-  s.first.highPassTransfer a b * s.highSecond.highPassTransfer a b
-
-theorem Snapshot.highPassTransfer_scale (s : Snapshot ℂ) (a b t : ℂ) (ht : t ≠ 0) :
-    s.highPassTransfer (t*a) (t*b) = s.highPassTransfer a b := by
-  exact congrArg₂ (· * ·) (s.first.weightedTransfer_scale 0 0 1 a b t ht) (s.highSecond.weightedTransfer_scale 0 0 1 a b t ht)
-
-def Snapshot.highPassResponse (s : Snapshot ℝ) (f : ℝ) : ℂ :=
-  (Complex.ofReal <$> s).highPassTransfer ⟨0, Real.sin (Real.pi*f)⟩ (Real.cos (Real.pi*f))
-
-theorem Snapshot.highPassResponse_delay (s : Snapshot ℝ) (f : ℝ) :
-    s.highPassResponse f = (Complex.ofReal <$> s).highPassTransfer
-      (1 - ResponseFrequency.unitDelay f) (1 + ResponseFrequency.unitDelay f) :=
-  Response.frequency_eq_delay _ (Snapshot.highPassTransfer_scale _) f
-
-theorem Snapshot.highPassMagnitudeSquared_prepared (s : Snapshot ℝ) (f : ResponseFrequency ℝ) :
-    s.highPassMagnitudeSquared f = Complex.normSq ((Complex.ofReal <$> s).highPassTransfer ⟨0, f.sinHalf⟩ f.cosHalf) :=
-  Response.cascade _ _ _ _ (s.first.highPassMagnitudeSquared_prepared f) (s.highSecond.highPassMagnitudeSquared_prepared f)
-
-theorem Snapshot.highPassMagnitudeSquared_eq_normSq (s : Snapshot ℝ) (f : ℝ) :
-    s.highPassMagnitudeSquared (ResponseFrequency.ofCyclesPerSample f) = Complex.normSq (s.highPassResponse f) :=
-  s.highPassMagnitudeSquared_prepared _
-end LinkwitzRileyCrossover
 
 namespace TPTLadder
 

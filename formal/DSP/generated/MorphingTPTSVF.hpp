@@ -33,6 +33,7 @@ struct MorphingTPTSVF
             double m_bandPass;
             double m_highPass;
             double m_notch;
+            double m_allPass;
         } m_svf;
 
         double m_cosine;
@@ -63,49 +64,54 @@ struct MorphingTPTSVF
         const double v10 = (-m_state.m_svf.m_ic2);
         const double v11 = std::fma(v4, 0x10000000000000p-51, v10);
         const double v12 = (v4 + v7);
-        const double v13 = (v4 * m_state.m_cosine);
-        const double v14 = std::fma(v2, m_state.m_sine, v13);
-        const double v15 = (v2 * m_state.m_cosine);
-        const double v16 = std::fma(v7, m_state.m_sine, v15);
-        const bool v17 = (0x10000000000000p-53 < m_state.m_blend);
-        double v18;
-        if (v17)
+        const double v13 = (-m_state.m_svf.m_k);
+        const double v14 = (v13 * 0x10000000000000p-51);
+        const double v15 = std::fma(v14, v2, input.m_x);
+        const double v16 = (v4 * m_state.m_cosine);
+        const double v17 = std::fma(v2, m_state.m_sine, v16);
+        const double v18 = (v2 * m_state.m_cosine);
+        const double v19 = std::fma(v7, m_state.m_sine, v18);
+        const bool v20 = (0x10000000000000p-53 < m_state.m_blend);
+        double v21;
+        if (v20)
         {
-            v18 = v16;
+            v21 = v19;
         }
         else
         {
-            v18 = v14;
+            v21 = v17;
         }
 
-        const double v19 = m_state.m_svf.m_k;
-        const double v20 = m_state.m_svf.m_a1;
-        const double v21 = m_state.m_svf.m_a2;
-        const double v22 = m_state.m_svf.m_a3;
-        const double v23 = v9;
-        const double v24 = v11;
-        const double v25 = v4;
-        const double v26 = v2;
-        const double v27 = v7;
-        const double v28 = v12;
-        const double v29 = m_state.m_cosine;
-        const double v30 = m_state.m_sine;
-        const double v31 = m_state.m_blend;
-        const double v32 = v18;
-        m_state.m_svf.m_k = v19;
-        m_state.m_svf.m_a1 = v20;
-        m_state.m_svf.m_a2 = v21;
-        m_state.m_svf.m_a3 = v22;
-        m_state.m_svf.m_ic1 = v23;
-        m_state.m_svf.m_ic2 = v24;
-        m_state.m_svf.m_lowPass = v25;
-        m_state.m_svf.m_bandPass = v26;
-        m_state.m_svf.m_highPass = v27;
-        m_state.m_svf.m_notch = v28;
-        m_state.m_cosine = v29;
-        m_state.m_sine = v30;
-        m_state.m_blend = v31;
-        m_state.m_output = v32;
+        const double v22 = m_state.m_svf.m_k;
+        const double v23 = m_state.m_svf.m_a1;
+        const double v24 = m_state.m_svf.m_a2;
+        const double v25 = m_state.m_svf.m_a3;
+        const double v26 = v9;
+        const double v27 = v11;
+        const double v28 = v4;
+        const double v29 = v2;
+        const double v30 = v7;
+        const double v31 = v12;
+        const double v32 = v15;
+        const double v33 = m_state.m_cosine;
+        const double v34 = m_state.m_sine;
+        const double v35 = m_state.m_blend;
+        const double v36 = v21;
+        m_state.m_svf.m_k = v22;
+        m_state.m_svf.m_a1 = v23;
+        m_state.m_svf.m_a2 = v24;
+        m_state.m_svf.m_a3 = v25;
+        m_state.m_svf.m_ic1 = v26;
+        m_state.m_svf.m_ic2 = v27;
+        m_state.m_svf.m_lowPass = v28;
+        m_state.m_svf.m_bandPass = v29;
+        m_state.m_svf.m_highPass = v30;
+        m_state.m_svf.m_notch = v31;
+        m_state.m_svf.m_allPass = v32;
+        m_state.m_cosine = v33;
+        m_state.m_sine = v34;
+        m_state.m_blend = v35;
+        m_state.m_output = v36;
     }
 
     // Coefficients generated from DSP.MorphingTPTSVF.computeCoefficientsFloat.

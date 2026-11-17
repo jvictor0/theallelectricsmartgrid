@@ -5,7 +5,7 @@ import struct
 import subprocess
 
 LP = ['G', 's', 'y']
-SVF = ['k', 'a1', 'a2', 'a3', 'ic1', 'ic2', 'lowPass', 'bandPass', 'highPass', 'notch']
+SVF = ['k', 'a1', 'a2', 'a3', 'ic1', 'ic2', 'lowPass', 'bandPass', 'highPass', 'notch', 'allPass']
 def nest(prefix, fields):
     return [prefix + '.' + f for f in fields]
 
@@ -19,11 +19,21 @@ SCHEMAS = {
     'TPTSVF': (['cutoff', 'q'], SVF),
     'MorphingTPTSVF': (['svf.cutoff', 'svf.q', 'blend'], nest('svf', SVF) + ['cosine', 'sine', 'blend', 'output']),
     'TPTLadder': (['cutoff', 'feedback'], ['k', 'drive'] + sum((nest('stage'+str(i), LP) for i in range(1, 5)), [])),
-    'LinkwitzRileyCrossover': (['cutoff'], sum((nest(p, SVF) for p in ['first', 'lowSecond', 'highSecond']), [])),
 }
 for mode in ['LowPass', 'BandPass', 'HighPass']:
     SCHEMAS['TPTSVF4Pole'+mode] = (['stage1.cutoff', 'stage1.q', 'stage2.cutoff', 'stage2.q'],
                                  nest('stage1', SVF)+nest('stage2', SVF))
+
+SPLITTER = 'LinkwitzRileySplitter4Band'
+def phase_fields(prefix):
+    return nest(prefix+'.svf', SVF) + nest(prefix, ['low.x', 'high.x'])
+def two_band_fields(prefix):
+    return nest(prefix+'.first', SVF) + nest(prefix+'.second', SVF) + nest(prefix,
+        ['lowPhase.x', 'highPhase.x', 'low.x', 'high.x'])
+SCHEMAS[SPLITTER] = (['tree.value', 'tree.low.value', 'tree.high.value'],
+    nest('tree.first', SVF) + nest('tree.second', SVF) + phase_fields('tree.lowPhase') +
+    phase_fields('tree.highPhase') + two_band_fields('tree.low') + two_band_fields('tree.high') +
+    [f'bands[{i}]' for i in range(4)])
 
 def member(path):
     return '.'.join('m_'+p for p in path.split('.'))
@@ -52,8 +62,12 @@ def coefficient_oracle(name):
     elif name == 'TPTLadder':
         for i in range(1, 5): lp(f'stage{i}.', 0)
         result['k'] = 'p[1]'
-    elif name == 'LinkwitzRileyCrossover':
-        for prefix in ['first.', 'lowSecond.', 'highSecond.']: svf(prefix, 0, 'Cos(Number(0.125))')
+    elif name == SPLITTER:
+        for prefix, cutoff in [('tree.first.', 0), ('tree.second.', 0),
+                ('tree.lowPhase.svf.', 2), ('tree.highPhase.svf.', 1),
+                ('tree.low.first.', 1), ('tree.low.second.', 1),
+                ('tree.high.first.', 2), ('tree.high.second.', 2)]:
+            svf(prefix, cutoff, 'Cos(Number(0.125))')
     return result
 
 PRELUDE = r'''
@@ -142,7 +156,9 @@ std::array<Number,4> TuneSVF(Number cutoff, Number q)
 def runner_source():
     code = PRELUDE + '#include "OnePoleTPTLowPass32.hpp"\n'
     for name in SCHEMAS:
-        code += f'#include "{name}.hpp"\n#include "{name}Generic.hpp"\n'
+        if name != SPLITTER:
+            code += f'#include "{name}.hpp"\n'
+        code += f'#include "{name}Generic.hpp"\n'
     for name, (spec, fields) in SCHEMAS.items():
         oracle = coefficient_oracle(name)
         code += f'''
@@ -175,19 +191,25 @@ void Test{name}()
         assert(Raw(filter.m_state.{member(f)}[lane]) == Raw(first.{member(f)}[lane]));
         std::cout << Raw(filter.m_state.{member(f)}[lane]) << ' ';
 '''
-        code += f'''        if constexpr (std::is_same_v<Number,double>)
+        if name == SPLITTER:
+            code += '        const auto snapshot = decltype(filter)::MakeSnapshot(spec);\n'
+            for index, node in enumerate(['tree', 'tree.low', 'tree.high']):
+                code += f'        assert(Raw(snapshot.{member(node)}.m_value.m_g[lane]) == Raw(Math4096::TanPi(MultiChannelNumber<Number,1>::Splat(p[{index}]))[0]));\n'
+                code += f'        assert(Raw(snapshot.{member(node)}.m_value.m_k[lane]) == Raw(Number(1) / Cos(Number(0.125))));\n'
+        if name != SPLITTER:
+            code += f'''        if constexpr (std::is_same_v<Number,double>)
         {{
             {name} scalar{{}};
             {name}::LogicalSpec scalarSpec;
 '''
-        for i, f in enumerate(spec):
-            code += f'            scalarSpec.{member(f)} = p[{i}];\n'
-        for i, f in enumerate(fields):
-            code += f'            scalar.m_state.{member(f)} = before[lane][{i}];\n'
-        code += '            scalar.ComputeCoefficients(scalarSpec);\n'
-        for f in fields:
-            code += f'            assert(Raw(scalar.m_state.{member(f)}) == Raw(filter.m_state.{member(f)}[lane]));\n'
-        code += '        }\n'
+            for i, f in enumerate(spec):
+                code += f'            scalarSpec.{member(f)} = p[{i}];\n'
+            for i, f in enumerate(fields):
+                code += f'            scalar.m_state.{member(f)} = before[lane][{i}];\n'
+            code += '            scalar.ComputeCoefficients(scalarSpec);\n'
+            for f in fields:
+                code += f'            assert(Raw(scalar.m_state.{member(f)}) == Raw(filter.m_state.{member(f)}[lane]));\n'
+            code += '        }\n'
         if name == 'OnePoleTPTLowPass':
             code += '''        if constexpr (std::is_same_v<Number,float>)
         {
@@ -260,6 +282,6 @@ def test_tuning(cases, compiler, output, root):
             error = abs(a-b)/(1+abs(b))
             max_error[precision] = max(max_error[precision],error)
             assert error < 2e-5, (label,a,b,error)
-    print(f'Tuning: {len(actual)} batches; all 11 exports, both precisions, widths 1–4. '
+    print(f'Tuning: {len(actual)} batches; all {len(SCHEMAS)} exports, both precisions, widths 1–4. '
           f'Math4096 bit checks, scalar agreement, history, idempotence and sampled poles pass. '
           f'Max native-Lean error |delta|/(1+|reference|): {max_error}')

@@ -19,6 +19,7 @@ structure TPTSVF (R : Type) where
   bandPass : R
   highPass : R
   notch : R
+  allPass : R
 
 namespace TPTSVF
 
@@ -35,7 +36,8 @@ def step (f : TPTSVF R) (input : Sample R) : TPTSVF R :=
     lowPass := v2
     bandPass := v1
     highPass
-    notch := v2 + highPass }
+    notch := v2 + highPass
+    allPass := FMA.fma (-f.k * 2) v1 input.x }
 
 def stepFloat : Step (TPTSVF Float) (Sample Float) := step
 

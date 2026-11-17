@@ -22,7 +22,7 @@ filter.ComputeCoefficients(spec);
 ```
 
 The two channels have different natural frequencies and Q. Base-width, morph,
-four-pole, and crossover tuners call the existing section tuners in Lean; codegen
+four-pole, and splitter tuners call the existing section tuners in Lean; codegen
 inlines these calls. Composite `LogicalSpec`s retain this nesting. For example,
 a four-pole spec contains `m_stage1` and `m_stage2`, each with `m_cutoff` and `m_q`.
 
@@ -40,7 +40,7 @@ Let `fc` be cutoff, `g = tan(π fc)`, `k = 1/Q`, and
 | Morphing SVF | `svf`, `blend` | Existing adjacent equal-power LP→BP→HP blend on `[0,1]`; cutoff power stays `Q²`. Arbitrary morph peak location is not claimed. | Valid inner SVF; blend in `[0,1]` for the stated morph semantics. |
 | Four-pole LP/BP/HP | `stage1`, `stage2` | Independent section specs. Identical sections have cutoff power `Q⁴` and inherit their section's peak through the shared cascade bound. Arbitrary unequal stages need not peak at either cutoff. | Both sections valid. |
 | Ideal TPT ladder | `cutoff`, `feedback` | Four equal natural-frequency stages. Cutoff power `1/(4−feedback)²`; with zero feedback this is `1/16` (−12.0412 dB). No DC-gain compensation. Peak at DC for `0≤feedback≤⅓`; above that, a unique peak below fc solves `(1+t)³+feedback*(t−3)=0`, `0<t<1`. | `0<fc<½`, `0≤feedback<4`. At 4, a pole reaches the imaginary axis at `p=i g`. |
-| Linkwitz–Riley crossover | `cutoff` | Standard LR4: identical Butterworth-2 sections per branch, `Q=cos(π/4)=1/√2`. Each branch has power ¼ (−6.0206 dB) at fc. The **complex sum** has unit magnitude at every digital frequency, including DC/Nyquist; phase is not generally zero. | `0<fc<½`. |
+| Linkwitz–Riley splitter | One cutoff per internal node | LR4 nodes use `Q=cos(π/4)=1/√2`. Sibling all-pass compensation gives unit-magnitude reconstruction for any positive band count. Four-band processing, tuning and snapshot capture are emitted. | `0<fc<½` at every node. |
 
 The standard LR4 convention is described in
 [Linkwitz's filter notes](https://www.linkwitzlab.com/filters.htm).
@@ -117,8 +117,8 @@ possible negative feedback values. The ladder boundary theorem is
   saturation/gain compensation. It is not a drop-in model of the app ladder.
 - The handwritten `LinkwitzRileyCrossover.hpp` uses unequal Butterworth-4
   dampings. The new tuner deliberately uses standard LR4 equal Butterworth-2
-  sections. Existing app-specific Lean theorems remain available for the old
-  coefficients; the app itself is unchanged.
+  sections within a phase-compensated splitter tree. The old Lean crossover
+  model has been removed; the production app itself is unchanged.
 - Morph retains the app's adjacent equal-power weighting on `[0,1]`, but the
   tuner requires the range rather than clamping invalid input.
 

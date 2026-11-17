@@ -51,6 +51,15 @@ theorem realizes_notch_snapshot {K : Type} [Field K] (f : TPTSVF K) (g : K)
   apply (realizes_notch f g ht hr).transfer_eq
   simp [Snapshot.notchTransfer, Snapshot.weightedTransfer, Response.svf,
     analog, notchNumerator, bil_denominator, Functor.map, pow_two, add_comm]
+theorem realizes_allPass_snapshot {K : Type} [Field K] (f : TPTSVF K) (g : K)
+    (ht : f.Tuned g) (hr : f.AtRest) :
+    Realizes step f (·.allPass) ((const <$> (⟨g,f.k⟩ : Snapshot K)).allPassTransfer sigma 1) := by
+  apply (realizes_allPass f g ht hr).transfer_eq
+  simp only [Snapshot.allPassTransfer, Snapshot.weightedTransfer, Response.svf,
+    analog, denominator, map_add, map_mul, map_neg, Bilinear.bil_C, Bilinear.bil_X,
+    Functor.map, mul_one, one_mul, pow_two]
+  congr 1
+  ring
 end TPTSVF
 
 namespace MorphingTPTSVF
@@ -113,34 +122,6 @@ theorem realizes_highPass_snapshot {K : Type} [Field K] (f : TPTSVF4Pole K) (g1 
   simpa [Snapshot.highPassTransfer, Functor.map, mul_comm] using both
 end TPTSVF4Pole
 
-namespace LinkwitzRileyCrossover
-
-/-- Each crossover stage may have its own gain; this specializes to the app's
-common cutoff and Butterworth dampings. -/
-theorem realizes_lowPass_snapshot {K : Type} [Field K] (f : LinkwitzRileyCrossover K)
-    (g1 g2 g3 : K) (ht1 : f.first.Tuned g1) (hr1 : f.first.AtRest)
-    (ht2 : f.lowSecond.Tuned g2) (hr2 : f.lowSecond.AtRest) :
-    Realizes step f (·.lowSecond.lowPass)
-      ((const <$> (⟨⟨g1,f.first.k⟩,⟨g2,f.lowSecond.k⟩,⟨g3,f.highSecond.k⟩⟩ : Snapshot K)).lowPassTransfer sigma 1) := by
-  have first := Realizes.project step TPTSVF.step (·.first) (fun _ _ => rfl)
-    (TPTSVF.realizes_lowPass_snapshot f.first g1 ht1 hr1)
-  have both := Realizes.cascade step TPTSVF.step (·.lowSecond) (·.first.lowPass)
-    (fun _ _ => rfl) first (TPTSVF.realizes_lowPass_snapshot f.lowSecond g2 ht2 hr2)
-  simpa [Snapshot.lowPassTransfer, Functor.map, mul_comm] using both
-
-/-- Each crossover stage may have its own gain; this specializes to the app's
-common cutoff and Butterworth dampings. -/
-theorem realizes_highPass_snapshot {K : Type} [Field K] (f : LinkwitzRileyCrossover K)
-    (g1 g2 g3 : K) (ht1 : f.first.Tuned g1) (hr1 : f.first.AtRest)
-    (ht2 : f.highSecond.Tuned g3) (hr2 : f.highSecond.AtRest) :
-    Realizes step f (·.highSecond.highPass)
-      ((const <$> (⟨⟨g1,f.first.k⟩,⟨g2,f.lowSecond.k⟩,⟨g3,f.highSecond.k⟩⟩ : Snapshot K)).highPassTransfer sigma 1) := by
-  have first := Realizes.project step TPTSVF.step (·.first) (fun _ _ => rfl)
-    (TPTSVF.realizes_highPass_snapshot f.first g1 ht1 hr1)
-  have both := Realizes.cascade step TPTSVF.step (·.highSecond) (·.first.highPass)
-    (fun _ _ => rfl) first (TPTSVF.realizes_highPass_snapshot f.highSecond g3 ht2 hr2)
-  simpa [Snapshot.highPassTransfer, Functor.map, mul_comm] using both
-end LinkwitzRileyCrossover
 
 namespace TPTLadder
 theorem realizes_snapshot {K : Type} [Field K] (f : TPTLadder K) (g1 g2 g3 g4 : K)

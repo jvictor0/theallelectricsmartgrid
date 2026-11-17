@@ -25,9 +25,8 @@ import DSP.Filters.TPTSVF4Pole
 import DSP.Filters.TPTSVF4Pole.Proofs
 import DSP.Filters.TPTLadder
 import DSP.Filters.TPTLadder.Proofs
-import DSP.Filters.LinkwitzRileyCrossover
-import DSP.Filters.LinkwitzRileyCrossover.Proofs
 import DSP.Transfer.Channels
 import DSP.Filters.Channels
 import DSP.Filters.Responses.Channels
 import DSP.Filters.Tuning.Digital
+import DSP.Filters.LinkwitzRileySplitter.Channels

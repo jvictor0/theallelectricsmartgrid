@@ -2,7 +2,7 @@
 
 The generated filters are under [generated](../generated): the ZOH and TPT
 one-poles, TPT highpass and base-width band, `TPTSVF`, `MorphingTPTSVF`, the
-three `TPTSVF4Pole` variants, `TPTLadder` and `LinkwitzRileyCrossover`. Each is a
+three `TPTSVF4Pole` variants, `TPTLadder` and `LinkwitzRileySplitter4BandGeneric`. Each is a
 standalone C++17 header with nested `State` and `Input` records, stored
 `m_state`, and `void Process(Input& input)`. Their processing steps are state-only:
 every audio output they expose is a field of `m_state`. Headers have no Lean runtime
@@ -10,7 +10,7 @@ dependency and are not integrated into the audio app. The separate
 [CoupledProcessor.hpp](../generated/CoupledProcessor.hpp) exercises the
 `State × Output` form, nested coefficients and two interacting state variables.
 
-Each also has a `Generic` header, such as
+The splitter is exported only as a `Generic` header. The other filters also have a `Generic` header, such as
 [TPTSVFGeneric.hpp](../generated/TPTSVFGeneric.hpp), parameterized by
 `Number` (`float` or `double`) and `Size`. These include the app's
 `MultiChannelNumber.hpp`; add `private/src` to the compiler's include path.
@@ -18,11 +18,10 @@ Each also has a `Generic` header, such as
 The backend in [Cpp.lean](Cpp.lean) reads an elaborated Lean function and its
 record definitions. It does not contain a one-pole arithmetic template.
 
-Every generated filter header also contains a coefficient-only nested
+The response-bearing filter headers also contain a coefficient-only nested
 `Snapshot` and static squared-magnitude response methods, alongside its
 processing state and `Process`. Scalar and Generic headers have the same
-organization. Single-output filters use `MagnitudeSquared`; the SVF and
-crossover provide named methods for their individual outputs. The responses
+organization. Single-output filters use `MagnitudeSquared`; the SVF provides named methods for its lowpass, bandpass, highpass, notch, and all-pass outputs. The responses
 are generated from the same Lean definitions used in their proofs. See the
 [response proof walkthrough](../Filters/Responses/README.md) for the transfer
 connection, cascade/mixing/feedback composition, tuning contracts and endpoints.
@@ -373,3 +372,22 @@ mixed number types, external operations, invalid shared records and conflicting 
 
 Passing these checks is implementation evidence, not a universal compiler proof
 or a floating-point error bound.
+
+## Fixed topology processors with snapshot capture
+
+The splitter uses a processing/tuning/capture export without a response method:
+
+```lean
+#generate_cpp_tuned_snapshot_generic DSP.LinkwitzRileySplitter.step4Band
+  DSP.LinkwitzRileySplitter.computeCoefficients4Band DSP.LinkwitzRileySplitter.makeSnapshot4Band
+  as LinkwitzRileySplitter4BandGeneric to "build/lean/generated/LinkwitzRileySplitter4BandGeneric.hpp"
+```
+
+Capture takes one logical specification and returns a coefficient record.
+The generated `MakeSnapshot` is static. The exporter compares complete state
+and specification types, including fixed topology parameters, so equal layouts
+or a shared record name cannot hide incompatible signatures. Literal Nat
+comparisons used for static band selection are evaluated during specialization;
+external, unsafe, or dynamic topology definitions remain rejected. Recursive
+record types reduce to fixed nested records. No runtime vector of records is
+needed. Per-band transfers remain proof definitions for a later consumer.

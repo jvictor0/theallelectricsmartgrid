@@ -113,19 +113,4 @@ def computeCoefficients {R : Type} [OfNat R 1] [Add R] [Div R] [Trig R]
 def computeCoefficientsFloat := computeCoefficients (R := Float)
 end TPTLadder
 
-namespace LinkwitzRileyCrossover
-structure LogicalSpec (R : Type) where
-  cutoff : R
-
-/-- Standard LR4: two identical Butterworth second-order sections in each
-branch. Q=cos(pi/4)=1/sqrt(2), unlike the app's unequal Butterworth-4 sections. -/
-def computeCoefficients {R : Type} [OfNat R 1] [OfNat R 8]
-    [Add R] [Mul R] [Div R] [FMA R] [Trig R]
-    (spec : LogicalSpec R) (state : LinkwitzRileyCrossover R) : LinkwitzRileyCrossover R :=
-  let stage : TPTSVF.LogicalSpec R := ⟨spec.cutoff, Trig.cos2pi (1 / 8)⟩
-  { first := TPTSVF.computeCoefficients stage state.first
-    lowSecond := TPTSVF.computeCoefficients stage state.lowSecond
-    highSecond := TPTSVF.computeCoefficients stage state.highSecond }
-def computeCoefficientsFloat := computeCoefficients (R := Float)
-end LinkwitzRileyCrossover
 end DSP

@@ -11,12 +11,12 @@
 #include "OnePoleTPTHighPassGeneric.hpp"
 #include "TPTBaseWidthGeneric.hpp"
 #include "TPTSVFGeneric.hpp"
+#include "LinkwitzRileySplitter4BandGeneric.hpp"
 #include "MorphingTPTSVFGeneric.hpp"
 #include "TPTSVF4PoleHighPassGeneric.hpp"
 #include "TPTSVF4PoleLowPassGeneric.hpp"
 #include "TPTSVF4PoleBandPassGeneric.hpp"
 #include "TPTLadderGeneric.hpp"
-#include "LinkwitzRileyCrossoverGeneric.hpp"
 #include "CoupledProcessorGeneric.hpp"
 #include "ArithmeticProcessorGeneric.hpp"
 #include "FMAProcessorGeneric.hpp"
@@ -58,7 +58,7 @@ auto SVFFields(State& state)
 {
     return std::tie(state.m_k, state.m_a1, state.m_a2, state.m_a3,
         state.m_ic1, state.m_ic2, state.m_lowPass, state.m_bandPass,
-        state.m_highPass, state.m_notch);
+        state.m_highPass, state.m_notch, state.m_allPass);
 }
 
 template<typename Number, size_t Size>
@@ -127,11 +127,28 @@ auto StateFields(TPTLadderGeneric<Number, Size>& processor)
         LowPassFields(state.m_stage2), LowPassFields(state.m_stage3), LowPassFields(state.m_stage4));
 }
 
+template<typename State>
+auto PhaseFields(State& state)
+{
+    return std::tuple_cat(SVFFields(state.m_svf), std::tie(state.m_low.m_x, state.m_high.m_x));
+}
+
+template<typename State>
+auto TwoBandFields(State& state)
+{
+    return std::tuple_cat(SVFFields(state.m_first), SVFFields(state.m_second),
+        std::tie(state.m_lowPhase.m_x, state.m_highPhase.m_x, state.m_low.m_x, state.m_high.m_x));
+}
+
 template<typename Number, size_t Size>
-auto StateFields(LinkwitzRileyCrossoverGeneric<Number, Size>& processor)
+auto StateFields(LinkwitzRileySplitter4BandGeneric<Number, Size>& processor)
 {
     auto& state = processor.m_state;
-    return std::tuple_cat(SVFFields(state.m_first), SVFFields(state.m_lowSecond), SVFFields(state.m_highSecond));
+    auto& tree = state.m_tree;
+    return std::tuple_cat(SVFFields(tree.m_first), SVFFields(tree.m_second),
+        PhaseFields(tree.m_lowPhase), PhaseFields(tree.m_highPhase),
+        TwoBandFields(tree.m_low), TwoBandFields(tree.m_high),
+        std::tie(state.m_bands[0], state.m_bands[1], state.m_bands[2], state.m_bands[3]));
 }
 
 template<typename Number, size_t Size>
@@ -396,14 +413,14 @@ bool RunKind(const std::string& kind, size_t steps)
         return Run<TPTSVF4PoleBandPassGeneric<Number, Size>, Number, Size>(steps);
     }
 
+    if (kind == "splitter")
+    {
+        return Run<LinkwitzRileySplitter4BandGeneric<Number, Size>, Number, Size>(steps);
+    }
+
     if (kind == "ladder")
     {
         return Run<TPTLadderGeneric<Number, Size>, Number, Size>(steps);
-    }
-
-    if (kind == "crossover")
-    {
-        return Run<LinkwitzRileyCrossoverGeneric<Number, Size>, Number, Size>(steps);
     }
 
     if (kind == "coupled")

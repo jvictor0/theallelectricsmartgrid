@@ -2,6 +2,7 @@ import DSP.Codegen.Cpp
 import DSP.Tests.CodegenFixtures
 import DSP.Filters.Responses
 import DSP.Filters.Tuning
+import DSP.Filters.LinkwitzRileySplitter
 
 #use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
 
@@ -173,3 +174,62 @@ run_cmd liftTermElabM do
       rejected := true
     unless rejected do throwError "C++ codegen incorrectly accepted coefficient updater {updater}"
   logInfo "Coefficient updater rejection checks passed."
+
+namespace DSP.Tests
+
+def splitterTwoBandTuning {R : Type} [OfNat R 1] [OfNat R 8] [Add R] [Mul R]
+    [Div R] [FMA R] [Trig R] : LinkwitzRileySplitter.LogicalSpec 2 R →
+      LinkwitzRileySplitter.State 2 R → LinkwitzRileySplitter.State 2 R :=
+  LinkwitzRileySplitter.computeCoefficients
+def splitterWrongCapture {R : Type} (spec : TPTSVF.LogicalSpec R) : TPTSVF.Snapshot R :=
+  ⟨spec.cutoff,spec.q⟩
+def splitterScalarCapture {R : Type} (spec : LinkwitzRileySplitter.LogicalSpec 4 R) : R :=
+  spec.tree.value
+
+end DSP.Tests
+
+open Lean Elab Command in
+run_cmd liftTermElabM do
+  for (tuning, capture, expected) in #[
+      (``DSP.Tests.splitterTwoBandTuning, ``DSP.LinkwitzRileySplitter.makeSnapshot4Band, "different state record"),
+      (``DSP.LinkwitzRileySplitter.computeCoefficients4Band, ``DSP.Tests.splitterWrongCapture, "different logical specification"),
+      (``DSP.LinkwitzRileySplitter.computeCoefficients4Band, ``DSP.Tests.splitterScalarCapture, "must return a record")] do
+    let mut rejected := false
+    try
+      let _ ← DSP.Codegen.generateTunedSnapshot ``DSP.LinkwitzRileySplitter.step4Band tuning capture "TestSplitter"
+    catch error =>
+      let message ← error.toMessageData.toString
+      unless (message.splitOn expected).length > 1 do
+        throwError "unexpected snapshot rejection: {message}"
+      rejected := true
+    unless rejected do throwError "C++ codegen incorrectly accepted incompatible splitter signatures"
+  logInfo "Tuned snapshot signature rejection checks passed."
+
+namespace DSP.Tests
+
+def nativeNatDecision (a b : Nat) : Decidable (a < b) := Nat.decLt a b
+@[implemented_by nativeNatDecision] def alternateNatDecision (a b : Nat) : Decidable (a < b) :=
+  Nat.decLt a b
+
+def staticExternDecision (state : SwapState) (input : SwapInput) : SwapState :=
+  @ite SwapState (3 < 4) (alternateNatDecision 3 4) state ⟨input.value,input.value⟩
+
+@[reducible] def reverseNatOrder : LT Nat := ⟨fun a b => Nat.lt b a⟩
+def staticCustomOrder (state : SwapState) (input : SwapInput) : SwapState :=
+  @ite SwapState (@LT.lt Nat reverseNatOrder 3 4) (Nat.decLt 4 3) state ⟨input.value,input.value⟩
+
+end DSP.Tests
+
+open Lean Elab Command in
+run_cmd liftTermElabM do
+  for name in #[``DSP.Tests.staticExternDecision, ``DSP.Tests.staticCustomOrder] do
+    let mut rejected := false
+    try
+      let _ ← DSP.Codegen.generate name "TestProcessor"
+    catch error =>
+      let message ← error.toMessageData.toString
+      unless (message.splitOn "unsupported external implementation").length > 1 do
+        throwError "unexpected static comparison rejection: {message}"
+      rejected := true
+    unless rejected do throwError "C++ codegen bypassed the static decision boundary for {name}"
+  logInfo "Static topology comparison boundary checks passed."

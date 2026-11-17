@@ -5,7 +5,6 @@ import DSP.Filters.TPTBaseWidth
 import DSP.Filters.MorphingTPTSVF
 import DSP.Filters.TPTSVF4Pole
 import DSP.Filters.TPTLadder
-import DSP.Filters.LinkwitzRileyCrossover
 
 /-! Coefficient snapshots for frozen, tuned filters. Gains are the integrator
 gains used to tune the processors (G=g/(1+g) for a one-pole); retaining these
@@ -84,6 +83,11 @@ def Snapshot.lowPassMagnitudeSquaredFloat := Snapshot.lowPassMagnitudeSquared (R
 def Snapshot.bandPassMagnitudeSquaredFloat := Snapshot.bandPassMagnitudeSquared (R := Float)
 def Snapshot.highPassMagnitudeSquaredFloat := Snapshot.highPassMagnitudeSquared (R := Float)
 def Snapshot.notchMagnitudeSquaredFloat := Snapshot.notchMagnitudeSquared (R := Float)
+def Snapshot.allPassMagnitudeSquared {R : Type} [OfNat R 0] [OfNat R 1]
+    [Sub R] [Mul R] [Div R] [FMA R] [IfLess R] (s : Snapshot R) (f : ResponseFrequency R) : R :=
+  s.weightedMagnitudeSquared 1 (0 - s.k) 1 f
+
+def Snapshot.allPassMagnitudeSquaredFloat := Snapshot.allPassMagnitudeSquared (R := Float)
 end TPTSVF
 
 namespace MorphingTPTSVF
@@ -124,24 +128,6 @@ def Snapshot.highPassMagnitudeSquared {R : Type} [OfNat R 0] [OfNat R 1]
 def Snapshot.highPassMagnitudeSquaredFloat := Snapshot.highPassMagnitudeSquared (R := Float)
 end TPTSVF4Pole
 
-namespace LinkwitzRileyCrossover
-structure Snapshot (R : Type) where
-  first : TPTSVF.Snapshot R
-  lowSecond : TPTSVF.Snapshot R
-  highSecond : TPTSVF.Snapshot R
-
-def Snapshot.lowPassMagnitudeSquared {R : Type} [OfNat R 0] [OfNat R 1]
-    [Sub R] [Mul R] [Div R] [FMA R] [IfLess R] (s : Snapshot R) (f : ResponseFrequency R) : R :=
-  s.first.lowPassMagnitudeSquared f * s.lowSecond.lowPassMagnitudeSquared f
-
-def Snapshot.lowPassMagnitudeSquaredFloat := Snapshot.lowPassMagnitudeSquared (R := Float)
-
-def Snapshot.highPassMagnitudeSquared {R : Type} [OfNat R 0] [OfNat R 1]
-    [Sub R] [Mul R] [Div R] [FMA R] [IfLess R] (s : Snapshot R) (f : ResponseFrequency R) : R :=
-  s.first.highPassMagnitudeSquared f * s.highSecond.highPassMagnitudeSquared f
-
-def Snapshot.highPassMagnitudeSquaredFloat := Snapshot.highPassMagnitudeSquared (R := Float)
-end LinkwitzRileyCrossover
 
 namespace TPTLadder
 structure Snapshot (R : Type) where

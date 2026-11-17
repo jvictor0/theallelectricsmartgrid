@@ -31,6 +31,7 @@ struct TPTSVF
         double m_bandPass;
         double m_highPass;
         double m_notch;
+        double m_allPass;
     };
 
     struct Input
@@ -55,26 +56,31 @@ struct TPTSVF
         const double v10 = (-m_state.m_ic2);
         const double v11 = std::fma(v4, 0x10000000000000p-51, v10);
         const double v12 = (v4 + v7);
-        const double v13 = m_state.m_k;
-        const double v14 = m_state.m_a1;
-        const double v15 = m_state.m_a2;
-        const double v16 = m_state.m_a3;
-        const double v17 = v9;
-        const double v18 = v11;
-        const double v19 = v4;
-        const double v20 = v2;
-        const double v21 = v7;
-        const double v22 = v12;
-        m_state.m_k = v13;
-        m_state.m_a1 = v14;
-        m_state.m_a2 = v15;
-        m_state.m_a3 = v16;
-        m_state.m_ic1 = v17;
-        m_state.m_ic2 = v18;
-        m_state.m_lowPass = v19;
-        m_state.m_bandPass = v20;
-        m_state.m_highPass = v21;
-        m_state.m_notch = v22;
+        const double v13 = (-m_state.m_k);
+        const double v14 = (v13 * 0x10000000000000p-51);
+        const double v15 = std::fma(v14, v2, input.m_x);
+        const double v16 = m_state.m_k;
+        const double v17 = m_state.m_a1;
+        const double v18 = m_state.m_a2;
+        const double v19 = m_state.m_a3;
+        const double v20 = v9;
+        const double v21 = v11;
+        const double v22 = v4;
+        const double v23 = v2;
+        const double v24 = v7;
+        const double v25 = v12;
+        const double v26 = v15;
+        m_state.m_k = v16;
+        m_state.m_a1 = v17;
+        m_state.m_a2 = v18;
+        m_state.m_a3 = v19;
+        m_state.m_ic1 = v20;
+        m_state.m_ic2 = v21;
+        m_state.m_lowPass = v22;
+        m_state.m_bandPass = v23;
+        m_state.m_highPass = v24;
+        m_state.m_notch = v25;
+        m_state.m_allPass = v26;
     }
 
     // Coefficients generated from DSP.TPTSVF.computeCoefficientsFloat.
@@ -255,6 +261,43 @@ struct TPTSVF
 
         const double v18 = (v11 / v17);
         return v18;
+    }
+
+    // Response generated from DSP.TPTSVF.Snapshot.allPassMagnitudeSquaredFloat.
+    //
+
+    static double AllPassMagnitudeSquared(const Snapshot& snapshot, const Frequency& input)
+    {
+        const double v0 = (snapshot.m_g * input.m_cosHalf);
+        const double v1 = (v0 * v0);
+        const double v2 = (input.m_sinHalf * input.m_sinHalf);
+        const double v3 = (v0 * input.m_sinHalf);
+        const double v4 = (1.0 * v1);
+        const double v5 = (1.0 * v2);
+        const double v6 = (v4 - v5);
+        const double v7 = (0.0 - snapshot.m_k);
+        const double v8 = (v7 * v3);
+        const double v9 = (v1 - v2);
+        const double v10 = (snapshot.m_k * v3);
+        const double v11 = (v8 * v8);
+        const double v12 = std::fma(v6, v6, v11);
+        const double v13 = (v8 * v8);
+        const double v14 = std::fma(v6, v6, v13);
+        const bool v15 = (0.0 < v14);
+        double v18;
+        if (v15)
+        {
+            const double v16 = (v10 * v10);
+            const double v17 = std::fma(v9, v9, v16);
+            v18 = v17;
+        }
+        else
+        {
+            v18 = 1.0;
+        }
+
+        const double v19 = (v12 / v18);
+        return v19;
     }
 
 };

@@ -166,6 +166,22 @@ partial def expose (expression : Expr) : MetaM Expr := withIncRecDepth do
           if let (.lit (.natVal a), .lit (.natVal b)) := (a, b) then
             return .lit (.natVal (op a b))
         throwError "C++ codegen: natural arithmetic must be statically known: {e}"
+      -- Topology selection is compile-time natural arithmetic. Reduce only
+      -- these known predicates; runtime arithmetic still uses the checked
+      -- primitive paths below, including their external-operation boundary.
+      if name == ``ite && e.getAppArgs.size == 5 then
+        let args := e.getAppArgs
+        let proposition := args[1]!
+        let predicate := proposition.getAppFn.constName?
+        let operands := proposition.getAppArgs
+        if predicate == some ``LT.lt && operands.size == 4 &&
+            operands[0]!.isConstOf ``Nat && operands[1]!.isConstOf ``instLTNat &&
+            args[2]!.getAppFn.isConstOf ``Nat.decLt then
+          let left ← expose operands[2]!
+          let right ← expose operands[3]!
+          if let (.lit (.natVal left), .lit (.natVal right)) := (left, right) then
+            let yes := left < right
+            return ← expose args[if yes then 3 else 4]!
       if primitive name then return e
       let env ← getEnv
       if (getExternAttrData? env name).isSome || (Compiler.getImplementedBy? env name).isSome then
@@ -586,9 +602,41 @@ def renderFunction (function : Name) (method : String) (parameters runtime : Arr
     #[s!"    static {cppType} {method}(const Snapshot& snapshot, const {inputCppType}& input)", "    {"] ++
     body.map (fun line => if line.isEmpty then "" else "        " ++ line) ++ #["    }", ""])
 
+/-- Close a record's arithmetic parameter before comparing signatures from
+separate telescopes. Static parameters such as a topology remain significant. -/
+def recordSignature (type : Expr) (numberType : Option Expr) : MetaM Expr :=
+  match numberType with
+  | none => pure type
+  | some number => mkForallFVars #[number] type
+
+/-- Capture coefficients from the same logical specification used by tuning.
+The returned record is independent of the live processor's histories. -/
+def renderSnapshot (function : Name) (parameters runtime : Array Expr)
+    (resultType : Expr) (numberType : Option Expr) (arithmetic : Array FVarId)
+    (expectedSpec : Expr) : MetaM (Array String × Array String) := do
+  let inputType ← inferType runtime[0]!
+  unless ← isDefEq (← recordSignature inputType numberType) expectedSpec do
+    throwError "C++ codegen: snapshot capture uses a different logical specification"
+  let inputFields ← fieldShape inputType numberType
+  let outputFields ← fieldShape resultType numberType
+  let .record _ := outputFields
+    | throwError "C++ codegen: snapshot capture must return a record"
+  let locals := [(runtime[0]!.fvarId!, readValue inputFields "spec")]
+  let (_, emission) ← (do
+    let result ← evaluate (mkAppN (mkConst function) parameters) locals
+    emit "Snapshot result{};"
+    commitValue outputFields result "result"
+    emit "return result;").run { numberType, arithmetic }
+  let body := if emission.lines.any (fun line => (line.splitOn "spec.").length > 1)
+    then emission.lines else #["static_cast<void>(spec);"] ++ emission.lines
+  return (mathIncludes emission.usesMath, (← renderRecord "Snapshot" outputFields) ++
+    #["    static Snapshot MakeSnapshot(const LogicalSpec& spec)", "    {"] ++
+    body.map (fun line => if line.isEmpty then "" else "        " ++ line) ++ #["    }", ""])
+
 def generateParts (function : Name) (cppName : String) (generic : Bool)
     (method : Option String) (inputName : String) (declareRecords : Bool := true)
-    (tuningState : Option (Name × Option Expr) := none) : MetaM (Array String × Array String) := do
+    (tuningState : Option Expr := none) (captureSpec : Option Expr := none) :
+    MetaM (Array String × Array String) := do
   unless validIdentifier cppName && cppName.toList.head!.isUpper do
     throwError "C++ codegen: processor name must be a simple uppercase C++ identifier"
   if #["State", "Input", "Output"].contains cppName ||
@@ -609,14 +657,15 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
     let mut numberType := none
     let mut arithmetic := #[]
     let mut runtime := parameters
+    let runtimeCount := if captureSpec.isSome then 1 else 2
     if generic then
-      unless parameters.size ≥ 3 do
+      unless parameters.size ≥ runtimeCount + 1 do
         throwError "C++ codegen: generic export expects one arithmetic type parameter"
       unless (← inferType parameters[0]!) == mkSort (.succ .zero) do
         throwError "C++ codegen: generic export expects one arithmetic type parameter"
       let number := parameters[0]!
       numberType := some number
-      for instanceParam in parameters.extract 1 (parameters.size - 2) do
+      for instanceParam in parameters.extract 1 (parameters.size - runtimeCount) do
         let type ← whnf (← inferType instanceParam)
         let name := type.getAppFn.constName?
         let args := type.getAppArgs
@@ -628,20 +677,19 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
           unless args.size == 2 && (natLiteral (← expose args[1]!)).isSome do
             throwError "C++ codegen: generic OfNat requires a literal numeral"
         arithmetic := arithmetic.push instanceParam.fvarId!
-      runtime := parameters.extract (parameters.size - 2) parameters.size
-    unless runtime.size == 2 do
-      throwError "C++ codegen: expected exactly two runtime arguments"
+      runtime := parameters.extract (parameters.size - runtimeCount) parameters.size
+    unless runtime.size == runtimeCount do
+      throwError "C++ codegen: expected exactly {if runtimeCount == 2 then "two" else "one"} runtime arguments"
+    if let some expected := captureSpec then
+      return ← renderSnapshot function parameters runtime resultType numberType arithmetic expected
     if let some method := method then
       return ← renderFunction function method parameters runtime resultType numberType arithmetic inputName declareRecords
     if tuningState.isSome then runtime := #[runtime[1]!, runtime[0]!]
     let inputVariable := if tuningState.isSome then "spec" else "input"
     let stateType ← inferType runtime[0]!
-    if let some (expected, scalarState) := tuningState then
-      unless stateType.getAppFn.constName? == some expected do
-        throwError "C++ codegen: coefficient updater uses a different state record"
-      if let some expectedType := scalarState then
-        unless ← isDefEq stateType expectedType do
-          throwError "C++ codegen: coefficient updater uses a different numeric type"
+    if let some expected := tuningState then
+      unless ← isDefEq (← recordSignature stateType numberType) expected do
+        throwError "C++ codegen: coefficient updater uses a different state record or different numeric type"
     let inputType ← inferType runtime[1]!
     let resultType ← whnf resultType
     let stateOnly ← isDefEq stateType resultType
@@ -711,8 +759,7 @@ def generateFilterResponses (step : Name) (responses : Array (Name × String))
     let info ← getConstInfo step
     let expected ← forallTelescopeReducing info.type fun parameters _ => do
       let type ← inferType parameters[parameters.size - 2]!
-      let some name := type.getAppFn.constName? | throwError "C++ codegen: expected a state record"
-      return (name, if generic then none else some type)
+      recordSignature type (if generic then some parameters[0]! else none)
     let (extraIncludes, tuningBody) ← generateParts tuning cppName generic none "LogicalSpec" true (some expected)
     includes := includes ++ extraIncludes
     body := body ++ #[s!"    // Coefficients generated from {tuning}.", "    //", ""] ++ tuningBody
@@ -734,6 +781,23 @@ def generateFilterResponses (step : Name) (responses : Array (Name × String))
       unless includes.contains line do includes := includes.push line
     body := body ++ #[s!"    // Response generated from {response}.", "    //", ""] ++ responseBody
   return String.intercalate "\n" (renderHeader step cppName generic includes ++ body ++ #["};", ""]).toList
+
+/-- A processor with coefficient preparation and a snapshot, without imposing
+any scalar response method on a multi-output processor. -/
+def generateTunedSnapshot (step tuning capture : Name) (cppName : String) : MetaM String := do
+  if #["Snapshot", "LogicalSpec"].contains cppName then
+    throwError "C++ codegen: processor name conflicts with a coefficient member"
+  let (stepIncludes, stepBody) ← generateParts step cppName true none "Input"
+  let expectedState ← forallTelescopeReducing (← getConstInfo step).type fun ps _ => do
+    recordSignature (← inferType ps[ps.size-2]!) (some ps[0]!)
+  let (tuneIncludes, tuneBody) ← generateParts tuning cppName true none "LogicalSpec" true (some expectedState)
+  let expectedSpec ← forallTelescopeReducing (← getConstInfo tuning).type fun ps _ => do
+    recordSignature (← inferType ps[ps.size-2]!) (some ps[0]!)
+  let (captureIncludes, captureBody) ← generateParts capture cppName true none "LogicalSpec" true none (some expectedSpec)
+  let includes := (stepIncludes ++ tuneIncludes ++ captureIncludes).toList.eraseDups.toArray
+  let body := stepBody ++ #[s!"    // Coefficients generated from {tuning}.", "    //", ""] ++ tuneBody ++
+    #[s!"    // Snapshot generated from {capture}.", "    //", ""] ++ captureBody
+  return String.intercalate "\n" (renderHeader step cppName true includes ++ body ++ #["};", ""]).toList
 
 def generateFilter (step response : Name) (cppName : String) (generic : Bool) : MetaM String :=
   generateFilterResponses step #[(response, "MagnitudeSquared")] cppName generic
@@ -828,6 +892,14 @@ elab "#generate_cpp_tuned_filter_generic " step:ident tuning:ident
   if let some parent := output.parent then IO.FS.createDirAll parent
   IO.FS.writeFile output code
   logInfo m!"Generated {output} with coefficient update and response members"
+
+elab "#generate_cpp_tuned_snapshot_generic " step:ident tuning:ident capture:ident
+    " as " cppName:ident " to " path:str : command => do
+  let code ← liftTermElabM <| generateTunedSnapshot step.getId tuning.getId capture.getId cppName.getId.toString
+  let output : System.FilePath := path.getString
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  logInfo m!"Generated {output} with coefficient update and snapshot capture"
 
 elab "#generate_cpp_record " record:ident " as " cppName:ident " to " path:str : command => do
   let recordName := record.getId
