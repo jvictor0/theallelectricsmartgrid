@@ -32,9 +32,9 @@ struct SVF2PoleShapeGeneric : SquiggleBoyShapeBase
             return m_lp.ComplexResponses(frequency) * m_hp.ComplexResponses(frequency);
         }
 
-        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
+        ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
-            return m_lp.MagnitudeResponses(frequency) * m_hp.MagnitudeResponses(frequency);
+            return m_lp.MagnitudeSquaredResponses(frequency) * m_hp.MagnitudeSquaredResponses(frequency);
         }
     };
 

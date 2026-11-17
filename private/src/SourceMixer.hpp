@@ -183,9 +183,9 @@ struct SourceMixer
             return m_hp.ComplexResponses(frequency) * m_lp.ComplexResponses(frequency);
         }
 
-        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
+        ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
-            return m_hp.MagnitudeResponses(frequency) * m_lp.MagnitudeResponses(frequency);
+            return m_hp.MagnitudeSquaredResponses(frequency) * m_lp.MagnitudeSquaredResponses(frequency);
         }
     };
 

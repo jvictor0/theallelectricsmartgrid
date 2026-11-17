@@ -90,8 +90,10 @@ used by [Responses/Realizes.lean](../Responses/Realizes.lean). Thus the chain is
 The transfer-from-rest hypotheses remain explicit. Tuning a nonzero history
 preserves the initial-condition response; it does not retroactively start the
 filter at rest. `LogicalSpec.snapshot` in the proof modules specifies the frozen
-response coefficients. Snapshot capture/storage in the UI is still caller-owned;
-this change does not add a sampling scheduler or reconstruct g from rounded a2/a1.
+response coefficients. The response-filter exports capture those coefficients
+alongside tuning through `prepareCoefficients`; their `UIState` uses the shared
+sampled history. The splitter instead exposes `MakeSnapshot(spec)` for a future
+consumer to capture and compose. Neither path reconstructs g from rounded a2/a1.
 
 [Stability/Bilinear.lean](../../Stability/Bilinear.lean) proves that roots in the
 continuous left half-plane map strictly inside the digital unit disk, then
@@ -145,8 +147,8 @@ phase quantization/cancellation matter near DC/Nyquist. Extremely small ZOH
 cutoffs can round `1-exp(...)` to zero. There is no new runtime clamp/guard;
 callers must choose an appropriate numerical operating range.
 
-`make lean-dsp-test` checks every coefficient in all 11 exports, float/double,
-widths 1–4, against an independent direct-Math4096/Exp oracle, and compares
+`make lean-dsp-test` checks every coefficient in the 10 response-filter exports
+and the splitter, float/double, widths 1–4, against an independent direct-Math4096/Exp oracle, and compares
 against native Lean with an explicit approximation tolerance. It checks scalar
 agreement, idempotence, preserved history bits (including NaNs and signed zero),
 and the exact set of coefficient stores. It also checks the poles of the rounded
@@ -155,7 +157,6 @@ cutoffs `[0.0001,0.49]`, Q `[0.25,20]`, blend `[0,1]`, and ladder feedback
 `[0,3.95]`. This is regression coverage, not a proof over that whole box.
 The proof audit rejects admissions and extra axioms transitively.
 
-The initial validation run passed 11,748 coefficient batches and the 917-theorem
-DSP axiom audit. Maximum measured `|C++−Lean|/(1+|Lean|)` over coefficient fields
-was `3.613e−7` for float and `2.375e−7` for double; these measurements are not
-formal worst-case bounds. The regression tolerance is `2e−5` on this metric.
+The regression tolerance against native Lean is `2e−5` for
+`|C++−Lean|/(1+|Lean|)`. Snapshot fields are checked alongside processing
+coefficients. These measurements are not formal worst-case bounds.

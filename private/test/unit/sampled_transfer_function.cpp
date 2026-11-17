@@ -66,9 +66,9 @@ DOCTEST_TEST_CASE("Sampled response: order statistics use the recent cohort and 
     DOCTEST_REQUIRE(samples.size() == 5);
     auto frequency = ResponseFrequency::Hz(1000, 48000);
     auto result = ui.Response(samples, frequency, 0);
-    DOCTEST_CHECK(result.m_lower == 16);
-    DOCTEST_CHECK(result.m_median == 18);
-    DOCTEST_CHECK(result.m_upper == 20);
+    DOCTEST_CHECK(result.m_lower == 256);
+    DOCTEST_CHECK(result.m_median == 324);
+    DOCTEST_CHECK(result.m_upper == 400);
     for (int i = 0; i < 100; ++i)
     {
         GainSnapshot snapshot;
@@ -77,13 +77,13 @@ DOCTEST_TEST_CASE("Sampled response: order statistics use the recent cohort and 
     }
 
     result = ui.Response(samples, frequency, 0);
-    DOCTEST_CHECK(result.m_lower == 16);
-    DOCTEST_CHECK(result.m_upper == 20);
+    DOCTEST_CHECK(result.m_lower == 256);
+    DOCTEST_CHECK(result.m_upper == 400);
     samples = ui.Sample();
     result = ui.Response(samples, frequency, 0);
-    DOCTEST_CHECK(result.m_lower == 1000);
-    DOCTEST_CHECK(result.m_median == 1000);
-    DOCTEST_CHECK(result.m_upper == 1000);
+    DOCTEST_CHECK(result.m_lower == 1000000);
+    DOCTEST_CHECK(result.m_median == 1000000);
+    DOCTEST_CHECK(result.m_upper == 1000000);
 
     ui.m_history.Clear();
     DOCTEST_CHECK(ui.Sample().empty());
@@ -104,9 +104,9 @@ DOCTEST_TEST_CASE("Sampled response: configured percentiles and frequency units 
 
     auto samples = ui.Sample();
     auto response = ui.ResponseVOct(samples, 0, 48000, 0);
-    DOCTEST_CHECK(response.m_lower == 2);
-    DOCTEST_CHECK(response.m_median == 5);
-    DOCTEST_CHECK(response.m_upper == 8);
+    DOCTEST_CHECK(response.m_lower == 4);
+    DOCTEST_CHECK(response.m_median == 25);
+    DOCTEST_CHECK(response.m_upper == 64);
 
     OPLowPassFilter filter;
     filter.SetAlphaFromNatFreq(0.01f);
@@ -150,8 +150,8 @@ DOCTEST_TEST_CASE("Sampled response: audio sampling is host gated and captures c
         for (size_t lane = 0; lane < 4; ++lane)
         {
             auto expected = filter.MakeSnapshot();
-            DOCTEST_CHECK(ui.MagnitudeResponse(ids[i], frequency, lane)
-                == doctest::Approx(expected.MagnitudeResponse(frequency, lane)));
+            DOCTEST_CHECK(ui.MagnitudeSquaredResponse(ids[i], frequency, lane)
+                == doctest::Approx(expected.MagnitudeSquaredResponse(frequency, lane)));
         }
     }
 
@@ -185,7 +185,7 @@ DOCTEST_TEST_CASE("Sampled response: random sampling avoids locking to a periodi
     auto ids = ui.Sample();
     auto response = ui.ResponseHz(ids, 1000, 48000, 0);
     DOCTEST_CHECK(response.m_lower == 1);
-    DOCTEST_CHECK(response.m_upper == 3);
+    DOCTEST_CHECK(response.m_upper == 9);
 }
 
 DOCTEST_TEST_CASE("Sampled response: default history window averages one 60 Hz paint")
@@ -244,9 +244,9 @@ DOCTEST_TEST_CASE("Sampled response: optimized magnitudes match complex response
                 state.m_weights = svf.GetMorphWeights(morph);
                 for (const FilterResponseSnapshot* snapshot : std::array<const FilterResponseSnapshot*, 4>{&low, &high, &state, &ladderState})
                 {
-                    float magnitude = snapshot->MagnitudeResponse(prepared, 0);
+                    float magnitude = snapshot->MagnitudeSquaredResponse(prepared, 0);
                     DOCTEST_CHECK(std::isfinite(magnitude));
-                    DOCTEST_CHECK(magnitude == doctest::Approx(std::abs(snapshot->ComplexResponse(prepared, 0))).epsilon(1e-5));
+                    DOCTEST_CHECK(magnitude == doctest::Approx(std::norm(snapshot->ComplexResponse(prepared, 0))).epsilon(1e-5));
                 }
             }
         }
@@ -358,26 +358,26 @@ void CheckResponseLanes(const Snapshot& snapshot, const std::array<MonoSnapshot,
         auto prepared = ResponseFrequency::CyclesPerSample(frequency);
         auto vectorFrequency = prepared.template Broadcast<typename Snapshot::DoubleVector>();
         auto complex = snapshot.ComplexResponses(vectorFrequency);
-        auto magnitude = snapshot.MagnitudeResponses(vectorFrequency);
+        auto magnitude = snapshot.MagnitudeSquaredResponses(vectorFrequency);
         for (size_t lane = 0; lane < 3; ++lane)
         {
             auto reference = mono[lane].ComplexResponse(prepared, 0);
             DOCTEST_CHECK(std::abs(complex[lane] - static_cast<std::complex<double>>(reference))
                 <= 0.00002 * std::max(1.0f, std::abs(reference)));
-            DOCTEST_CHECK(magnitude[lane] == doctest::Approx(mono[lane].MagnitudeResponse(prepared, 0)).epsilon(0.00002));
+            DOCTEST_CHECK(magnitude[lane] == doctest::Approx(mono[lane].MagnitudeSquaredResponse(prepared, 0)).epsilon(0.00002));
         }
     }
 
     auto prepared = FrequencyLanes<3>({0.0, 0.03, 0.5});
     auto complex = snapshot.ComplexResponses(prepared);
-    auto magnitude = snapshot.MagnitudeResponses(prepared);
+    auto magnitude = snapshot.MagnitudeSquaredResponses(prepared);
     for (size_t lane = 0; lane < 3; ++lane)
     {
         auto scalar = prepared.Channel(lane);
         auto reference = mono[lane].ComplexResponse(scalar, 0);
         DOCTEST_CHECK(std::abs(complex[lane] - static_cast<std::complex<double>>(reference))
             <= 0.00002 * std::max(1.0f, std::abs(reference)));
-        DOCTEST_CHECK(magnitude[lane] == doctest::Approx(mono[lane].MagnitudeResponse(scalar, 0)).epsilon(0.00002));
+        DOCTEST_CHECK(magnitude[lane] == doctest::Approx(mono[lane].MagnitudeSquaredResponse(scalar, 0)).epsilon(0.00002));
     }
 }
 }
@@ -395,11 +395,11 @@ DOCTEST_TEST_CASE("Sampled vectors: generated ZOH uses the handwritten prepared 
     {
         auto frequency = FrequencyLanes(frequencies);
         auto squared = Generated::MagnitudeSquared(generated, frequency);
-        auto magnitude = snapshot.MagnitudeResponses(frequency);
+        auto magnitude = snapshot.MagnitudeSquaredResponses(frequency);
         for (size_t lane = 0; lane < 3; ++lane)
         {
             DOCTEST_CHECK(std::isfinite(squared[lane]));
-            DOCTEST_CHECK(std::sqrt(squared[lane]) == doctest::Approx(magnitude[lane]).epsilon(0.000002));
+            DOCTEST_CHECK(squared[lane] == doctest::Approx(magnitude[lane]).epsilon(0.000002));
         }
     }
 }
@@ -412,9 +412,9 @@ DOCTEST_TEST_CASE("Sampled vectors: DC endpoint selection is independent per fre
     TrioLinearStateVariableFilter::Snapshot svf;
     svf.m_g = TrioFloat(0, 0.1f, 0.2f);
     auto highComplex = high.ComplexResponses(frequency);
-    auto highMagnitude = high.MagnitudeResponses(frequency);
+    auto highMagnitude = high.MagnitudeSquaredResponses(frequency);
     auto svfComplex = svf.ComplexResponses(frequency);
-    auto svfMagnitude = svf.MagnitudeResponses(frequency);
+    auto svfMagnitude = svf.MagnitudeSquaredResponses(frequency);
     DOCTEST_CHECK(highComplex[0] == std::complex<double>(0, 0));
     DOCTEST_CHECK(highMagnitude[0] == 0);
     DOCTEST_CHECK(svfComplex[0] == std::complex<double>(1, 0));
@@ -445,7 +445,7 @@ DOCTEST_TEST_CASE("Sampled vectors: padded order statistics independently sort e
                 {
                     float value = static_cast<float>((sample * (11 + lane * 2) + lane * 7) % 37);
                     snapshot.m_gain[lane] = value;
-                    expected[lane].push_back(value);
+                    expected[lane].push_back(value * value);
                 }
 
                 ui.m_history.Push(snapshot);

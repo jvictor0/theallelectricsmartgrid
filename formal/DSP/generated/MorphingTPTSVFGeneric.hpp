@@ -13,6 +13,7 @@
 #include "Math.hpp"
 
 #include "ResponseFrequency.hpp"
+#include "GeneratedFilterUI.hpp"
 #include "MultiChannelNumber.hpp"
 #include <type_traits>
 
@@ -110,52 +111,6 @@ struct MorphingTPTSVFGeneric
         m_state.m_output = v35;
     }
 
-    // Coefficients generated from DSP.MorphingTPTSVF.computeCoefficients.
-    //
-
-    struct LogicalSpec
-    {
-        struct
-        {
-            Vector m_cutoff;
-            Vector m_q;
-        } m_svf;
-
-        Vector m_blend;
-    };
-
-    void ComputeCoefficients(const LogicalSpec& spec)
-    {
-        const Vector v0 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
-        const Vector v1 = (spec.m_blend - v0);
-        const Vector v2 = (v1 / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
-        const Vector v3 = (spec.m_blend / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
-        const Vector v4 = Vector::IfLess(v0, spec.m_blend, v2, v3);
-        const Vector v5 = Math4096::TanPi(spec.m_svf.m_cutoff);
-        const Vector v6 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / spec.m_svf.m_q);
-        const Vector v7 = (v5 + v6);
-        const Vector v8 = Vector::FusedMultiplyAdd(v5, v7, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
-        const Vector v9 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v8);
-        const Vector v10 = (v5 * v9);
-        const Vector v11 = (v5 * v10);
-        const Vector v12 = Math4096::Cos2pi(v4);
-        const Vector v13 = Math4096::Sin2pi(v4);
-        const Vector v14 = v6;
-        const Vector v15 = v9;
-        const Vector v16 = v10;
-        const Vector v17 = v11;
-        const Vector v18 = v12;
-        const Vector v19 = v13;
-        const Vector v20 = spec.m_blend;
-        m_state.m_svf.m_k = v14;
-        m_state.m_svf.m_a1 = v15;
-        m_state.m_svf.m_a2 = v16;
-        m_state.m_svf.m_a3 = v17;
-        m_state.m_cosine = v18;
-        m_state.m_sine = v19;
-        m_state.m_blend = v20;
-    }
-
     // Response generated from DSP.MorphingTPTSVF.Snapshot.magnitudeSquared.
     //
 
@@ -195,6 +150,85 @@ struct MorphingTPTSVFGeneric
         const Vector v16 = Vector::IfLess(Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0)), v13, v15, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
         const Vector v17 = (v11 / v16);
         return v17;
+    }
+
+    // Coefficients generated from DSP.MorphingTPTSVF.prepareCoefficients.
+    //
+
+    Snapshot m_responseSnapshot{};
+
+    Snapshot MakeSnapshot() const
+    {
+        return m_responseSnapshot;
+    }
+
+    struct LogicalSpec
+    {
+        struct
+        {
+            Vector m_cutoff;
+            Vector m_q;
+        } m_svf;
+
+        Vector m_blend;
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const Vector v0 = Math4096::TanPi(spec.m_svf.m_cutoff);
+        const Vector v1 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / spec.m_svf.m_q);
+        const Vector v2 = (v0 + v1);
+        const Vector v3 = Vector::FusedMultiplyAdd(v0, v2, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
+        const Vector v4 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v3);
+        const Vector v5 = (v0 * v4);
+        const Vector v6 = (v0 * v5);
+        const Vector v7 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
+        const Vector v8 = (spec.m_blend - v7);
+        const Vector v9 = (v8 / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
+        const Vector v10 = (spec.m_blend / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
+        const Vector v11 = Vector::IfLess(v7, spec.m_blend, v9, v10);
+        const Vector v12 = Math4096::Cos2pi(v11);
+        const Vector v13 = Math4096::Sin2pi(v11);
+        const Vector v14 = Vector::IfLess(v7, spec.m_blend, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0)), v12);
+        const Vector v15 = Vector::IfLess(v7, spec.m_blend, v12, v13);
+        const Vector v16 = Vector::IfLess(v7, spec.m_blend, v13, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0)));
+        const Vector v17 = v0;
+        const Vector v18 = v1;
+        const Vector v19 = v14;
+        const Vector v20 = v15;
+        const Vector v21 = v16;
+        const Vector v22 = v1;
+        const Vector v23 = v4;
+        const Vector v24 = v5;
+        const Vector v25 = v6;
+        const Vector v26 = v12;
+        const Vector v27 = v13;
+        const Vector v28 = spec.m_blend;
+        m_state.m_svf.m_k = v22;
+        m_state.m_svf.m_a1 = v23;
+        m_state.m_svf.m_a2 = v24;
+        m_state.m_svf.m_a3 = v25;
+        m_state.m_cosine = v26;
+        m_state.m_sine = v27;
+        m_state.m_blend = v28;
+        m_responseSnapshot.m_svf.m_g = v17;
+        m_responseSnapshot.m_svf.m_k = v18;
+        m_responseSnapshot.m_low = v19;
+        m_responseSnapshot.m_band = v20;
+        m_responseSnapshot.m_high = v21;
+    }
+
+    using NumberType = Number;
+    static constexpr size_t x_numChannels = Size;
+
+    using UIState = TransferFunctionGeneric<GeneratedResponseSnapshot<MorphingTPTSVFGeneric<Number, Size>, &MorphingTPTSVFGeneric<Number, Size>::MagnitudeSquared>>;
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot();
+        });
     }
 
 };

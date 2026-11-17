@@ -116,7 +116,7 @@ boundaries are documented in [formal/DSP/README.md](../formal/DSP/README.md),
 and [formal/PhaseTime/README.md](../formal/PhaseTime/README.md).
 
 `make lean-dsp-test` runs the DSP proofs and axiom audit plus a native executable
-smoke test of the generic one-pole, SVF, morph, ladder and crossover filters with
+smoke test of the generic one-pole, SVF, morph and ladder filters with
 `Float` (and `Float32` for the one-poles). The full `lean-test` target also
 includes this executable check.
 The filter arithmetic and state updates are shared by the executable cores and

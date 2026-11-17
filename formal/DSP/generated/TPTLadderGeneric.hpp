@@ -13,6 +13,7 @@
 #include "Math.hpp"
 
 #include "ResponseFrequency.hpp"
+#include "GeneratedFilterUI.hpp"
 #include "MultiChannelNumber.hpp"
 #include <type_traits>
 
@@ -125,41 +126,6 @@ struct TPTLadderGeneric
         m_state.m_stage4.m_y = v40;
     }
 
-    // Coefficients generated from DSP.TPTLadder.computeCoefficients.
-    //
-
-    struct LogicalSpec
-    {
-        Vector m_cutoff;
-        Vector m_feedback;
-    };
-
-    void ComputeCoefficients(const LogicalSpec& spec)
-    {
-        const Vector v0 = Math4096::TanPi(spec.m_cutoff);
-        const Vector v1 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) + v0);
-        const Vector v2 = (v0 / v1);
-        const Vector v3 = Math4096::TanPi(spec.m_cutoff);
-        const Vector v4 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) + v3);
-        const Vector v5 = (v3 / v4);
-        const Vector v6 = Math4096::TanPi(spec.m_cutoff);
-        const Vector v7 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) + v6);
-        const Vector v8 = (v6 / v7);
-        const Vector v9 = Math4096::TanPi(spec.m_cutoff);
-        const Vector v10 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) + v9);
-        const Vector v11 = (v9 / v10);
-        const Vector v12 = spec.m_feedback;
-        const Vector v13 = v2;
-        const Vector v14 = v5;
-        const Vector v15 = v8;
-        const Vector v16 = v11;
-        m_state.m_k = v12;
-        m_state.m_stage1.m_G = v13;
-        m_state.m_stage2.m_G = v14;
-        m_state.m_stage3.m_G = v15;
-        m_state.m_stage4.m_G = v16;
-    }
-
     // Response generated from DSP.TPTLadder.Snapshot.magnitudeSquared.
     //
 
@@ -206,6 +172,71 @@ struct TPTLadderGeneric
         const Vector v27 = Vector::IfLess(Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0)), v24, v26, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
         const Vector v28 = (v23 / v27);
         return v28;
+    }
+
+    // Coefficients generated from DSP.TPTLadder.prepareCoefficients.
+    //
+
+    Snapshot m_responseSnapshot{};
+
+    Snapshot MakeSnapshot() const
+    {
+        return m_responseSnapshot;
+    }
+
+    struct LogicalSpec
+    {
+        Vector m_cutoff;
+        Vector m_feedback;
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const Vector v0 = Math4096::TanPi(spec.m_cutoff);
+        const Vector v1 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) + v0);
+        const Vector v2 = (v0 / v1);
+        const Vector v3 = Math4096::TanPi(spec.m_cutoff);
+        const Vector v4 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) + v3);
+        const Vector v5 = (v3 / v4);
+        const Vector v6 = Math4096::TanPi(spec.m_cutoff);
+        const Vector v7 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) + v6);
+        const Vector v8 = (v6 / v7);
+        const Vector v9 = Math4096::TanPi(spec.m_cutoff);
+        const Vector v10 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) + v9);
+        const Vector v11 = (v9 / v10);
+        const Vector v12 = v0;
+        const Vector v13 = v3;
+        const Vector v14 = v6;
+        const Vector v15 = v9;
+        const Vector v16 = spec.m_feedback;
+        const Vector v17 = spec.m_feedback;
+        const Vector v18 = v2;
+        const Vector v19 = v5;
+        const Vector v20 = v8;
+        const Vector v21 = v11;
+        m_state.m_k = v17;
+        m_state.m_stage1.m_G = v18;
+        m_state.m_stage2.m_G = v19;
+        m_state.m_stage3.m_G = v20;
+        m_state.m_stage4.m_G = v21;
+        m_responseSnapshot.m_g1 = v12;
+        m_responseSnapshot.m_g2 = v13;
+        m_responseSnapshot.m_g3 = v14;
+        m_responseSnapshot.m_g4 = v15;
+        m_responseSnapshot.m_k = v16;
+    }
+
+    using NumberType = Number;
+    static constexpr size_t x_numChannels = Size;
+
+    using UIState = TransferFunctionGeneric<GeneratedResponseSnapshot<TPTLadderGeneric<Number, Size>, &TPTLadderGeneric<Number, Size>::MagnitudeSquared>>;
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot();
+        });
     }
 
 };

@@ -35,9 +35,9 @@ struct ComplexReference : TransferFunctionGeneric<Snapshot>
     using ResponseVector = typename Snapshot::ResponseVector;
     using Frequency = typename Snapshot::Frequency;
 
-    ResponseVector MagnitudeResponses(size_t id, const Frequency& frequency) const override
+    ResponseVector MagnitudeSquaredResponses(size_t id, const Frequency& frequency) const override
     {
-        return this->m_readSnapshots[id].ComplexResponses(frequency).Abs().template Convert<float>();
+        return this->m_readSnapshots[id].ComplexResponses(frequency).Norm().template Convert<float>();
     }
 };
 

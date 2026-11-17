@@ -47,9 +47,9 @@ struct PhysicalModelingSourceGeneric
             return m_mainSVF.ComplexResponses(frequency) * m_combFilter.ComplexResponses(frequency);
         }
 
-        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
+        ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
-            return m_mainSVF.MagnitudeResponses(frequency) * m_combFilter.MagnitudeResponses(frequency);
+            return m_mainSVF.MagnitudeSquaredResponses(frequency) * m_combFilter.MagnitudeSquaredResponses(frequency);
         }
     };
 

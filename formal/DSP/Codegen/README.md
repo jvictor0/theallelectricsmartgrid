@@ -26,6 +26,66 @@ are generated from the same Lean definitions used in their proofs. See the
 [response proof walkthrough](../Filters/Responses/README.md) for the transfer
 connection, cascade/mixing/feedback composition, tuning contracts and endpoints.
 
+## Sampled UI and coherent snapshots
+
+The production `#generate_cpp_sampled_filter` and `_generic` commands pair a
+processing step with `prepareCoefficients` and its response methods. The Lean
+preparer returns `State × Snapshot`. C++ `ComputeCoefficients` writes only the
+coefficient fields and caches the paired snapshot. `MakeSnapshot()` copies that
+record; `Process` does not alter it. Initialize coefficients before capture,
+and update them through `ComputeCoefficients` to keep the cache coherent.
+Direct writes to `m_state` bypass this contract.
+
+[Capture.lean](../Filters/Capture.lean) composes child preparers for nested
+filters. [Capture/Proofs.lean](../Filters/Capture/Proofs.lean) proves, for every
+family, that the state projection equals the existing updater, that preparation
+commutes with channel projection, and that the real snapshot is the one used by
+the cutoff/response theorems. Morph's snapshot theorem assumes its valid blend
+range. Thus captured `g` and mix weights come from tuning intermediates, without
+reconstructing them from rounded processing coefficients.
+
+The shared [GeneratedFilterUI.hpp](../../../private/src/GeneratedFilterUI.hpp)
+adapts the raw record and selected function to `TransferFunctionGeneric`. It
+supplies lane metadata and prepared-frequency conversion. It has no virtual
+snapshot or complex-response requirement. Evaluation uses the generated filter's
+chosen numeric precision; the existing sampler stores float power values.
+
+```cpp
+using Filter = OnePoleTPTLowPassGeneric<float, 3>;
+Filter filter{};
+Filter::UIState ui;
+SampledSnapshotWriter<Filter::UIState> writer;
+writer.Bind(&ui);
+filter.ComputeCoefficients({Filter::Vector::Splat(0.01f)});
+filter.PopulateUIStateSample(writer);
+```
+
+Call the writer at the normal audio cadence; it preserves the existing host-frame
+and random sampling policy. SVFs expose `LowPassUIState`, `HighPassUIState`,
+`BandPassUIState`, `NotchUIState`, and `AllPassUIState`, plus thin `TPTSVFLowPassGeneric`,
+`TPTSVFHighPassGeneric`, `TPTSVFBandPassGeneric`, `TPTSVFNotchGeneric`, and
+`TPTSVFAllPassGeneric` views
+(and scalar counterparts). Each view has its own `UIState` and a composable
+`Snapshot`; its audio processor still computes all SVF outputs.
+
+A handwritten composite can store the views' `Snapshot`s, capture the children
+in one callback, and multiply their `MagnitudeSquaredResponses` for a cascade.
+Lean nested filters continue composing their own snapshots and kernels directly.
+Parallel sums and feedback still need phase during algebraic derivation; their
+final generated kernel is squared magnitude, not a product of branch powers.
+
+The sampled UI now carries powers throughout, including order statistics, and
+plots `10*log10(power)`. Legacy handwritten complex helpers remain for internal
+phase-sensitive composition and reference tests. The handwritten Linkwitz
+implementation is unchanged and uses the shared complex-norm compatibility
+path. The old generated `LinkwitzRileyCrossover` has been retired.
+
+`LinkwitzRileySplitter4BandGeneric` uses the separate processing/tuning/snapshot
+export. It has static `MakeSnapshot(spec)`, with no `UIState`, sampled publisher,
+or emitted response kernel. A future consumer will own the UI and compose the
+splitter snapshot into its own response. The splitter's Lean response and
+reconstruction proofs remain available for that composition.
+
 ## Authoring and generation
 
 Author a pure function of one of these shapes, using named records:

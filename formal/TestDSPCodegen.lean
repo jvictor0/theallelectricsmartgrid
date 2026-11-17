@@ -1,8 +1,8 @@
 import DSP.Codegen.Cpp
 import DSP.Tests.CodegenFixtures
 import DSP.Filters.Responses
-import DSP.Filters.Tuning
 import DSP.Filters.LinkwitzRileySplitter
+import DSP.Filters.Capture
 
 #use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
 
@@ -186,6 +186,9 @@ def splitterWrongCapture {R : Type} (spec : TPTSVF.LogicalSpec R) : TPTSVF.Snaps
 def splitterScalarCapture {R : Type} (spec : LinkwitzRileySplitter.LogicalSpec 4 R) : R :=
   spec.tree.value
 
+def captureWrongPrecision (spec : OnePoleTPTLowPass.LogicalSpec Float)
+    (state : OnePoleTPTLowPass Float) : OnePoleTPTLowPass Float × OnePoleTPTLowPass.Snapshot Float32 :=
+  (OnePoleTPTLowPass.computeCoefficients spec state, ⟨0⟩)
 end DSP.Tests
 
 open Lean Elab Command in
@@ -233,3 +236,22 @@ run_cmd liftTermElabM do
       rejected := true
     unless rejected do throwError "C++ codegen bypassed the static decision boundary for {name}"
   logInfo "Static topology comparison boundary checks passed."
+
+open Lean Elab Command in
+run_cmd liftTermElabM do
+  for (updater, expected) in #[
+      (``DSP.OnePoleTPTLowPass.computeCoefficientsFloat, "State and the response Snapshot"),
+      (``DSP.Tests.coefficientWrongReturn, "State and the response Snapshot"),
+      (``DSP.Tests.captureWrongPrecision, "State and the response Snapshot")] do
+    let mut rejected := false
+    try
+      let _ ← DSP.Codegen.generateFilterResponses ``DSP.OnePoleTPTLowPass.stepFloat
+        #[(``DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquaredFloat,"MagnitudeSquared")]
+        "TestFilter" false (some updater) true
+    catch error =>
+      let message ← error.toMessageData.toString
+      unless (message.splitOn expected).length > 1 do
+        throwError "unexpected capture rejection: {message}"
+      rejected := true
+    unless rejected do throwError "C++ codegen incorrectly accepted snapshot capture {updater}"
+  logInfo "Snapshot capture rejection checks passed."

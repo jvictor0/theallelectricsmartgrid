@@ -160,9 +160,9 @@ struct LinearStateVariableFilterGeneric
             return Numerator(frequency) / Denominator(frequency);
         }
 
-        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
+        ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
-            return (Numerator(frequency).Norm() / Denominator(frequency).Norm()).Sqrt().template Convert<float>();
+            return (Numerator(frequency).Norm() / Denominator(frequency).Norm()).template Convert<float>();
         }
     };
 
@@ -368,9 +368,9 @@ struct LinearSVF4PoleHighPassGeneric
             return response * response;
         }
 
-        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
+        ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
-            auto response = m_stage.MagnitudeResponses(frequency);
+            auto response = m_stage.MagnitudeSquaredResponses(frequency);
             return response * response;
         }
     };

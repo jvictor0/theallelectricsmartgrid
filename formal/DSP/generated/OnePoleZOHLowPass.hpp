@@ -14,6 +14,7 @@
 #include "MultiChannelNumber.hpp"
 
 #include "ResponseFrequency.hpp"
+#include "GeneratedFilterUI.hpp"
 struct OnePoleZOHLowPass
 {
     static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);
@@ -41,23 +42,6 @@ struct OnePoleZOHLowPass
         const double v4 = v2;
         m_state.m_alpha = v3;
         m_state.m_y = v4;
-    }
-
-    // Coefficients generated from DSP.OnePoleZOHLowPass.computeCoefficientsFloat.
-    //
-
-    struct LogicalSpec
-    {
-        double m_cutoff;
-    };
-
-    void ComputeCoefficients(const LogicalSpec& spec)
-    {
-        const double v0 = (-(0x1921FB54442D18p-50 * spec.m_cutoff));
-        const double v1 = MultiChannelNumber<double, 1>::Splat(v0).Exp()[0];
-        const double v2 = (1.0 - v1);
-        const double v3 = v2;
-        m_state.m_alpha = v3;
     }
 
     // Response generated from DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquaredFloat.
@@ -90,6 +74,45 @@ struct OnePoleZOHLowPass
 
         const double v7 = (v0 / v6);
         return v7;
+    }
+
+    // Coefficients generated from DSP.OnePoleZOHLowPass.prepareCoefficientsFloat.
+    //
+
+    Snapshot m_responseSnapshot{};
+
+    Snapshot MakeSnapshot() const
+    {
+        return m_responseSnapshot;
+    }
+
+    struct LogicalSpec
+    {
+        double m_cutoff;
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const double v0 = (-(0x1921FB54442D18p-50 * spec.m_cutoff));
+        const double v1 = MultiChannelNumber<double, 1>::Splat(v0).Exp()[0];
+        const double v2 = (1.0 - v1);
+        const double v3 = v2;
+        const double v4 = v2;
+        m_state.m_alpha = v4;
+        m_responseSnapshot.m_alpha = v3;
+    }
+
+    using NumberType = decltype(State{}.m_alpha);
+    static constexpr size_t x_numChannels = 1;
+
+    using UIState = TransferFunctionGeneric<GeneratedResponseSnapshot<OnePoleZOHLowPass, &OnePoleZOHLowPass::MagnitudeSquared>>;
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot();
+        });
     }
 
 };

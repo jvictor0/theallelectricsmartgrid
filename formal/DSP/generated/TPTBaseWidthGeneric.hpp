@@ -13,6 +13,7 @@
 #include "Math.hpp"
 
 #include "ResponseFrequency.hpp"
+#include "GeneratedFilterUI.hpp"
 #include "MultiChannelNumber.hpp"
 #include <type_traits>
 
@@ -80,37 +81,6 @@ struct TPTBaseWidthGeneric
         m_state.m_lowPass.m_y = v13;
     }
 
-    // Coefficients generated from DSP.TPTBaseWidth.computeCoefficients.
-    //
-
-    struct LogicalSpec
-    {
-        struct
-        {
-            Vector m_cutoff;
-        } m_highPass;
-
-        struct
-        {
-            Vector m_cutoff;
-        } m_lowPass;
-
-    };
-
-    void ComputeCoefficients(const LogicalSpec& spec)
-    {
-        const Vector v0 = Math4096::TanPi(spec.m_highPass.m_cutoff);
-        const Vector v1 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) + v0);
-        const Vector v2 = (v0 / v1);
-        const Vector v3 = Math4096::TanPi(spec.m_lowPass.m_cutoff);
-        const Vector v4 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) + v3);
-        const Vector v5 = (v3 / v4);
-        const Vector v6 = v2;
-        const Vector v7 = v5;
-        m_state.m_highPass.m_lowPass.m_G = v6;
-        m_state.m_lowPass.m_G = v7;
-    }
-
     // Response generated from DSP.TPTBaseWidth.Snapshot.magnitudeSquared.
     //
 
@@ -149,6 +119,61 @@ struct TPTBaseWidthGeneric
         const Vector v14 = (v9 / v13);
         const Vector v15 = (v7 * v14);
         return v15;
+    }
+
+    // Coefficients generated from DSP.TPTBaseWidth.prepareCoefficients.
+    //
+
+    Snapshot m_responseSnapshot{};
+
+    Snapshot MakeSnapshot() const
+    {
+        return m_responseSnapshot;
+    }
+
+    struct LogicalSpec
+    {
+        struct
+        {
+            Vector m_cutoff;
+        } m_highPass;
+
+        struct
+        {
+            Vector m_cutoff;
+        } m_lowPass;
+
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const Vector v0 = Math4096::TanPi(spec.m_highPass.m_cutoff);
+        const Vector v1 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) + v0);
+        const Vector v2 = (v0 / v1);
+        const Vector v3 = Math4096::TanPi(spec.m_lowPass.m_cutoff);
+        const Vector v4 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) + v3);
+        const Vector v5 = (v3 / v4);
+        const Vector v6 = v0;
+        const Vector v7 = v3;
+        const Vector v8 = v2;
+        const Vector v9 = v5;
+        m_state.m_highPass.m_lowPass.m_G = v8;
+        m_state.m_lowPass.m_G = v9;
+        m_responseSnapshot.m_highPass.m_g = v6;
+        m_responseSnapshot.m_lowPass.m_g = v7;
+    }
+
+    using NumberType = Number;
+    static constexpr size_t x_numChannels = Size;
+
+    using UIState = TransferFunctionGeneric<GeneratedResponseSnapshot<TPTBaseWidthGeneric<Number, Size>, &TPTBaseWidthGeneric<Number, Size>::MagnitudeSquared>>;
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot();
+        });
     }
 
 };

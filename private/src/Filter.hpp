@@ -32,12 +32,12 @@ struct OPLowPassFilterGeneric
             return ComplexVector(a, DoubleVector()) / denominator;
         }
 
-        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
+        ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
             auto a = m_alpha.template Convert<double>();
             auto norm = a * a + (DoubleVector::Splat(1) - a) * (frequency.m_sinHalf * 4 * frequency.m_sinHalf);
             norm = DoubleVector::IfLess(DoubleVector(), a, norm, DoubleVector::Splat(1));
-            return (a / norm.Sqrt()).template Convert<float>();
+            return (a * a / norm).template Convert<float>();
         }
     };
 
@@ -270,13 +270,13 @@ struct OPHighPassFilterGeneric
             return numerator / denominator;
         }
 
-        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
+        ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
             auto a = m_alpha.template Convert<double>();
             auto s = frequency.m_sinHalf;
             auto norm = (DoubleVector::Splat(1) - a) * (DoubleVector::Splat(1) - a) + a * (s * 4 * s);
             norm = DoubleVector::IfLess(DoubleVector(), s, norm, DoubleVector::Splat(1));
-            return (a * (s * 2) / norm.Sqrt()).template Convert<float>();
+            return (a * a * (s * s * 4) / norm).template Convert<float>();
         }
     };
 
@@ -370,9 +370,9 @@ struct OPBaseWidthFilterGeneric
             return m_hp.ComplexResponses(frequency) * m_lp.ComplexResponses(frequency);
         }
 
-        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
+        ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
-            return m_hp.MagnitudeResponses(frequency) * m_lp.MagnitudeResponses(frequency);
+            return m_hp.MagnitudeSquaredResponses(frequency) * m_lp.MagnitudeSquaredResponses(frequency);
         }
     };
 

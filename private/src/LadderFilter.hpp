@@ -124,9 +124,9 @@ struct LadderFilterLPGeneric
             return ComplexVector(Numerator(), DoubleVector()) / Denominator(frequency);
         }
 
-        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
+        ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
-            return (Numerator() / Denominator(frequency).Abs()).template Convert<float>();
+            return (Numerator() * Numerator() / Denominator(frequency).Norm()).template Convert<float>();
         }
     };
 

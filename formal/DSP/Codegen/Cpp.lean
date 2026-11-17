@@ -635,8 +635,8 @@ def renderSnapshot (function : Name) (parameters runtime : Array Expr)
 
 def generateParts (function : Name) (cppName : String) (generic : Bool)
     (method : Option String) (inputName : String) (declareRecords : Bool := true)
-    (tuningState : Option Expr := none) (captureSpec : Option Expr := none) :
-    MetaM (Array String × Array String) := do
+    (tuningState : Option Expr := none) (captureSpec : Option Expr := none)
+    (captureSnapshot : Option Expr := none) : MetaM (Array String × Array String) := do
   unless validIdentifier cppName && cppName.toList.head!.isUpper do
     throwError "C++ codegen: processor name must be a simple uppercase C++ identifier"
   if #["State", "Input", "Output"].contains cppName ||
@@ -693,7 +693,7 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
     let inputType ← inferType runtime[1]!
     let resultType ← whnf resultType
     let stateOnly ← isDefEq stateType resultType
-    if tuningState.isSome && !stateOnly then
+    if tuningState.isSome && !stateOnly && captureSnapshot.isNone then
       throwError "C++ codegen: coefficient updater must return its State"
     unless stateOnly || resultType.isAppOfArity ``Prod 2 do
       throwError "C++ codegen: returned state type differs from input state"
@@ -701,6 +701,11 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
     unless stateOnly do
       unless ← isDefEq stateType resultArgs[0]! do
         throwError "C++ codegen: returned state type differs from input state"
+    if let some expected := captureSnapshot then
+      unless resultType.isAppOfArity ``Prod 2 do
+        throwError "C++ codegen: prepared coefficients must return State and the response Snapshot"
+      unless ← isDefEq (← recordSignature resultArgs[1]! numberType) expected do
+        throwError "C++ codegen: prepared coefficients must return State and the response Snapshot with matching numeric type and static parameters"
     let stateFields ← fieldShape stateType numberType
     let inputFields ← fieldShape inputType numberType
     let outputFields ← if stateOnly then pure none else some <$> fieldShape resultArgs[1]! numberType
@@ -717,14 +722,25 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
           let next ← snapshot result
           commitValue stateFields next "m_state"
       | some outputFields =>
-        let next ← snapshot (← selectField result 0)
-        let output ← snapshot (← selectField result 1)
-        commitValue stateFields next "m_state"
-        commitValue outputFields output "m_output").run { numberType, arithmetic }
+        if captureSnapshot.isSome then
+          let next ← selectField result 0
+          let output ← snapshot (← selectField result 1)
+          let assignments ← changedAssignments stateFields next "m_state"
+          for line in assignments do emit line
+          commitValue outputFields output "m_responseSnapshot"
+        else
+          let next ← snapshot (← selectField result 0)
+          let output ← snapshot (← selectField result 1)
+          commitValue stateFields next "m_state"
+          commitValue outputFields output "m_output").run { numberType, arithmetic }
     let body := if emission.lines.any (fun line => (line.splitOn (inputVariable ++ ".")).length > 1)
       then emission.lines else #[s!"static_cast<void>({inputVariable});"] ++ emission.lines
     if tuningState.isSome then
-      let lines := (← renderRecord "LogicalSpec" inputFields) ++
+      let cache := if captureSnapshot.isSome then
+        #["    Snapshot m_responseSnapshot{};", "",
+          "    Snapshot MakeSnapshot() const", "    {", "        return m_responseSnapshot;", "    }", ""]
+        else #[]
+      let lines := cache ++ (← renderRecord "LogicalSpec" inputFields) ++
         #["    void ComputeCoefficients(const LogicalSpec& spec)", "    {"] ++
         body.map (fun line => if line.isEmpty then "" else "        " ++ line) ++ #["    }", ""]
       return (mathIncludes emission.usesMath, lines)
@@ -746,23 +762,38 @@ def generateWithTarget (function : Name) (cppName : String) (generic : Bool)
 
 /-- Assemble processing and response definitions in one enclosing filter.
 They share the same scalar/vector target; each retains its own Lean source. -/
+private partial def firstScalarField : Shape → String
+  | .record fields => fields[0]!.1 ++ (match fields[0]!.2 with
+      | .scalar _ => ""
+      | rest => "." ++ firstScalarField rest)
+  | _ => ""
+
 def generateFilterResponses (step : Name) (responses : Array (Name × String))
-    (cppName : String) (generic : Bool) (tuning : Option Name := none) : MetaM String := do
+    (cppName : String) (generic : Bool) (tuning : Option Name := none)
+    (capture : Bool := false) : MetaM String := do
   if #["Snapshot", "Frequency", "LogicalSpec"].contains cppName then
     throwError "C++ codegen: filter name conflicts with a response member"
   if responses.isEmpty then throwError "C++ codegen: filter needs at least one response"
   let (stepIncludes, stepBody) ← generateParts step cppName generic none "Input"
   let mut includes := stepIncludes
   let mut body := stepBody
-  let mut methods := #["Process", "State", "Output", "LogicalSpec", "ComputeCoefficients"]
+  let mut methods := #["Process", "State", "Output", "LogicalSpec", "ComputeCoefficients", "MakeSnapshot", "UIState"]
+  let mut tuningMembers := #[]
   if let some tuning := tuning then
     let info ← getConstInfo step
     let expected ← forallTelescopeReducing info.type fun parameters _ => do
       let type ← inferType parameters[parameters.size - 2]!
       recordSignature type (if generic then some parameters[0]! else none)
-    let (extraIncludes, tuningBody) ← generateParts tuning cppName generic none "LogicalSpec" true (some expected)
+    let snapshotSignature ← if capture then do
+      let responseType := (← getConstInfo responses[0]!.1).type
+      forallTelescopeReducing responseType fun parameters _ => do
+        let type ← inferType parameters[parameters.size - 2]!
+        return some (← recordSignature type (if generic then some parameters[0]! else none))
+      else pure none
+    let (extraIncludes, tuningBody) ← generateParts tuning cppName generic none "LogicalSpec" true
+      (some expected) none snapshotSignature
     includes := includes ++ extraIncludes
-    body := body ++ #[s!"    // Coefficients generated from {tuning}.", "    //", ""] ++ tuningBody
+    tuningMembers := #[s!"    // Coefficients generated from {tuning}.", "    //", ""] ++ tuningBody
   let mut signature : Option Expr := none
   for (response, method) in responses do
     if methods.contains method then throwError "C++ codegen: duplicate or reserved response method {method}"
@@ -780,7 +811,36 @@ def generateFilterResponses (step : Name) (responses : Array (Name × String))
     for line in extraIncludes do
       unless includes.contains line do includes := includes.push line
     body := body ++ #[s!"    // Response generated from {response}.", "    //", ""] ++ responseBody
-  return String.intercalate "\n" (renderHeader step cppName generic includes ++ body ++ #["};", ""]).toList
+  body := body ++ tuningMembers
+  let mut views := #[]
+  if capture then
+    unless tuning.isSome do throwError "C++ codegen: sampled filters require coefficient preparation"
+    includes := includes.push "#include \"GeneratedFilterUI.hpp\""
+    let self := if generic then s!"{cppName}<Number, Size>" else cppName
+    let number ← if generic then pure "Number" else do
+      let info ← getConstInfo step
+      let field ← forallTelescopeReducing info.type fun parameters _ => do
+        let shape ← fieldShape (← inferType parameters[parameters.size - 2]!) none
+        pure (firstScalarField shape)
+      pure ("decltype(State{}." ++ field ++ ")")
+    body := body ++ #[s!"    using NumberType = {number};",
+      s!"    static constexpr size_t x_numChannels = {if generic then "Size" else "1"};", ""]
+    for (_, method) in responses do
+      let label := if method == "MagnitudeSquared" then "" else (method.dropEnd "MagnitudeSquared".length).toString
+      let adapter := s!"GeneratedResponseSnapshot<{self}, &{self}::{method}>"
+      let aliasName := label ++ "UIState"
+      body := body ++ #[s!"    using {aliasName} = TransferFunctionGeneric<{adapter}>;", ""]
+      if label.isEmpty then
+        body := body ++ #["    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const",
+          "    {", "        writer.PopulateUIStateSample([&]", "        {",
+          "            return MakeSnapshot();", "        });", "    }", ""]
+      else
+        let stem := if generic && cppName.endsWith "Generic" then
+          (cppName.dropEnd "Generic".length).toString else cppName
+        let viewName := stem ++ label ++ (if generic then "Generic" else "")
+        if generic then views := views.push "template<typename Number, size_t Size>"
+        views := views ++ #[s!"struct {viewName} : GeneratedFilterView<{self}, &{self}::{method}>", "{", "};", ""]
+  return String.intercalate "\n" (renderHeader step cppName generic includes ++ body ++ #["};", ""] ++ views).toList
 
 /-- A processor with coefficient preparation and a snapshot, without imposing
 any scalar response method on a multi-output processor. -/
@@ -947,5 +1007,29 @@ elab "#generate_cpp_function_generic " function:ident " as " cppName:ident " met
   if let some parent := output.parent then IO.FS.createDirAll parent
   IO.FS.writeFile output code
   logInfo m!"Generated {output} from {function.getId} as a pure function with MultiChannelNumber arithmetic"
+
+elab "#generate_cpp_sampled_filter " step:ident tuning:ident
+    "[" entries:cppResponse,* "]" " as " cppName:ident " to " path:str : command => do
+  let pairs ← entries.getElems.mapM fun entry => do
+    match entry with
+    | `(cppResponse| $r:ident as $m:ident) => pure (r.getId, m.getId.toString)
+    | _ => throwError "C++ codegen: invalid response entry"
+  let code ← liftTermElabM <| generateFilterResponses step.getId pairs cppName.getId.toString false (some tuning.getId) true
+  let output : System.FilePath := path.getString
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  logInfo m!"Generated {output} with captured response and sampled UI"
+
+elab "#generate_cpp_sampled_filter_generic " step:ident tuning:ident
+    "[" entries:cppResponse,* "]" " as " cppName:ident " to " path:str : command => do
+  let pairs ← entries.getElems.mapM fun entry => do
+    match entry with
+    | `(cppResponse| $r:ident as $m:ident) => pure (r.getId, m.getId.toString)
+    | _ => throwError "C++ codegen: invalid response entry"
+  let code ← liftTermElabM <| generateFilterResponses step.getId pairs cppName.getId.toString true (some tuning.getId) true
+  let output : System.FilePath := path.getString
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  logInfo m!"Generated {output} with captured response and sampled UI"
 
 end DSP.Codegen

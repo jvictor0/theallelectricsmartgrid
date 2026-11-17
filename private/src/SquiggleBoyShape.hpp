@@ -41,10 +41,10 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
                 ? m_ladder.ComplexResponses(frequency) : m_svf.ComplexResponses(frequency);
         }
 
-        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
+        ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
             return m_filterMachine == FilterMachine::Ladder4Pole
-                ? m_ladder.MagnitudeResponses(frequency) : m_svf.MagnitudeResponses(frequency);
+                ? m_ladder.MagnitudeSquaredResponses(frequency) : m_svf.MagnitudeSquaredResponses(frequency);
         }
     };
 
