@@ -117,19 +117,19 @@ def emitMagnitude (out : IO.FS.Stream) (alpha sinHalf : Float) : IO Unit := do
   -- Arbitrary prepared data tests the compiler, not trigonometric preparation.
   -- Keep fields distinct so the shared-record probe detects incorrect projections.
   let frequency : ResponseFrequency Float :=
-    ⟨sinHalf / 2, sinHalf, sinHalf + 0.125, -sinHalf, 0.75 - sinHalf⟩
+    ⟨sinHalf / 2, sinHalf, sinHalf + 0.125, ⟨-sinHalf, 0.75 - sinHalf⟩⟩
   let result := OnePoleZOHLowPass.Snapshot.magnitudeSquared ⟨alpha⟩ frequency
   let probe := DSP.Tests.frequencyProbe ⟨alpha, -alpha⟩ frequency
   out.putStrLn s!"zohResponse {bits [alpha, frequency.cyclesPerSample, frequency.sinHalf,
-    frequency.cosHalf, frequency.zInverseReal, frequency.zInverseImag, result, probe]}"
+    frequency.cosHalf, frequency.zInverse.real, frequency.zInverse.imag, result, probe]}"
 
 def emitMagnitude32 (out : IO.FS.Stream) (alpha sinHalf : Float32) : IO Unit := do
   let frequency : ResponseFrequency Float32 :=
-    ⟨sinHalf / 2, sinHalf, sinHalf + 0.125, -sinHalf, 0.75 - sinHalf⟩
+    ⟨sinHalf / 2, sinHalf, sinHalf + 0.125, ⟨-sinHalf, 0.75 - sinHalf⟩⟩
   let result := OnePoleZOHLowPass.Snapshot.magnitudeSquared ⟨alpha⟩ frequency
   let probe := DSP.Tests.frequencyProbe ⟨alpha, -alpha⟩ frequency
   out.putStrLn s!"zohResponse32 {bits32 [alpha, frequency.cyclesPerSample, frequency.sinHalf,
-    frequency.cosHalf, frequency.zInverseReal, frequency.zInverseImag, result, probe]}"
+    frequency.cosHalf, frequency.zInverse.real, frequency.zInverse.imag, result, probe]}"
 
 def emitMagnitudeCases (out : IO.FS.Stream) : IO Unit := do
   -- Adjacent cases deliberately mix the zero-alpha branch with positive lanes.

@@ -18,7 +18,6 @@ HEADERS = (
     "LinkwitzRileyCrossover.hpp", "CoupledProcessor.hpp",
 )
 HEADERS += tuple(name.replace(".hpp", "Generic.hpp") for name in HEADERS)
-HEADERS += ("OnePoleZOHLowPassResponseGeneric.hpp", "PreparedResponseFrequency.hpp")
 
 
 def test_response(cases, output):
@@ -137,7 +136,7 @@ def main():
     compiler = shlex.split(os.environ.get("CXX", "c++"))
     subprocess.run(compiler + [
         "-std=c++17", "-O2", "-fno-fast-math", "-ffp-contract=off",
-        "-Wall", "-Wextra", "-Werror", "-I", str(GENERATED),
+        "-Wall", "-Wextra", "-Werror", "-I", str(GENERATED), "-I", str(ROOT / "private/src"),
         str(ROOT / "formal/DSP/Tests/codegen_runner.cpp"), "-o", str(runner),
     ], check=True)
     actual = subprocess.run(

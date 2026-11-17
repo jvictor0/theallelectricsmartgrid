@@ -178,12 +178,12 @@ struct SourceMixer
         LinearStateVariableFilterGeneric<float, x_numSources>::Snapshot m_hp;
         LinearStateVariableFilterGeneric<float, x_numSources>::Snapshot m_lp;
 
-        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
+        ComplexVector ComplexResponses(const Frequency& frequency) const override
         {
             return m_hp.ComplexResponses(frequency) * m_lp.ComplexResponses(frequency);
         }
 
-        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
+        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
         {
             return m_hp.MagnitudeResponses(frequency) * m_lp.MagnitudeResponses(frequency);
         }

@@ -94,19 +94,20 @@ struct LadderFilterLPGeneric
     {
         using Base = VectorResponseSnapshot<Size>;
         using typename Base::ComplexVector;
+        using typename Base::Frequency;
         using typename Base::DoubleVector;
         using typename Base::ResponseVector;
         Vector m_alpha;
         Vector m_feedback;
 
-        ComplexVector Denominator(const ResponseFrequency& frequency) const
+        ComplexVector Denominator(const Frequency& frequency) const
         {
             auto a = m_alpha.template Convert<double>();
             auto b = DoubleVector::Splat(1) - a;
-            ComplexVector stage(a + b * (2 * frequency.m_sinHalf * frequency.m_sinHalf),
-                b * (2 * frequency.m_sinHalf * frequency.m_cosHalf));
+            ComplexVector stage(a + b * (frequency.m_sinHalf * 2 * frequency.m_sinHalf),
+                b * (frequency.m_sinHalf * 2 * frequency.m_cosHalf));
             auto square = stage * stage;
-            auto denominator = square * square + ComplexVector(frequency.m_zInverse)
+            auto denominator = square * square + frequency.m_zInverse
                 * (m_feedback.template Convert<double>() * a * a * a * a);
             denominator.m_real = DoubleVector::IfLess(DoubleVector(), a, denominator.m_real, DoubleVector::Splat(1));
             return denominator;
@@ -118,12 +119,12 @@ struct LadderFilterLPGeneric
             return (DoubleVector::Splat(1) + m_feedback.template Convert<double>()) * a * a * a * a;
         }
 
-        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
+        ComplexVector ComplexResponses(const Frequency& frequency) const override
         {
             return ComplexVector(Numerator(), DoubleVector()) / Denominator(frequency);
         }
 
-        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
+        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
         {
             return (Numerator() / Denominator(frequency).Abs()).template Convert<float>();
         }

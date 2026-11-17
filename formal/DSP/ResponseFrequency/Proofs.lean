@@ -42,7 +42,7 @@ def unitDelay (frequency : ℝ) : ℂ :=
 
 /-- Read the stored real components as an exact complex number for proofs. -/
 def delay (prepared : ResponseFrequency ℝ) : ℂ :=
-  ⟨prepared.zInverseReal, prepared.zInverseImag⟩
+  ⟨prepared.zInverse.real, prepared.zInverse.imag⟩
 
 theorem ofCyclesPerSample_delay (frequency : ℝ) :
     (ofCyclesPerSample frequency).delay = unitDelay frequency := by

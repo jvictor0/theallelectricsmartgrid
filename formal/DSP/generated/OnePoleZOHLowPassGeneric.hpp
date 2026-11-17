@@ -10,6 +10,8 @@
 #include <array>
 #include <cmath>
 
+#include "ResponseFrequency.hpp"
+
 #include "MultiChannelNumber.hpp"
 #include <type_traits>
 
@@ -44,6 +46,28 @@ struct OnePoleZOHLowPassGeneric
         const Vector v4 = v2;
         m_state.m_alpha = v3;
         m_state.m_y = v4;
+    }
+
+    // Response generated from DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquared.
+    //
+
+    using Frequency = ::ResponseFrequencyGeneric<Vector>;
+
+    struct Snapshot
+    {
+        Vector m_alpha;
+    };
+
+    static Vector MagnitudeSquared(const Snapshot& snapshot, const Frequency& input)
+    {
+        const Vector v0 = (snapshot.m_alpha * snapshot.m_alpha);
+        const Vector v1 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) - snapshot.m_alpha);
+        const Vector v2 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-21f : 0x10000000000000p-50)) * v1);
+        const Vector v3 = (input.m_sinHalf * input.m_sinHalf);
+        const Vector v4 = Vector::FusedMultiplyAdd(v2, v3, v0);
+        const Vector v5 = Vector::IfLess(Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0)), snapshot.m_alpha, v4, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
+        const Vector v6 = (v0 / v5);
+        return v6;
     }
 
 };

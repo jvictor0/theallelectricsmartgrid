@@ -1,7 +1,7 @@
 #include "OnePoleZOHLowPassGeneric.hpp"
-#include "OnePoleZOHLowPassResponseGeneric.hpp"
-#include "OnePoleZOHLowPassResponse.hpp"
-#include "OnePoleZOHLowPassResponse32.hpp"
+#include "OnePoleZOHLowPass.hpp"
+#include "OnePoleZOHLowPass32.hpp"
+#include "Filter.hpp"
 #include "FrequencyProbeGeneric.hpp"
 #include "FrequencyProbe.hpp"
 #include "FrequencyProbe32.hpp"
@@ -250,22 +250,27 @@ bool Run(size_t steps)
 template<typename Number, size_t Size>
 bool RunResponse(size_t calls)
 {
-    using Response = OnePoleZOHLowPassResponseGeneric<Number, Size>;
+    using Response = OnePoleZOHLowPassGeneric<Number, Size>;
     using ScalarResponse = std::conditional_t<std::is_same_v<Number, float>,
-        OnePoleZOHLowPassResponse32, OnePoleZOHLowPassResponse>;
+        OnePoleZOHLowPass32, OnePoleZOHLowPass>;
     using Bits = std::conditional_t<std::is_same_v<Number, float>, uint32_t, uint64_t>;
     using Constant = ConstantFunctionGeneric<Number, Size>;
     using SnapshotOnly = SnapshotFunctionGeneric<Number, Size>;
     using Probe = FrequencyProbeGeneric<Number, Size>;
     using ScalarProbe = std::conditional_t<std::is_same_v<Number, float>, FrequencyProbe32, FrequencyProbe>;
-    static_assert(std::is_same_v<typename Response::Input, typename Probe::Input>);
-    static_assert(std::is_same_v<typename ScalarResponse::Input, typename ScalarProbe::Input>);
+    static_assert(std::is_same_v<typename Response::Frequency, typename Probe::Input>);
+    static_assert(std::is_same_v<typename ScalarResponse::Frequency, typename ScalarProbe::Input>);
+    if constexpr (std::is_same_v<Number, double>)
+    {
+        static_assert(std::is_same_v<typename Response::Frequency,
+            typename OPLowPassFilterGeneric<float, Size>::Snapshot::Frequency>);
+    }
     for (size_t call = 0; call < calls; ++call)
     {
         typename Response::Snapshot snapshot{};
-        typename Response::Input frequency{};
+        typename Response::Frequency frequency{};
         auto frequencyFields = std::tie(frequency.m_cyclesPerSample, frequency.m_sinHalf,
-            frequency.m_cosHalf, frequency.m_zInverseReal, frequency.m_zInverseImag);
+            frequency.m_cosHalf, frequency.m_zInverse.m_real, frequency.m_zInverse.m_imag);
         for (size_t channel = 0; channel < Size; ++channel)
         {
             Bits alphaBits = 0;
@@ -304,9 +309,9 @@ bool RunResponse(size_t calls)
         const auto snapshotOnly = SnapshotOnly::Evaluate({snapshot.m_alpha}, frequency.m_sinHalf);
         for (size_t channel = 0; channel < Size; ++channel)
         {
-            const typename ScalarResponse::Input scalarFrequency{frequency.m_cyclesPerSample[channel],
-                frequency.m_sinHalf[channel], frequency.m_cosHalf[channel], frequency.m_zInverseReal[channel],
-                frequency.m_zInverseImag[channel]};
+            const typename ScalarResponse::Frequency scalarFrequency{frequency.m_cyclesPerSample[channel],
+                frequency.m_sinHalf[channel], frequency.m_cosHalf[channel], {frequency.m_zInverse.m_real[channel],
+                frequency.m_zInverse.m_imag[channel]}};
             const auto scalar = ScalarResponse::MagnitudeSquared({snapshot.m_alpha[channel]}, scalarFrequency);
             const auto scalarProbe = ScalarProbe::Evaluate(
                 {snapshot.m_alpha[channel], -snapshot.m_alpha[channel]}, scalarFrequency);

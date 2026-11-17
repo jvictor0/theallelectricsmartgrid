@@ -39,7 +39,7 @@ struct FIR
 
         ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
         {
-            auto z = frequency.m_zInverse;
+            auto z = frequency.m_zInverse[0];
             TapComplex powers;
             std::complex<double> power{1, 0};
             for (size_t lane = 0; lane < 4; ++lane)

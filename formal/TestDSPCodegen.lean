@@ -1,8 +1,7 @@
 import DSP.Codegen.Cpp
 import DSP.Tests.CodegenFixtures
 
-#generate_cpp_record DSP.ResponseFrequency as PreparedResponseFrequency
-  to "build/lean/generated/PreparedResponseFrequency.hpp"
+#use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
 
 #generate_cpp DSP.Tests.swapProcessor as SwapProcessor to "build/lean/generated/SwapProcessor.hpp"
 #generate_cpp DSP.Tests.gainProcessor as GainProcessor to "build/lean/generated/GainProcessor.hpp"
@@ -12,10 +11,8 @@ import DSP.Tests.CodegenFixtures
 
 #generate_cpp_generic DSP.Tests.arithmeticProcessor as ArithmeticProcessorGeneric to "build/lean/generated/ArithmeticProcessorGeneric.hpp"
 
-#generate_cpp_function DSP.Tests.zohMagnitudeSquaredFloat
-  as OnePoleZOHLowPassResponse method MagnitudeSquared to "build/lean/generated/OnePoleZOHLowPassResponse.hpp"
-#generate_cpp_function DSP.Tests.zohMagnitudeSquaredFloat32
-  as OnePoleZOHLowPassResponse32 method MagnitudeSquared to "build/lean/generated/OnePoleZOHLowPassResponse32.hpp"
+#generate_cpp_filter DSP.Tests.zohStepFloat32 response DSP.Tests.zohMagnitudeSquaredFloat32
+  as OnePoleZOHLowPass32 to "build/lean/generated/OnePoleZOHLowPass32.hpp"
 #generate_cpp_function_generic DSP.Tests.frequencyProbe
   as FrequencyProbeGeneric method Evaluate to "build/lean/generated/FrequencyProbeGeneric.hpp"
 #generate_cpp_function DSP.Tests.frequencyProbeFloat
@@ -85,7 +82,7 @@ run_cmd liftTermElabM do
       (``DSP.Tests.constantFunction, "Response", "Vector", true, "function name conflicts"),
       (``DSP.Tests.constantFunction, "Response", "Snapshot", true, "function name conflicts"),
       (``DSP.Tests.constantFunction, "Response", "Input", true, "function name conflicts"),
-      (``DSP.Tests.constantFunction, "PreparedResponseFrequency", "Evaluate", true, "exported record"),
+      (``DSP.Tests.constantFunction, "ResponseFrequencyGeneric", "Evaluate", true, "exported record"),
       (``DSP.Tests.constantFunction, "Response", "evaluate", true, "method name must be")] do
     let mut rejected := false
     try

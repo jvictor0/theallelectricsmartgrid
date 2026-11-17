@@ -13,6 +13,7 @@ struct CrossoverResponseCoefficients
 {
     using Vector = MultiChannelNumber<double, Size>;
     using Complex = MultiChannelComplex<double, Size>;
+    using Frequency = ResponseFrequencyGeneric<Vector>;
     Vector m_tangent = Vector::Splat(0.1);
 
     struct Pair
@@ -21,19 +22,19 @@ struct CrossoverResponseCoefficients
         Complex m_highPass;
     };
 
-    Complex Denominator(const ResponseFrequency& frequency) const
+    Complex Denominator(const Frequency& frequency) const
     {
         auto gc = m_tangent * frequency.m_cosHalf;
-        double s = frequency.m_sinHalf;
+        auto s = frequency.m_sinHalf;
         auto real = gc * gc - s * s;
         return Complex(real, gc * (s * (2.0f * std::cos(M_PI / 8.0f))))
             * Complex(real, gc * (s * (2.0f * std::cos(3.0f * M_PI / 8.0f))));
     }
 
-    Pair Responses(const ResponseFrequency& frequency) const
+    Pair Responses(const Frequency& frequency) const
     {
         auto gc = m_tangent * frequency.m_cosHalf;
-        double s = frequency.m_sinHalf;
+        auto s = frequency.m_sinHalf;
         auto denominator = Denominator(frequency);
         auto inverse = denominator.Conj() / denominator.Norm();
         return {inverse * (gc * gc * gc * gc), inverse * (s * s * s * s)};
@@ -70,7 +71,8 @@ struct LinkwitzRileyCrossoverGeneric
     static ComplexCrossoverOutput TransferFunction(float cutoffFreq, float freq)
     {
         Snapshot snapshot;
-        snapshot.m_coefficients.m_tangent = Math::TanPi(std::clamp(cutoffFreq, x_minCyclesPerSample, x_maxCyclesPerSample));
+        snapshot.m_coefficients.m_tangent = MultiChannelNumber<double, 2>::Splat(
+            Math::TanPi(std::clamp(cutoffFreq, x_minCyclesPerSample, x_maxCyclesPerSample)));
         return snapshot.Responses(ResponseFrequency::CyclesPerSample(freq));
     }
 
@@ -95,30 +97,30 @@ struct LinkwitzRileyCrossoverGeneric
 
     struct Snapshot : VectorResponseSnapshot<2>
     {
-        CrossoverResponseCoefficients<1> m_coefficients;
+        CrossoverResponseCoefficients<2> m_coefficients;
 
-        DoubleVector Numerators(const ResponseFrequency& frequency) const
+        DoubleVector Numerators(const Frequency& frequency) const
         {
-            double gc = m_coefficients.m_tangent[0] * frequency.m_cosHalf;
-            double s = frequency.m_sinHalf;
-            return {gc * gc * gc * gc, s * s * s * s};
+            auto gc = m_coefficients.m_tangent * frequency.m_cosHalf;
+            auto s = frequency.m_sinHalf;
+            return {(gc * gc * gc * gc)[0], (s * s * s * s)[1]};
         }
 
-        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
+        ComplexVector ComplexResponses(const Frequency& frequency) const override
         {
-            auto denominator = m_coefficients.Denominator(frequency)[0];
-            return ComplexVector(Numerators(frequency), DoubleVector()) / ComplexVector(denominator);
+            auto denominator = m_coefficients.Denominator(frequency);
+            return ComplexVector(Numerators(frequency), DoubleVector()) / denominator;
         }
 
-        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
+        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
         {
-            double magnitude = m_coefficients.Denominator(frequency).Abs()[0];
+            auto magnitude = m_coefficients.Denominator(frequency).Abs();
             return (Numerators(frequency) / magnitude).template Convert<float>();
         }
 
         ComplexCrossoverOutput Responses(const ResponseFrequency& frequency) const
         {
-            auto responses = ComplexResponses(frequency);
+            auto responses = ComplexResponses(frequency.Broadcast<DoubleVector>());
             return {static_cast<std::complex<float>>(responses[0]), static_cast<std::complex<float>>(responses[1])};
         }
     };
@@ -128,7 +130,7 @@ struct LinkwitzRileyCrossoverGeneric
     Snapshot MakeSnapshot() const
     {
         Snapshot snapshot;
-        snapshot.m_coefficients.m_tangent = static_cast<double>(m_first.m_a2) / m_first.m_a1;
+        snapshot.m_coefficients.m_tangent = MultiChannelNumber<double, 2>::Splat(static_cast<double>(m_first.m_a2) / m_first.m_a1);
         return snapshot;
     }
 

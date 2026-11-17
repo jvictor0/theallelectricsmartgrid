@@ -4,8 +4,8 @@ The generated filters are under [generated](../generated): the ZOH and TPT
 one-poles, TPT highpass and base-width band, `TPTSVF`, `MorphingTPTSVF`, the
 three `TPTSVF4Pole` variants, `TPTLadder` and `LinkwitzRileyCrossover`. Each is a
 standalone C++17 header with nested `State` and `Input` records, stored
-`m_state`, and `void Process(Input& input)`. Filters are state-only: every
-response they expose is a field of `m_state`. Headers have no Lean runtime
+`m_state`, and `void Process(Input& input)`. Their processing steps are state-only:
+every audio output they expose is a field of `m_state`. Headers have no Lean runtime
 dependency and are not integrated into the audio app. The separate
 [CoupledProcessor.hpp](../generated/CoupledProcessor.hpp) exercises the
 `State × Output` form, nested coefficients and two interacting state variables.
@@ -18,10 +18,10 @@ Each also has a `Generic` header, such as
 The backend in [Cpp.lean](Cpp.lean) reads an elaborated Lean function and its
 record definitions. It does not contain a one-pole arithmetic template.
 
-The ZOH response also has a separate pure-function header,
-[OnePoleZOHLowPassResponseGeneric.hpp](../generated/OnePoleZOHLowPassResponseGeneric.hpp).
-It contains a coefficient-only `Snapshot` record and a static `MagnitudeSquared`
-method. It is generated from the same Lean definition used in the response proofs.
+The [ZOH header](../generated/OnePoleZOHLowPassGeneric.hpp) also contains a
+coefficient-only nested `Snapshot` and static `MagnitudeSquared` method, alongside
+its processing state and `Process`. The scalar ZOH header has the same organization.
+The response is generated from the same Lean definition used in its proofs.
 
 ## Authoring and generation
 
@@ -58,63 +58,67 @@ The generic export uses the same recurrence as `stepFloat` and the lifted
 proofs. It takes no proof arguments and retains the scalar exporter's tested
 compiler boundary.
 
-For a read-only response, first export its shared frequency record, then the
-shape `Snapshot R → ResponseFrequency R → R`:
+For a filter with a response, bind the Lean frequency record to the existing
+C++ type, then export processing and response together:
 
 ```lean
-#generate_cpp_record DSP.ResponseFrequency as PreparedResponseFrequency
-  to "build/lean/generated/PreparedResponseFrequency.hpp"
+#use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
 
-#generate_cpp_function_generic DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquared
-  as OnePoleZOHLowPassResponseGeneric method MagnitudeSquared
-  to "build/lean/generated/OnePoleZOHLowPassResponseGeneric.hpp"
+#generate_cpp_filter_generic DSP.OnePoleZOHLowPass.step
+  response DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquared
+  as OnePoleZOHLowPassGeneric to "build/lean/generated/OnePoleZOHLowPassGeneric.hpp"
 ```
 
-`#generate_cpp_record` emits a standalone `template<typename Number>` data
-record and registers its Lean type for subsequent exports in the generation
-module. Export it before any functions that use it; its filename must match
-the exported C++ name. `Number` can be a scalar or a `MultiChannelNumber`.
-Each response header includes the shared header and declares
-`using Input = ::PreparedResponseFrequency<Vector>`. All filters using this
-record therefore accept the same C++ type, not distinct nested record copies.
+The response has shape `Snapshot R → ResponseFrequency R → R`. The filter
+export assembles the two Lean definitions in one C++ struct, with nested
+`State`, audio `Input`, and coefficient `Snapshot`. Its `Frequency` alias refers
+to `::ResponseFrequencyGeneric<Vector>` from the app's
+[ResponseFrequency.hpp](../../../private/src/ResponseFrequency.hpp). There is
+no separate response struct or generated frequency copy. `#generate_cpp_filter`
+does the same for a scalar specialization.
 
-The function export emits a nested coefficient `Snapshot` and a static method
-with two const reference arguments, named `snapshot` and `input`, returning a
-`Vector`. There are no stored state or output members. The second argument can
-also be a bare `R`; a record input must be an exported record applied to `R`.
-`#generate_cpp_function` exports either shape specialized to `Float` or
-`Float32`, with the corresponding scalar record and return types. Both forms
-reuse the processor exporter's arithmetic evaluator and rejection checks.
+The common C++ record stores `m_cyclesPerSample`, `m_sinHalf`, and `m_cosHalf`
+as vectors, and `m_zInverse` as `MultiChannelComplex`. That existing complex
+type owns `m_real` and `m_imag` vectors. The Lean record mirrors this nesting
+with `zInverse : ComplexValue R`. Codegen reads those same member paths directly.
+The external binding validates the Lean record shape; compiling and comparing
+against the actual C++ header checks the representation boundary.
 
-[ResponseFrequency.lean](../ResponseFrequency.lean) contains the common data:
-`cyclesPerSample`, `sinHalf`, `cosHalf`, `zInverseReal`, and `zInverseImag`.
-The last two fields store the complex delay without requiring an executable
-complex-number type. `fromHalfAngle` builds the delay components from prepared
-sine and cosine. A functor map converts precision or selects lanes;
-`broadcast` shares one frequency across all channels. These are ordinary data
-operations, not trigonometric evaluation or claims of exactness.
+The UI's `ResponseFrequency` alias is the one-lane double-vector form. Typed
+snapshots use `ResponseFrequencyGeneric<MultiChannelNumber<double, Size>>`.
+The plot caches one-lane prepared frequencies, and `ResponseAll` widens each
+frequency once before its snapshot loop. Scalar query adapters do the same
+widening for individual queries. Direct vector calls can supply different
+frequencies per lane; DC selection in high-pass and SVF responses is per lane.
 
-No trigonometric operation runs inside the generated response. For example,
-given a prepared `PreparedResponseFrequency<Vector> frequency`:
+[ResponseFrequency.lean](../ResponseFrequency.lean) defines `fromHalfAngle` to
+build the complex delay from prepared sine and cosine. A functor map converts
+precision or selects lanes; `broadcast` shares one frequency across channels.
+These are data operations; the exact trigonometric interpretation lives in
+[ResponseFrequency/Proofs.lean](../ResponseFrequency/Proofs.lean).
+
+For example, the prepared object below can be passed directly to either the
+generated response or a handwritten three-channel snapshot:
 
 ```cpp
-using Response = OnePoleZOHLowPassResponseGeneric<double, 3>;
-using Vector = Response::Vector;
-const Response::Snapshot snapshot{Vector(0.1, 0.2, 0.3)};
-const Vector squared = Response::MagnitudeSquared(snapshot, frequency);
+using Filter = OnePoleZOHLowPassGeneric<double, 3>;
+using Vector = Filter::Vector;
+const Filter::Snapshot snapshot{Vector(0.1, 0.2, 0.3)};
+const auto frequency = Filter::Frequency::Hz(1000, 48000);
+const Vector squared = Filter::MagnitudeSquared(snapshot, frequency);
 ```
 
-The response snapshot contains just `m_alpha`; it has no delay state. The
-kernel explicitly uses FMA and selects a denominator of one when alpha is zero,
-so zero alpha returns zero even at DC. UI sampling, snapshot capture from the
-processor, and conversion from squared magnitude to magnitude remain caller
-integration work.
+The generated method takes const references and returns magnitude squared.
+It uses explicit FMA and a safe denominator for zero alpha. Snapshot capture
+from the generated processor and its UI sampling adapter remain caller work.
+Each filter keeps its own coefficient snapshot; there is no filter typeclass
+or inheritance requirement.
 
-The existing UI's scalar `ResponseFrequency` can supply these five values;
-broadcast them once for a vector frequency shared across snapshots. The new
-generated header does not depend on the handwritten UI type. Each filter keeps
-its own coefficient snapshot and exposes the same response function shape;
-there is no new filter typeclass or inheritance requirement.
+The standalone `#generate_cpp_function` and `#generate_cpp_function_generic`
+forms remain available for other pure kernels. They accept a named snapshot
+and a numeric or registered-record input, returning the same numeric type.
+`#generate_cpp_record` can still emit a new data template where no C++ record
+already exists; `#use_cpp_record` reuses an existing header without writing it.
 
 Run from the repository root:
 
@@ -300,10 +304,13 @@ includes mixed zero/positive alpha lanes, alpha one and its predecessor, DC,
 Nyquist, signed zero, subnormal inputs and binary32 squared coefficients, and
 random independent coefficients and prepared sine values. The compiler corpus
 uses arbitrary data in the other frequency fields; a second kernel reads all
-five fields, and C++ assertions check that both kernels accept exactly the
-same shared input type. Three-channel padding is poisoned. The native response
+five numeric leaves, including both components of `MultiChannelComplex`. C++
+assertions check that both kernels and the handwritten ZOH response use the
+same shared frequency type at double precision. Three-channel padding is poisoned. The native response
 smoke tests separately use trigonometric preparation and compare against complex
-denominator components. Other exporter fixtures cover unused arguments and
+denominator components. Core tests pass one prepared object to handwritten and
+generated ZOH responses, and compare independent vector-frequency lanes with
+scalar response queries, including mixed DC and Nyquist endpoints. Other exporter fixtures cover unused arguments and
 direct returns, and rejection checks cover unsupported argument/result shapes,
 mixed number types, external operations, invalid shared records and conflicting names.
 

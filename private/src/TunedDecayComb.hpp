@@ -54,12 +54,12 @@ struct TunedDecayCombBase
 
         std::complex<double> Loop(const ResponseFrequency& frequency, const std::complex<double>& numerator) const
         {
-            auto z = frequency.m_zInverse;
+            auto z = frequency.m_zInverse[0];
             auto q = m_r * z;
             double a = m_a;
             auto allpass = (a + q) / (1.0 + a * q);
             return m_sign * m_delayGain *
-                static_cast<std::complex<double>>(Math::Polar2pi(1, -frequency.m_cyclesPerSample * m_delay))
+                static_cast<std::complex<double>>(Math::Polar2pi(1, -frequency.m_cyclesPerSample[0] * m_delay))
                 * allpass * numerator;
         }
     };
@@ -180,6 +180,7 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
     {
         using Base = VectorResponseSnapshot<Size>;
         using typename Base::ComplexVector;
+        using typename Base::Frequency;
         using typename Base::ResponseVector;
         ChannelCoefficients m_branch[2];
         double m_mix = 0;
@@ -190,14 +191,14 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
             ComplexVector m_denominator;
         };
 
-        static ComplexVector Numerator(const ChannelCoefficients& c, const ResponseFrequency& frequency)
+        static ComplexVector Numerator(const ChannelCoefficients& c, const Frequency& frequency)
         {
             if (c.m_bypass == DoubleVector::Splat(1))
             {
                 return 1.0;
             }
 
-            auto q = ComplexVector(frequency.m_zInverse) * c.m_r;
+            auto q = frequency.m_zInverse * c.m_r;
             auto onePlus = ComplexVector(1.0) + q;
             auto g2 = c.m_g * c.m_g;
             auto kg = c.m_k * c.m_g;
@@ -209,7 +210,7 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
                 DoubleVector::IfLess(c.m_bypass, DoubleVector::Splat(0.5), response.m_imag, DoubleVector())};
         }
 
-        static ComplexVector Loop(const ChannelCoefficients& c, const ResponseFrequency& frequency,
+        static ComplexVector Loop(const ChannelCoefficients& c, const Frequency& frequency,
             const ComplexVector& numerator)
         {
             if (c.m_sign == DoubleVector())
@@ -217,14 +218,14 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
                 return {};
             }
 
-            auto q = ComplexVector(frequency.m_zInverse) * c.m_r;
+            auto q = frequency.m_zInverse * c.m_r;
             auto allpass = (ComplexVector(c.m_a, DoubleVector()) + q) / (ComplexVector(1.0) + q * c.m_a);
             auto delay = Math::Polar2pi(ResponseVector::Splat(1),
                 c.m_delay.template Convert<double>() * -frequency.m_cyclesPerSample).template Convert<double>();
             return delay * allpass * numerator * (c.m_sign * c.m_delayGain);
         }
 
-        Fraction Evaluate(const ResponseFrequency& frequency) const
+        Fraction Evaluate(const Frequency& frequency) const
         {
             auto first = Numerator(m_branch[0], frequency);
             auto loop = Loop(m_branch[0], frequency, first);
@@ -238,13 +239,13 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
             return {first * (1 - m_mix) + second * m_mix, ComplexVector(1.0) - loop};
         }
 
-        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
+        ComplexVector ComplexResponses(const Frequency& frequency) const override
         {
             auto response = Evaluate(frequency);
             return response.m_numerator / response.m_denominator;
         }
 
-        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
+        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
         {
             auto response = Evaluate(frequency);
             return (response.m_numerator.Norm() / response.m_denominator.Norm()).Sqrt().template Convert<float>();

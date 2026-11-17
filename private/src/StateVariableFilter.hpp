@@ -104,6 +104,7 @@ struct LinearStateVariableFilterGeneric
     {
         using Base = VectorResponseSnapshot<Size>;
         using typename Base::ComplexVector;
+        using typename Base::Frequency;
         using typename Base::DoubleVector;
         using typename Base::ResponseVector;
 
@@ -134,39 +135,33 @@ struct LinearStateVariableFilterGeneric
         Vector m_k = Vector::Splat(1);
         Weights m_weights{1, 0, 0};
 
-        ComplexVector Numerator(const ResponseFrequency& frequency) const
+        ComplexVector Numerator(const Frequency& frequency) const
         {
             auto gc = m_g.template Convert<double>() * frequency.m_cosHalf;
-            double s = frequency.m_sinHalf;
-            return {m_weights.m_lowPass.template Convert<double>() * gc * gc
+            auto s = frequency.m_sinHalf;
+            auto low = m_weights.m_lowPass.template Convert<double>();
+            auto real = low * gc * gc
                     - m_weights.m_highPass.template Convert<double>() * (s * s),
-                m_weights.m_bandPass.template Convert<double>() * gc * s};
+                imag = m_weights.m_bandPass.template Convert<double>() * gc * s;
+            return {DoubleVector::IfLess(DoubleVector(), frequency.m_cyclesPerSample, real, low),
+                DoubleVector::IfLess(DoubleVector(), frequency.m_cyclesPerSample, imag, DoubleVector())};
         }
 
-        ComplexVector Denominator(const ResponseFrequency& frequency) const
+        ComplexVector Denominator(const Frequency& frequency) const
         {
             auto gc = m_g.template Convert<double>() * frequency.m_cosHalf;
-            double s = frequency.m_sinHalf;
-            return {gc * gc - s * s, m_k.template Convert<double>() * gc * s};
+            auto s = frequency.m_sinHalf;
+            return {DoubleVector::IfLess(DoubleVector(), frequency.m_cyclesPerSample, gc * gc - s * s, DoubleVector::Splat(1)),
+                DoubleVector::IfLess(DoubleVector(), frequency.m_cyclesPerSample, m_k.template Convert<double>() * gc * s, DoubleVector())};
         }
 
-        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
+        ComplexVector ComplexResponses(const Frequency& frequency) const override
         {
-            if (frequency.m_cyclesPerSample == 0)
-            {
-                return {m_weights.m_lowPass.template Convert<double>(), DoubleVector()};
-            }
-
             return Numerator(frequency) / Denominator(frequency);
         }
 
-        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
+        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
         {
-            if (frequency.m_cyclesPerSample == 0)
-            {
-                return m_weights.m_lowPass.Abs();
-            }
-
             return (Numerator(frequency).Norm() / Denominator(frequency).Norm()).Sqrt().template Convert<float>();
         }
     };
@@ -363,16 +358,17 @@ struct LinearSVF4PoleHighPassGeneric
     {
         using Base = VectorResponseSnapshot<Size>;
         using typename Base::ComplexVector;
+        using typename Base::Frequency;
         using typename Base::ResponseVector;
         typename SVF::Snapshot m_stage;
 
-        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
+        ComplexVector ComplexResponses(const Frequency& frequency) const override
         {
             auto response = m_stage.ComplexResponses(frequency);
             return response * response;
         }
 
-        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
+        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
         {
             auto response = m_stage.MagnitudeResponses(frequency);
             return response * response;

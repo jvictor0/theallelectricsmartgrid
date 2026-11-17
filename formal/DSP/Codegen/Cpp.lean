@@ -486,7 +486,7 @@ def renderHeader (function : Name) (cppName : String) (generic : Bool)
 /-- Export a read-only snapshot and numeric or shared-record input to a numeric result. This uses
 the same evaluator as processors, but returns the value without committing state. -/
 def renderFunction (function : Name) (method : String) (parameters runtime : Array Expr)
-    (resultType : Expr) (numberType : Option Expr) (arithmetic : Array FVarId) :
+    (resultType : Expr) (numberType : Option Expr) (arithmetic : Array FVarId) (inputName : String) :
     MetaM (Array String × Array String) := do
   let snapshotFields ← fieldShape (← inferType runtime[0]!) numberType
   let .record _ := snapshotFields
@@ -512,7 +512,7 @@ def renderFunction (function : Name) (method : String) (parameters runtime : Arr
   let (includes, aliases, inputCppType) := match inputRecord with
     | none => (#[], #[], cppType)
     | some record => (#[s!"#include \"{record.header}\"", ""],
-        #[s!"    using Input = ::{record.cppName}<{cppType}>;", ""], "Input")
+        #[s!"    using {inputName} = ::{record.cppName}<{cppType}>;", ""], inputName)
   let locals := [(runtime[0]!.fvarId!, readValue snapshotFields "snapshot"),
     (runtime[1]!.fvarId!, readValue inputFields "input")]
   let (_, emission) ← (do
@@ -528,8 +528,8 @@ def renderFunction (function : Name) (method : String) (parameters runtime : Arr
     #[s!"    static {cppType} {method}(const Snapshot& snapshot, const {inputCppType}& input)", "    {"] ++
     body.map (fun line => if line.isEmpty then "" else "        " ++ line) ++ #["    }", ""])
 
-def generateWithTarget (function : Name) (cppName : String) (generic : Bool)
-    (method : Option String) : MetaM String := do
+def generateParts (function : Name) (cppName : String) (generic : Bool)
+    (method : Option String) (inputName : String) : MetaM (Array String × Array String) := do
   unless validIdentifier cppName && cppName.toList.head!.isUpper do
     throwError "C++ codegen: processor name must be a simple uppercase C++ identifier"
   if #["State", "Input", "Output"].contains cppName ||
@@ -541,7 +541,7 @@ def generateWithTarget (function : Name) (cppName : String) (generic : Bool)
     unless validIdentifier method && method.toList.head!.isUpper do
       throwError "C++ codegen: method name must be a simple uppercase C++ identifier"
     if cppName == "Snapshot" || method == cppName ||
-        #["Snapshot", "Input", "Number", "Size", "Vector"].contains method then
+        #["Snapshot", "Input", "Frequency", "Number", "Size", "Vector"].contains method then
       throwError "C++ codegen: function name conflicts with an enclosing or nested name"
   let info ← getConstInfo function
   unless info.levelParams.isEmpty do
@@ -573,10 +573,7 @@ def generateWithTarget (function : Name) (cppName : String) (generic : Bool)
     unless runtime.size == 2 do
       throwError "C++ codegen: expected exactly two runtime arguments"
     if let some method := method then
-      let (includes, body) ← renderFunction function method parameters runtime resultType numberType arithmetic
-      let header := renderHeader function cppName generic includes
-      return String.intercalate "\n" (header ++ body ++ #["};", ""]).toList
-    let header := renderHeader function cppName generic
+      return ← renderFunction function method parameters runtime resultType numberType arithmetic inputName
     let stateType ← inferType runtime[0]!
     let inputType ← inferType runtime[1]!
     let resultType ← whnf resultType
@@ -610,11 +607,27 @@ def generateWithTarget (function : Name) (cppName : String) (generic : Bool)
       | some outputFields => do
         let record ← renderRecord "Output" outputFields
         pure (record ++ #["    State m_state;", "    Output m_output;", ""])
-    let lines := header ++ (← renderRecord "State" stateFields) ++ (← renderRecord "Input" inputFields) ++
+    let lines := (← renderRecord "State" stateFields) ++ (← renderRecord "Input" inputFields) ++
       outputLines ++ #["    void Process(Input& input)", "    {"] ++
       body.map (fun line => if line.isEmpty then "" else "        " ++ line) ++
-      #["    }", "", "};", ""]
-    return String.intercalate "\n" lines.toList
+      #["    }", ""]
+    return (#[], lines)
+
+def generateWithTarget (function : Name) (cppName : String) (generic : Bool)
+    (method : Option String) : MetaM String := do
+  let (includes, body) ← generateParts function cppName generic method "Input"
+  return String.intercalate "\n" (renderHeader function cppName generic includes ++ body ++ #["};", ""]).toList
+
+/-- Assemble processing and response definitions in one enclosing filter.
+They share the same scalar/vector target; each retains its own Lean source. -/
+def generateFilter (step response : Name) (cppName : String) (generic : Bool) : MetaM String := do
+  if #["Snapshot", "Frequency"].contains cppName then
+    throwError "C++ codegen: filter name conflicts with a response member"
+  let (stepIncludes, stepBody) ← generateParts step cppName generic none "Input"
+  let (responseIncludes, responseBody) ← generateParts response cppName generic (some "MagnitudeSquared") "Frequency"
+  let source := #[s!"    // Response generated from {response}.", "    //", ""]
+  return String.intercalate "\n" (renderHeader step cppName generic (stepIncludes ++ responseIncludes) ++
+    stepBody ++ source ++ responseBody ++ #["};", ""]).toList
 
 def generate (function : Name) (cppName : String) : MetaM String :=
   generateWithTarget function cppName false none
@@ -624,6 +637,37 @@ def generateGeneric (function : Name) (cppName : String) : MetaM String :=
 
 def generateFunction (function : Name) (cppName method : String) (generic : Bool) : MetaM String :=
   generateWithTarget function cppName generic (some method)
+
+/-- Bind a Lean data record to an existing C++ template with matching fields.
+Compilation and differential tests check this external representation boundary. -/
+elab "#use_cpp_record " record:ident " as " cppName:ident " from " path:str : command => do
+  let recordName := record.getId
+  let targetName := cppName.getId.toString
+  let header := path.getString
+  unless header.endsWith ".hpp" && header.toList.all
+      (fun c => c.isAlphanum || c == '_' || c == '.') do
+    throwError "C++ codegen: external record header must be a simple .hpp filename"
+  let exports := recordExports.getState (← getEnv)
+  if exports.contains recordName || exports.toList.any (fun entry => entry.2.cppName == targetName) then
+    throwError "C++ codegen: shared record is already exported or its C++ name is in use"
+  let _ ← liftTermElabM <| generateRecord recordName targetName
+  modifyEnv fun env => recordExports.addEntry env (recordName, ⟨targetName, header⟩)
+
+elab "#generate_cpp_filter " step:ident " response " response:ident " as " cppName:ident
+    " to " path:str : command => do
+  let code ← liftTermElabM <| generateFilter step.getId response.getId cppName.getId.toString false
+  let output : System.FilePath := path.getString
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  logInfo m!"Generated {output} with processing and response members"
+
+elab "#generate_cpp_filter_generic " step:ident " response " responseFunction:ident " as " cppName:ident
+    " to " path:str : command => do
+  let code ← liftTermElabM <| generateFilter step.getId responseFunction.getId cppName.getId.toString true
+  let output : System.FilePath := path.getString
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  logInfo m!"Generated {output} with processing and response members using MultiChannelNumber arithmetic"
 
 elab "#generate_cpp_record " record:ident " as " cppName:ident " to " path:str : command => do
   let recordName := record.getId

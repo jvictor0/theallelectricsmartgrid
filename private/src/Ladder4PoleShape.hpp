@@ -22,16 +22,17 @@ struct Ladder4PoleShapeGeneric : SquiggleBoyShapeBase
     {
         using Base = VectorResponseSnapshot<Size>;
         using typename Base::ComplexVector;
+        using typename Base::Frequency;
         using typename Base::ResponseVector;
         typename LadderFilterLPGeneric<float, Size>::Snapshot m_lp;
         typename LinearSVF4PoleHighPassGeneric<float, Size>::Snapshot m_hp;
 
-        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
+        ComplexVector ComplexResponses(const Frequency& frequency) const override
         {
             return m_lp.ComplexResponses(frequency) * m_hp.ComplexResponses(frequency);
         }
 
-        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
+        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
         {
             return m_lp.MagnitudeResponses(frequency) * m_hp.MagnitudeResponses(frequency);
         }

@@ -2,21 +2,25 @@ import Init
 
 namespace DSP
 
+/-- The two numeric components of a complex value, matching the app's
+MultiChannelComplex storage when `R` is a channel-valued number. -/
+structure ComplexValue (R : Type) where
+  real : R
+  imag : R
+
 /-- Frequency data shared by response kernels. Preparation belongs outside the
-per-snapshot evaluation. Real and imaginary delay components stay in `R`, so
-floating-point and channel implementations need no executable complex type.
+per-snapshot evaluation. The complex delay stores two components in `R`.
 The record stores data; its exact trigonometric meaning is specified separately. -/
 structure ResponseFrequency (R : Type) where
   cyclesPerSample : R
   sinHalf : R
   cosHalf : R
-  zInverseReal : R
-  zInverseImag : R
+  zInverse : ComplexValue R
 
 namespace ResponseFrequency
 
 def map {R S : Type} (f : R → S) (p : ResponseFrequency R) : ResponseFrequency S :=
-  ⟨f p.cyclesPerSample, f p.sinHalf, f p.cosHalf, f p.zInverseReal, f p.zInverseImag⟩
+  ⟨f p.cyclesPerSample, f p.sinHalf, f p.cosHalf, ⟨f p.zInverse.real, f p.zInverse.imag⟩⟩
 
 instance : Functor ResponseFrequency where
   map := map
@@ -34,8 +38,7 @@ There are no trigonometric calls here. Inexact inputs remain inexact data. -/
 def fromHalfAngle {R : Type} [OfNat R 1] [OfNat R 2] [Sub R] [Mul R] [Neg R]
     (cyclesPerSample sinHalf cosHalf : R) : ResponseFrequency R :=
   { cyclesPerSample, sinHalf, cosHalf
-    zInverseReal := 1 - 2 * sinHalf * sinHalf
-    zInverseImag := -(2 * sinHalf * cosHalf) }
+    zInverse := ⟨1 - 2 * sinHalf * sinHalf, -(2 * sinHalf * cosHalf)⟩ }
 
 end ResponseFrequency
 end DSP

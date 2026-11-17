@@ -115,7 +115,7 @@ def unsupportedGenericLiteral {R : Type} [OfScientific R]
 def wrongGenericState {R : Type} (_state : ArithmeticState R) (input : Sample R) : Sample R :=
   input
 
-def zohMagnitudeSquaredFloat := OnePoleZOHLowPass.Snapshot.magnitudeSquared (R := Float)
+def zohStepFloat32 := OnePoleZOHLowPass.step (R := Float32)
 def zohMagnitudeSquaredFloat32 := OnePoleZOHLowPass.Snapshot.magnitudeSquared (R := Float32)
 
 /-- An unrelated kernel uses every frequency field and the same shared input
@@ -123,7 +123,7 @@ type. Distinct expressions exercise record-field access during generation. -/
 def frequencyProbe {R : Type} [Add R] [Mul R] (s : ArithmeticState R)
     (frequency : ResponseFrequency R) : R :=
   (s.left * frequency.cyclesPerSample + s.right * frequency.sinHalf) +
-    (frequency.cosHalf + frequency.zInverseReal * frequency.zInverseImag)
+    (frequency.cosHalf + frequency.zInverse.real * frequency.zInverse.imag)
 
 def frequencyProbeFloat := frequencyProbe (R := Float)
 def frequencyProbeFloat32 := frequencyProbe (R := Float32)

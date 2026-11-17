@@ -17,24 +17,25 @@ struct OPLowPassFilterGeneric
     {
         using Base = VectorResponseSnapshot<Size>;
         using typename Base::ComplexVector;
+        using typename Base::Frequency;
         using typename Base::DoubleVector;
         using typename Base::ResponseVector;
         Vector m_alpha;
 
-        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
+        ComplexVector ComplexResponses(const Frequency& frequency) const override
         {
             auto a = m_alpha.template Convert<double>();
             auto b = DoubleVector::Splat(1) - a;
-            ComplexVector denominator(a + b * (2 * frequency.m_sinHalf * frequency.m_sinHalf),
-                b * (2 * frequency.m_sinHalf * frequency.m_cosHalf));
+            ComplexVector denominator(a + b * (frequency.m_sinHalf * 2 * frequency.m_sinHalf),
+                b * (frequency.m_sinHalf * 2 * frequency.m_cosHalf));
             denominator.m_real = DoubleVector::IfLess(DoubleVector(), a, denominator.m_real, DoubleVector::Splat(1));
             return ComplexVector(a, DoubleVector()) / denominator;
         }
 
-        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
+        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
         {
             auto a = m_alpha.template Convert<double>();
-            auto norm = a * a + (DoubleVector::Splat(1) - a) * (4 * frequency.m_sinHalf * frequency.m_sinHalf);
+            auto norm = a * a + (DoubleVector::Splat(1) - a) * (frequency.m_sinHalf * 4 * frequency.m_sinHalf);
             norm = DoubleVector::IfLess(DoubleVector(), a, norm, DoubleVector::Splat(1));
             return (a / norm.Sqrt()).template Convert<float>();
         }
@@ -254,34 +255,28 @@ struct OPHighPassFilterGeneric
     {
         using Base = VectorResponseSnapshot<Size>;
         using typename Base::ComplexVector;
+        using typename Base::Frequency;
         using typename Base::DoubleVector;
         using typename Base::ResponseVector;
         Vector m_alpha;
 
-        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
+        ComplexVector ComplexResponses(const Frequency& frequency) const override
         {
-            if (frequency.m_sinHalf == 0)
-            {
-                return {};
-            }
-
             auto a = m_alpha.template Convert<double>();
-            double s = frequency.m_sinHalf;
-            ComplexVector numerator(a * (2 * s * s), a * (2 * s * frequency.m_cosHalf));
-            ComplexVector denominator(DoubleVector::Splat(1) - a + a * (2 * s * s), a * (2 * s * frequency.m_cosHalf));
+            auto s = frequency.m_sinHalf;
+            ComplexVector numerator(a * (s * 2 * s), a * (s * 2 * frequency.m_cosHalf));
+            ComplexVector denominator(DoubleVector::Splat(1) - a + a * (s * 2 * s), a * (s * 2 * frequency.m_cosHalf));
+            denominator.m_real = DoubleVector::IfLess(DoubleVector(), s, denominator.m_real, DoubleVector::Splat(1));
             return numerator / denominator;
         }
 
-        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
+        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
         {
-            if (frequency.m_sinHalf == 0)
-            {
-                return {};
-            }
-
             auto a = m_alpha.template Convert<double>();
-            double s = frequency.m_sinHalf;
-            return (a * (2 * s) / ((DoubleVector::Splat(1) - a) * (DoubleVector::Splat(1) - a) + a * (4 * s * s)).Sqrt()).template Convert<float>();
+            auto s = frequency.m_sinHalf;
+            auto norm = (DoubleVector::Splat(1) - a) * (DoubleVector::Splat(1) - a) + a * (s * 4 * s);
+            norm = DoubleVector::IfLess(DoubleVector(), s, norm, DoubleVector::Splat(1));
+            return (a * (s * 2) / norm.Sqrt()).template Convert<float>();
         }
     };
 
@@ -365,16 +360,17 @@ struct OPBaseWidthFilterGeneric
     {
         using Base = VectorResponseSnapshot<Size>;
         using typename Base::ComplexVector;
+        using typename Base::Frequency;
         using typename Base::ResponseVector;
         typename OPHighPassFilterGeneric<Number, Size>::Snapshot m_hp;
         typename OPLowPassFilterGeneric<Number, Size>::Snapshot m_lp;
 
-        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
+        ComplexVector ComplexResponses(const Frequency& frequency) const override
         {
             return m_hp.ComplexResponses(frequency) * m_lp.ComplexResponses(frequency);
         }
 
-        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
+        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
         {
             return m_hp.MagnitudeResponses(frequency) * m_lp.MagnitudeResponses(frequency);
         }

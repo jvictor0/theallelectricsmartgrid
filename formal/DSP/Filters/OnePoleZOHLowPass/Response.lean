@@ -22,4 +22,6 @@ def Snapshot.magnitudeSquared {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 4]
   let denominator := FMA.fma (4 * (1 - s.alpha)) (sinHalf * sinHalf) alphaSquared
   alphaSquared / IfLess.ifLess 0 s.alpha denominator 1
 
+def Snapshot.magnitudeSquaredFloat := Snapshot.magnitudeSquared (R := Float)
+
 end DSP.OnePoleZOHLowPass

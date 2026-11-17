@@ -2,6 +2,7 @@
 
 #include "Math.hpp"
 #include "MultiChannelComplex.hpp"
+#include "ResponseFrequency.hpp"
 #include "SampleTimer.hpp"
 #include "SnapshotUIState.hpp"
 #include "Tuning.hpp"
@@ -14,49 +15,9 @@
 #include <limits>
 #include <vector>
 
-// Prepare once per frequency column, then reuse across every captured state.
-// Public frequency APIs use Hz or volts/octave relative to middle C.
-//
-struct ResponseFrequency
-{
-    double m_cyclesPerSample;
-    double m_sinHalf;
-    double m_cosHalf;
-    std::complex<double> m_zInverse;
-
-    static ResponseFrequency CyclesPerSample(double frequency)
-    {
-        assert(std::isfinite(frequency) && frequency >= 0 && frequency <= 0.5);
-        if (frequency == 0)
-        {
-            return {0, 0, 1, {1, 0}};
-        }
-
-        if (frequency == 0.5)
-        {
-            return {0.5, 1, 0, {-1, 0}};
-        }
-
-        float halfPhase = static_cast<float>(frequency * 0.5);
-        double s = Math::Sin2pi(halfPhase);
-        double c = Math::Cos2pi(halfPhase);
-        return {frequency, s, c, {1 - 2 * s * s, -2 * s * c}};
-    }
-
-    static ResponseFrequency Hz(double frequency, double sampleRate)
-    {
-        assert(sampleRate > 0);
-        return CyclesPerSample(std::clamp(frequency / sampleRate, 0.0, 0.5));
-    }
-
-    static ResponseFrequency VOct(double frequency, double sampleRate)
-    {
-        return Hz(Tuning::x_middleCHz * std::exp2(frequency), sampleRate);
-    }
-};
-
 struct FilterResponseSnapshot
 {
+    using Frequency = ResponseFrequency;
     using ResponseVector = MultiChannelNumber<float, 1>;
     static constexpr size_t x_numLanes = 1;
 
@@ -83,11 +44,12 @@ struct VectorResponseSnapshot : FilterResponseSnapshot
     using ResponseVector = MultiChannelNumber<float, Size>;
     using DoubleVector = MultiChannelNumber<double, Size>;
     using ComplexVector = MultiChannelComplex<double, Size>;
+    using Frequency = ResponseFrequencyGeneric<DoubleVector>;
     static constexpr size_t x_numLanes = Size;
 
-    virtual ComplexVector ComplexResponses(const ResponseFrequency& frequency) const = 0;
+    virtual ComplexVector ComplexResponses(const Frequency& frequency) const = 0;
 
-    virtual ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const
+    virtual ResponseVector MagnitudeResponses(const Frequency& frequency) const
     {
         return ComplexResponses(frequency).Abs().template Convert<float>();
     }
@@ -95,13 +57,13 @@ struct VectorResponseSnapshot : FilterResponseSnapshot
     std::complex<float> ComplexResponse(const ResponseFrequency& frequency, size_t lane) const override
     {
         assert(lane < Size);
-        return static_cast<std::complex<float>>(ComplexResponses(frequency)[lane]);
+        return static_cast<std::complex<float>>(ComplexResponses(frequency.template Broadcast<DoubleVector>())[lane]);
     }
 
     float MagnitudeResponse(const ResponseFrequency& frequency, size_t lane) const override
     {
         assert(lane < Size);
-        return MagnitudeResponses(frequency)[lane];
+        return MagnitudeResponses(frequency.template Broadcast<DoubleVector>())[lane];
     }
 };
 
@@ -182,6 +144,8 @@ template<typename Snapshot>
 struct TransferFunctionGeneric : SampledTransferFunction
 {
     using SnapshotType = Snapshot;
+    using Frequency = typename Snapshot::Frequency;
+    using FrequencyVector = MultiChannelNumber<double, Snapshot::x_numLanes>;
     using ResponseVector = typename Snapshot::ResponseVector;
     static constexpr size_t x_numLanes = Snapshot::x_numLanes;
 
@@ -324,7 +288,7 @@ struct TransferFunctionGeneric : SampledTransferFunction
         }
     }
 
-    virtual ResponseVector MagnitudeResponses(SampleId id, const ResponseFrequency& frequency) const
+    virtual ResponseVector MagnitudeResponses(SampleId id, const Frequency& frequency) const
     {
         return m_readSnapshots[id].MagnitudeResponses(frequency);
     }
@@ -334,9 +298,10 @@ struct TransferFunctionGeneric : SampledTransferFunction
     {
         assert(!samples.empty() && samples.size() <= m_config.m_numSamples);
         PrepareSort(samples.size());
+        const auto prepared = frequency.template Broadcast<FrequencyVector>();
         for (size_t i = 0; i < samples.size(); ++i)
         {
-            m_magnitudes[i] = MagnitudeResponses(samples[i], frequency);
+            m_magnitudes[i] = MagnitudeResponses(samples[i], prepared);
             for (size_t lane = 0; lane < x_numLanes; ++lane)
             {
                 assert(std::isfinite(m_magnitudes[i][lane]) && m_magnitudes[i][lane] >= 0);

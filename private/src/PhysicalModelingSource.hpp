@@ -37,16 +37,17 @@ struct PhysicalModelingSourceGeneric
     {
         using Base = VectorResponseSnapshot<Size>;
         using typename Base::ComplexVector;
+        using typename Base::Frequency;
         using typename Base::ResponseVector;
         typename LinearStateVariableFilterGeneric<float, Size>::Snapshot m_mainSVF;
         typename TunedDecayCombGeneric<Size>::Snapshot m_combFilter;
 
-        ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
+        ComplexVector ComplexResponses(const Frequency& frequency) const override
         {
             return m_mainSVF.ComplexResponses(frequency) * m_combFilter.ComplexResponses(frequency);
         }
 
-        ResponseVector MagnitudeResponses(const ResponseFrequency& frequency) const override
+        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
         {
             return m_mainSVF.MagnitudeResponses(frequency) * m_combFilter.MagnitudeResponses(frequency);
         }

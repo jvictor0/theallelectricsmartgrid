@@ -11,10 +11,11 @@ import DSP.Filters.TPTLadder
 import DSP.Filters.LinkwitzRileyCrossover
 import DSP.Filters.Coupled
 
-#generate_cpp_record DSP.ResponseFrequency as PreparedResponseFrequency
-  to "build/lean/generated/PreparedResponseFrequency.hpp"
+#use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
 
-#generate_cpp DSP.OnePoleZOHLowPass.stepFloat as OnePoleZOHLowPass to "build/lean/generated/OnePoleZOHLowPass.hpp"
+#generate_cpp_filter DSP.OnePoleZOHLowPass.stepFloat
+  response DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquaredFloat
+  as OnePoleZOHLowPass to "build/lean/generated/OnePoleZOHLowPass.hpp"
 
 #generate_cpp DSP.OnePoleTPTLowPass.stepFloat as OnePoleTPTLowPass to "build/lean/generated/OnePoleTPTLowPass.hpp"
 
@@ -38,11 +39,9 @@ import DSP.Filters.Coupled
 
 #generate_cpp DSP.Coupled.processorFloat as CoupledProcessor to "build/lean/generated/CoupledProcessor.hpp"
 
-#generate_cpp_generic DSP.OnePoleZOHLowPass.step as OnePoleZOHLowPassGeneric to "build/lean/generated/OnePoleZOHLowPassGeneric.hpp"
-
-#generate_cpp_function_generic DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquared
-  as OnePoleZOHLowPassResponseGeneric method MagnitudeSquared
-  to "build/lean/generated/OnePoleZOHLowPassResponseGeneric.hpp"
+#generate_cpp_filter_generic DSP.OnePoleZOHLowPass.step
+  response DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquared
+  as OnePoleZOHLowPassGeneric to "build/lean/generated/OnePoleZOHLowPassGeneric.hpp"
 
 #generate_cpp_generic DSP.OnePoleTPTLowPass.step as OnePoleTPTLowPassGeneric to "build/lean/generated/OnePoleTPTLowPassGeneric.hpp"
 

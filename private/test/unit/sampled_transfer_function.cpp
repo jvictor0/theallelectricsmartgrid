@@ -7,11 +7,28 @@
 #include "TrioUtils.hpp"
 #include "TunedDecayComb.hpp"
 #include "../support/GlobalEnv.hpp"
+#include "../../../formal/DSP/generated/OnePoleZOHLowPassGeneric.hpp"
 #include <atomic>
 #include <thread>
 
 namespace
 {
+template<size_t Size>
+ResponseFrequencyGeneric<MultiChannelNumber<double, Size>> FrequencyLanes(const std::array<double, Size>& values)
+{
+    ResponseFrequencyGeneric<MultiChannelNumber<double, Size>> result{};
+    for (size_t lane = 0; lane < Size; ++lane)
+    {
+        auto scalar = ResponseFrequency::CyclesPerSample(values[lane]);
+        result.m_cyclesPerSample[lane] = scalar.m_cyclesPerSample[0];
+        result.m_sinHalf[lane] = scalar.m_sinHalf[0];
+        result.m_cosHalf[lane] = scalar.m_cosHalf[0];
+        result.m_zInverse.SetChannel(lane, scalar.m_zInverse[0]);
+    }
+
+    return result;
+}
+
 struct GainSnapshot : FilterResponseSnapshot
 {
     float m_gain = 0;
@@ -327,7 +344,7 @@ struct TrioGainSnapshot : VectorResponseSnapshot<3>
 {
     ResponseVector m_gain;
 
-    ComplexVector ComplexResponses(const ResponseFrequency&) const override
+    ComplexVector ComplexResponses(const Frequency&) const override
     {
         return {m_gain.Convert<double>(), DoubleVector()};
     }
@@ -339,8 +356,9 @@ void CheckResponseLanes(const Snapshot& snapshot, const std::array<MonoSnapshot,
     for (double frequency : {0.0, 0.000001, 0.001, 0.03, 0.2, 0.499, 0.5})
     {
         auto prepared = ResponseFrequency::CyclesPerSample(frequency);
-        auto complex = snapshot.ComplexResponses(prepared);
-        auto magnitude = snapshot.MagnitudeResponses(prepared);
+        auto vectorFrequency = prepared.template Broadcast<typename Snapshot::DoubleVector>();
+        auto complex = snapshot.ComplexResponses(vectorFrequency);
+        auto magnitude = snapshot.MagnitudeResponses(vectorFrequency);
         for (size_t lane = 0; lane < 3; ++lane)
         {
             auto reference = mono[lane].ComplexResponse(prepared, 0);
@@ -349,7 +367,63 @@ void CheckResponseLanes(const Snapshot& snapshot, const std::array<MonoSnapshot,
             DOCTEST_CHECK(magnitude[lane] == doctest::Approx(mono[lane].MagnitudeResponse(prepared, 0)).epsilon(0.00002));
         }
     }
+
+    auto prepared = FrequencyLanes<3>({0.0, 0.03, 0.5});
+    auto complex = snapshot.ComplexResponses(prepared);
+    auto magnitude = snapshot.MagnitudeResponses(prepared);
+    for (size_t lane = 0; lane < 3; ++lane)
+    {
+        auto scalar = prepared.Channel(lane);
+        auto reference = mono[lane].ComplexResponse(scalar, 0);
+        DOCTEST_CHECK(std::abs(complex[lane] - static_cast<std::complex<double>>(reference))
+            <= 0.00002 * std::max(1.0f, std::abs(reference)));
+        DOCTEST_CHECK(magnitude[lane] == doctest::Approx(mono[lane].MagnitudeResponse(scalar, 0)).epsilon(0.00002));
+    }
 }
+}
+
+DOCTEST_TEST_CASE("Sampled vectors: generated ZOH uses the handwritten prepared frequency and nested snapshot")
+{
+    using Generated = OnePoleZOHLowPassGeneric<double, 3>;
+    using Handwritten = OPLowPassFilterGeneric<float, 3>;
+    static_assert(std::is_same_v<Generated::Frequency, Handwritten::Snapshot::Frequency>);
+    static_assert(std::is_same_v<Generated::Frequency::Complex, MultiChannelComplex<double, 3>>);
+    Handwritten::Snapshot snapshot;
+    snapshot.m_alpha = TrioFloat(0.0f, 0.001f, 1.0f);
+    Generated::Snapshot generated{snapshot.m_alpha.Convert<double>()};
+    for (const auto& frequencies : {std::array<double, 3>{0, 0, 0.5}, {0.03, 0.2, 0.499}})
+    {
+        auto frequency = FrequencyLanes(frequencies);
+        auto squared = Generated::MagnitudeSquared(generated, frequency);
+        auto magnitude = snapshot.MagnitudeResponses(frequency);
+        for (size_t lane = 0; lane < 3; ++lane)
+        {
+            DOCTEST_CHECK(std::isfinite(squared[lane]));
+            DOCTEST_CHECK(std::sqrt(squared[lane]) == doctest::Approx(magnitude[lane]).epsilon(0.000002));
+        }
+    }
+}
+
+DOCTEST_TEST_CASE("Sampled vectors: DC endpoint selection is independent per frequency lane")
+{
+    auto frequency = FrequencyLanes<3>({0, 0.1, 0.5});
+    OPHighPassFilterGeneric<float, 3>::Snapshot high;
+    high.m_alpha = TrioFloat(1, 0.5f, 0.5f);
+    TrioLinearStateVariableFilter::Snapshot svf;
+    svf.m_g = TrioFloat(0, 0.1f, 0.2f);
+    auto highComplex = high.ComplexResponses(frequency);
+    auto highMagnitude = high.MagnitudeResponses(frequency);
+    auto svfComplex = svf.ComplexResponses(frequency);
+    auto svfMagnitude = svf.MagnitudeResponses(frequency);
+    DOCTEST_CHECK(highComplex[0] == std::complex<double>(0, 0));
+    DOCTEST_CHECK(highMagnitude[0] == 0);
+    DOCTEST_CHECK(svfComplex[0] == std::complex<double>(1, 0));
+    DOCTEST_CHECK(svfMagnitude[0] == 1);
+    for (size_t lane = 0; lane < 3; ++lane)
+    {
+        DOCTEST_CHECK(std::isfinite(highMagnitude[lane]));
+        DOCTEST_CHECK(std::isfinite(svfMagnitude[lane]));
+    }
 }
 
 DOCTEST_TEST_CASE("Sampled vectors: padded order statistics independently sort every lane")
@@ -488,7 +562,7 @@ DOCTEST_TEST_CASE("Sampled vectors: grouped FIR taps match the full complex poly
             for (float tap : filter.m_slewedTaps)
             {
                 expected += power * static_cast<double>(tap);
-                power *= frequency.m_zInverse;
+                power *= frequency.m_zInverse[0];
             }
 
             auto actual = snapshot.ComplexResponses(frequency)[0];

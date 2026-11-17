@@ -70,7 +70,7 @@ struct MultibandSaturator
 
         ComplexVector ComplexResponses(const ResponseFrequency& frequency) const override
         {
-            auto crossovers = m_crossovers.Responses(frequency);
+            auto crossovers = m_crossovers.Responses(frequency.template Broadcast<typename Cutoffs::Vector>());
             BandComplex bands(1.0);
             BuildResponses<NumBands, 0>(bands, crossovers);
             bands *= (m_gain * m_masterGain).template Convert<double>();
