@@ -10,8 +10,10 @@
 #include <array>
 #include <cmath>
 
-#include "ResponseFrequency.hpp"
+#include "Math.hpp"
+#include "MultiChannelNumber.hpp"
 
+#include "ResponseFrequency.hpp"
 struct OnePoleTPTHighPass
 {
     static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);
@@ -50,6 +52,23 @@ struct OnePoleTPTHighPass
         m_state.m_lowPass.m_s = v5;
         m_state.m_lowPass.m_y = v6;
         m_state.m_y = v7;
+    }
+
+    // Coefficients generated from DSP.OnePoleTPTHighPass.computeCoefficientsFloat.
+    //
+
+    struct LogicalSpec
+    {
+        double m_cutoff;
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const double v0 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
+        const double v1 = (1.0 + v0);
+        const double v2 = (v0 / v1);
+        const double v3 = v2;
+        m_state.m_lowPass.m_G = v3;
     }
 
     // Response generated from DSP.OnePoleTPTHighPass.Snapshot.magnitudeSquaredFloat.

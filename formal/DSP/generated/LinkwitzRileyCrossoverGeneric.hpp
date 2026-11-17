@@ -10,8 +10,9 @@
 #include <array>
 #include <cmath>
 
-#include "ResponseFrequency.hpp"
+#include "Math.hpp"
 
+#include "ResponseFrequency.hpp"
 #include "MultiChannelNumber.hpp"
 #include <type_traits>
 
@@ -178,6 +179,65 @@ struct LinkwitzRileyCrossoverGeneric
         m_state.m_highSecond.m_bandPass = v66;
         m_state.m_highSecond.m_highPass = v67;
         m_state.m_highSecond.m_notch = v68;
+    }
+
+    // Coefficients generated from DSP.LinkwitzRileyCrossover.computeCoefficients.
+    //
+
+    struct LogicalSpec
+    {
+        Vector m_cutoff;
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const Vector v0 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-20f : 0x10000000000000p-49)));
+        const Vector v1 = Math4096::Cos2pi(v0);
+        const Vector v2 = Math4096::TanPi(spec.m_cutoff);
+        const Vector v3 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v1);
+        const Vector v4 = (v2 + v3);
+        const Vector v5 = Vector::FusedMultiplyAdd(v2, v4, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
+        const Vector v6 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v5);
+        const Vector v7 = (v2 * v6);
+        const Vector v8 = (v2 * v7);
+        const Vector v9 = Math4096::TanPi(spec.m_cutoff);
+        const Vector v10 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v1);
+        const Vector v11 = (v9 + v10);
+        const Vector v12 = Vector::FusedMultiplyAdd(v9, v11, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
+        const Vector v13 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v12);
+        const Vector v14 = (v9 * v13);
+        const Vector v15 = (v9 * v14);
+        const Vector v16 = Math4096::TanPi(spec.m_cutoff);
+        const Vector v17 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v1);
+        const Vector v18 = (v16 + v17);
+        const Vector v19 = Vector::FusedMultiplyAdd(v16, v18, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
+        const Vector v20 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v19);
+        const Vector v21 = (v16 * v20);
+        const Vector v22 = (v16 * v21);
+        const Vector v23 = v3;
+        const Vector v24 = v6;
+        const Vector v25 = v7;
+        const Vector v26 = v8;
+        const Vector v27 = v10;
+        const Vector v28 = v13;
+        const Vector v29 = v14;
+        const Vector v30 = v15;
+        const Vector v31 = v17;
+        const Vector v32 = v20;
+        const Vector v33 = v21;
+        const Vector v34 = v22;
+        m_state.m_first.m_k = v23;
+        m_state.m_first.m_a1 = v24;
+        m_state.m_first.m_a2 = v25;
+        m_state.m_first.m_a3 = v26;
+        m_state.m_lowSecond.m_k = v27;
+        m_state.m_lowSecond.m_a1 = v28;
+        m_state.m_lowSecond.m_a2 = v29;
+        m_state.m_lowSecond.m_a3 = v30;
+        m_state.m_highSecond.m_k = v31;
+        m_state.m_highSecond.m_a1 = v32;
+        m_state.m_highSecond.m_a2 = v33;
+        m_state.m_highSecond.m_a3 = v34;
     }
 
     // Response generated from DSP.LinkwitzRileyCrossover.Snapshot.lowPassMagnitudeSquared.

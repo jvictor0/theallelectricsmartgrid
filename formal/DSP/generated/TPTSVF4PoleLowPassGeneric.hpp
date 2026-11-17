@@ -10,8 +10,9 @@
 #include <array>
 #include <cmath>
 
-#include "ResponseFrequency.hpp"
+#include "Math.hpp"
 
+#include "ResponseFrequency.hpp"
 #include "MultiChannelNumber.hpp"
 #include <type_traits>
 
@@ -131,6 +132,59 @@ struct TPTSVF4PoleLowPassGeneric
         m_state.m_stage2.m_bandPass = v43;
         m_state.m_stage2.m_highPass = v44;
         m_state.m_stage2.m_notch = v45;
+    }
+
+    // Coefficients generated from DSP.TPTSVF4Pole.computeCoefficients.
+    //
+
+    struct LogicalSpec
+    {
+        struct
+        {
+            Vector m_cutoff;
+            Vector m_q;
+        } m_stage1;
+
+        struct
+        {
+            Vector m_cutoff;
+            Vector m_q;
+        } m_stage2;
+
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const Vector v0 = Math4096::TanPi(spec.m_stage1.m_cutoff);
+        const Vector v1 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / spec.m_stage1.m_q);
+        const Vector v2 = (v0 + v1);
+        const Vector v3 = Vector::FusedMultiplyAdd(v0, v2, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
+        const Vector v4 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v3);
+        const Vector v5 = (v0 * v4);
+        const Vector v6 = (v0 * v5);
+        const Vector v7 = Math4096::TanPi(spec.m_stage2.m_cutoff);
+        const Vector v8 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / spec.m_stage2.m_q);
+        const Vector v9 = (v7 + v8);
+        const Vector v10 = Vector::FusedMultiplyAdd(v7, v9, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
+        const Vector v11 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v10);
+        const Vector v12 = (v7 * v11);
+        const Vector v13 = (v7 * v12);
+        const Vector v14 = v1;
+        const Vector v15 = v4;
+        const Vector v16 = v5;
+        const Vector v17 = v6;
+        const Vector v18 = v8;
+        const Vector v19 = v11;
+        const Vector v20 = v12;
+        const Vector v21 = v13;
+        m_state.m_stage1.m_k = v14;
+        m_state.m_stage1.m_a1 = v15;
+        m_state.m_stage1.m_a2 = v16;
+        m_state.m_stage1.m_a3 = v17;
+        m_state.m_stage2.m_k = v18;
+        m_state.m_stage2.m_a1 = v19;
+        m_state.m_stage2.m_a2 = v20;
+        m_state.m_stage2.m_a3 = v21;
     }
 
     // Response generated from DSP.TPTSVF4Pole.Snapshot.lowPassMagnitudeSquared.

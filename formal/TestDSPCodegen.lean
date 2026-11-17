@@ -1,6 +1,7 @@
 import DSP.Codegen.Cpp
 import DSP.Tests.CodegenFixtures
 import DSP.Filters.Responses
+import DSP.Filters.Tuning
 
 #use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
 
@@ -123,6 +124,8 @@ run_cmd liftTermElabM do
       (#[(low, "MagnitudeSquared"), (low, "MagnitudeSquared")], "duplicate or reserved"),
       (#[(low, "Process")], "duplicate or reserved"),
       (#[(low, "State")], "duplicate or reserved"),
+      (#[(low, "LogicalSpec")], "duplicate or reserved"),
+      (#[(low, "ComputeCoefficients")], "duplicate or reserved"),
       (#[(low, "Low"), (high, "High")], "same snapshot and frequency types")] do
     let mut rejected := false
     try
@@ -134,3 +137,39 @@ run_cmd liftTermElabM do
       rejected := true
     unless rejected do throwError "C++ codegen incorrectly accepted invalid response list"
   logInfo "Multiple-response C++ codegen rejection checks passed."
+
+namespace DSP.Tests
+
+def coefficientWrongPrecision := OnePoleTPTLowPass.computeCoefficients (R := Float32)
+def coefficientWrongReturn (spec : OnePoleTPTLowPass.LogicalSpec Float)
+    (state : OnePoleTPTLowPass Float) : OnePoleTPTLowPass Float × Sample Float :=
+  (OnePoleTPTLowPass.computeCoefficients spec state, ⟨0⟩)
+
+def tptStepFloat32 := OnePoleTPTLowPass.step (R := Float32)
+def tptResponseFloat32 := OnePoleTPTLowPass.Snapshot.magnitudeSquared (R := Float32)
+end DSP.Tests
+
+#generate_cpp_tuned_filter DSP.Tests.tptStepFloat32 DSP.Tests.coefficientWrongPrecision
+  [DSP.Tests.tptResponseFloat32 as MagnitudeSquared]
+  as OnePoleTPTLowPass32 to "build/lean/generated/OnePoleTPTLowPass32.hpp"
+
+open Lean Elab Command in
+run_cmd liftTermElabM do
+  for (step, updater, responseFn, generic, expected) in #[
+      (``DSP.OnePoleTPTLowPass.step, ``DSP.TPTSVF.computeCoefficients,
+        ``DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquared, true, "different state record"),
+      (``DSP.OnePoleTPTLowPass.stepFloat, ``DSP.Tests.coefficientWrongPrecision,
+        ``DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquaredFloat, false, "different numeric type"),
+      (``DSP.OnePoleTPTLowPass.stepFloat, ``DSP.Tests.coefficientWrongReturn,
+        ``DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquaredFloat, false, "must return its State")] do
+    let mut rejected := false
+    try
+      let _ ← DSP.Codegen.generateFilterResponses step #[(responseFn,"MagnitudeSquared")]
+        "TestFilter" generic (some updater)
+    catch error =>
+      let message ← error.toMessageData.toString
+      unless (message.splitOn expected).length > 1 do
+        throwError "unexpected coefficient rejection for {updater}: {message}"
+      rejected := true
+    unless rejected do throwError "C++ codegen incorrectly accepted coefficient updater {updater}"
+  logInfo "Coefficient updater rejection checks passed."

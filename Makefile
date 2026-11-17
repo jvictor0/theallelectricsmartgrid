@@ -76,7 +76,7 @@ lean-cache:
 		Mathlib.Tactic.Ring \
 		Mathlib.Tactic.SplitIfs
 
-DSP_RUNTIME_MODULES := DSP.Filters.OnePoleZOHLowPass.Response DSP.Filters.OnePoleTPTLowPass \
+DSP_RUNTIME_MODULES := DSP.Filters.Tuning DSP.Filters.OnePoleZOHLowPass.Response DSP.Filters.OnePoleTPTLowPass \
 	DSP.Filters.OnePoleTPTHighPass DSP.Filters.TPTBaseWidth DSP.Filters.TPTSVF \
 	DSP.Filters.MorphingTPTSVF DSP.Filters.TPTSVF4Pole DSP.Filters.TPTLadder \
 	DSP.Filters.LinkwitzRileyCrossover DSP.Filters.Coupled

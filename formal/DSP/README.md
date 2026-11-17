@@ -420,3 +420,10 @@ simultaneous state updates.
 The exact model is proved in Lean. The exporter and C++ compiler are tested,
 not formally verified; floating-point approximation is trusted. Application
 sources and the independent encoder smoother remain unchanged.
+
+## Logical coefficient tuning
+
+All generated filters now include nested `LogicalSpec` records and in-place
+`ComputeCoefficients` methods. See the [per-filter tuning theorem inventory](Filters/Tuning/README.md)
+for cycles/sample conventions, cutoff and peak results, frozen stability regions,
+Math4096 lowering, and intentional differences from the handwritten app.

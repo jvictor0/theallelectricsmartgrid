@@ -10,8 +10,10 @@
 #include <array>
 #include <cmath>
 
-#include "ResponseFrequency.hpp"
+#include "Math.hpp"
+#include "MultiChannelNumber.hpp"
 
+#include "ResponseFrequency.hpp"
 struct TPTSVF
 {
     static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);
@@ -73,6 +75,34 @@ struct TPTSVF
         m_state.m_bandPass = v20;
         m_state.m_highPass = v21;
         m_state.m_notch = v22;
+    }
+
+    // Coefficients generated from DSP.TPTSVF.computeCoefficientsFloat.
+    //
+
+    struct LogicalSpec
+    {
+        double m_cutoff;
+        double m_q;
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const double v0 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
+        const double v1 = (1.0 / spec.m_q);
+        const double v2 = (v0 + v1);
+        const double v3 = std::fma(v0, v2, 1.0);
+        const double v4 = (1.0 / v3);
+        const double v5 = (v0 * v4);
+        const double v6 = (v0 * v5);
+        const double v7 = v1;
+        const double v8 = v4;
+        const double v9 = v5;
+        const double v10 = v6;
+        m_state.m_k = v7;
+        m_state.m_a1 = v8;
+        m_state.m_a2 = v9;
+        m_state.m_a3 = v10;
     }
 
     // Response generated from DSP.TPTSVF.Snapshot.lowPassMagnitudeSquaredFloat.

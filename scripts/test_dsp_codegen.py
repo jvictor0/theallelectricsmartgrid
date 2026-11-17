@@ -7,6 +7,8 @@ import shlex
 import struct
 import subprocess
 
+from test_dsp_tuning import test_tuning
+
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build/lean"
@@ -141,10 +143,11 @@ def main():
         [str(BUILD / "artifacts/bin/dsp_codegen_reference")],
         check=True, capture_output=True, text=True, timeout=30,
     ).stdout
+    tuning_cases = [case for case in reference.splitlines() if case.startswith("tuning")]
     response_cases = [case for case in reference.splitlines() if case.startswith("zohResponse")]
     all_response_cases = [case for case in reference.splitlines() if case.startswith("allResponses")]
     cases = [case for case in reference.splitlines()
-             if not case.startswith(("zohResponse", "allResponses"))]
+             if not case.startswith(("zohResponse", "allResponses", "tuning"))]
     assert cases, "Lean produced no reference cases"
     input_counts = {
         "zoh": 3, "tpt": 4, "tptHigh": 5, "baseWidth": 8, "svf": 11, "morph": 15,
@@ -190,6 +193,7 @@ def main():
     test_channels(cases, compiler, output, input_counts)
     test_response(response_cases, output)
     test_all_responses(all_response_cases, compiler, output)
+    test_tuning(tuning_cases, compiler, output, ROOT)
 
 
 if __name__ == "__main__":

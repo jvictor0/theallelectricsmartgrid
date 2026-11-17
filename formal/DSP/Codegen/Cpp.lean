@@ -1,6 +1,7 @@
 import Lean
 import DSP.IfLess
 import DSP.FMA
+import DSP.Transcendental
 
 /-! A deliberately small backend for pure processor functions.
 It reads elaborated Lean definitions, resolves their arithmetic instances,
@@ -29,6 +30,7 @@ structure Emission where
   next : Nat := 0
   numberType : Option Expr := none
   arithmetic : Array FVarId := #[]
+  usesMath : Bool := false
 
 abbrev GenM := StateT Emission MetaM
 abbrev Locals := List (FVarId × Value)
@@ -119,7 +121,9 @@ partial def readValue (shape : Shape) (base : String) : Value :=
   | .vector n shape => .vector ((List.range n).toArray.map fun i => readValue shape s!"{base}[{i}]")
 
 def primitive (name : Name) : Bool :=
-  #[``FMA.float, ``FMA.float32, ``Float.add, ``Float.sub, ``Float.mul, ``Float.div, ``Float.neg,
+  #[``Trig.sinFloat, ``Trig.cosFloat, ``Trig.tanFloat,
+    ``Trig.sinFloat32, ``Trig.cosFloat32, ``Trig.tanFloat32,
+    ``ExpDecay.float, ``ExpDecay.float32, ``FMA.float, ``FMA.float32, ``Float.add, ``Float.sub, ``Float.mul, ``Float.div, ``Float.neg,
     ``Float32.add, ``Float32.sub, ``Float32.mul, ``Float32.div, ``Float32.neg,
     ``Float.ofNat, ``Float32.ofNat, ``Float.ofScientific, ``Float32.ofScientific,
     ``Float.lt, ``Float.le, ``Float32.lt, ``Float32.le,
@@ -279,9 +283,25 @@ partial def joinValues (yes no : Value) : GenM (Value × Array String × Array S
     return (.vector fields, ys, ns)
   | _, _ => throwError "C++ codegen: branch shape mismatch"
 
+def mathIncludes (used : Bool) : Array String :=
+  if used then #["#include \"Math.hpp\"", "#include \"MultiChannelNumber.hpp\"", ""] else #[]
+
+/-- Scalar exports use the one-lane overload too, preserving target precision
+and the same lookup/interpolation path as the multichannel export. -/
+def emitTranscendental (operation type value : String) : GenM Value := do
+  modify fun s => { s with usesMath := true }
+  if operation == "ExpNegTwoPi" then
+    let literal := if type == "Vector" then
+        "Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0xC90FDBp-21f : 0x1921FB54442D18p-50))"
+      else if type == "float" then "0xC90FDBp-21f" else "0x1921FB54442D18p-50"
+    let (_, argument) ← scalar (← temporary type s!"(-({literal} * {value}))")
+    return ← temporary type (if type == "Vector" then s!"{argument}.Exp()" else s!"MultiChannelNumber<{type}, 1>::Splat({argument}).Exp()[0]")
+  return ← temporary type (if type == "Vector" then s!"Math4096::{operation}({value})"
+    else s!"Math4096::{operation}(MultiChannelNumber<{type}, 1>::Splat({value}))[0]")
+
 partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
   let e ← expose expression
-  if let .proj name 0 (.fvar instanceId) := e.getAppFn then
+  if let .proj name index (.fvar instanceId) := e.getAppFn then
     if (← get).arithmetic.contains instanceId then
       let args := e.getAppArgs
       if name == ``OfNat then
@@ -293,6 +313,10 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
         let (type, value) ← scalar (← evaluate arg locals)
         unless type == "Vector" do throwError "C++ codegen: generic arithmetic expects Vector operands"
         return value
+      if name == ``DSP.Trig && values.size == 1 && index < 3 then
+        return ← emitTranscendental (#["Sin2pi", "Cos2pi", "TanPi"][index]!) "Vector" values[0]!
+      if name == ``DSP.ExpDecay && values.size == 1 && index == 0 then
+        return ← emitTranscendental "ExpNegTwoPi" "Vector" values[0]!
       if name == ``DSP.IfLess && values.size == 4 then
         return ← temporary "Vector"
           s!"Vector::IfLess({values[0]!}, {values[1]!}, {values[2]!}, {values[3]!})"
@@ -392,6 +416,14 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
       let type ← inferType e
       let cppType ← if ← isProp e then pure "bool" else scalarType type (← get).numberType
       return ← temporary cppType s!"({a} {op.2} {b})"
+    if let some (_, operation) := #[(``Trig.sinFloat, "Sin2pi"), (``Trig.sinFloat32, "Sin2pi"),
+        (``Trig.cosFloat, "Cos2pi"), (``Trig.cosFloat32, "Cos2pi"),
+        (``Trig.tanFloat, "TanPi"), (``Trig.tanFloat32, "TanPi"),
+        (``ExpDecay.float, "ExpNegTwoPi"), (``ExpDecay.float32, "ExpNegTwoPi")].find?
+          (fun item => item.1 == name) then
+      unless args.size == 1 do throwError "C++ codegen: invalid transcendental application"
+      let (type, value) ← scalar (← evaluate args[0]! locals)
+      return ← emitTranscendental operation type value
     if name == ``FMA.float || name == ``FMA.float32 then
       unless args.size == 3 do throwError "C++ codegen: invalid FMA application {e}"
       let (type, a) ← scalar (← evaluate args[0]! locals)
@@ -461,6 +493,29 @@ partial def commitValue (shape : Shape) (value : Value) (target : String) : GenM
     for i in [:n] do commitValue element values[i]! s!"{target}[{i}]"
   | _, _ => throwError "C++ codegen: result shape mismatch"
 
+/-- Compute all changed leaves before writing any of them. A projected old
+field is omitted entirely, so coefficient updates do not store audio history. -/
+partial def changedAssignments (shape : Shape) (value : Value) (target : String) : GenM (Array String) := do
+  match shape, value with
+  | .scalar type, .scalar type' text =>
+    unless type == type' do throwError "C++ codegen: updated field type mismatch"
+    if text == target then return #[]
+    let (_, saved) ← scalar (← temporary type text)
+    return #[s!"{target} = {saved};"]
+  | .record fields, .record values =>
+    unless fields.size == values.size do throwError "C++ codegen: updated record shape mismatch"
+    let mut lines := #[]
+    for i in [:fields.size] do
+      lines := lines ++ (← changedAssignments fields[i]!.2 values[i]! s!"{target}.{fields[i]!.1}")
+    return lines
+  | .vector n element, .vector values =>
+    unless n == values.size do throwError "C++ codegen: updated vector shape mismatch"
+    let mut lines := #[]
+    for i in [:n] do
+      lines := lines ++ (← changedAssignments element values[i]! s!"{target}[{i}]")
+    return lines
+  | _, _ => throwError "C++ codegen: updated result shape mismatch"
+
 /-- Snapshot every returned leaf before assigning either persistent record. -/
 partial def snapshot (value : Value) : GenM Value := do
   match value with
@@ -479,7 +534,7 @@ def renderHeader (function : Name) (cppName : String) (generic : Bool)
   #["#pragma once", "", s!"// Generated from {function}. Do not edit.",
     "// This backend is validated by tests; it is not a verified compiler.", "//",
     "// Compile with strict floating-point arithmetic and implicit contraction disabled.", "//", "",
-    "#include <limits>", "#include <array>", "#include <cmath>", ""] ++ includes ++ templateHeader ++ #[
+    "#include <limits>", "#include <array>", "#include <cmath>", ""] ++ includes.filter (fun line => !generic || line != "#include \"MultiChannelNumber.hpp\"") ++ templateHeader ++ #[
     "    static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);",
     "    static_assert(std::numeric_limits<float>::is_iec559 && std::numeric_limits<float>::digits == 24);", ""]
 
@@ -527,12 +582,13 @@ def renderFunction (function : Name) (method : String) (parameters runtime : Arr
       body := #[s!"static_cast<void>({name});"] ++ body
   let record ← renderRecord "Snapshot" snapshotFields
   let declarations := if declareRecords then aliases ++ record else #[]
-  return (includes, declarations ++
+  return (includes ++ mathIncludes emission.usesMath, declarations ++
     #[s!"    static {cppType} {method}(const Snapshot& snapshot, const {inputCppType}& input)", "    {"] ++
     body.map (fun line => if line.isEmpty then "" else "        " ++ line) ++ #["    }", ""])
 
 def generateParts (function : Name) (cppName : String) (generic : Bool)
-    (method : Option String) (inputName : String) (declareRecords : Bool := true) : MetaM (Array String × Array String) := do
+    (method : Option String) (inputName : String) (declareRecords : Bool := true)
+    (tuningState : Option (Name × Option Expr) := none) : MetaM (Array String × Array String) := do
   unless validIdentifier cppName && cppName.toList.head!.isUpper do
     throwError "C++ codegen: processor name must be a simple uppercase C++ identifier"
   if #["State", "Input", "Output"].contains cppName ||
@@ -565,7 +621,7 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
         let name := type.getAppFn.constName?
         let args := type.getAppArgs
         unless args.size ≥ 1 && args[0]! == number &&
-            #[``Add, ``Sub, ``Mul, ``Div, ``Neg, ``OfNat, ``OfScientific, ``DSP.IfLess, ``DSP.FMA].any
+            #[``Add, ``Sub, ``Mul, ``Div, ``Neg, ``OfNat, ``OfScientific, ``DSP.IfLess, ``DSP.FMA, ``DSP.Trig, ``DSP.ExpDecay].any
               (fun supported => name == some supported) do
           throwError "C++ codegen: unsupported generic parameter {type}"
         if name == some ``OfNat then
@@ -577,10 +633,20 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
       throwError "C++ codegen: expected exactly two runtime arguments"
     if let some method := method then
       return ← renderFunction function method parameters runtime resultType numberType arithmetic inputName declareRecords
+    if tuningState.isSome then runtime := #[runtime[1]!, runtime[0]!]
+    let inputVariable := if tuningState.isSome then "spec" else "input"
     let stateType ← inferType runtime[0]!
+    if let some (expected, scalarState) := tuningState then
+      unless stateType.getAppFn.constName? == some expected do
+        throwError "C++ codegen: coefficient updater uses a different state record"
+      if let some expectedType := scalarState then
+        unless ← isDefEq stateType expectedType do
+          throwError "C++ codegen: coefficient updater uses a different numeric type"
     let inputType ← inferType runtime[1]!
     let resultType ← whnf resultType
     let stateOnly ← isDefEq stateType resultType
+    if tuningState.isSome && !stateOnly then
+      throwError "C++ codegen: coefficient updater must return its State"
     unless stateOnly || resultType.isAppOfArity ``Prod 2 do
       throwError "C++ codegen: returned state type differs from input state"
     let resultArgs := resultType.getAppArgs
@@ -591,20 +657,29 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
     let inputFields ← fieldShape inputType numberType
     let outputFields ← if stateOnly then pure none else some <$> fieldShape resultArgs[1]! numberType
     let locals := [(runtime[0]!.fvarId!, readValue stateFields "m_state"),
-      (runtime[1]!.fvarId!, readValue inputFields "input")]
+      (runtime[1]!.fvarId!, readValue inputFields inputVariable)]
     let (_, emission) ← (do
       let result ← evaluate (mkAppN (mkConst function) parameters) locals
       match outputFields with
       | none =>
-        let next ← snapshot result
-        commitValue stateFields next "m_state"
+        if tuningState.isSome then
+          let assignments ← changedAssignments stateFields result "m_state"
+          for line in assignments do emit line
+        else
+          let next ← snapshot result
+          commitValue stateFields next "m_state"
       | some outputFields =>
         let next ← snapshot (← selectField result 0)
         let output ← snapshot (← selectField result 1)
         commitValue stateFields next "m_state"
         commitValue outputFields output "m_output").run { numberType, arithmetic }
-    let body := if emission.lines.any (fun line => (line.splitOn "input.").length > 1)
-      then emission.lines else #["static_cast<void>(input);"] ++ emission.lines
+    let body := if emission.lines.any (fun line => (line.splitOn (inputVariable ++ ".")).length > 1)
+      then emission.lines else #[s!"static_cast<void>({inputVariable});"] ++ emission.lines
+    if tuningState.isSome then
+      let lines := (← renderRecord "LogicalSpec" inputFields) ++
+        #["    void ComputeCoefficients(const LogicalSpec& spec)", "    {"] ++
+        body.map (fun line => if line.isEmpty then "" else "        " ++ line) ++ #["    }", ""]
+      return (mathIncludes emission.usesMath, lines)
     let outputLines ← match outputFields with
       | none => pure #["    State m_state;", ""]
       | some outputFields => do
@@ -614,7 +689,7 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
       outputLines ++ #["    void Process(Input& input)", "    {"] ++
       body.map (fun line => if line.isEmpty then "" else "        " ++ line) ++
       #["    }", ""]
-    return (#[], lines)
+    return (mathIncludes emission.usesMath, lines)
 
 def generateWithTarget (function : Name) (cppName : String) (generic : Bool)
     (method : Option String) : MetaM String := do
@@ -624,14 +699,23 @@ def generateWithTarget (function : Name) (cppName : String) (generic : Bool)
 /-- Assemble processing and response definitions in one enclosing filter.
 They share the same scalar/vector target; each retains its own Lean source. -/
 def generateFilterResponses (step : Name) (responses : Array (Name × String))
-    (cppName : String) (generic : Bool) : MetaM String := do
-  if #["Snapshot", "Frequency"].contains cppName then
+    (cppName : String) (generic : Bool) (tuning : Option Name := none) : MetaM String := do
+  if #["Snapshot", "Frequency", "LogicalSpec"].contains cppName then
     throwError "C++ codegen: filter name conflicts with a response member"
   if responses.isEmpty then throwError "C++ codegen: filter needs at least one response"
   let (stepIncludes, stepBody) ← generateParts step cppName generic none "Input"
   let mut includes := stepIncludes
   let mut body := stepBody
-  let mut methods := #["Process", "State", "Output"]
+  let mut methods := #["Process", "State", "Output", "LogicalSpec", "ComputeCoefficients"]
+  if let some tuning := tuning then
+    let info ← getConstInfo step
+    let expected ← forallTelescopeReducing info.type fun parameters _ => do
+      let type ← inferType parameters[parameters.size - 2]!
+      let some name := type.getAppFn.constName? | throwError "C++ codegen: expected a state record"
+      return (name, if generic then none else some type)
+    let (extraIncludes, tuningBody) ← generateParts tuning cppName generic none "LogicalSpec" true (some expected)
+    includes := includes ++ extraIncludes
+    body := body ++ #[s!"    // Coefficients generated from {tuning}.", "    //", ""] ++ tuningBody
   let mut signature : Option Expr := none
   for (response, method) in responses do
     if methods.contains method then throwError "C++ codegen: duplicate or reserved response method {method}"
@@ -639,12 +723,13 @@ def generateFilterResponses (step : Name) (responses : Array (Name × String))
     -- Compare the full Lean function types, including arithmetic parameters
     -- and snapshot identity. Equal layouts alone are insufficient.
     let type := (← getConstInfo response).type
+    let declareRecords := signature.isNone
     match signature with
     | none => signature := some type
     | some expected =>
       unless ← isDefEq type expected do
         throwError "C++ codegen: response methods must have the same snapshot and frequency types"
-    let (extraIncludes, responseBody) ← generateParts response cppName generic (some method) "Frequency" (body == stepBody)
+    let (extraIncludes, responseBody) ← generateParts response cppName generic (some method) "Frequency" declareRecords
     for line in extraIncludes do
       unless includes.contains line do includes := includes.push line
     body := body ++ #[s!"    // Response generated from {response}.", "    //", ""] ++ responseBody
@@ -719,6 +804,30 @@ elab "#generate_cpp_filter_responses_generic " step:ident
   if let some parent := output.parent then IO.FS.createDirAll parent
   IO.FS.writeFile output code
   logInfo m!"Generated {output} with named response members"
+
+elab "#generate_cpp_tuned_filter " step:ident tuning:ident
+    "[" entries:cppResponse,* "]" " as " cppName:ident " to " path:str : command => do
+  let pairs ← entries.getElems.mapM fun entry => do
+    match entry with
+    | `(cppResponse| $r:ident as $m:ident) => pure (r.getId, m.getId.toString)
+    | _ => throwError "C++ codegen: invalid response entry"
+  let code ← liftTermElabM <| generateFilterResponses step.getId pairs cppName.getId.toString false (some tuning.getId)
+  let output : System.FilePath := path.getString
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  logInfo m!"Generated {output} with coefficient update and response members"
+
+elab "#generate_cpp_tuned_filter_generic " step:ident tuning:ident
+    "[" entries:cppResponse,* "]" " as " cppName:ident " to " path:str : command => do
+  let pairs ← entries.getElems.mapM fun entry => do
+    match entry with
+    | `(cppResponse| $r:ident as $m:ident) => pure (r.getId, m.getId.toString)
+    | _ => throwError "C++ codegen: invalid response entry"
+  let code ← liftTermElabM <| generateFilterResponses step.getId pairs cppName.getId.toString true (some tuning.getId)
+  let output : System.FilePath := path.getString
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  logInfo m!"Generated {output} with coefficient update and response members"
 
 elab "#generate_cpp_record " record:ident " as " cppName:ident " to " path:str : command => do
   let recordName := record.getId

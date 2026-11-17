@@ -10,8 +10,10 @@
 #include <array>
 #include <cmath>
 
-#include "ResponseFrequency.hpp"
+#include "Math.hpp"
+#include "MultiChannelNumber.hpp"
 
+#include "ResponseFrequency.hpp"
 struct TPTSVF4PoleHighPass
 {
     static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);
@@ -124,6 +126,59 @@ struct TPTSVF4PoleHighPass
         m_state.m_stage2.m_bandPass = v43;
         m_state.m_stage2.m_highPass = v44;
         m_state.m_stage2.m_notch = v45;
+    }
+
+    // Coefficients generated from DSP.TPTSVF4Pole.computeCoefficientsFloat.
+    //
+
+    struct LogicalSpec
+    {
+        struct
+        {
+            double m_cutoff;
+            double m_q;
+        } m_stage1;
+
+        struct
+        {
+            double m_cutoff;
+            double m_q;
+        } m_stage2;
+
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const double v0 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_stage1.m_cutoff))[0];
+        const double v1 = (1.0 / spec.m_stage1.m_q);
+        const double v2 = (v0 + v1);
+        const double v3 = std::fma(v0, v2, 1.0);
+        const double v4 = (1.0 / v3);
+        const double v5 = (v0 * v4);
+        const double v6 = (v0 * v5);
+        const double v7 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_stage2.m_cutoff))[0];
+        const double v8 = (1.0 / spec.m_stage2.m_q);
+        const double v9 = (v7 + v8);
+        const double v10 = std::fma(v7, v9, 1.0);
+        const double v11 = (1.0 / v10);
+        const double v12 = (v7 * v11);
+        const double v13 = (v7 * v12);
+        const double v14 = v1;
+        const double v15 = v4;
+        const double v16 = v5;
+        const double v17 = v6;
+        const double v18 = v8;
+        const double v19 = v11;
+        const double v20 = v12;
+        const double v21 = v13;
+        m_state.m_stage1.m_k = v14;
+        m_state.m_stage1.m_a1 = v15;
+        m_state.m_stage1.m_a2 = v16;
+        m_state.m_stage1.m_a3 = v17;
+        m_state.m_stage2.m_k = v18;
+        m_state.m_stage2.m_a1 = v19;
+        m_state.m_stage2.m_a2 = v20;
+        m_state.m_stage2.m_a3 = v21;
     }
 
     // Response generated from DSP.TPTSVF4Pole.Snapshot.highPassMagnitudeSquaredFloat.

@@ -10,8 +10,10 @@
 #include <array>
 #include <cmath>
 
-#include "ResponseFrequency.hpp"
+#include "Math.hpp"
+#include "MultiChannelNumber.hpp"
 
+#include "ResponseFrequency.hpp"
 struct MorphingTPTSVF
 {
     static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);
@@ -104,6 +106,62 @@ struct MorphingTPTSVF
         m_state.m_sine = v30;
         m_state.m_blend = v31;
         m_state.m_output = v32;
+    }
+
+    // Coefficients generated from DSP.MorphingTPTSVF.computeCoefficientsFloat.
+    //
+
+    struct LogicalSpec
+    {
+        struct
+        {
+            double m_cutoff;
+            double m_q;
+        } m_svf;
+
+        double m_blend;
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const double v0 = (1.0 / 0x10000000000000p-51);
+        const bool v1 = (v0 < spec.m_blend);
+        double v5;
+        if (v1)
+        {
+            const double v2 = (spec.m_blend - v0);
+            const double v3 = (v2 / 0x10000000000000p-51);
+            v5 = v3;
+        }
+        else
+        {
+            const double v4 = (spec.m_blend / 0x10000000000000p-51);
+            v5 = v4;
+        }
+
+        const double v6 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_svf.m_cutoff))[0];
+        const double v7 = (1.0 / spec.m_svf.m_q);
+        const double v8 = (v6 + v7);
+        const double v9 = std::fma(v6, v8, 1.0);
+        const double v10 = (1.0 / v9);
+        const double v11 = (v6 * v10);
+        const double v12 = (v6 * v11);
+        const double v13 = Math4096::Cos2pi(MultiChannelNumber<double, 1>::Splat(v5))[0];
+        const double v14 = Math4096::Sin2pi(MultiChannelNumber<double, 1>::Splat(v5))[0];
+        const double v15 = v7;
+        const double v16 = v10;
+        const double v17 = v11;
+        const double v18 = v12;
+        const double v19 = v13;
+        const double v20 = v14;
+        const double v21 = spec.m_blend;
+        m_state.m_svf.m_k = v15;
+        m_state.m_svf.m_a1 = v16;
+        m_state.m_svf.m_a2 = v17;
+        m_state.m_svf.m_a3 = v18;
+        m_state.m_cosine = v19;
+        m_state.m_sine = v20;
+        m_state.m_blend = v21;
     }
 
     // Response generated from DSP.MorphingTPTSVF.Snapshot.magnitudeSquaredFloat.

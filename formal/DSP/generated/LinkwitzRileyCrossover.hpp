@@ -10,8 +10,10 @@
 #include <array>
 #include <cmath>
 
-#include "ResponseFrequency.hpp"
+#include "Math.hpp"
+#include "MultiChannelNumber.hpp"
 
+#include "ResponseFrequency.hpp"
 struct LinkwitzRileyCrossover
 {
     static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);
@@ -171,6 +173,65 @@ struct LinkwitzRileyCrossover
         m_state.m_highSecond.m_bandPass = v66;
         m_state.m_highSecond.m_highPass = v67;
         m_state.m_highSecond.m_notch = v68;
+    }
+
+    // Coefficients generated from DSP.LinkwitzRileyCrossover.computeCoefficientsFloat.
+    //
+
+    struct LogicalSpec
+    {
+        double m_cutoff;
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const double v0 = (1.0 / 0x10000000000000p-49);
+        const double v1 = Math4096::Cos2pi(MultiChannelNumber<double, 1>::Splat(v0))[0];
+        const double v2 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
+        const double v3 = (1.0 / v1);
+        const double v4 = (v2 + v3);
+        const double v5 = std::fma(v2, v4, 1.0);
+        const double v6 = (1.0 / v5);
+        const double v7 = (v2 * v6);
+        const double v8 = (v2 * v7);
+        const double v9 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
+        const double v10 = (1.0 / v1);
+        const double v11 = (v9 + v10);
+        const double v12 = std::fma(v9, v11, 1.0);
+        const double v13 = (1.0 / v12);
+        const double v14 = (v9 * v13);
+        const double v15 = (v9 * v14);
+        const double v16 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
+        const double v17 = (1.0 / v1);
+        const double v18 = (v16 + v17);
+        const double v19 = std::fma(v16, v18, 1.0);
+        const double v20 = (1.0 / v19);
+        const double v21 = (v16 * v20);
+        const double v22 = (v16 * v21);
+        const double v23 = v3;
+        const double v24 = v6;
+        const double v25 = v7;
+        const double v26 = v8;
+        const double v27 = v10;
+        const double v28 = v13;
+        const double v29 = v14;
+        const double v30 = v15;
+        const double v31 = v17;
+        const double v32 = v20;
+        const double v33 = v21;
+        const double v34 = v22;
+        m_state.m_first.m_k = v23;
+        m_state.m_first.m_a1 = v24;
+        m_state.m_first.m_a2 = v25;
+        m_state.m_first.m_a3 = v26;
+        m_state.m_lowSecond.m_k = v27;
+        m_state.m_lowSecond.m_a1 = v28;
+        m_state.m_lowSecond.m_a2 = v29;
+        m_state.m_lowSecond.m_a3 = v30;
+        m_state.m_highSecond.m_k = v31;
+        m_state.m_highSecond.m_a1 = v32;
+        m_state.m_highSecond.m_a2 = v33;
+        m_state.m_highSecond.m_a3 = v34;
     }
 
     // Response generated from DSP.LinkwitzRileyCrossover.Snapshot.lowPassMagnitudeSquaredFloat.

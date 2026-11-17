@@ -10,8 +10,9 @@
 #include <array>
 #include <cmath>
 
-#include "ResponseFrequency.hpp"
+#include "Math.hpp"
 
+#include "ResponseFrequency.hpp"
 #include "MultiChannelNumber.hpp"
 #include <type_traits>
 
@@ -49,6 +50,23 @@ struct OnePoleTPTLowPassGeneric
         m_state.m_G = v3;
         m_state.m_s = v4;
         m_state.m_y = v5;
+    }
+
+    // Coefficients generated from DSP.OnePoleTPTLowPass.computeCoefficients.
+    //
+
+    struct LogicalSpec
+    {
+        Vector m_cutoff;
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const Vector v0 = Math4096::TanPi(spec.m_cutoff);
+        const Vector v1 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) + v0);
+        const Vector v2 = (v0 / v1);
+        const Vector v3 = v2;
+        m_state.m_G = v3;
     }
 
     // Response generated from DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquared.

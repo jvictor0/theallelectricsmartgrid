@@ -10,8 +10,9 @@
 #include <array>
 #include <cmath>
 
-#include "ResponseFrequency.hpp"
+#include "Math.hpp"
 
+#include "ResponseFrequency.hpp"
 #include "MultiChannelNumber.hpp"
 #include <type_traits>
 
@@ -80,6 +81,34 @@ struct TPTSVFGeneric
         m_state.m_bandPass = v20;
         m_state.m_highPass = v21;
         m_state.m_notch = v22;
+    }
+
+    // Coefficients generated from DSP.TPTSVF.computeCoefficients.
+    //
+
+    struct LogicalSpec
+    {
+        Vector m_cutoff;
+        Vector m_q;
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const Vector v0 = Math4096::TanPi(spec.m_cutoff);
+        const Vector v1 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / spec.m_q);
+        const Vector v2 = (v0 + v1);
+        const Vector v3 = Vector::FusedMultiplyAdd(v0, v2, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
+        const Vector v4 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v3);
+        const Vector v5 = (v0 * v4);
+        const Vector v6 = (v0 * v5);
+        const Vector v7 = v1;
+        const Vector v8 = v4;
+        const Vector v9 = v5;
+        const Vector v10 = v6;
+        m_state.m_k = v7;
+        m_state.m_a1 = v8;
+        m_state.m_a2 = v9;
+        m_state.m_a3 = v10;
     }
 
     // Response generated from DSP.TPTSVF.Snapshot.lowPassMagnitudeSquared.

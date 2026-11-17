@@ -10,8 +10,9 @@
 #include <array>
 #include <cmath>
 
-#include "ResponseFrequency.hpp"
+#include "Math.hpp"
 
+#include "ResponseFrequency.hpp"
 #include "MultiChannelNumber.hpp"
 #include <type_traits>
 
@@ -101,6 +102,52 @@ struct MorphingTPTSVFGeneric
         m_state.m_sine = v29;
         m_state.m_blend = v30;
         m_state.m_output = v31;
+    }
+
+    // Coefficients generated from DSP.MorphingTPTSVF.computeCoefficients.
+    //
+
+    struct LogicalSpec
+    {
+        struct
+        {
+            Vector m_cutoff;
+            Vector m_q;
+        } m_svf;
+
+        Vector m_blend;
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const Vector v0 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
+        const Vector v1 = (spec.m_blend - v0);
+        const Vector v2 = (v1 / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
+        const Vector v3 = (spec.m_blend / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
+        const Vector v4 = Vector::IfLess(v0, spec.m_blend, v2, v3);
+        const Vector v5 = Math4096::TanPi(spec.m_svf.m_cutoff);
+        const Vector v6 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / spec.m_svf.m_q);
+        const Vector v7 = (v5 + v6);
+        const Vector v8 = Vector::FusedMultiplyAdd(v5, v7, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
+        const Vector v9 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v8);
+        const Vector v10 = (v5 * v9);
+        const Vector v11 = (v5 * v10);
+        const Vector v12 = Math4096::Cos2pi(v4);
+        const Vector v13 = Math4096::Sin2pi(v4);
+        const Vector v14 = v6;
+        const Vector v15 = v9;
+        const Vector v16 = v10;
+        const Vector v17 = v11;
+        const Vector v18 = v12;
+        const Vector v19 = v13;
+        const Vector v20 = spec.m_blend;
+        m_state.m_svf.m_k = v14;
+        m_state.m_svf.m_a1 = v15;
+        m_state.m_svf.m_a2 = v16;
+        m_state.m_svf.m_a3 = v17;
+        m_state.m_cosine = v18;
+        m_state.m_sine = v19;
+        m_state.m_blend = v20;
     }
 
     // Response generated from DSP.MorphingTPTSVF.Snapshot.magnitudeSquared.

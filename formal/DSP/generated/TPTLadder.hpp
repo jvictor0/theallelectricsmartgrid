@@ -10,8 +10,10 @@
 #include <array>
 #include <cmath>
 
-#include "ResponseFrequency.hpp"
+#include "Math.hpp"
+#include "MultiChannelNumber.hpp"
 
+#include "ResponseFrequency.hpp"
 struct TPTLadder
 {
     static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);
@@ -115,6 +117,41 @@ struct TPTLadder
         m_state.m_stage4.m_G = v38;
         m_state.m_stage4.m_s = v39;
         m_state.m_stage4.m_y = v40;
+    }
+
+    // Coefficients generated from DSP.TPTLadder.computeCoefficientsFloat.
+    //
+
+    struct LogicalSpec
+    {
+        double m_cutoff;
+        double m_feedback;
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const double v0 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
+        const double v1 = (1.0 + v0);
+        const double v2 = (v0 / v1);
+        const double v3 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
+        const double v4 = (1.0 + v3);
+        const double v5 = (v3 / v4);
+        const double v6 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
+        const double v7 = (1.0 + v6);
+        const double v8 = (v6 / v7);
+        const double v9 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
+        const double v10 = (1.0 + v9);
+        const double v11 = (v9 / v10);
+        const double v12 = spec.m_feedback;
+        const double v13 = v2;
+        const double v14 = v5;
+        const double v15 = v8;
+        const double v16 = v11;
+        m_state.m_k = v12;
+        m_state.m_stage1.m_G = v13;
+        m_state.m_stage2.m_G = v14;
+        m_state.m_stage3.m_G = v15;
+        m_state.m_stage4.m_G = v16;
     }
 
     // Response generated from DSP.TPTLadder.Snapshot.magnitudeSquaredFloat.

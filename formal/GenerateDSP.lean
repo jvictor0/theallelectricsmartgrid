@@ -11,103 +11,104 @@ import DSP.Filters.TPTLadder
 import DSP.Filters.LinkwitzRileyCrossover
 import DSP.Filters.Coupled
 import DSP.Filters.Responses
+import DSP.Filters.Tuning
 
 #use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
 
-#generate_cpp_filter DSP.OnePoleZOHLowPass.stepFloat
-  response DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquaredFloat
+#generate_cpp_tuned_filter DSP.OnePoleZOHLowPass.stepFloat DSP.OnePoleZOHLowPass.computeCoefficientsFloat
+  [DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquaredFloat as MagnitudeSquared]
   as OnePoleZOHLowPass to "build/lean/generated/OnePoleZOHLowPass.hpp"
 
-#generate_cpp_filter DSP.OnePoleTPTLowPass.stepFloat
-  response DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquaredFloat
+#generate_cpp_tuned_filter DSP.OnePoleTPTLowPass.stepFloat DSP.OnePoleTPTLowPass.computeCoefficientsFloat
+  [DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquaredFloat as MagnitudeSquared]
   as OnePoleTPTLowPass to "build/lean/generated/OnePoleTPTLowPass.hpp"
 
-#generate_cpp_filter DSP.OnePoleTPTHighPass.stepFloat
-  response DSP.OnePoleTPTHighPass.Snapshot.magnitudeSquaredFloat
+#generate_cpp_tuned_filter DSP.OnePoleTPTHighPass.stepFloat DSP.OnePoleTPTHighPass.computeCoefficientsFloat
+  [DSP.OnePoleTPTHighPass.Snapshot.magnitudeSquaredFloat as MagnitudeSquared]
   as OnePoleTPTHighPass to "build/lean/generated/OnePoleTPTHighPass.hpp"
 
-#generate_cpp_filter DSP.TPTBaseWidth.stepFloat
-  response DSP.TPTBaseWidth.Snapshot.magnitudeSquaredFloat
+#generate_cpp_tuned_filter DSP.TPTBaseWidth.stepFloat DSP.TPTBaseWidth.computeCoefficientsFloat
+  [DSP.TPTBaseWidth.Snapshot.magnitudeSquaredFloat as MagnitudeSquared]
   as TPTBaseWidth to "build/lean/generated/TPTBaseWidth.hpp"
 
-#generate_cpp_filter_responses DSP.TPTSVF.stepFloat
+#generate_cpp_tuned_filter DSP.TPTSVF.stepFloat DSP.TPTSVF.computeCoefficientsFloat
   [DSP.TPTSVF.Snapshot.lowPassMagnitudeSquaredFloat as LowPassMagnitudeSquared,
     DSP.TPTSVF.Snapshot.bandPassMagnitudeSquaredFloat as BandPassMagnitudeSquared,
     DSP.TPTSVF.Snapshot.highPassMagnitudeSquaredFloat as HighPassMagnitudeSquared,
     DSP.TPTSVF.Snapshot.notchMagnitudeSquaredFloat as NotchMagnitudeSquared]
   as TPTSVF to "build/lean/generated/TPTSVF.hpp"
 
-#generate_cpp_filter DSP.MorphingTPTSVF.stepFloat
-  response DSP.MorphingTPTSVF.Snapshot.magnitudeSquaredFloat
+#generate_cpp_tuned_filter DSP.MorphingTPTSVF.stepFloat DSP.MorphingTPTSVF.computeCoefficientsFloat
+  [DSP.MorphingTPTSVF.Snapshot.magnitudeSquaredFloat as MagnitudeSquared]
   as MorphingTPTSVF to "build/lean/generated/MorphingTPTSVF.hpp"
 
-#generate_cpp_filter DSP.TPTSVF4Pole.stepHighPassFloat
-  response DSP.TPTSVF4Pole.Snapshot.highPassMagnitudeSquaredFloat
+#generate_cpp_tuned_filter DSP.TPTSVF4Pole.stepHighPassFloat DSP.TPTSVF4Pole.computeCoefficientsFloat
+  [DSP.TPTSVF4Pole.Snapshot.highPassMagnitudeSquaredFloat as MagnitudeSquared]
   as TPTSVF4PoleHighPass to "build/lean/generated/TPTSVF4PoleHighPass.hpp"
 
-#generate_cpp_filter DSP.TPTSVF4Pole.stepLowPassFloat
-  response DSP.TPTSVF4Pole.Snapshot.lowPassMagnitudeSquaredFloat
+#generate_cpp_tuned_filter DSP.TPTSVF4Pole.stepLowPassFloat DSP.TPTSVF4Pole.computeCoefficientsFloat
+  [DSP.TPTSVF4Pole.Snapshot.lowPassMagnitudeSquaredFloat as MagnitudeSquared]
   as TPTSVF4PoleLowPass to "build/lean/generated/TPTSVF4PoleLowPass.hpp"
 
-#generate_cpp_filter DSP.TPTSVF4Pole.stepBandPassFloat
-  response DSP.TPTSVF4Pole.Snapshot.bandPassMagnitudeSquaredFloat
+#generate_cpp_tuned_filter DSP.TPTSVF4Pole.stepBandPassFloat DSP.TPTSVF4Pole.computeCoefficientsFloat
+  [DSP.TPTSVF4Pole.Snapshot.bandPassMagnitudeSquaredFloat as MagnitudeSquared]
   as TPTSVF4PoleBandPass to "build/lean/generated/TPTSVF4PoleBandPass.hpp"
 
-#generate_cpp_filter DSP.TPTLadder.stepFloat
-  response DSP.TPTLadder.Snapshot.magnitudeSquaredFloat
+#generate_cpp_tuned_filter DSP.TPTLadder.stepFloat DSP.TPTLadder.computeCoefficientsFloat
+  [DSP.TPTLadder.Snapshot.magnitudeSquaredFloat as MagnitudeSquared]
   as TPTLadder to "build/lean/generated/TPTLadder.hpp"
 
-#generate_cpp_filter_responses DSP.LinkwitzRileyCrossover.stepFloat
+#generate_cpp_tuned_filter DSP.LinkwitzRileyCrossover.stepFloat DSP.LinkwitzRileyCrossover.computeCoefficientsFloat
   [DSP.LinkwitzRileyCrossover.Snapshot.lowPassMagnitudeSquaredFloat as LowPassMagnitudeSquared,
     DSP.LinkwitzRileyCrossover.Snapshot.highPassMagnitudeSquaredFloat as HighPassMagnitudeSquared]
   as LinkwitzRileyCrossover to "build/lean/generated/LinkwitzRileyCrossover.hpp"
 
 #generate_cpp DSP.Coupled.processorFloat as CoupledProcessor to "build/lean/generated/CoupledProcessor.hpp"
 
-#generate_cpp_filter_generic DSP.OnePoleZOHLowPass.step
-  response DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquared
+#generate_cpp_tuned_filter_generic DSP.OnePoleZOHLowPass.step DSP.OnePoleZOHLowPass.computeCoefficients
+  [DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquared as MagnitudeSquared]
   as OnePoleZOHLowPassGeneric to "build/lean/generated/OnePoleZOHLowPassGeneric.hpp"
 
-#generate_cpp_filter_generic DSP.OnePoleTPTLowPass.step
-  response DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquared
+#generate_cpp_tuned_filter_generic DSP.OnePoleTPTLowPass.step DSP.OnePoleTPTLowPass.computeCoefficients
+  [DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquared as MagnitudeSquared]
   as OnePoleTPTLowPassGeneric to "build/lean/generated/OnePoleTPTLowPassGeneric.hpp"
 
-#generate_cpp_filter_generic DSP.OnePoleTPTHighPass.step
-  response DSP.OnePoleTPTHighPass.Snapshot.magnitudeSquared
+#generate_cpp_tuned_filter_generic DSP.OnePoleTPTHighPass.step DSP.OnePoleTPTHighPass.computeCoefficients
+  [DSP.OnePoleTPTHighPass.Snapshot.magnitudeSquared as MagnitudeSquared]
   as OnePoleTPTHighPassGeneric to "build/lean/generated/OnePoleTPTHighPassGeneric.hpp"
 
-#generate_cpp_filter_generic DSP.TPTBaseWidth.step
-  response DSP.TPTBaseWidth.Snapshot.magnitudeSquared
+#generate_cpp_tuned_filter_generic DSP.TPTBaseWidth.step DSP.TPTBaseWidth.computeCoefficients
+  [DSP.TPTBaseWidth.Snapshot.magnitudeSquared as MagnitudeSquared]
   as TPTBaseWidthGeneric to "build/lean/generated/TPTBaseWidthGeneric.hpp"
 
-#generate_cpp_filter_responses_generic DSP.TPTSVF.step
+#generate_cpp_tuned_filter_generic DSP.TPTSVF.step DSP.TPTSVF.computeCoefficients
   [DSP.TPTSVF.Snapshot.lowPassMagnitudeSquared as LowPassMagnitudeSquared,
     DSP.TPTSVF.Snapshot.bandPassMagnitudeSquared as BandPassMagnitudeSquared,
     DSP.TPTSVF.Snapshot.highPassMagnitudeSquared as HighPassMagnitudeSquared,
     DSP.TPTSVF.Snapshot.notchMagnitudeSquared as NotchMagnitudeSquared]
   as TPTSVFGeneric to "build/lean/generated/TPTSVFGeneric.hpp"
 
-#generate_cpp_filter_generic DSP.MorphingTPTSVF.step
-  response DSP.MorphingTPTSVF.Snapshot.magnitudeSquared
+#generate_cpp_tuned_filter_generic DSP.MorphingTPTSVF.step DSP.MorphingTPTSVF.computeCoefficients
+  [DSP.MorphingTPTSVF.Snapshot.magnitudeSquared as MagnitudeSquared]
   as MorphingTPTSVFGeneric to "build/lean/generated/MorphingTPTSVFGeneric.hpp"
 
-#generate_cpp_filter_generic DSP.TPTSVF4Pole.stepHighPass
-  response DSP.TPTSVF4Pole.Snapshot.highPassMagnitudeSquared
+#generate_cpp_tuned_filter_generic DSP.TPTSVF4Pole.stepHighPass DSP.TPTSVF4Pole.computeCoefficients
+  [DSP.TPTSVF4Pole.Snapshot.highPassMagnitudeSquared as MagnitudeSquared]
   as TPTSVF4PoleHighPassGeneric to "build/lean/generated/TPTSVF4PoleHighPassGeneric.hpp"
 
-#generate_cpp_filter_generic DSP.TPTSVF4Pole.stepLowPass
-  response DSP.TPTSVF4Pole.Snapshot.lowPassMagnitudeSquared
+#generate_cpp_tuned_filter_generic DSP.TPTSVF4Pole.stepLowPass DSP.TPTSVF4Pole.computeCoefficients
+  [DSP.TPTSVF4Pole.Snapshot.lowPassMagnitudeSquared as MagnitudeSquared]
   as TPTSVF4PoleLowPassGeneric to "build/lean/generated/TPTSVF4PoleLowPassGeneric.hpp"
 
-#generate_cpp_filter_generic DSP.TPTSVF4Pole.stepBandPass
-  response DSP.TPTSVF4Pole.Snapshot.bandPassMagnitudeSquared
+#generate_cpp_tuned_filter_generic DSP.TPTSVF4Pole.stepBandPass DSP.TPTSVF4Pole.computeCoefficients
+  [DSP.TPTSVF4Pole.Snapshot.bandPassMagnitudeSquared as MagnitudeSquared]
   as TPTSVF4PoleBandPassGeneric to "build/lean/generated/TPTSVF4PoleBandPassGeneric.hpp"
 
-#generate_cpp_filter_generic DSP.TPTLadder.step
-  response DSP.TPTLadder.Snapshot.magnitudeSquared
+#generate_cpp_tuned_filter_generic DSP.TPTLadder.step DSP.TPTLadder.computeCoefficients
+  [DSP.TPTLadder.Snapshot.magnitudeSquared as MagnitudeSquared]
   as TPTLadderGeneric to "build/lean/generated/TPTLadderGeneric.hpp"
 
-#generate_cpp_filter_responses_generic DSP.LinkwitzRileyCrossover.step
+#generate_cpp_tuned_filter_generic DSP.LinkwitzRileyCrossover.step DSP.LinkwitzRileyCrossover.computeCoefficients
   [DSP.LinkwitzRileyCrossover.Snapshot.lowPassMagnitudeSquared as LowPassMagnitudeSquared,
     DSP.LinkwitzRileyCrossover.Snapshot.highPassMagnitudeSquared as HighPassMagnitudeSquared]
   as LinkwitzRileyCrossoverGeneric to "build/lean/generated/LinkwitzRileyCrossoverGeneric.hpp"

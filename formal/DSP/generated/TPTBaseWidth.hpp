@@ -10,8 +10,10 @@
 #include <array>
 #include <cmath>
 
-#include "ResponseFrequency.hpp"
+#include "Math.hpp"
+#include "MultiChannelNumber.hpp"
 
+#include "ResponseFrequency.hpp"
 struct TPTBaseWidth
 {
     static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);
@@ -70,6 +72,37 @@ struct TPTBaseWidth
         m_state.m_lowPass.m_G = v11;
         m_state.m_lowPass.m_s = v12;
         m_state.m_lowPass.m_y = v13;
+    }
+
+    // Coefficients generated from DSP.TPTBaseWidth.computeCoefficientsFloat.
+    //
+
+    struct LogicalSpec
+    {
+        struct
+        {
+            double m_cutoff;
+        } m_highPass;
+
+        struct
+        {
+            double m_cutoff;
+        } m_lowPass;
+
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const double v0 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_highPass.m_cutoff))[0];
+        const double v1 = (1.0 + v0);
+        const double v2 = (v0 / v1);
+        const double v3 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_lowPass.m_cutoff))[0];
+        const double v4 = (1.0 + v3);
+        const double v5 = (v3 / v4);
+        const double v6 = v2;
+        const double v7 = v5;
+        m_state.m_highPass.m_lowPass.m_G = v6;
+        m_state.m_lowPass.m_G = v7;
     }
 
     // Response generated from DSP.TPTBaseWidth.Snapshot.magnitudeSquaredFloat.

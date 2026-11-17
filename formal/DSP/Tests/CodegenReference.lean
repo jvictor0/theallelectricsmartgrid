@@ -1,3 +1,4 @@
+import DSP.Filters.Tuning
 import DSP.Tests.CodegenFixtures
 import DSP.Tests.ResponseCases
 import DSP.Filters.OnePoleTPTLowPass
@@ -176,8 +177,67 @@ def emitAllResponseCases (out : IO.FS.Stream) : IO Unit := do
     random := r
     emitAllResponses out v s c
 
+/-- Independent native transcendental reference for coefficient tuning. Generated
+C++ deliberately uses the Math4096 approximation instead. -/
+def tuningRows {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 8]
+    [Add R] [Sub R] [Mul R] [Div R] [FMA R] [IfLess R] [Trig R] [ExpDecay R]
+    (fc1 fc2 q1 q2 blend feedback seed : R) : List (String × List R × List R × List R) :=
+  let zoh : OnePoleZOHLowPass R := ⟨0,seed⟩
+  let lp : OnePoleTPTLowPass R := ⟨0,seed,seed+1⟩
+  let hp : OnePoleTPTHighPass R := ⟨lp,seed-1⟩
+  let svf : TPTSVF R := ⟨0,0,0,0,seed,seed+1,seed-1,seed+2,seed-2,seed+8⟩
+  let second : TPTSVF R := ⟨0,0,0,0,seed-8,seed+2,seed+1,seed,seed-1,seed-2⟩
+  let base : TPTBaseWidth R := ⟨hp,⟨0,seed+2,seed-2⟩⟩
+  let morph : MorphingTPTSVF R := ⟨svf,0,0,0,seed+8⟩
+  let four : TPTSVF4Pole R := ⟨svf,second⟩
+  let ladder : TPTLadder R := ⟨0,seed,lp,⟨0,seed+2,seed-2⟩,lp,⟨0,seed+8,seed-8⟩⟩
+  let cross : LinkwitzRileyCrossover R := ⟨svf,second,svf⟩
+  let z := OnePoleZOHLowPass.computeCoefficients ⟨fc1⟩ zoh
+  let zfields := fun f : OnePoleZOHLowPass R => [f.alpha,f.y]
+  let rows := [
+    ("OnePoleZOHLowPass", [fc1], zfields zoh, zfields z),
+    ("OnePoleTPTLowPass", [fc1], lowPassFields lp,
+      lowPassFields (OnePoleTPTLowPass.computeCoefficients ⟨fc1⟩ lp)),
+    ("OnePoleTPTHighPass", [fc1], highPassFields hp,
+      highPassFields (OnePoleTPTHighPass.computeCoefficients ⟨fc1⟩ hp)),
+    ("TPTBaseWidth", [fc1,fc2], baseWidthFields base,
+      baseWidthFields (TPTBaseWidth.computeCoefficients ⟨⟨fc1⟩,⟨fc2⟩⟩ base)),
+    ("TPTSVF", [fc1,q1], svfFields svf,
+      svfFields (TPTSVF.computeCoefficients ⟨fc1,q1⟩ svf)),
+    ("MorphingTPTSVF", [fc1,q1,blend], morphFields morph,
+      morphFields (MorphingTPTSVF.computeCoefficients ⟨⟨fc1,q1⟩,blend⟩ morph)),
+    ("TPTLadder", [fc1,feedback], ladderFields ladder,
+      ladderFields (TPTLadder.computeCoefficients ⟨fc1,feedback⟩ ladder)),
+    ("LinkwitzRileyCrossover", [fc1], crossoverFields cross,
+      crossoverFields (LinkwitzRileyCrossover.computeCoefficients ⟨fc1⟩ cross))]
+  rows ++ ["TPTSVF4PoleLowPass", "TPTSVF4PoleBandPass", "TPTSVF4PoleHighPass"].map (fun name =>
+    (name, [fc1,q1,fc2,q2], svf4Fields four,
+      svf4Fields (TPTSVF4Pole.computeCoefficients ⟨⟨fc1,q1⟩,⟨fc2,q2⟩⟩ four)))
+
+def emitTuningCases (out : IO.FS.Stream) : IO Unit := do
+  let mut random : UInt64 := 0x739dac
+  for i in [:256] do
+    let (u,r) := uniform random 0.0001 0.49
+    let (v,r) := uniform r 0.0001 0.49
+    let (q1,r) := uniform r 0.25 20
+    let (q2,r) := uniform r 0.25 20
+    let (b,r) := uniform r 0 1
+    let (k,r) := uniform r 0 3.95
+    random := r
+    let fc1 := if i < 6 then (#[0.0001,0.001,0.01,0.1,0.249,0.49] : Array Float)[i]! else u
+    let fc2 := v
+    let blend := if i < 3 then (#[0,0.5,1] : Array Float)[i]! else b
+    let seed := if i % 7 == 0 then Float.ofBits 0x7ff8000000000042
+      else if i % 7 == 1 then -0.0 else Float.ofNat i
+    for (name,spec,old,next) in tuningRows fc1 fc2 q1 q2 blend k seed do
+      out.putStrLn s!"tuning64 {name} {bits (spec ++ old ++ next)}"
+    for (name,spec,old,next) in tuningRows fc1.toFloat32 fc2.toFloat32 q1.toFloat32 q2.toFloat32
+        blend.toFloat32 k.toFloat32 seed.toFloat32 do
+      out.putStrLn s!"tuning32 {name} {bits32 (spec ++ old ++ next)}"
+
 def main : IO Unit := do
   let out ← IO.getStdout
+  emitTuningCases out
   emitMagnitudeCases out
   emitAllResponseCases out
   let coefficients : Array Float := #[0.0, 1.0, 0.5, 0.999, Float.ofBits 0x3fefffffffffffff,

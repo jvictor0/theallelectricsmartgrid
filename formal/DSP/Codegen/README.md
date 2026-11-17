@@ -155,6 +155,42 @@ match current generation. It does not silently update a stale header.
 All incremental compiler output and test results stay under `build/lean/`.
 Use `CXX=clang++` (or another C++17 compiler) to select the native test compiler.
 
+## Coefficient updates
+
+All production filter exports use a tuned form that assembles three source
+functions: processing, coefficient preparation, and one or more responses.
+
+```lean
+#generate_cpp_tuned_filter_generic DSP.OnePoleTPTLowPass.step
+  DSP.OnePoleTPTLowPass.computeCoefficients
+  [DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquared as MagnitudeSquared]
+  as OnePoleTPTLowPassGeneric to "build/lean/generated/OnePoleTPTLowPassGeneric.hpp"
+```
+
+The scalar form is `#generate_cpp_tuned_filter` with specialized Float/Float32
+functions. The updater has shape `LogicalSpec R → State R → State R`; its state
+identity and target precision must match the processor. The generated method is
+`void ComputeCoefficients(const LogicalSpec& spec)`, with `LogicalSpec` nested
+alongside `State` and `Snapshot`. It stores only fields whose returned expression
+is different from the original field, after capturing all new values. This
+preserves simultaneous record-update semantics while avoiding history writes.
+The production tuners separately prove that all history fields remain unchanged.
+
+`Trig.sin2pi/cos2pi/tanPi` lower to `Math4096::Sin2pi/Cos2pi/TanPi`.
+`ExpDecay.expNegTwoPi` lowers to `MultiChannelNumber::Exp()` after multiplication
+by the target-precision −2π constant. Scalar exports use the one-lane vector
+overloads as well, including for exponential decay. The recognized native Lean
+wrappers use libm; **coefficient preparation is deliberately an approximation
+boundary**, unlike the bit-identical arithmetic tests for steps and responses.
+Generated coefficient tests check direct Math4096/Exp results bit for bit and
+measure native-Lean differences separately. No trig identities are asserted for
+the lookup table or Float arithmetic.
+
+See the [tuning theorem inventory](../Filters/Tuning/README.md) for parameter
+units, validity regions, cutoff/peak proofs, nested reuse, and intentional
+convention differences from the handwritten app. Snapshots and frequency-query
+preparation retain their existing interfaces.
+
 ## Generated interface
 
 Fields acquire an `m_` prefix unless they already have it. C++ identifiers must
@@ -185,7 +221,9 @@ processor.Process(input);
 In the scalar example, the stored output `m_state.m_y` is `0.5`; the coefficient stays
 `0.5`. The coefficient `alpha` is the input weight, ideally `1 - exp(-T/tau)`,
 as in the app's `OPLowPassFilter`. Coefficient preparation, such as an SVF's
-a1, a2 and a3 or a morph's cosine and sine, remains the caller's responsibility.
+a1, a2 and a3 or a morph's cosine and sine, is now provided by the generated
+`ComputeCoefficients` method. Initialize history explicitly before the first call;
+the tuner updates coefficients in place and preserves history.
 
 For each call, a state-only `step(state_n, input_n)` returns `state_{n+1}`, and
 `process(state_n, input_n)` returns `(state_{n+1}, output_n)`. All returned
@@ -225,7 +263,7 @@ zero-delay loops, which depend on the current input.
 
 Generic export accepts one leading arithmetic type parameter `R : Type`,
 followed by instances of `Add`, `Sub`, `Mul`, `Div`, `Neg`, `OfNat` (with a
-literal numeral), `OfScientific`, `IfLess` and `FMA`, then the state and input.
+literal numeral), `OfScientific`, `IfLess`, `FMA`, `Trig` and `ExpDecay`, then the two runtime records.
 Other generic parameters and operations are rejected. Shared `Bool` fields
 can still control whole-vector branches; channel-dependent selection uses
 `IfLess`, with no conversion to a shared Boolean. Literals are converted by
