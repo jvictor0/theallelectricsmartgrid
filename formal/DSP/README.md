@@ -350,7 +350,18 @@ application of the scalar theorem, with per-channel hypotheses and transfers
 such as g_i²/(s² + k_i g_i s + g_i²). Every coefficient is per channel,
 including the morph's blend: `realizes_blend_channels` gives each channel the
 transfer of its own blend. Decimal literals such as the morph's 0.5 are the
-same in every channel, like `Vector::Splat`. The ZOH lowpass is not lifted.
+same in every channel, like `Vector::Splat`.
+
+[OnePoleZOHLowPass/Channels](Filters/OnePoleZOHLowPass/Channels.lean) lifts the
+ZOH lowpass too. `states_channel` identifies each channel of the actual vector
+state trajectory with the scalar step, and `realizes_channels` gives the
+digital transfer α_i/(1 - (1 - α_i)q) from rest. This uses the shared stream
+semantics without a bilinear substitution. `step_matches_interval_channels`
+and `analog_matches_digital_channels` reuse the scalar ZOH correctness proofs:
+with α_i = 1 - exp(-T/τ_i), every channel agrees exactly with its held-input
+analog solution at the interval endpoint and at every sample time. Channels
+share the sample period T but may have different time constants, arbitrary
+initial states and independently changing input streams.
 
 These theorems cover the exact model over `Fin n → K`. A `MultiChannelNumber`
 code generator target is separate work.

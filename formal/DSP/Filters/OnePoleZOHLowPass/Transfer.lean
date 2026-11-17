@@ -1,6 +1,7 @@
 import DSP.Filters.OnePoleZOHLowPass.Proofs
 import DSP.Discretization.Pipeline
 import DSP.Transfer.Analog
+import DSP.Transfer.Bilinear
 
 namespace DSP.OnePoleZOHLowPass
 
@@ -77,5 +78,33 @@ theorem analog_iir_endpoint (T τ : ℝ) (hT : 0 ≤ T) (u : ℕ → ℝ)
       q.segment k T 0 := by
   have h := (continuousSystem τ).zoh_iir_endpointOutput T hT u q k
   simpa [continuousSystem, StateSpace.observe, StateSpace.dot, StateSpace.orderedSum] using h
+
+open Bilinear in
+/-- From rest, the stored endpoint realizes α / (1 - (1 - α) q), with q the
+unit delay. This is the ZOH recurrence's digital transfer, without a bilinear
+substitution of the analog prototype. -/
+theorem realizes {K : Type} [Field K] (f : OnePoleZOHLowPass K) (hy : f.y = 0) :
+    Realizes step f (·.y) (const f.alpha / (1 - const (1 - f.alpha) * delay)) := by
+  intro u
+  let st := Step.states step (fun k => ⟨u k⟩) f
+  have ha : ∀ n, (st n).alpha = f.alpha :=
+    fun n => Step.states_invariant step (·.alpha) (fun _ _ => rfl) _ f n
+  have hrec : ser (fun n => (st (n + 1)).y) =
+      const (1 - f.alpha) * ser (fun n => (st n).y) + const f.alpha * ser u := by
+    rw [← ser_mul, ← ser_mul, ← ser_add]
+    apply ser_congr
+    intro n
+    simp only [st, Step.states_succ, step_y, onePoleStep_eq, ha]
+  have hshift := ser_shift (fun n => (st n).y)
+  change ser (fun n => (st n).y) = const f.y + _ at hshift
+  rw [hy, const_zero, zero_add] at hshift
+  rw [hshift] at hrec
+  have hd : (1 : Stream K) - const (1 - f.alpha) * delay ≠ 0 := by
+    have h := embed_ne_zero (1 - PowerSeries.C (1 - f.alpha) * PowerSeries.X)
+      (by simp)
+    simpa [const, delay] using h
+  change ser (fun n => (st (n + 1)).y) = _
+  rw [div_mul_eq_mul_div, eq_div_iff hd]
+  linear_combination hrec
 
 end DSP.OnePoleZOHLowPass

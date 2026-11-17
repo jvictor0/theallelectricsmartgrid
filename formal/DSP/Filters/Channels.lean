@@ -1,4 +1,5 @@
 import DSP.Transfer.Channels
+import DSP.Filters.OnePoleZOHLowPass.Channels
 import DSP.Filters.OnePoleTPTHighPass.Proofs
 import DSP.Filters.TPTBaseWidth.Proofs
 import DSP.Filters.MorphingTPTSVF.Proofs
@@ -7,7 +8,7 @@ import DSP.Filters.TPTLadder.Proofs
 import DSP.Filters.LinkwitzRileyCrossover.Proofs
 
 /-!
-Multi-channel instances of the TPT filters. Each record is a functor, each step
+Multi-channel instances of the ZOH and TPT filters. Each record is a functor, each step
 commutes with reading a channel, and each scalar transfer theorem therefore
 holds for every channel with that channel's coefficients.
 -/

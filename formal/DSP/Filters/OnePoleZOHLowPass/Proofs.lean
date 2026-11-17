@@ -33,6 +33,16 @@ theorem digitalRun_succ (alpha : ℝ) (u : DigitalSignal) (initial : ℝ) (n : �
     digitalRun alpha u initial (n + 1) = onePoleStep alpha (u n) (digitalRun alpha u initial n) :=
   rfl
 
+/-- The shared state-only step follows the scalar digital recurrence, including
+its initial sample before any input interval has been processed. -/
+theorem states_digitalRun (f : OnePoleZOHLowPass ℝ) (u : DigitalSignal) (n : ℕ) :
+    (Step.states step (fun k => ⟨u k⟩) f n).y = digitalRun f.alpha u f.y n := by
+  have ha := fun k => Step.states_invariant step (·.alpha) (fun _ _ => rfl)
+    (fun k => ⟨u k⟩) f k
+  induction n with
+  | zero => rfl
+  | succ n ih => rw [Step.states_succ, step_y, ha, ih, digitalRun_succ]
+
 /-- Input u n is held on the nth sampling interval. Continuity includes the
 boundaries, but the ODE is required only in each open interval: the held input
 may jump at a sample time, so no derivative is assumed there. -/
