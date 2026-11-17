@@ -13,6 +13,7 @@
 //   5. Parameter sweep NaN-clean (cutoff & resonance).
 
 #include "doctest.h"
+#include "TrioUtils.hpp"
 
 #include <cmath>
 #include <vector>
@@ -428,4 +429,40 @@ DOCTEST_TEST_CASE("LadderFilterLP: direct resonance height matches the linear re
         DOCTEST_INFO("alpha: " << alpha);
         DOCTEST_CHECK(height == doctest::Approx(reference).epsilon(0.001f));
     }
+}
+
+DOCTEST_TEST_CASE("Ladder envelope: generated band-pass cascade retains unity center gain and reset")
+{
+    BandPassedEnvelopeFollowerGeneric<float, 3> follower;
+    const TrioFloat cutoff(0.005f, 0.03f, 0.2f);
+    follower.SetCutoff(cutoff, TrioFloat::Splat(0.01f));
+    double sums[3]{};
+    for (size_t sample = 0; sample < 10000; ++sample)
+    {
+        TrioFloat input;
+        for (size_t lane = 0; lane < 3; ++lane)
+        {
+            input[lane] = 0.1f * std::sin(2 * M_PI * cutoff[lane] * sample);
+        }
+
+        const auto power = follower.Process(input);
+        if (sample >= 5000)
+        {
+            for (size_t lane = 0; lane < 3; ++lane)
+            {
+                sums[lane] += power[lane] / 5000;
+            }
+        }
+    }
+
+    for (size_t lane = 0; lane < 3; ++lane)
+    {
+        DOCTEST_CHECK(sums[lane] == doctest::Approx(0.005).epsilon(0.005));
+    }
+
+    follower.Reset();
+    DOCTEST_CHECK(follower.GetPower() == TrioFloat());
+    DOCTEST_CHECK(follower.Process(TrioFloat()) == TrioFloat());
+    DOCTEST_CHECK(follower.m_stage1.MakeSnapshot().m_k == TrioFloat::Splat(1));
+    DOCTEST_CHECK(follower.m_stage2.MakeSnapshot().m_k == TrioFloat::Splat(1));
 }

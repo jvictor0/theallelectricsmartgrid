@@ -3,7 +3,7 @@ import DSP.Filters.OnePoleTPTHighPass
 namespace DSP
 
 /-- A TPT highpass at the base frequency into a TPT lowpass at base × width,
-the trapezoidal counterpart of the app's `OPBaseWidthFilter`. The output is
+the trapezoidal counterpart of the app's former ZOH base-width filter. The output is
 `lowPass.y`. -/
 structure TPTBaseWidth (R : Type) where
   highPass : OnePoleTPTHighPass R

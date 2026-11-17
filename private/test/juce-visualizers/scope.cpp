@@ -115,9 +115,10 @@ DOCTEST_TEST_CASE("Analyser: spectrum and oversampled response share the frequen
     TrioSquiggleBoyShape::Snapshot filterSnapshot;
     filterSnapshot.m_ladder.m_lp.m_alpha = TrioFloat::Splat(1.0f);
     filterSnapshot.m_ladder.m_lp.m_feedback = TrioFloat::Splat(0.0f);
-    filterSnapshot.m_ladder.m_hp.m_stage.m_g = TrioFloat::Splat(0.0f);
-    filterSnapshot.m_ladder.m_hp.m_stage.m_k = TrioFloat::Splat(1.0f);
-    filterSnapshot.m_ladder.m_hp.m_stage.m_weights = {0, 0, 1};
+    filterSnapshot.m_ladder.m_hp.m_stage1.m_g = TrioFloat::Splat(0.0f);
+    filterSnapshot.m_ladder.m_hp.m_stage1.m_k = TrioFloat::Splat(1.0f);
+    filterSnapshot.m_ladder.m_hp.m_stage2.m_g = TrioFloat::Splat(0.0f);
+    filterSnapshot.m_ladder.m_hp.m_stage2.m_k = TrioFloat::Splat(1.0f);
     filter.m_history.Push(filterSnapshot);
     auto writer = std::make_unique<ScopeWriterGeneric<3, 3>>(1, 4096);
     int voiceOffset = 0;
@@ -590,8 +591,8 @@ DOCTEST_TEST_CASE("Sampled response rendering: resizing retains the same narrow-
 {
     PhysicalModelingSource::UIState response;
     PhysicalModelingSource::Snapshot snapshot;
-    LinearStateVariableFilter svf;
-    svf.SetCutoffAndResonance(SampleTimer::HzToCycPerSamp(10000), 0.0f);
+    MorphingTPTSVFFilterGeneric<float, 1> svf;
+    svf.SetCutoffResonanceAndMorph(SampleTimer::HzToCycPerSamp(10000), 0.0f, 0.0f);
     snapshot.m_mainSVF = svf.MakeSnapshot();
     snapshot.m_combFilter.m_branch[0].Set(0, TunedDecayComb::ComputeCoefficients(
         1000.0 / SampleTimer::x_sampleRate, 1, std::log2(5.0), 7, SampleTimer::x_sampleRate));

@@ -4,7 +4,7 @@ namespace DSP
 
 /-- Two `TPTSVF` stages in series. Each variant feeds one response of the
 first stage into the second and reads the same response of the second:
-`stepHighPass` is the app's `LinearSVF4PoleHighPass`. -/
+`stepHighPass` is the app's former handwritten four-pole HP. -/
 structure TPTSVF4Pole (R : Type) where
   stage1 : TPTSVF R
   stage2 : TPTSVF R

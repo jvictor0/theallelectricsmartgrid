@@ -7,7 +7,7 @@
 #include "Saturator.hpp"
 #include "SmartGridOneEncoders.hpp"
 #include "SquiggleBoyShapeBase.hpp"
-#include "StateVariableFilter.hpp"
+#include "TPTSVFFilter.hpp"
 
 // Saturated 2-pole SVF low-pass into the sample rate reducer, then a 2-pole
 // SVF high-pass, so the high-pass also removes bass the reducer generates. One
@@ -18,19 +18,13 @@ struct SVF2PoleShapeGeneric : SquiggleBoyShapeBase
 {
     using Vector = MultiChannelNumber<float, Size>;
 
-    struct Snapshot : VectorResponseSnapshot<Size>
+    struct Snapshot : PowerResponseSnapshot<Size>
     {
-        using Base = VectorResponseSnapshot<Size>;
-        using typename Base::ComplexVector;
+        using Base = PowerResponseSnapshot<Size>;
         using typename Base::Frequency;
         using typename Base::ResponseVector;
-        typename LinearStateVariableFilterGeneric<float, Size>::Snapshot m_lp;
-        typename LinearStateVariableFilterGeneric<float, Size>::Snapshot m_hp;
-
-        ComplexVector ComplexResponses(const Frequency& frequency) const override
-        {
-            return m_lp.ComplexResponses(frequency) * m_hp.ComplexResponses(frequency);
-        }
+        typename TPTSVFLowPassFilterGeneric<float, Size>::Snapshot m_lp;
+        typename TPTSVFHighPassFilterGeneric<float, Size>::Snapshot m_hp;
 
         ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
@@ -45,7 +39,6 @@ struct SVF2PoleShapeGeneric : SquiggleBoyShapeBase
         Snapshot snapshot;
         snapshot.m_lp = m_lpSVF.MakeSnapshot();
         snapshot.m_hp = m_hpSVF.MakeSnapshot();
-        snapshot.m_hp.m_weights = {0, 0, 1};
         return snapshot;
     }
 
@@ -59,8 +52,8 @@ struct SVF2PoleShapeGeneric : SquiggleBoyShapeBase
 
     using Saturator = TanhSaturatorGeneric<float, Size, true>;
 
-    LinearStateVariableFilterGeneric<float, Size> m_lpSVF;
-    LinearStateVariableFilterGeneric<float, Size> m_hpSVF;
+    TPTSVFLowPassFilterGeneric<float, Size> m_lpSVF;
+    TPTSVFHighPassFilterGeneric<float, Size> m_hpSVF;
     SampleRateReducerGeneric<Size> m_sampleRateReducer;
 
     // Normalized tanh saturation, Tanh(gain * x) / Tanh(gain), with a

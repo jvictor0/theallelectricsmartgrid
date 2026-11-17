@@ -1,18 +1,5 @@
-// dsp_svf.cpp -- unit tests for LinearStateVariableFilter (private/src/StateVariableFilter.hpp)
-//
-// Trapezoidal (TPT/ZDF) SVF. Exposes static LP/HP/BP FrequencyResponse(g, k, freq).
-// Note: Process(float) returns void; outputs are read via GetLowPass/GetHighPass/GetBandPass.
-//
-// Tests (LinearStateVariableFilter only -- NonlinearSVF is covered by dsp_ladder.cpp style
-// if needed, but that is nonlinear; LinearSVF4PoleHP has its own check):
-//   1. LP at low resonance: measured |H| matches analytic LowPassFrequencyResponse (1.5 dB tol).
-//   2. HP at low resonance: measured matches analytic.
-//   3. BP at low resonance: measured matches analytic.
-//   4. High resonance: single sine at cutoff produces bounded output (no blow-up).
-//   5. Parameter sweep: NaN-clean.
-//   6. LinearSVF4PoleHP: passband near 0 dB above cutoff, measured vs analytic.
-
 #include "doctest.h"
+#include "TrioUtils.hpp"
 
 #include <cmath>
 #include <vector>
@@ -24,32 +11,44 @@
 #include "../support/Continuity.hpp"
 #include "../support/NanScan.hpp"
 
-#include "StateVariableFilter.hpp"
+#include "TPTSVFFilter.hpp"
+#include "../support/SVFReference.hpp"
 
-DOCTEST_TEST_CASE("LinearSVF: morph follows positive quarter-circle LP BP HP weights")
+namespace
 {
-    LinearStateVariableFilter filter;
-    filter.m_lowPass = 2.0f;
-    filter.m_bandPass = 3.0f;
-    filter.m_highPass = 5.0f;
+float MorphOutput(float blend)
+{
+    MorphingTPTSVFFilterGeneric<float, 1> filter;
+    filter.SetCutoffResonanceAndMorph(0.1f, 0.0f, blend);
+    // Arrange one step with LP=2, BP=3 and HP=5 to isolate the morph kernel.
+    //
+    auto& state = filter.m_state.m_svf;
+    state.m_a1 = 1;
+    state.m_a2 = 0;
+    state.m_a3 = 0;
+    state.m_ic1 = 3;
+    state.m_ic2 = 2;
+    state.m_k = 1;
+    filter.Process(10);
+    return filter.GetOutput()[0];
+}
+}
 
+DOCTEST_TEST_CASE("Generated SVF: morph follows positive quarter-circle LP BP HP weights")
+{
     const float x_blends[] = {-0.2f, 0.0f, 0.125f, 0.25f, 0.375f, 0.5f, 0.625f, 0.75f, 0.875f, 1.0f, 1.2f};
     const float x_outputs[] = {2.0f, 2.0f, 2.99580936f, 3.535533906f, 3.53700546f, 3.0f, 4.68505576f, 5.65685425f, 5.76744796f, 5.0f, 5.0f};
     for (size_t i = 0; i < sizeof(x_blends) / sizeof(x_blends[0]); ++i)
     {
         DOCTEST_INFO("blend=" << x_blends[i]);
-        DOCTEST_CHECK(filter.GetMorphedOutput(x_blends[i]) == doctest::Approx(x_outputs[i]).epsilon(0.00001));
+        DOCTEST_CHECK(MorphOutput(x_blends[i]) == doctest::Approx(x_outputs[i]).epsilon(0.00001));
     }
 }
 
-DOCTEST_TEST_CASE("LinearSVF: morph is continuous through the band-pass midpoint")
+DOCTEST_TEST_CASE("Generated SVF: morph is continuous through the band-pass midpoint")
 {
-    LinearStateVariableFilter filter;
-    filter.m_lowPass = 2.0f;
-    filter.m_bandPass = 3.0f;
-    filter.m_highPass = 5.0f;
-    DOCTEST_CHECK(filter.GetMorphedOutput(0.499999f) == doctest::Approx(3.0f).epsilon(0.00001));
-    DOCTEST_CHECK(filter.GetMorphedOutput(0.500001f) == doctest::Approx(3.0f).epsilon(0.00001));
+    DOCTEST_CHECK(MorphOutput(0.499999f) == doctest::Approx(3.0f).epsilon(0.00001));
+    DOCTEST_CHECK(MorphOutput(0.500001f) == doctest::Approx(3.0f).epsilon(0.00001));
 }
 
 using namespace TestSpectral;
@@ -68,12 +67,12 @@ constexpr std::size_t kN = kFftSize1024;
 struct SVFOutputs { std::vector<float> LP, HP, BP; };
 
 static SVFOutputs measureSVFTF(float cutoffCps, float resonance,
-                                std::uint64_t seed, int frames = 64)
+                                std::uint64_t seed, int frames)
 {
     const std::size_t N = kN;
     const std::size_t half = N / 2;
 
-    LinearStateVariableFilter svf;
+    TPTSVFLowPassFilterGeneric<float, 1> svf;
     svf.SetCutoffAndResonance(cutoffCps, resonance);
 
     std::vector<float> in(N), outLP(N), outHP(N), outBP(N);
@@ -129,25 +128,25 @@ static SVFOutputs measureSVFTF(float cutoffCps, float resonance,
 // 1. LP at low resonance matches analytic.
 // ---------------------------------------------------------------------------
 //
-DOCTEST_TEST_CASE("LinearSVF: LP measured response matches analytic (1.5 dB)")
+DOCTEST_TEST_CASE("Generated SVF: LP measured response matches analytic (1.5 dB)")
 {
     GlobalEnv::ResetPerTest();
 
     const float cutoffHz  = 2000.0f;
     const float cutoffCps = cutoffHz / static_cast<float>(kSR);
-    const float resonance = 0.0f;  // Butterworth-ish Q
+    const float resonance = 0.0f;
 
     // Get g and k from a filter instance.
     //
-    LinearStateVariableFilter svf;
+    TPTSVFLowPassFilterGeneric<float, 1> svf;
     svf.SetCutoffAndResonance(cutoffCps, resonance);
-    float g = svf.m_g;
-    float k = svf.m_k;
+    float g = svf.MakeSnapshot().m_g[0];
+    float k = svf.MakeSnapshot().m_k[0];
 
-    auto outs = measureSVFTF(cutoffCps, resonance, 0x5AFE000100000001ull);
+    auto outs = measureSVFTF(cutoffCps, resonance, 0x5AFE000100000001ull, 64);
 
     auto expected = [g, k](double hz) -> double {
-        return LinearStateVariableFilter::LowPassFrequencyResponse(
+        return TestSVF::LowPassFrequencyResponse(
             g, k, static_cast<float>(hz / kSR));
     };
 
@@ -160,7 +159,7 @@ DOCTEST_TEST_CASE("LinearSVF: LP measured response matches analytic (1.5 dB)")
 // 2. HP at low resonance matches analytic.
 // ---------------------------------------------------------------------------
 //
-DOCTEST_TEST_CASE("LinearSVF: HP measured response matches analytic (1.5 dB)")
+DOCTEST_TEST_CASE("Generated SVF: HP measured response matches analytic (1.5 dB)")
 {
     GlobalEnv::ResetPerTest();
 
@@ -168,15 +167,15 @@ DOCTEST_TEST_CASE("LinearSVF: HP measured response matches analytic (1.5 dB)")
     const float cutoffCps = cutoffHz / static_cast<float>(kSR);
     const float resonance = 0.0f;
 
-    LinearStateVariableFilter svf;
+    TPTSVFLowPassFilterGeneric<float, 1> svf;
     svf.SetCutoffAndResonance(cutoffCps, resonance);
-    float g = svf.m_g;
-    float k = svf.m_k;
+    float g = svf.MakeSnapshot().m_g[0];
+    float k = svf.MakeSnapshot().m_k[0];
 
-    auto outs = measureSVFTF(cutoffCps, resonance, 0x5AFE000200000001ull);
+    auto outs = measureSVFTF(cutoffCps, resonance, 0x5AFE000200000001ull, 64);
 
     auto expected = [g, k](double hz) -> double {
-        return LinearStateVariableFilter::HighPassFrequencyResponse(
+        return TestSVF::HighPassFrequencyResponse(
             g, k, static_cast<float>(hz / kSR));
     };
 
@@ -192,7 +191,7 @@ DOCTEST_TEST_CASE("LinearSVF: HP measured response matches analytic (1.5 dB)")
 // 3. BP at low resonance matches analytic.
 // ---------------------------------------------------------------------------
 //
-DOCTEST_TEST_CASE("LinearSVF: BP measured response matches analytic (2 dB)")
+DOCTEST_TEST_CASE("Generated SVF: BP measured response matches analytic (2 dB)")
 {
     GlobalEnv::ResetPerTest();
 
@@ -200,15 +199,15 @@ DOCTEST_TEST_CASE("LinearSVF: BP measured response matches analytic (2 dB)")
     const float cutoffCps = cutoffHz / static_cast<float>(kSR);
     const float resonance = 0.0f;
 
-    LinearStateVariableFilter svf;
+    TPTSVFLowPassFilterGeneric<float, 1> svf;
     svf.SetCutoffAndResonance(cutoffCps, resonance);
-    float g = svf.m_g;
-    float k = svf.m_k;
+    float g = svf.MakeSnapshot().m_g[0];
+    float k = svf.MakeSnapshot().m_k[0];
 
-    auto outs = measureSVFTF(cutoffCps, resonance, 0x5AFE000300000001ull);
+    auto outs = measureSVFTF(cutoffCps, resonance, 0x5AFE000300000001ull, 64);
 
     auto expected = [g, k](double hz) -> double {
-        return LinearStateVariableFilter::BandPassFrequencyResponse(
+        return TestSVF::BandPassFrequencyResponse(
             g, k, static_cast<float>(hz / kSR));
     };
 
@@ -221,21 +220,21 @@ DOCTEST_TEST_CASE("LinearSVF: BP measured response matches analytic (2 dB)")
 // 4. High resonance: sustained sine at cutoff -- output stays bounded.
 // ---------------------------------------------------------------------------
 //
-DOCTEST_TEST_CASE("LinearSVF: high resonance output bounded (stability)")
+DOCTEST_TEST_CASE("Generated SVF: high resonance output bounded (stability)")
 {
     GlobalEnv::ResetPerTest();
 
     const float cutoffHz  = 1000.0f;
     const float cutoffCps = cutoffHz / static_cast<float>(kSR);
-    const float resonance = 1.0f;  // max resonance
+    const float resonance = 1.0f;
 
-    LinearStateVariableFilter svf;
+    TPTSVFLowPassFilterGeneric<float, 1> svf;
     svf.SetCutoffAndResonance(cutoffCps, resonance);
 
     // Drive with sine at cutoff for many samples.
     //
     const std::size_t nSamples = 48000;
-    TestSignal::Sine sine(cutoffHz, kSR, 0.1f);  // small amplitude sine
+    TestSignal::Sine sine(cutoffHz, kSR, 0.1f);
 
     std::vector<float> out(nSamples);
     float maxAbs = 0.0f;
@@ -260,7 +259,7 @@ DOCTEST_TEST_CASE("LinearSVF: high resonance output bounded (stability)")
 // 5. Parameter sweep: NaN-clean.
 // ---------------------------------------------------------------------------
 //
-DOCTEST_TEST_CASE("LinearSVF: NaN-clean across parameter sweep")
+DOCTEST_TEST_CASE("Generated SVF: NaN-clean across parameter sweep")
 {
     GlobalEnv::ResetPerTest();
 
@@ -275,7 +274,7 @@ DOCTEST_TEST_CASE("LinearSVF: NaN-clean across parameter sweep")
     {
         for (float res : resonances)
         {
-            LinearStateVariableFilter svf;
+            TPTSVFLowPassFilterGeneric<float, 1> svf;
             svf.SetCutoffAndResonance(cps, res);
             for (std::size_t i = 0; i < nSamples; ++i)
             {
@@ -289,21 +288,21 @@ DOCTEST_TEST_CASE("LinearSVF: NaN-clean across parameter sweep")
 }
 
 // ---------------------------------------------------------------------------
-// 6. LinearSVF4PoleHP: passband near 0 dB above cutoff.
+// 6. Generated four-pole HP: passband near 0 dB above cutoff.
 // ---------------------------------------------------------------------------
 //
-DOCTEST_TEST_CASE("LinearSVF4PoleHP: passband near 0 dB above cutoff")
+DOCTEST_TEST_CASE("Generated four-pole HP: passband near 0 dB above cutoff")
 {
     GlobalEnv::ResetPerTest();
 
     const float cutoffHz  = 2000.0f;
     const float cutoffCps = cutoffHz / static_cast<float>(kSR);
 
-    LinearSVF4PoleHighPass hp4;
+    TPTSVF4PoleHighPassFilterGeneric<float, 1> hp4;
     hp4.SetCutoffAndResonance(cutoffCps, 0.0f);
 
-    float g = hp4.m_stage1.m_g;
-    float k = hp4.m_stage1.m_k;
+    float g = hp4.MakeSnapshot().m_stage1.m_g[0];
+    float k = hp4.MakeSnapshot().m_stage1.m_k[0];
 
     std::function<float(float)> proc = [&hp4](float x) {
         hp4.Process(x);
@@ -313,8 +312,8 @@ DOCTEST_TEST_CASE("LinearSVF4PoleHP: passband near 0 dB above cutoff")
     auto H = MeasureTransferFunction(proc, kN, kSR, 0x5AFE000500000001ull, 64, 2);
 
     auto expected = [g, k](double hz) -> double {
-        return LinearSVF4PoleHighPass::FrequencyResponse(
-            g, k, static_cast<float>(hz / kSR));
+        const auto high = TestSVF::Transfer(g, k, hz / kSR).m_high;
+        return std::norm(high);
     };
 
     // Skip below ~500 Hz where the 4-pole HP stopband is < -80 dB and
@@ -323,4 +322,51 @@ DOCTEST_TEST_CASE("LinearSVF4PoleHP: passband near 0 dB above cutoff")
     std::size_t lo = FreqBin(500.0,  kN, kSR);
     std::size_t hi = FreqBin(22000.0, kN, kSR);
     AssertResponseMatches(H, expected, kSR, kN, 2.0, lo, hi);
+}
+
+DOCTEST_TEST_CASE("Generated SVF: app tuning keeps natural cutoff and exponential Q")
+{
+    TPTSVFLowPassFilterGeneric<float, 3> low;
+    TPTSVFHighPassFilterGeneric<float, 3> high;
+    TPTSVF4PoleHighPassFilterGeneric<float, 3> cascade;
+    const TrioFloat cutoff(0.0001f, 0.02f, 0.8f);
+    const TrioFloat resonance(0, 0.5f, 1);
+    low.SetCutoffAndResonance(cutoff, resonance);
+    high.SetCutoffAndResonance(cutoff, resonance);
+    cascade.SetCutoffAndResonance(cutoff, resonance);
+    const auto snapshot = low.MakeSnapshot();
+    for (size_t lane = 0; lane < 3; ++lane)
+    {
+        const double frequency = std::min(static_cast<double>(cutoff[lane]), static_cast<double>(0.499f));
+        const double q = 0.5 * std::pow(11.0, resonance[lane]);
+        DOCTEST_CHECK(snapshot.m_g[lane] == doctest::Approx(std::tan(M_PI * frequency)).epsilon(0.00002));
+        DOCTEST_CHECK(snapshot.m_k[lane] == doctest::Approx(1 / q).epsilon(0.000002));
+        const auto prepared = ResponseFrequency::CyclesPerSample(frequency);
+        DOCTEST_CHECK(snapshot.MagnitudeSquaredResponse(prepared, lane) == doctest::Approx(q * q).epsilon(0.0001));
+        DOCTEST_CHECK(high.MakeSnapshot().MagnitudeSquaredResponse(prepared, lane) == doctest::Approx(q * q).epsilon(0.0001));
+        DOCTEST_CHECK(cascade.MakeSnapshot().MagnitudeSquaredResponse(prepared, lane) == doctest::Approx(q * q * q * q).epsilon(0.0002));
+    }
+}
+
+DOCTEST_TEST_CASE("Generated SVF: retuning preserves memories and reset preserves coefficients")
+{
+    TPTSVFBandPassFilterGeneric<float, 3> filter;
+    filter.SetCutoffAndQ(TrioFloat(0.01f, 0.1f, 0.4f), TrioFloat::Splat(1));
+    filter.Process(TrioFloat(1, 0.5f, -1));
+    const auto previous = filter.m_state;
+    filter.SetCutoffAndQ(TrioFloat(0.02f, 0.2f, 0.3f), TrioFloat::Splat(1));
+    DOCTEST_CHECK(filter.m_state.m_ic1 == previous.m_ic1);
+    DOCTEST_CHECK(filter.m_state.m_ic2 == previous.m_ic2);
+    const auto snapshot = filter.MakeSnapshot();
+    const auto coefficients = filter.m_state;
+    filter.Reset();
+    DOCTEST_CHECK(filter.GetBandPass() == TrioFloat());
+    DOCTEST_CHECK(filter.m_state.m_a1 == coefficients.m_a1);
+    DOCTEST_CHECK(filter.m_state.m_a2 == coefficients.m_a2);
+    DOCTEST_CHECK(filter.m_state.m_a3 == coefficients.m_a3);
+    DOCTEST_CHECK(filter.MakeSnapshot().m_g == snapshot.m_g);
+    filter.Process(TrioFloat());
+    DOCTEST_CHECK(filter.GetBandPass() == TrioFloat());
+    DOCTEST_CHECK(filter.GetLowPass() == TrioFloat());
+    DOCTEST_CHECK(filter.GetHighPass() == TrioFloat());
 }

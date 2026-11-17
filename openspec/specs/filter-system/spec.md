@@ -19,7 +19,7 @@ Before either machine, the input passes a shared DC-blocking one-pole high-pass 
 - **THEN** the 5 Hz one-pole high-pass removes it before the selected filter machine processes the sample
 
 ### Requirement: Ladder Filter Machine
-The Ladder Filter Machine SHALL apply a 4-pole transistor-ladder low-pass (`LadderFilterLP`), then the sample-rate reducer, then a 4-pole SVF high-pass (`LinearSVF4PoleHighPass`, two cascaded 2-pole SVF high-pass stages).
+The Ladder Filter Machine SHALL apply a 4-pole transistor-ladder low-pass (`LadderFilterLP`), then the sample-rate reducer, then a 4-pole SVF high-pass (`TPTSVF4PoleHighPassFilterGeneric`, two cascaded 2-pole SVF high-pass stages).
 The ladder is four cascaded one-pole low-pass stages with a `TanhSaturator` after each stage and resonance feedback from the fourth stage's output. `SetCutoff` solves the per-stage alpha so the 4-stage cascade is -3 dB at the requested cutoff; `SetResonance` maps resonance to `feedback = resonance * 4`. Each sample, the effective feedback `m_kEff` is clamped to `0.9 / Cpi`, where `Cpi` is the fourth power of the per-stage Nyquist gain including the saturator's small-signal gain, guaranteeing stability; the output is scaled by `1 + m_kEff` to hold approximately unity DC gain as resonance rises. The saturation gain parameter sets the ladder saturators' input gain.
 
 #### Scenario: Resonance feedback is clamped for stability
@@ -31,7 +31,7 @@ The ladder is four cascaded one-pole low-pass stages with a `TanhSaturator` afte
 - **THEN** the `1 + m_kEff` output compensation counters the resonance-induced passband drop, keeping DC gain approximately 1
 
 ### Requirement: SVF Filter Machine
-The SVF Filter Machine SHALL apply a 2-pole SVF low-pass, then the sample-rate reducer, then a 2-pole SVF high-pass (both `LinearStateVariableFilter`, a TPT/trapezoidal structure) with three tanh saturation stages: before the low-pass, between the low-pass and the reducer, and after the high-pass.
+The SVF Filter Machine SHALL apply a 2-pole SVF low-pass, then the sample-rate reducer, then a 2-pole SVF high-pass (generated `TPTSVFLowPassFilterGeneric` and `TPTSVFHighPassFilterGeneric`, with a TPT/trapezoidal structure) with three tanh saturation stages: before the low-pass, between the low-pass and the reducer, and after the high-pass.
 All three stages use one normalized `TanhSaturator`, `Tanh(gain * x) / Tanh(gain)`, whose input gain is the saturation gain parameter (exponential, 0.25 to 5). The SVF computes `g = tan(pi * cutoff)` and `k = 1 / Q` with Q mapped exponentially from the resonance knob.
 
 #### Scenario: Three saturation stages shape the signal path
@@ -74,18 +74,21 @@ Because the reduction frequency is proportional to the voice base frequency, the
 - **WHEN** the high-pass is engaged and the reducer folds a tone to aliases below the high-pass cutoff, at any reducer setting
 - **THEN** the high-pass attenuates those aliases, so raising the reduction does not bypass the chosen low-frequency attenuation
 
-### Requirement: Stateless Transfer Functions
-Each filter class SHALL expose static, stateless `TransferFunction` methods returning `std::complex<float>` and `FrequencyResponse` methods returning the magnitude `std::abs(TransferFunction(...))`, parameterized only by computed coefficients and a normalized frequency.
-`LadderFilterLP::TransferFunction(alpha, feedback, freq)` models four cascaded one-pole stages `H(z) = alpha / (1 - (1 - alpha) z^-1)` raised to the fourth power, with one-sample-delayed feedback `H^4 / (1 + feedback * z^-1 * H^4)` and `(1 + feedback)` gain compensation. `LinearStateVariableFilter` exposes `LowPassTransferFunction`, `HighPassTransferFunction`, and `BandPassTransferFunction` in `(g, k, freq)` via the bilinear transform `s = (1 - z^-1) / ((1 + z^-1) * g)` over the denominator `s^2 + k s + 1`. Returning complex values allows cascades to be composed by multiplication and phase response to be derived.
+### Requirement: Stateless Power Responses
+Generated filters SHALL expose static magnitude-squared functions taking coefficient snapshots and prepared frequency vectors. The SVF app wrappers SHALL retain natural cutoff in cycles per engine sample, clamped at 0.499, and `Q = 0.5 * 11^resonance`. The four-pole high-pass SHALL apply that cutoff and Q independently to both sections. The ladder's band-pass envelope followers SHALL use generated SVF sections at Q = 1.
+Composite UI snapshots SHALL multiply section power responses. Physical-modeling snapshots SHALL use the generated morph response, including its cross terms, then multiply by the comb power response. Saturation, envelope modulation and sample-rate reduction SHALL remain outside these frozen linear response plots. No executable complex response is required from generated filters.
+The handwritten ladder low-pass SHALL retain its frozen response model and effective feedback coefficient.
 
-#### Scenario: Ladder response is unity at DC
-- **WHEN** `LadderFilterLP::FrequencyResponse(alpha, feedback, 0)` is evaluated for any alpha in (0, 1] and feedback >= 0
-- **THEN** it returns 1.0, because the four-stage cascade is unity at DC and the `(1 + feedback)` compensation cancels the feedback denominator
+#### Scenario: SVF cutoff convention is preserved
+- **WHEN** a generated LP or HP section is evaluated at its natural cutoff
+- **THEN** its power equals Q squared in the mathematical model
+- **AND** at zero resonance Q is 0.5, giving power 0.25 (-6.02 dB)
+- **AND** the four-pole HP cascade has power Q to the fourth (-12.04 dB at zero resonance)
 
-#### Scenario: SVF low-pass magnitude at the cutoff equals Q
-- **WHEN** `LinearStateVariableFilter::LowPassFrequencyResponse(g, k, fc)` is evaluated at the cutoff frequency `fc = atan(g) / pi`
-- **THEN** the magnitude equals `1 / k` (the filter's Q)
-- **AND** `HighPassFrequencyResponse(g, k, 0)` evaluates to 0
+#### Scenario: Morph retains its existing control curve
+- **WHEN** the physical-modeling morph moves from 0 to 1
+- **THEN** the generated filter uses positive quarter-circle weights from LP to BP to HP, with BP at 0.5 and the blend clamped to [0, 1]
+- **AND** its snapshot captures the same weights used by the audio step
 
 ### Requirement: Sampled Filter Coefficient Publication
 The one-pole LP/HP, base-width, ladder, SVF, shape, crossover, FIR, physical-model/comb, source-input, and mastering response providers SHALL use `TransferFunctionGeneric<Snapshot>` with coefficient-only snapshots retaining whole DSP channel vectors. `SampledSnapshotWriter` SHALL make its sampling decision on the audio thread at host-sample boundaries after coefficient updates. It SHALL publish an entire composite response in one capture, including both base-width stages and all four quad damping lanes. The history capacity, number of recent samples, percentile bounds, and sampling divisor SHALL be configurable. Standalone internal smoothing filters SHALL not allocate response histories unless an owner creates a UI state for them.
@@ -97,8 +100,8 @@ The one-pole LP/HP, base-width, ladder, SVF, shape, crossover, FIR, physical-mod
 
 #### Scenario: Frozen response math is preserved
 - **WHEN** a captured filter state is evaluated
-- **THEN** its complex response follows the existing frozen linear model, including the ladder's effective feedback
-- **AND** virtual magnitude response defaults to complex magnitude, with equivalent direct magnitude overrides where cheaper
+- **THEN** its power response follows the existing frozen linear model, including the ladder's effective feedback
+- **AND** generated children use their emitted magnitude-squared kernels; handwritten children may retain equivalent complex-derived power responses
 - **AND** the display does not measure saturation or substitute a different linearization
 
 ### Requirement: Per-Voice Filter Visualization State

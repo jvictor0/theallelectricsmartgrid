@@ -1,9 +1,11 @@
 #include "doctest.h"
 #include "Filter.hpp"
+#include "TPTBaseWidthFilter.hpp"
 #include "FIR.hpp"
 #include "LadderFilter.hpp"
 #include "MultibandSaturator.hpp"
-#include "StateVariableFilter.hpp"
+#include "TPTSVFFilter.hpp"
+#include "../support/SVFReference.hpp"
 #include "TrioUtils.hpp"
 #include "TunedDecayComb.hpp"
 #include "../support/GlobalEnv.hpp"
@@ -127,9 +129,9 @@ DOCTEST_TEST_CASE("Sampled response: configured percentiles and frequency units 
 DOCTEST_TEST_CASE("Sampled response: audio sampling is host gated and captures coherent quad base-width state")
 {
     GlobalEnv::ResetPerTest();
-    QuadOPBaseWidthFilter filter;
-    QuadOPBaseWidthFilter::UIState ui(TestConfig(32, 32));
-    SampledSnapshotWriter<QuadOPBaseWidthFilter::UIState> writer;
+    QuadTPTBaseWidthFilter filter;
+    QuadTPTBaseWidthFilter::UIState ui(TestConfig(32, 32));
+    SampledSnapshotWriter<QuadTPTBaseWidthFilter::UIState> writer;
     writer.Bind(&ui);
     for (size_t sample = 1; sample <= 16 * SampleTimer::x_oversample; ++sample)
     {
@@ -149,7 +151,7 @@ DOCTEST_TEST_CASE("Sampled response: audio sampling is host gated and captures c
         filter.SetBaseWidth(QuadFloat(base, base * 2, base * 3, base * 4), QuadFloat::Splat(2));
         for (size_t lane = 0; lane < 4; ++lane)
         {
-            auto expected = filter.MakeSnapshot();
+            QuadTPTBaseWidthFilter::UIState::SnapshotType expected = filter.MakeSnapshot();
             DOCTEST_CHECK(ui.MagnitudeSquaredResponse(ids[i], frequency, lane)
                 == doctest::Approx(expected.MagnitudeSquaredResponse(frequency, lane)));
         }
@@ -222,27 +224,36 @@ DOCTEST_TEST_CASE("Sampled response: optimized magnitudes match complex response
 {
     OPLowPassFilter lp;
     OPHighPassFilter hp;
-    LinearStateVariableFilter svf;
+    MorphingTPTSVFFilterGeneric<float, 1> svf;
     LadderFilterLP ladder;
     for (float cutoff : {0.00001f, 0.001f, 0.1f, 0.49f})
     {
         lp.SetAlphaFromNatFreq(cutoff);
         hp.SetAlphaFromNatFreq(cutoff);
-        svf.SetCutoffAndResonance(cutoff, 0.8f);
         ladder.SetCutoff(cutoff);
         ladder.SetResonance(0.5f);
         ladder.Process(0.1f);
         auto low = lp.MakeSnapshot();
         auto high = hp.MakeSnapshot();
-        auto state = svf.MakeSnapshot();
         auto ladderState = ladder.MakeSnapshot();
         for (double frequency : {0.0, 0.000001, 0.001, 0.03, 0.2, 0.499, 0.5})
         {
             auto prepared = ResponseFrequency::CyclesPerSample(frequency);
             for (float morph : {0.0f, 0.25f, 0.5f, 0.75f, 1.0f})
             {
-                state.m_weights = svf.GetMorphWeights(morph);
-                for (const FilterResponseSnapshot* snapshot : std::array<const FilterResponseSnapshot*, 4>{&low, &high, &state, &ladderState})
+                svf.SetCutoffResonanceAndMorph(cutoff, 0.8f, morph);
+                const auto state = svf.MakeSnapshot();
+                // Evaluate the independent z-polynomial at the same table-prepared angle.
+                // Exact-frequency audio comparisons are covered by the DSP tests.
+                //
+                const double angle = std::atan2(prepared.m_sinHalf[0], prepared.m_cosHalf[0]) / M_PI;
+                const auto reference = TestSVF::Transfer(state.m_svf.m_g[0], state.m_svf.m_k[0], angle);
+                const auto expected = reference.m_low * static_cast<double>(state.m_low[0])
+                    + reference.m_band * static_cast<double>(state.m_band[0])
+                    + reference.m_high * static_cast<double>(state.m_high[0]);
+                DOCTEST_CHECK(state.MagnitudeSquaredResponse(prepared, 0)
+                    == doctest::Approx(std::norm(expected)).epsilon(0.00002));
+                for (const FilterResponseSnapshot* snapshot : std::array<const FilterResponseSnapshot*, 3>{&low, &high, &ladderState})
                 {
                     float magnitude = snapshot->MagnitudeSquaredResponse(prepared, 0);
                     DOCTEST_CHECK(std::isfinite(magnitude));
@@ -356,27 +367,33 @@ void CheckResponseLanes(const Snapshot& snapshot, const std::array<MonoSnapshot,
     for (double frequency : {0.0, 0.000001, 0.001, 0.03, 0.2, 0.499, 0.5})
     {
         auto prepared = ResponseFrequency::CyclesPerSample(frequency);
-        auto vectorFrequency = prepared.template Broadcast<typename Snapshot::DoubleVector>();
-        auto complex = snapshot.ComplexResponses(vectorFrequency);
+        auto vectorFrequency = prepared.template Broadcast<MultiChannelNumber<double, Snapshot::x_numLanes>>();
         auto magnitude = snapshot.MagnitudeSquaredResponses(vectorFrequency);
         for (size_t lane = 0; lane < 3; ++lane)
         {
-            auto reference = mono[lane].ComplexResponse(prepared, 0);
-            DOCTEST_CHECK(std::abs(complex[lane] - static_cast<std::complex<double>>(reference))
-                <= 0.00002 * std::max(1.0f, std::abs(reference)));
+            if constexpr (std::is_base_of_v<FilterResponseSnapshot, Snapshot>)
+            {
+                auto reference = mono[lane].ComplexResponse(prepared, 0);
+                DOCTEST_CHECK(std::abs(snapshot.ComplexResponses(vectorFrequency)[lane] - static_cast<std::complex<double>>(reference))
+                    <= 0.00002 * std::max(1.0f, std::abs(reference)));
+            }
+
             DOCTEST_CHECK(magnitude[lane] == doctest::Approx(mono[lane].MagnitudeSquaredResponse(prepared, 0)).epsilon(0.00002));
         }
     }
 
     auto prepared = FrequencyLanes<3>({0.0, 0.03, 0.5});
-    auto complex = snapshot.ComplexResponses(prepared);
     auto magnitude = snapshot.MagnitudeSquaredResponses(prepared);
     for (size_t lane = 0; lane < 3; ++lane)
     {
         auto scalar = prepared.Channel(lane);
-        auto reference = mono[lane].ComplexResponse(scalar, 0);
-        DOCTEST_CHECK(std::abs(complex[lane] - static_cast<std::complex<double>>(reference))
-            <= 0.00002 * std::max(1.0f, std::abs(reference)));
+        if constexpr (std::is_base_of_v<FilterResponseSnapshot, Snapshot>)
+        {
+            auto reference = mono[lane].ComplexResponse(scalar, 0);
+            DOCTEST_CHECK(std::abs(snapshot.ComplexResponses(prepared)[lane] - static_cast<std::complex<double>>(reference))
+                <= 0.00002 * std::max(1.0f, std::abs(reference)));
+        }
+
         DOCTEST_CHECK(magnitude[lane] == doctest::Approx(mono[lane].MagnitudeSquaredResponse(scalar, 0)).epsilon(0.00002));
     }
 }
@@ -409,15 +426,14 @@ DOCTEST_TEST_CASE("Sampled vectors: DC endpoint selection is independent per fre
     auto frequency = FrequencyLanes<3>({0, 0.1, 0.5});
     OPHighPassFilterGeneric<float, 3>::Snapshot high;
     high.m_alpha = TrioFloat(1, 0.5f, 0.5f);
-    TrioLinearStateVariableFilter::Snapshot svf;
-    svf.m_g = TrioFloat(0, 0.1f, 0.2f);
+    TPTSVFLowPassFilterGeneric<float, 3>::Snapshot svf;
+    svf.m_g = TrioFloat(0.01f, 0.1f, 0.2f);
+    svf.m_k = TrioFloat::Splat(1);
     auto highComplex = high.ComplexResponses(frequency);
     auto highMagnitude = high.MagnitudeSquaredResponses(frequency);
-    auto svfComplex = svf.ComplexResponses(frequency);
     auto svfMagnitude = svf.MagnitudeSquaredResponses(frequency);
     DOCTEST_CHECK(highComplex[0] == std::complex<double>(0, 0));
     DOCTEST_CHECK(highMagnitude[0] == 0);
-    DOCTEST_CHECK(svfComplex[0] == std::complex<double>(1, 0));
     DOCTEST_CHECK(svfMagnitude[0] == 1);
     for (size_t lane = 0; lane < 3; ++lane)
     {
@@ -479,41 +495,39 @@ DOCTEST_TEST_CASE("Sampled vectors: captured filter coefficients and responses p
     const TrioFloat resonance(0.1f, 0.6f, 0.9f);
     OPLowPassFilterGeneric<float, 3> lp;
     OPHighPassFilterGeneric<float, 3> hp;
-    TrioLinearStateVariableFilter svf;
+    MorphingTPTSVFFilterGeneric<float, 3> svf;
     LadderFilterLPGeneric<float, 3> ladder;
     lp.SetAlphaFromNatFreq(cutoff);
     hp.SetAlphaFromNatFreq(cutoff);
-    svf.SetCutoffAndResonance(cutoff, resonance);
+    svf.SetCutoffResonanceAndMorph(cutoff, resonance, TrioFloat(0.0f, 0.3f, 0.8f));
     ladder.SetCutoff(cutoff);
     ladder.SetResonance(resonance);
     ladder.Process(TrioFloat::Splat(0.1f));
     std::array<OPLowPassFilter::Snapshot, 3> monoLP;
     std::array<OPHighPassFilter::Snapshot, 3> monoHP;
-    std::array<LinearStateVariableFilter::Snapshot, 3> monoSVF;
+    std::array<MorphingTPTSVFFilterGeneric<float, 1>::Snapshot, 3> monoSVF;
     std::array<LadderFilterLP::Snapshot, 3> monoLadder;
     auto state = svf.MakeSnapshot();
-    state.m_weights = svf.GetMorphWeights(TrioFloat(0.0f, 0.3f, 0.8f));
     for (size_t lane = 0; lane < 3; ++lane)
     {
         OPLowPassFilter oneLP;
         OPHighPassFilter oneHP;
-        LinearStateVariableFilter oneSVF;
+        MorphingTPTSVFFilterGeneric<float, 1> oneSVF;
         LadderFilterLP oneLadder;
         oneLP.SetAlphaFromNatFreq(cutoff[lane]);
         oneHP.SetAlphaFromNatFreq(cutoff[lane]);
-        oneSVF.SetCutoffAndResonance(cutoff[lane], resonance[lane]);
+        oneSVF.SetCutoffResonanceAndMorph(cutoff[lane], resonance[lane], std::array<float, 3>{0.0f, 0.3f, 0.8f}[lane]);
         oneLadder.SetCutoff(cutoff[lane]);
         oneLadder.SetResonance(resonance[lane]);
         oneLadder.Process(0.1f);
         monoLP[lane] = oneLP.MakeSnapshot();
         monoHP[lane] = oneHP.MakeSnapshot();
         monoSVF[lane] = oneSVF.MakeSnapshot();
-        monoSVF[lane].m_weights = oneSVF.GetMorphWeights(std::array<float, 3>{0.0f, 0.3f, 0.8f}[lane]);
         monoLadder[lane] = oneLadder.MakeSnapshot();
     }
 
     DOCTEST_CHECK(lp.MakeSnapshot().m_alpha == lp.m_alpha);
-    DOCTEST_CHECK(svf.MakeSnapshot().m_g == svf.m_g);
+    DOCTEST_CHECK(svf.MakeSnapshot().m_svf.m_k == svf.m_state.m_svf.m_k);
     DOCTEST_CHECK(ladder.MakeSnapshot().m_feedback == ladder.m_kEff);
     CheckResponseLanes(lp.MakeSnapshot(), monoLP);
     CheckResponseLanes(hp.MakeSnapshot(), monoHP);

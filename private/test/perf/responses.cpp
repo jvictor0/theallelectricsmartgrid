@@ -5,6 +5,7 @@
 #include "PhysicalModelingSource.hpp"
 #include "SquiggleBoyShape.hpp"
 #include "SourceMixer.hpp"
+#include "TPTBaseWidthFilter.hpp"
 #include "MultibandSaturator.hpp"
 #include <functional>
 #include <iomanip>
@@ -54,12 +55,22 @@ void Add(std::vector<Case>& cases, const std::string& name, Factory factory)
 {
     using Snapshot = decltype(factory(0));
     auto magnitude = std::make_unique<TransferFunctionGeneric<Snapshot>>();
-    auto complex = std::make_unique<ComplexReference<Snapshot>>();
+    std::unique_ptr<Response> complex;
+    if constexpr (std::is_base_of_v<FilterResponseSnapshot, Snapshot>)
+    {
+        auto reference = std::make_unique<ComplexReference<Snapshot>>();
+        for (size_t i = 0; i < 32; ++i)
+        {
+            reference->m_history.Push(factory(i));
+        }
+
+        complex = std::move(reference);
+    }
+
     for (size_t i = 0; i < 32; ++i)
     {
         auto snapshot = factory(i);
         magnitude->m_history.Push(snapshot);
-        complex->m_history.Push(snapshot);
     }
 
     cases.push_back({name, std::move(magnitude), std::move(complex), {}});
@@ -110,10 +121,25 @@ auto HP(size_t i)
     return filter.MakeSnapshot();
 }
 
-template<size_t Size>
-auto SVF(size_t i)
+template<typename Filter>
+auto GeneratedSVF(size_t i)
 {
-    LinearStateVariableFilterGeneric<float, Size> filter;
+    Filter filter;
+    auto control = Controls<Filter::x_numChannels>(i);
+    auto cutoff = control;
+    for (size_t lane = 0; lane < Filter::x_numChannels; ++lane)
+    {
+        cutoff[lane] = 0.001f * std::exp2(5 * control[lane]);
+    }
+
+    filter.SetCutoffAndResonance(cutoff, control * 0.7f + 0.2f);
+    return filter.MakeSnapshot();
+}
+
+template<size_t Size>
+auto GeneratedMorph(size_t i)
+{
+    MorphingTPTSVFFilterGeneric<float, Size> filter;
     auto control = Controls<Size>(i);
     auto cutoff = control;
     for (size_t lane = 0; lane < Size; ++lane)
@@ -121,7 +147,22 @@ auto SVF(size_t i)
         cutoff[lane] = 0.001f * std::exp2(5 * control[lane]);
     }
 
-    filter.SetCutoffAndResonance(cutoff, control * 0.7f + 0.2f);
+    filter.SetCutoffResonanceAndMorph(cutoff, control * 0.7f + 0.2f, control);
+    return filter.MakeSnapshot();
+}
+
+template<size_t Size>
+auto GeneratedBW(size_t i)
+{
+    using Filter = TPTBaseWidthGeneric<float, Size>;
+    GeneratedFilterView<Filter, &Filter::MagnitudeSquared> filter{};
+    auto high = Controls<Size>(i);
+    for (size_t lane = 0; lane < Size; ++lane)
+    {
+        high[lane] = 0.0001f * std::exp2(5 * high[lane]);
+    }
+
+    filter.ComputeCoefficients({{high}, {high * 10}});
     return filter.MakeSnapshot();
 }
 
@@ -168,32 +209,13 @@ void AddWidth(std::vector<Case>& cases)
     std::string suffix = Size == 1 ? "/mono" : "/trio";
     Add(cases, "one_pole_lp" + suffix, LP<Size>);
     Add(cases, "one_pole_hp" + suffix, HP<Size>);
-    Add(cases, "base_width" + suffix, [](size_t i)
-    {
-        typename OPBaseWidthFilterGeneric<float, Size>::Snapshot s;
-        s.m_lp = LP<Size>(i);
-        s.m_hp = HP<Size>(i);
-        return s;
-    });
+    Add(cases, "base_width" + suffix, GeneratedBW<Size>);
     Add(cases, "ladder" + suffix, Ladder<Size>);
-    for (size_t kind = 0; kind < 4; ++kind)
-    {
-        Add(cases, std::string(std::array<const char*, 4>{"svf_lp", "svf_bp", "svf_hp", "svf_morph"}[kind]) + suffix, [kind](size_t i)
-        {
-            auto s = SVF<Size>(i);
-            s.m_weights = LinearStateVariableFilterGeneric<float, Size>::GetMorphWeights(kind == 3
-                ? Controls<Size>(i) : MultiChannelNumber<float, Size>::Splat(kind * 0.5f));
-            return s;
-        });
-    }
-
-    Add(cases, "svf_four_pole_hp" + suffix, [](size_t i)
-    {
-        typename LinearSVF4PoleHighPassGeneric<float, Size>::Snapshot s;
-        s.m_stage = SVF<Size>(i);
-        s.m_stage.m_weights = {0, 0, 1};
-        return s;
-    });
+    Add(cases, "svf_lp" + suffix, GeneratedSVF<TPTSVFLowPassFilterGeneric<float, Size>>);
+    Add(cases, "svf_bp" + suffix, GeneratedSVF<TPTSVFBandPassFilterGeneric<float, Size>>);
+    Add(cases, "svf_hp" + suffix, GeneratedSVF<TPTSVFHighPassFilterGeneric<float, Size>>);
+    Add(cases, "svf_morph" + suffix, GeneratedMorph<Size>);
+    Add(cases, "svf_four_pole_hp" + suffix, GeneratedSVF<TPTSVF4PoleHighPassFilterGeneric<float, Size>>);
     for (bool crossfade : {false, true})
     {
         auto ending = std::string(crossfade ? "_crossfade" : "_active") + suffix;
@@ -204,8 +226,7 @@ void AddWidth(std::vector<Case>& cases)
         Add(cases, "physical_model" + ending, [crossfade](size_t i)
         {
             typename PhysicalModelingSourceGeneric<Size>::Snapshot s;
-            s.m_mainSVF = SVF<Size>(i);
-            s.m_mainSVF.m_weights = LinearStateVariableFilterGeneric<float, Size>::GetMorphWeights(Controls<Size>(i));
+            s.m_mainSVF = GeneratedMorph<Size>(i);
             s.m_combFilter = Comb<Size>(i, crossfade);
             return s;
         });
@@ -218,11 +239,9 @@ void AddWidth(std::vector<Case>& cases)
             typename SquiggleBoyShapeGeneric<Size>::Snapshot s;
             s.m_filterMachine = ladder ? VoiceMachine::FilterMachine::Ladder4Pole : VoiceMachine::FilterMachine::SVF2Pole;
             s.m_ladder.m_lp = Ladder<Size>(i);
-            s.m_ladder.m_hp.m_stage = SVF<Size>(i);
-            s.m_ladder.m_hp.m_stage.m_weights = {0, 0, 1};
-            s.m_svf.m_lp = SVF<Size>(i);
-            s.m_svf.m_hp = SVF<Size>(i + 7);
-            s.m_svf.m_hp.m_weights = {0, 0, 1};
+            s.m_ladder.m_hp = GeneratedSVF<TPTSVF4PoleHighPassFilterGeneric<float, Size>>(i);
+            s.m_svf.m_lp = GeneratedSVF<TPTSVFLowPassFilterGeneric<float, Size>>(i);
+            s.m_svf.m_hp = GeneratedSVF<TPTSVFHighPassFilterGeneric<float, Size>>(i + 7);
             return s;
         });
     }
@@ -233,20 +252,13 @@ std::vector<Case> Cases()
     std::vector<Case> cases;
     AddWidth<1>(cases);
     AddWidth<3>(cases);
-    Add(cases, "delay_reverb_damping/quad", [](size_t i)
-    {
-        QuadOPBaseWidthFilter::Snapshot s;
-        s.m_lp = LP<4>(i);
-        s.m_hp = HP<4>(i);
-        return s;
-    });
+    Add(cases, "delay_reverb_damping/quad", GeneratedBW<4>);
     Add(cases, "input_filters/quad", [](size_t i)
     {
         SourceMixer::Snapshot s;
-        s.m_lp = SVF<4>(i);
-        s.m_hp = SVF<4>(i);
+        s.m_lp = GeneratedSVF<TPTSVFLowPassFilterGeneric<float, 4>>(i);
+        s.m_hp = GeneratedSVF<TPTSVFHighPassFilterGeneric<float, 4>>(i);
         s.m_hp.m_g *= 0.05f;
-        s.m_hp.m_weights = {0, 0, 1};
         return s;
     });
     Add(cases, "crossover_lp_hp/pair", [](size_t i)
@@ -314,7 +326,10 @@ int RunResponses(int argc, char** argv, std::ostream& output, std::ostream& erro
             {
                 for (bool complex : {false, true})
                 {
-                    jobs.push_back({c, points, complex});
+                    if (!complex || cases[c].m_complex)
+                    {
+                        jobs.push_back({c, points, complex});
+                    }
                 }
             }
         }

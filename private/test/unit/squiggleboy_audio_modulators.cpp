@@ -123,7 +123,7 @@ void CheckSourceTaps()
         auto envelope = source->m_physicalModeling.m_ahd;
         Vector expectedEnvelope = envelope.Process(input.m_physicalModelingInput.m_ahdInput);
         process();
-        Vector filteredNoise = source->m_physicalModeling.m_mainSVF.GetMorphedOutput(input.m_physicalModelingInput.m_mainSVFMorph);
+        Vector filteredNoise = source->m_physicalModeling.m_mainSVF.GetOutput();
         for (size_t lane = 0; lane < Size; ++lane)
         {
             DOCTEST_CHECK(source->m_modOut[0][lane] == doctest::Approx(0.5f + 0.5f * filteredNoise[lane]));

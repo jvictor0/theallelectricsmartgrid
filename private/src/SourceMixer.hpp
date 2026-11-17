@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Filter.hpp"
-#include "StateVariableFilter.hpp"
+#include "TPTSVFFilter.hpp"
 #include "PhaseUtils.hpp"
 #include "AudioInputBuffer.hpp"
 #include "Color.hpp"
@@ -98,7 +98,6 @@ struct SourceMixer
         };
 
         using Vector = MultiChannelNumber<float, x_numSourceLanes>;
-        using Filter = LinearStateVariableFilterGeneric<float, x_numSourceLanes>;
 
         Source()
             : m_output()
@@ -129,8 +128,8 @@ struct SourceMixer
 
         Vector m_output;
 
-        Filter m_lpFilter;
-        Filter m_hpFilter;
+        TPTSVFLowPassFilterGeneric<float, x_numSourceLanes> m_lpFilter;
+        TPTSVFHighPassFilterGeneric<float, x_numSourceLanes> m_hpFilter;
         float m_preFilterScopeSample = 0.0f;
         float m_postFilterScopeSample = 0.0f;
     };
@@ -173,15 +172,10 @@ struct SourceMixer
     // Each stereo source shares one coefficient set. Pack the four independent
     // sources into response lanes instead of evaluating identical stereo lanes.
     //
-    struct Snapshot : VectorResponseSnapshot<x_numSources>
+    struct Snapshot : PowerResponseSnapshot<x_numSources>
     {
-        LinearStateVariableFilterGeneric<float, x_numSources>::Snapshot m_hp;
-        LinearStateVariableFilterGeneric<float, x_numSources>::Snapshot m_lp;
-
-        ComplexVector ComplexResponses(const Frequency& frequency) const override
-        {
-            return m_hp.ComplexResponses(frequency) * m_lp.ComplexResponses(frequency);
-        }
+        TPTSVFHighPassFilterGeneric<float, x_numSources>::Snapshot m_hp;
+        TPTSVFLowPassFilterGeneric<float, x_numSources>::Snapshot m_lp;
 
         ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
@@ -212,13 +206,14 @@ struct SourceMixer
     Snapshot MakeSnapshot() const
     {
         Snapshot snapshot;
-        snapshot.m_hp.m_weights = {0, 0, 1};
         for (size_t i = 0; i < x_numSources; ++i)
         {
-            snapshot.m_hp.m_g[i] = m_sources[i].m_hpFilter.m_g[0];
-            snapshot.m_hp.m_k[i] = m_sources[i].m_hpFilter.m_k[0];
-            snapshot.m_lp.m_g[i] = m_sources[i].m_lpFilter.m_g[0];
-            snapshot.m_lp.m_k[i] = m_sources[i].m_lpFilter.m_k[0];
+            const auto high = m_sources[i].m_hpFilter.MakeSnapshot();
+            const auto low = m_sources[i].m_lpFilter.MakeSnapshot();
+            snapshot.m_hp.m_g[i] = high.m_g[0];
+            snapshot.m_hp.m_k[i] = high.m_k[0];
+            snapshot.m_lp.m_g[i] = low.m_g[0];
+            snapshot.m_lp.m_k[i] = low.m_k[0];
         }
 
         return snapshot;

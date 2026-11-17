@@ -311,7 +311,7 @@ All proofs reuse a few lemmas:
 | `TPTLadder` | `stage4.y` | g₁g₂g₃g₄/(∏(s+gᵢ) + k g₁g₂g₃g₄) |
 | `LinkwitzRileySplitter` | `bands i` | split responses along the path, compensated by sibling all-pass factors |
 
-`TPTSVF` uses the app's `LinearStateVariableFilter` recurrence with explicit FMA and
+`TPTSVF` uses the app's former handwritten SVF recurrence with explicit FMA and
 a1 = 1/(1+g(g+k)), a2 = g a1, a3 = g a2; `streams` derives the analog SVF's two
 integrator equations and summing junction from the stored responses, and the
 four transfers are solved from them. The notch is stored as lowpass plus
@@ -330,7 +330,7 @@ parameter with the app's clamp and quarter-turn phase; `blendWeights_power`
 proves the morph is equal power, and `numerator_endpoints` that blends 0, 1/2
 and 1 are exactly lowpass, bandpass and highpass.
 
-`TPTSVF4Pole.stepHighPass` is the app's `LinearSVF4PoleHighPass`; the lowpass
+`TPTSVF4Pole.stepHighPass` is the app's former handwritten four-pole HP; the lowpass
 and bandpass variants feed and read the corresponding response. Stages may have
 different gains and dampings.
 

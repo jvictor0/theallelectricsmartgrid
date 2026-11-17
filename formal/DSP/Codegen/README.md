@@ -8,7 +8,17 @@ standalone C++17 header with nested `State` and `Input` records, stored
 every audio output they expose is a field of `m_state`. Headers have no Lean runtime
 dependency. Delay and reverb now use `TPTBaseWidthGeneric<float, 4>` through
 the app wrapper [TPTBaseWidthFilter.hpp](../../../private/src/TPTBaseWidthFilter.hpp);
-the other generated filters remain separate from app audio processing. The separate
+the app also uses generated SVFs in the source mixer, both shape machines,
+the ladder's band-pass envelope followers, and the physical-modeling source.
+[TPTSVFFilter.hpp](../../../private/src/TPTSVFFilter.hpp) preserves the app's
+`SetCutoffAndResonance` mapping: natural frequency in cycles per engine sample,
+clamped to 0.499, and `Q = 0.5 * 11^resonance`. Q is per section in the four-pole
+high-pass cascade. Thus zero resonance gives -6.02 dB per section at cutoff
+(-12.04 dB for the cascade), not a Butterworth -3 dB convention. Generated coefficient and morph trig now use
+`Math4096` instead of `Math`, and arithmetic uses explicit FMA. Physical modeling
+uses the generated quarter-circle LP/BP/HP morph with its input clamped to [0, 1].
+Snapshots compose power responses; saturation, envelope and sample-rate reduction
+remain outside these linear response plots. The separate
 [CoupledProcessor.hpp](../generated/CoupledProcessor.hpp) exercises the
 `State × Output` form, nested coefficients and two interacting state variables.
 

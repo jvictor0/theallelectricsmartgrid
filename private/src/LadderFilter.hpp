@@ -5,7 +5,7 @@
 #include "MultiChannelNumber.hpp"
 #include "Saturator.hpp"
 #include "DebugMeter.hpp"
-#include "StateVariableFilter.hpp"
+#include "TPTSVFFilter.hpp"
 #include <atomic>
 #include <cmath>
 #include <complex>
@@ -16,8 +16,8 @@ struct BandPassedEnvelopeFollowerGeneric
     using Vector = MultiChannelNumber<Number, Size>;
     static constexpr Number x_rmsCycles = static_cast<Number>(2);
 
-    LinearStateVariableFilterGeneric<Number, Size> m_stage1;
-    LinearStateVariableFilterGeneric<Number, Size> m_stage2;
+    TPTSVFBandPassFilterGeneric<Number, Size> m_stage1;
+    TPTSVFBandPassFilterGeneric<Number, Size> m_stage2;
     Vector m_power;
     Vector m_powerAlpha;
 
@@ -27,8 +27,8 @@ struct BandPassedEnvelopeFollowerGeneric
     {
         // Q = 1 gives each bandpass unity gain at its center frequency.
         //
-        m_stage1.SetCutoffAndQ(m_stage1.m_cutoff, Vector::Splat(1));
-        m_stage2.SetCutoffAndQ(m_stage2.m_cutoff, Vector::Splat(1));
+        m_stage1.SetCutoffAndQ(Vector::Splat(0.1), Vector::Splat(1));
+        m_stage2.SetCutoffAndQ(Vector::Splat(0.1), Vector::Splat(1));
     }
 
     void SetCutoff(const Vector& cutoff, const Vector& envelopeCutoff)

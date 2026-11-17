@@ -2,7 +2,7 @@
 #include "DualWaveShapingVCO.hpp"
 #include "LadderFilter.hpp"
 #include "PhysicalModelingSource.hpp"
-#include "StateVariableFilter.hpp"
+#include "TPTSVFFilter.hpp"
 #include <cstring>
 #include <type_traits>
 
@@ -37,7 +37,7 @@ struct Filters
 {
     using V = MultiChannelNumber<float, Size>;
     using Core = std::conditional_t<Kind == 0, LadderFilterLPGeneric<float, Size>,
-                                    LinearStateVariableFilterGeneric<float, Size>>;
+                                    TPTSVFLowPassFilterGeneric<float, Size>>;
     Signals m_signals{SampleTimer::x_sampleRate};
     Core m_core[3 / Size];
     void Set(size_t g, const V& cutoff, const V& resonance)

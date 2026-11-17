@@ -56,6 +56,11 @@ choose any metrics or units, and throw on failure. The case owns setup, warmup,
 repetitions, and timed regions. Do not spawn workload threads. Reporting belongs
 outside measured regions. No host-script or database-schema change is needed.
 
+Generated filter response cases benchmark the production power kernel only; they
+have no executable complex response. Handwritten providers with complex responses
+also retain the `complex_abs` comparison path. The SVF and bandwidth cases use
+the same generated implementations as the app.
+
 ## Desktop runner
 
 These are maintained versions of the component and encoder experiments from

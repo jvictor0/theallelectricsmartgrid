@@ -89,6 +89,27 @@ struct VectorResponseSnapshot : FilterResponseSnapshot
     }
 };
 
+// Power-only composition for app machines containing generated child snapshots.
+// Nonlinear stages are omitted from these filter-response plots as before.
+//
+template<size_t Size>
+struct PowerResponseSnapshot
+{
+    using ResponseVector = MultiChannelNumber<float, Size>;
+    using DoubleVector = MultiChannelNumber<double, Size>;
+    using Frequency = ResponseFrequencyGeneric<DoubleVector>;
+    static constexpr size_t x_numLanes = Size;
+
+    virtual ~PowerResponseSnapshot() = default;
+    virtual ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const = 0;
+
+    float MagnitudeSquaredResponse(const ResponseFrequency& frequency, size_t lane) const
+    {
+        assert(lane < Size);
+        return MagnitudeSquaredResponses(frequency.template Broadcast<DoubleVector>())[lane];
+    }
+};
+
 struct SampledTransferFunction
 {
     using SampleId = size_t;

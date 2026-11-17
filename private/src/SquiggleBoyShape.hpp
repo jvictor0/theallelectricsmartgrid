@@ -25,21 +25,14 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
     using Ladder4PoleShape = Ladder4PoleShapeGeneric<Size>;
     using SVF2PoleShape = SVF2PoleShapeGeneric<Size>;
 
-    struct Snapshot : VectorResponseSnapshot<Size>
+    struct Snapshot : PowerResponseSnapshot<Size>
     {
-        using Base = VectorResponseSnapshot<Size>;
-        using typename Base::ComplexVector;
+        using Base = PowerResponseSnapshot<Size>;
         using typename Base::Frequency;
         using typename Base::ResponseVector;
         FilterMachine m_filterMachine = FilterMachine::Ladder4Pole;
         typename Ladder4PoleShape::Snapshot m_ladder;
         typename SVF2PoleShape::Snapshot m_svf;
-
-        ComplexVector ComplexResponses(const Frequency& frequency) const override
-        {
-            return m_filterMachine == FilterMachine::Ladder4Pole
-                ? m_ladder.ComplexResponses(frequency) : m_svf.ComplexResponses(frequency);
-        }
 
         ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
