@@ -33,6 +33,18 @@ structure Emission where
 abbrev GenM := StateT Emission MetaM
 abbrev Locals := List (FVarId × Value)
 
+/-- Shared data records are exported before functions that use them. The
+association is by Lean type, so kernels reuse one C++ type and header. -/
+structure RecordExport where
+  cppName : String
+  header : String
+
+initialize recordExports : SimplePersistentEnvExtension (Name × RecordExport) (NameMap RecordExport) ←
+  registerSimplePersistentEnvExtension {
+    addEntryFn := fun state (name, target) => state.insert name target
+    addImportedFn := fun imports => imports.foldl (init := ∅) fun state entries =>
+      entries.foldl (init := state) fun state (name, target) => state.insert name target }
+
 def emit (line : String) : GenM Unit := modify fun s => { s with lines := s.lines.push line }
 
 def fresh : GenM String := do
@@ -72,12 +84,13 @@ def finSize (type : Expr) : MetaM Nat := do
   unless n ≤ 256 do throwError "C++ codegen: vector dimension exceeds the 256-element export limit"
   return n
 
-partial def fieldShape (type : Expr) (numberType : Option Expr) : MetaM Shape := do
+partial def fieldShape (type : Expr) (numberType : Option Expr)
+    (numberName : String := "Vector") : MetaM Shape := do
   let type ← whnf type
-  if numberType == some type then return .scalar "Vector"
+  if numberType == some type then return .scalar numberName
   if let .forallE _ domain body _ := type then
     unless !body.hasLooseBVars do throwError "C++ codegen: dependent vector elements are unsupported"
-    return .vector (← finSize domain) (← fieldShape body numberType)
+    return .vector (← finSize domain) (← fieldShape body numberType numberName)
   if type.isConstOf ``Float || type.isConstOf ``Float32 || type.isConstOf ``Bool then
     return .scalar (← scalarType type numberType)
   let .const name _ := type.getAppFn
@@ -96,7 +109,7 @@ partial def fieldShape (type : Expr) (numberType : Option Expr) : MetaM Shape :=
       if fields.any (fun f : String × Shape => f.1 == member) then
         throwError "C++ codegen: duplicate C++ field name {member}"
       let fieldType ← inferType (.proj name i value)
-      fields := fields.push (member, ← fieldShape fieldType numberType)
+      fields := fields.push (member, ← fieldShape fieldType numberType numberName)
     return .record fields
 
 partial def readValue (shape : Shape) (base : String) : Value :=
@@ -409,12 +422,30 @@ partial def renderField (name : String) (shape : Shape) (indent : String) : Meta
     return lines ++ #[indent ++ "} " ++ name ++ ";", ""]
   | _ => return #[s!"{indent}{← cppElementType shape} {name};"]
 
-def renderRecord (name : String) (shape : Shape) : MetaM (Array String) := do
+def renderRecord (name : String) (shape : Shape) (indent : String := "    ") : MetaM (Array String) := do
   let .record fields := shape | throwError "C++ codegen: expected a named State/Input/Output record"
-  let mut lines := #[s!"    struct {name}", "    {"]
+  let mut lines := #[s!"{indent}struct {name}", indent ++ "{"]
   for (name, shape) in fields do
-    lines := lines ++ (← renderField name shape "        ")
-  return lines ++ #["    };", ""]
+    lines := lines ++ (← renderField name shape (indent ++ "    "))
+  return lines ++ #[indent ++ "};", ""]
+
+/-- A reusable data template, independent of the processor's channel wrapper.
+`Number` may be a scalar or MultiChannelNumber; no arithmetic is generated. -/
+def generateRecord (record : Name) (cppName : String) : MetaM String := do
+  unless validIdentifier cppName && cppName.toList.head!.isUpper && cppName != "Number" do
+    throwError "C++ codegen: record name must be an uppercase C++ identifier other than Number"
+  let info ← getConstInfo record
+  unless info.levelParams.isEmpty && isStructure (← getEnv) record do
+    throwError "C++ codegen: record export expects a structure with one number type parameter"
+  forallTelescopeReducing info.type fun parameters _ => do
+    unless parameters.size == 1 do
+      throwError "C++ codegen: record export expects one number type parameter"
+    unless (← inferType parameters[0]!) == mkSort (.succ .zero) do
+      throwError "C++ codegen: record export expects one number type parameter"
+    let fields ← fieldShape (mkAppN (mkConst record) parameters) (some parameters[0]!) "Number"
+    let header := #["#pragma once", "", s!"// Generated from {record}. Do not edit.", "//", "",
+      "#include <array>", "", "template<typename Number>"]
+    return String.intercalate "\n" (header ++ (← renderRecord cppName fields "")).toList
 
 partial def commitValue (shape : Shape) (value : Value) (target : String) : GenM Unit := do
   match shape, value with
@@ -437,7 +468,8 @@ partial def snapshot (value : Value) : GenM Value := do
   | .record fields => return .record (← fields.mapM snapshot)
   | .vector fields => return .vector (← fields.mapM snapshot)
 
-def renderHeader (function : Name) (cppName : String) (generic : Bool) : Array String :=
+def renderHeader (function : Name) (cppName : String) (generic : Bool)
+    (includes : Array String := #[]) : Array String :=
   let templateHeader := if generic then
       #["#include \"MultiChannelNumber.hpp\"", "#include <type_traits>", "",
         "template<typename Number, size_t Size>", s!"struct {cppName}", "{",
@@ -447,26 +479,42 @@ def renderHeader (function : Name) (cppName : String) (generic : Bool) : Array S
   #["#pragma once", "", s!"// Generated from {function}. Do not edit.",
     "// This backend is validated by tests; it is not a verified compiler.", "//",
     "// Compile with strict floating-point arithmetic and implicit contraction disabled.", "//", "",
-    "#include <limits>", "#include <array>", "#include <cmath>", ""] ++ templateHeader ++ #[
+    "#include <limits>", "#include <array>", "#include <cmath>", ""] ++ includes ++ templateHeader ++ #[
     "    static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);",
     "    static_assert(std::numeric_limits<float>::is_iec559 && std::numeric_limits<float>::digits == 24);", ""]
 
-/-- Export a read-only record and numeric input to a numeric result. This uses
+/-- Export a read-only snapshot and numeric or shared-record input to a numeric result. This uses
 the same evaluator as processors, but returns the value without committing state. -/
 def renderFunction (function : Name) (method : String) (parameters runtime : Array Expr)
-    (resultType : Expr) (numberType : Option Expr) (arithmetic : Array FVarId) : MetaM (Array String) := do
+    (resultType : Expr) (numberType : Option Expr) (arithmetic : Array FVarId) :
+    MetaM (Array String × Array String) := do
   let snapshotFields ← fieldShape (← inferType runtime[0]!) numberType
   let .record _ := snapshotFields
     | throwError "C++ codegen: function export expects a Snapshot record as its first argument"
   let inputType ← whnf (← inferType runtime[1]!)
-  unless (numberType == some inputType) ||
-      (numberType.isNone && (inputType.isConstOf ``Float || inputType.isConstOf ``Float32)) do
-    throwError "C++ codegen: function export expects a numeric second argument"
-  unless ← isDefEq inputType resultType do
+  let exports := recordExports.getState (← getEnv)
+  let inputRecord := inputType.getAppFn.constName?.bind fun name =>
+    exports.find? name
+  let numericInput := (numberType == some inputType) ||
+    (numberType.isNone && (inputType.isConstOf ``Float || inputType.isConstOf ``Float32))
+  unless numericInput || inputRecord.isSome do
+    throwError "C++ codegen: second argument must be numeric or an exported record"
+  let inputNumber ← if numericInput then pure inputType else do
+    unless inputType.getAppArgs.size == 1 do throwError "C++ codegen: record input expects one number type"
+    pure inputType.getAppArgs[0]!
+  unless ← isDefEq inputNumber resultType do
     throwError "C++ codegen: function result must have the input's numeric type"
-  let cppType ← scalarType inputType numberType
+  unless (numberType == some inputNumber) ||
+      (numberType.isNone && (inputNumber.isConstOf ``Float || inputNumber.isConstOf ``Float32)) do
+    throwError "C++ codegen: record input must use the exported number type"
+  let cppType ← scalarType inputNumber numberType
+  let inputFields ← fieldShape inputType numberType
+  let (includes, aliases, inputCppType) := match inputRecord with
+    | none => (#[], #[], cppType)
+    | some record => (#[s!"#include \"{record.header}\"", ""],
+        #[s!"    using Input = ::{record.cppName}<{cppType}>;", ""], "Input")
   let locals := [(runtime[0]!.fvarId!, readValue snapshotFields "snapshot"),
-    (runtime[1]!.fvarId!, Value.scalar cppType "input")]
+    (runtime[1]!.fvarId!, readValue inputFields "input")]
   let (_, emission) ← (do
     let (type, result) ← scalar (← evaluate (mkAppN (mkConst function) parameters) locals)
     unless type == cppType do throwError "C++ codegen: function result type mismatch"
@@ -476,9 +524,9 @@ def renderFunction (function : Name) (method : String) (parameters runtime : Arr
     unless body.any (fun line =>
         (line.splitToList fun c => !(c.isAlphanum || c == '_')).contains name) do
       body := #[s!"static_cast<void>({name});"] ++ body
-  return (← renderRecord "Snapshot" snapshotFields) ++
-    #[s!"    static {cppType} {method}(const Snapshot& snapshot, const {cppType}& input)", "    {"] ++
-    body.map (fun line => if line.isEmpty then "" else "        " ++ line) ++ #["    }", ""]
+  return (includes, aliases ++ (← renderRecord "Snapshot" snapshotFields) ++
+    #[s!"    static {cppType} {method}(const Snapshot& snapshot, const {inputCppType}& input)", "    {"] ++
+    body.map (fun line => if line.isEmpty then "" else "        " ++ line) ++ #["    }", ""])
 
 def generateWithTarget (function : Name) (cppName : String) (generic : Bool)
     (method : Option String) : MetaM String := do
@@ -487,11 +535,13 @@ def generateWithTarget (function : Name) (cppName : String) (generic : Bool)
   if #["State", "Input", "Output"].contains cppName ||
       (generic && #["Number", "Size", "Vector"].contains cppName) then
     throwError "C++ codegen: processor name conflicts with a nested record"
+  if (recordExports.getState (← getEnv)).toList.any (fun entry => entry.2.cppName == cppName) then
+    throwError "C++ codegen: processor name conflicts with an exported record"
   if let some method := method then
     unless validIdentifier method && method.toList.head!.isUpper do
       throwError "C++ codegen: method name must be a simple uppercase C++ identifier"
     if cppName == "Snapshot" || method == cppName ||
-        #["Snapshot", "Number", "Size", "Vector"].contains method then
+        #["Snapshot", "Input", "Number", "Size", "Vector"].contains method then
       throwError "C++ codegen: function name conflicts with an enclosing or nested name"
   let info ← getConstInfo function
   unless info.levelParams.isEmpty do
@@ -501,7 +551,9 @@ def generateWithTarget (function : Name) (cppName : String) (generic : Bool)
     let mut arithmetic := #[]
     let mut runtime := parameters
     if generic then
-      unless parameters.size ≥ 3 && (← inferType parameters[0]!) == mkSort (.succ .zero) do
+      unless parameters.size ≥ 3 do
+        throwError "C++ codegen: generic export expects one arithmetic type parameter"
+      unless (← inferType parameters[0]!) == mkSort (.succ .zero) do
         throwError "C++ codegen: generic export expects one arithmetic type parameter"
       let number := parameters[0]!
       numberType := some number
@@ -520,10 +572,11 @@ def generateWithTarget (function : Name) (cppName : String) (generic : Bool)
       runtime := parameters.extract (parameters.size - 2) parameters.size
     unless runtime.size == 2 do
       throwError "C++ codegen: expected exactly two runtime arguments"
-    let header := renderHeader function cppName generic
     if let some method := method then
-      let body ← renderFunction function method parameters runtime resultType numberType arithmetic
+      let (includes, body) ← renderFunction function method parameters runtime resultType numberType arithmetic
+      let header := renderHeader function cppName generic includes
       return String.intercalate "\n" (header ++ body ++ #["};", ""]).toList
+    let header := renderHeader function cppName generic
     let stateType ← inferType runtime[0]!
     let inputType ← inferType runtime[1]!
     let resultType ← whnf resultType
@@ -571,6 +624,21 @@ def generateGeneric (function : Name) (cppName : String) : MetaM String :=
 
 def generateFunction (function : Name) (cppName method : String) (generic : Bool) : MetaM String :=
   generateWithTarget function cppName generic (some method)
+
+elab "#generate_cpp_record " record:ident " as " cppName:ident " to " path:str : command => do
+  let recordName := record.getId
+  let targetName := cppName.getId.toString
+  let output : System.FilePath := path.getString
+  unless output.fileName == some (targetName ++ ".hpp") do
+    throwError "C++ codegen: shared record header must be named {targetName}.hpp"
+  let exports := recordExports.getState (← getEnv)
+  if exports.contains recordName || exports.toList.any (fun entry => entry.2.cppName == targetName) then
+    throwError "C++ codegen: shared record is already exported or its C++ name is in use"
+  let code ← liftTermElabM <| generateRecord recordName targetName
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  modifyEnv fun env => recordExports.addEntry env (recordName, ⟨targetName, targetName ++ ".hpp"⟩)
+  logInfo m!"Generated shared record {output} from {recordName}"
 
 elab "#generate_cpp " function:ident " as " cppName:ident " to " path:str : command => do
   let code ← liftTermElabM <| generate function.getId cppName.getId.toString

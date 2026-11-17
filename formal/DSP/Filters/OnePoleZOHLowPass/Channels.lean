@@ -26,16 +26,26 @@ theorem makeSnapshot_channel (f : OnePoleZOHLowPass (Fin n → K)) (i : Fin n) :
 /-- The magnitude kernel uses only pointwise operations, including its zero guard. -/
 theorem magnitudeSquared_channel [OfNat K 0] [OfNat K 1] [OfNat K 4]
     [Sub K] [Mul K] [Div K] [FMA K] [IfLess K]
-    (s : Snapshot (Fin n → K)) (sinHalf : Fin n → K) (i : Fin n) :
-    s.magnitudeSquared sinHalf i = (channel i s).magnitudeSquared (sinHalf i) := rfl
+    (s : Snapshot (Fin n → K)) (frequency : ResponseFrequency (Fin n → K)) (i : Fin n) :
+    s.magnitudeSquared frequency i = (channel i s).magnitudeSquared (channel i frequency) := rfl
 
 /-- One shared frequency, with each channel's own captured coefficient.
 The scalar magnitude proof applies directly after selecting a channel. -/
 theorem magnitudeSquared_channels (s : Snapshot (Fin n → ℝ)) (frequency : ℝ)
     (ha : ∀ i, 0 ≤ s.alpha i) (i : Fin n) :
-    s.magnitudeSquared (fun _ => Real.sin (Real.pi * frequency)) i =
+    s.magnitudeSquared (ResponseFrequency.broadcast (ResponseFrequency.ofCyclesPerSample frequency)) i =
       Complex.normSq ((channel i s).response frequency) :=
   Snapshot.magnitudeSquared_eq_normSq (channel i s) frequency (ha i)
+
+/-- Independently prepared frequencies also work, provided each real lane
+represents its requested frequency. Broadcast is the common UI special case. -/
+theorem magnitudeSquared_channels_prepared (s : Snapshot (Fin n → ℝ))
+    (prepared : ResponseFrequency (Fin n → ℝ)) (frequency : Fin n → ℝ)
+    (hp : ∀ i, (channel i prepared).Represents (frequency i))
+    (ha : ∀ i, 0 ≤ s.alpha i) (i : Fin n) :
+    s.magnitudeSquared prepared i = Complex.normSq ((channel i s).response (frequency i)) :=
+  Snapshot.magnitudeSquared_eq_normSq_of_prepared (channel i s) (channel i prepared)
+    (frequency i) (hp i) (ha i)
 
 variable [Field K]
 

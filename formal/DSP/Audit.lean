@@ -9,6 +9,10 @@ run_cmd do
   let env ← getEnv
   let required := #[
     ``DSP.fma_eq,
+    ``DSP.ResponseFrequency.map_broadcast,
+    ``DSP.ResponseFrequency.ofCyclesPerSample_represents,
+    ``DSP.ResponseFrequency.ofCyclesPerSample_delay,
+    ``DSP.ResponseFrequency.ofCyclesPerSample_halfAngle,
     ``DSP.StateSpace.dot_eq_dotProduct,
     ``DSP.exactAtSamples_iff,
     ``DSP.DigitalFilter.runState_succ,
@@ -23,9 +27,11 @@ run_cmd do
     ``DSP.OnePoleZOHLowPass.denominator_normSq,
     ``DSP.OnePoleZOHLowPass.magnitude_denominator_pos,
     ``DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquared_eq_normSq,
+    ``DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquared_eq_normSq_of_prepared,
     ``DSP.OnePoleZOHLowPass.Snapshot.magnitude_eq_norm,
     ``DSP.OnePoleZOHLowPass.magnitudeSquared_channel,
     ``DSP.OnePoleZOHLowPass.magnitudeSquared_channels,
+    ``DSP.OnePoleZOHLowPass.magnitudeSquared_channels_prepared,
     ``DSP.OnePoleZOHLowPass.natural,
     ``DSP.OnePoleZOHLowPass.states_channel,
     ``DSP.OnePoleZOHLowPass.realizes_channels,

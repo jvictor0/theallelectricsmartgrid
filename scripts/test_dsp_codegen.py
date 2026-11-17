@@ -18,7 +18,7 @@ HEADERS = (
     "LinkwitzRileyCrossover.hpp", "CoupledProcessor.hpp",
 )
 HEADERS += tuple(name.replace(".hpp", "Generic.hpp") for name in HEADERS)
-HEADERS += ("OnePoleZOHLowPassResponseGeneric.hpp",)
+HEADERS += ("OnePoleZOHLowPassResponseGeneric.hpp", "PreparedResponseFrequency.hpp")
 
 
 def test_response(cases, output):
@@ -33,8 +33,8 @@ def test_response(cases, output):
                 lanes = rows[start:start + width]
                 lanes += [lanes[-1]] * (width - len(lanes))
                 inputs.append(f"zohResponse {precision} {width} 1")
-                inputs.append(" ".join(value for lane in lanes for value in lane[:2]))
-                expected.append(" ".join(lane[2] for lane in lanes))
+                inputs.append(" ".join(value for lane in lanes for value in lane[:6]))
+                expected.append(" ".join(value for lane in lanes for value in lane[6:]))
                 labels.append(f"ZOH response, {precision} bits, {width} channels, batch {start}")
     actual = subprocess.run(
         [str(output / "channels-runner")], input="\n".join(inputs) + "\n",

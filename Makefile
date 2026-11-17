@@ -85,6 +85,7 @@ DSP_HEADERS := OnePoleZOHLowPass OnePoleTPTLowPass OnePoleTPTHighPass TPTBaseWid
 	LinkwitzRileyCrossover CoupledProcessor
 
 DSP_GENERIC_HEADERS := $(addsuffix Generic,$(DSP_HEADERS)) OnePoleZOHLowPassResponseGeneric
+DSP_RECORD_HEADERS := PreparedResponseFrequency
 
 lean-dsp-codegen:
 	"$(REPO_ROOT)/scripts/lean.sh" build DSP.Codegen.Cpp $(DSP_RUNTIME_MODULES)
@@ -92,7 +93,7 @@ lean-dsp-codegen:
 
 lean-dsp-generate: lean-dsp-codegen
 	mkdir -p "$(REPO_ROOT)/formal/DSP/generated"
-	for header in $(DSP_HEADERS) $(DSP_GENERIC_HEADERS); do \
+	for header in $(DSP_HEADERS) $(DSP_GENERIC_HEADERS) $(DSP_RECORD_HEADERS); do \
 		cp "$(REPO_ROOT)/build/lean/generated/$$header.hpp" "$(REPO_ROOT)/formal/DSP/generated/$$header.hpp" || exit 1; \
 	done
 

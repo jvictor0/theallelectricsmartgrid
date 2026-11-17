@@ -2,6 +2,9 @@
 #include "OnePoleZOHLowPassResponseGeneric.hpp"
 #include "OnePoleZOHLowPassResponse.hpp"
 #include "OnePoleZOHLowPassResponse32.hpp"
+#include "FrequencyProbeGeneric.hpp"
+#include "FrequencyProbe.hpp"
+#include "FrequencyProbe32.hpp"
 #include "ConstantFunctionGeneric.hpp"
 #include "SnapshotFunctionGeneric.hpp"
 #include "OnePoleTPTLowPassGeneric.hpp"
@@ -253,17 +256,36 @@ bool RunResponse(size_t calls)
     using Bits = std::conditional_t<std::is_same_v<Number, float>, uint32_t, uint64_t>;
     using Constant = ConstantFunctionGeneric<Number, Size>;
     using SnapshotOnly = SnapshotFunctionGeneric<Number, Size>;
+    using Probe = FrequencyProbeGeneric<Number, Size>;
+    using ScalarProbe = std::conditional_t<std::is_same_v<Number, float>, FrequencyProbe32, FrequencyProbe>;
+    static_assert(std::is_same_v<typename Response::Input, typename Probe::Input>);
+    static_assert(std::is_same_v<typename ScalarResponse::Input, typename ScalarProbe::Input>);
     for (size_t call = 0; call < calls; ++call)
     {
         typename Response::Snapshot snapshot{};
-        typename Response::Vector sinHalf{};
+        typename Response::Input frequency{};
+        auto frequencyFields = std::tie(frequency.m_cyclesPerSample, frequency.m_sinHalf,
+            frequency.m_cosHalf, frequency.m_zInverseReal, frequency.m_zInverseImag);
         for (size_t channel = 0; channel < Size; ++channel)
         {
             Bits alphaBits = 0;
-            Bits sinBits = 0;
-            std::cin >> alphaBits >> sinBits;
+            std::cin >> alphaBits;
             snapshot.m_alpha[channel] = FromBits<Number>(alphaBits);
-            sinHalf[channel] = FromBits<Number>(sinBits);
+            auto read = [&](auto& value)
+            {
+                Bits bits = 0;
+                std::cin >> bits;
+                value[channel] = FromBits<Number>(bits);
+                if constexpr (Size == 3)
+                {
+                    value.m_values[3] = std::numeric_limits<Number>::quiet_NaN();
+                }
+            };
+
+            std::apply([&](auto&... values)
+            {
+                (read(values), ...);
+            }, frequencyFields);
         }
 
         if (!std::cin)
@@ -274,24 +296,30 @@ bool RunResponse(size_t calls)
         if constexpr (Size == 3)
         {
             snapshot.m_alpha.m_values[3] = std::numeric_limits<Number>::quiet_NaN();
-            sinHalf.m_values[3] = std::numeric_limits<Number>::quiet_NaN();
         }
 
-        const auto result = Response::MagnitudeSquared(snapshot, sinHalf);
-        const auto constant = Constant::Evaluate({}, sinHalf);
-        const auto snapshotOnly = SnapshotOnly::Evaluate({snapshot.m_alpha}, sinHalf);
+        const auto result = Response::MagnitudeSquared(snapshot, frequency);
+        const auto probe = Probe::Evaluate({snapshot.m_alpha, -snapshot.m_alpha}, frequency);
+        const auto constant = Constant::Evaluate({}, frequency.m_sinHalf);
+        const auto snapshotOnly = SnapshotOnly::Evaluate({snapshot.m_alpha}, frequency.m_sinHalf);
         for (size_t channel = 0; channel < Size; ++channel)
         {
-            const auto scalar = ScalarResponse::MagnitudeSquared(
-                {snapshot.m_alpha[channel]}, sinHalf[channel]);
+            const typename ScalarResponse::Input scalarFrequency{frequency.m_cyclesPerSample[channel],
+                frequency.m_sinHalf[channel], frequency.m_cosHalf[channel], frequency.m_zInverseReal[channel],
+                frequency.m_zInverseImag[channel]};
+            const auto scalar = ScalarResponse::MagnitudeSquared({snapshot.m_alpha[channel]}, scalarFrequency);
+            const auto scalarProbe = ScalarProbe::Evaluate(
+                {snapshot.m_alpha[channel], -snapshot.m_alpha[channel]}, scalarFrequency);
             if (ToBits<Bits>(result[channel]) != ToBits<Bits>(scalar) ||
+                ToBits<Bits>(probe[channel]) != ToBits<Bits>(scalarProbe) ||
                 constant[channel] != static_cast<Number>(1) ||
                 ToBits<Bits>(snapshotOnly[channel]) != ToBits<Bits>(snapshot.m_alpha[channel]))
             {
                 return false;
             }
 
-            std::cout << (channel == 0 ? "" : " ") << ToBits<Bits>(result[channel]);
+            std::cout << (channel == 0 ? "" : " ") << ToBits<Bits>(result[channel])
+                << ' ' << ToBits<Bits>(probe[channel]);
         }
 
         std::cout << '\n';

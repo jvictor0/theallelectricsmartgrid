@@ -118,6 +118,22 @@ def wrongGenericState {R : Type} (_state : ArithmeticState R) (input : Sample R)
 def zohMagnitudeSquaredFloat := OnePoleZOHLowPass.Snapshot.magnitudeSquared (R := Float)
 def zohMagnitudeSquaredFloat32 := OnePoleZOHLowPass.Snapshot.magnitudeSquared (R := Float32)
 
+/-- An unrelated kernel uses every frequency field and the same shared input
+type. Distinct expressions exercise record-field access during generation. -/
+def frequencyProbe {R : Type} [Add R] [Mul R] (s : ArithmeticState R)
+    (frequency : ResponseFrequency R) : R :=
+  (s.left * frequency.cyclesPerSample + s.right * frequency.sinHalf) +
+    (frequency.cosHalf + frequency.zInverseReal * frequency.zInverseImag)
+
+def frequencyProbeFloat := frequencyProbe (R := Float)
+def frequencyProbeFloat32 := frequencyProbe (R := Float32)
+
+def functionMixedNumbers (s : Sample Float) (_frequency : ResponseFrequency Float32) : Float := s.x
+
+structure UnsupportedRecord (R : Type) where
+  value : R
+  count : Nat
+
 /-- Compile both unused arguments, with no arithmetic temporaries to return. -/
 def constantFunction {R : Type} [OfNat R 1] (_snapshot : ArithmeticState R) (_input : R) : R := 1
 
@@ -137,5 +153,7 @@ def functionRecordResult (snapshot : GainState) (_input : Float32) : GainState :
 def functionExtern (_snapshot : GainState) (input : Float32) : Float32 := input.sin
 
 def functionWrongArity (input : Float) : Float := input
+
+def functionNoArguments : Float := 1
 
 end DSP.Tests

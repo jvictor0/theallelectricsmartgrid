@@ -11,6 +11,9 @@ import DSP.Filters.TPTLadder
 import DSP.Filters.LinkwitzRileyCrossover
 import DSP.Filters.Coupled
 
+#generate_cpp_record DSP.ResponseFrequency as PreparedResponseFrequency
+  to "build/lean/generated/PreparedResponseFrequency.hpp"
+
 #generate_cpp DSP.OnePoleZOHLowPass.stepFloat as OnePoleZOHLowPass to "build/lean/generated/OnePoleZOHLowPass.hpp"
 
 #generate_cpp DSP.OnePoleTPTLowPass.stepFloat as OnePoleTPTLowPass to "build/lean/generated/OnePoleTPTLowPass.hpp"

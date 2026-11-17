@@ -58,31 +58,50 @@ The generic export uses the same recurrence as `stepFloat` and the lifted
 proofs. It takes no proof arguments and retains the scalar exporter's tested
 compiler boundary.
 
-For a read-only response, export the shape `Snapshot R → R → R`:
+For a read-only response, first export its shared frequency record, then the
+shape `Snapshot R → ResponseFrequency R → R`:
 
 ```lean
+#generate_cpp_record DSP.ResponseFrequency as PreparedResponseFrequency
+  to "build/lean/generated/PreparedResponseFrequency.hpp"
+
 #generate_cpp_function_generic DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquared
   as OnePoleZOHLowPassResponseGeneric method MagnitudeSquared
   to "build/lean/generated/OnePoleZOHLowPassResponseGeneric.hpp"
 ```
 
-This form emits a nested `Snapshot` record and a static method with two const
-reference arguments, named `snapshot` and `input`, returning a `Vector`.
-There are no stored state or output members. The first Lean argument must be
-a named record; the second argument and result must both have type `R`.
-`#generate_cpp_function` exports the same shape specialized to `Float` or
-`Float32`, returning `double` or `float`. Both forms reuse the processor
-exporter's arithmetic evaluator and rejection checks.
+`#generate_cpp_record` emits a standalone `template<typename Number>` data
+record and registers its Lean type for subsequent exports in the generation
+module. Export it before any functions that use it; its filename must match
+the exported C++ name. `Number` can be a scalar or a `MultiChannelNumber`.
+Each response header includes the shared header and declares
+`using Input = ::PreparedResponseFrequency<Vector>`. All filters using this
+record therefore accept the same C++ type, not distinct nested record copies.
 
-For ZOH, `input` means the prepared value `sinHalf = sin(π * frequency)`, where
-frequency is in cycles per sample. No trigonometric operation runs inside the
-generated response. For example, with a prepared three-channel `sinHalf`:
+The function export emits a nested coefficient `Snapshot` and a static method
+with two const reference arguments, named `snapshot` and `input`, returning a
+`Vector`. There are no stored state or output members. The second argument can
+also be a bare `R`; a record input must be an exported record applied to `R`.
+`#generate_cpp_function` exports either shape specialized to `Float` or
+`Float32`, with the corresponding scalar record and return types. Both forms
+reuse the processor exporter's arithmetic evaluator and rejection checks.
+
+[ResponseFrequency.lean](../ResponseFrequency.lean) contains the common data:
+`cyclesPerSample`, `sinHalf`, `cosHalf`, `zInverseReal`, and `zInverseImag`.
+The last two fields store the complex delay without requiring an executable
+complex-number type. `fromHalfAngle` builds the delay components from prepared
+sine and cosine. A functor map converts precision or selects lanes;
+`broadcast` shares one frequency across all channels. These are ordinary data
+operations, not trigonometric evaluation or claims of exactness.
+
+No trigonometric operation runs inside the generated response. For example,
+given a prepared `PreparedResponseFrequency<Vector> frequency`:
 
 ```cpp
 using Response = OnePoleZOHLowPassResponseGeneric<double, 3>;
 using Vector = Response::Vector;
 const Response::Snapshot snapshot{Vector(0.1, 0.2, 0.3)};
-const Vector squared = Response::MagnitudeSquared(snapshot, sinHalf);
+const Vector squared = Response::MagnitudeSquared(snapshot, frequency);
 ```
 
 The response snapshot contains just `m_alpha`; it has no delay state. The
@@ -90,6 +109,12 @@ kernel explicitly uses FMA and selects a denominator of one when alpha is zero,
 so zero alpha returns zero even at DC. UI sampling, snapshot capture from the
 processor, and conversion from squared magnitude to magnitude remain caller
 integration work.
+
+The existing UI's scalar `ResponseFrequency` can supply these five values;
+broadcast them once for a vector frequency shared across snapshots. The new
+generated header does not depend on the handwritten UI type. Each filter keeps
+its own coefficient snapshot and exposes the same response function shape;
+there is no new filter typeclass or inheritance requirement.
 
 Run from the repository root:
 
@@ -154,8 +179,11 @@ zero-delay loops, which depend on the current input.
 
 - Monomorphic, pure functions with exactly two arguments, returning either the
   incoming state type or a `State × Output` pair whose first component is it.
-- Pure-function exports of a named snapshot record and numeric input to a
-  result of the same numeric type, with no state mutation.
+- Pure-function exports of a named snapshot record and numeric or shared-record
+  input to a result of the same numeric type, with no state mutation.
+- Shared record templates with one number type parameter. Supported fields
+  follow the same rules as processor records; duplicate exports and conflicting
+  C++ names are rejected.
 - Named records, nested records and fixed `Fin n` vectors/matrices, with
   `Float`, `Float32` or `Bool` leaves. Vectors become `std::array` and dimensions
   are capped at 256 per axis. Inherited records, dependent elements and vectors
@@ -212,13 +240,22 @@ equivalence for the recurrence across all intervals. The TPT filters' `realizes`
 theorems state their transfers from rest. These results share the same generic
 arithmetic and state update as each `stepFloat`.
 
+The shared [ResponseFrequency/Proofs.lean](../ResponseFrequency/Proofs.lean)
+defines `ofCyclesPerSample f` using exact real sine and cosine, proves the
+half-angle identity, and proves that the prepared delay equals `exp(-2πif)`.
+`prepared.Represents f` is the proposition that the real record equals that
+exact preparation. This proposition is separate from the data; it is neither
+stored in generated C++ nor asserted for floating-point approximations.
+
 For the ZOH response, `Snapshot.magnitudeSquared_eq_normSq` in
 [Response/Proofs.lean](../Filters/OnePoleZOHLowPass/Response/Proofs.lean) proves
 that the real interpretation of the exported kernel equals `Complex.normSq`
-of the shared digital transfer at `sinHalf = sin(π * frequency)` for nonnegative
-alpha. The channel lemmas in
+of the shared digital transfer when given `ofCyclesPerSample frequency`, for
+nonnegative alpha. The companion theorem `_of_prepared` accepts any real
+record with a `Represents` proof. The channel lemmas in
 [Channels.lean](../Filters/OnePoleZOHLowPass/Channels.lean) establish pointwise
-evaluation and lift that identity to independently parameterized real channels.
+evaluation and lift that identity to independently parameterized real channels,
+at either a broadcast frequency or individually prepared frequencies.
 Generation reads `Snapshot.magnitudeSquared` itself; it does not read or
 reconstruct a formula from the proof term.
 
@@ -261,10 +298,14 @@ and packed into 8,834 pure vector calls at widths 1, 2, 3 and 4. Every result is
 compared bit for bit with both scalar and generic generated C++. Coverage
 includes mixed zero/positive alpha lanes, alpha one and its predecessor, DC,
 Nyquist, signed zero, subnormal inputs and binary32 squared coefficients, and
-random independent coefficients and prepared frequency values. Three-channel
-padding is poisoned. Separate exporter fixtures cover unused arguments and
+random independent coefficients and prepared sine values. The compiler corpus
+uses arbitrary data in the other frequency fields; a second kernel reads all
+five fields, and C++ assertions check that both kernels accept exactly the
+same shared input type. Three-channel padding is poisoned. The native response
+smoke tests separately use trigonometric preparation and compare against complex
+denominator components. Other exporter fixtures cover unused arguments and
 direct returns, and rejection checks cover unsupported argument/result shapes,
-external operations and conflicting names.
+mixed number types, external operations, invalid shared records and conflicting names.
 
 Passing these checks is implementation evidence, not a universal compiler proof
 or a floating-point error bound.

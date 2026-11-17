@@ -126,13 +126,16 @@ def main : IO Unit := do
     for frequency in [0.0, 0.000001, 0.001, 0.1, 0.499, 0.5] do
       let theta := 2.0 * 3.141592653589793 * frequency
       let sinHalf := (3.141592653589793 * frequency).sin
+      let cosHalf := (3.141592653589793 * frequency).cos
+      let prepared := ResponseFrequency.fromHalfAngle frequency sinHalf cosHalf
       let reference := fun (a : Float) =>
         let re := 1.0 - (1.0 - a) * theta.cos
         let im := (1.0 - a) * theta.sin
         if a == 0.0 then 0.0 else a * a / (re * re + im * im)
-      let squared := (⟨alpha⟩ : OnePoleZOHLowPass.Snapshot Float).magnitudeSquared sinHalf
+      let squared := (⟨alpha⟩ : OnePoleZOHLowPass.Snapshot Float).magnitudeSquared prepared
       let alpha32 := alpha.toFloat32
-      let squared32 := (⟨alpha32⟩ : OnePoleZOHLowPass.Snapshot Float32).magnitudeSquared sinHalf.toFloat32
+      let squared32 := (⟨alpha32⟩ : OnePoleZOHLowPass.Snapshot Float32).magnitudeSquared
+        (Float.toFloat32 <$> prepared)
       unless (squared - reference alpha).abs < 1.0e-8 &&
           (squared32.toFloat - reference alpha32.toFloat).abs < 2.0e-6 do
         throw (IO.userError s!"ZOH magnitude mismatch at alpha={alpha}, frequency={frequency}")
