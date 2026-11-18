@@ -11,7 +11,7 @@ Unlike the highly experimental Phase Vocoder Quad Delay, the Quad Reverb follows
 3. **Main Delay Line**: A large quadraphonic delay line (`QuadDelayLine`) provides the core reverberant tail. Each channel adds a linear delay offset to its widened base delay. The regular modulation system can drive that offset to add chorus and break up resonances.
 4. **Post-Feedback Filtering**: Inside the feedback loop, the signal passes through a `PostFeedbackFilter` block consisting of:
    - An All-Pass Filter (`m_apf1`).
-   - A Band-Pass Filter (`QuadOPBaseWidthFilter` acting as a damping stage to roll off high and low frequencies).
+   - A Band-Pass Filter (`QuadTPTBaseWidthFilter` acting as a damping stage to roll off high and low frequencies).
    - A second All-Pass Filter (`m_apf2`).
 5. **Saturation**: A `TanhSaturator` prevents the feedback loop from blowing up and adds a touch of warmth to the reverb tail.
 

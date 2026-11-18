@@ -12,7 +12,7 @@
 #include "ScopeWriter.hpp"
 #include "SmartGridOneEncoders.hpp"
 #include "SmartGridOneScopeEnums.hpp"
-#include "StateVariableFilter.hpp"
+#include "TPTSVFFilter.hpp"
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -33,23 +33,17 @@ struct PhysicalModelingSourceGeneric
 {
     using Vector = MultiChannelNumber<float, Size>;
 
-    struct Snapshot : VectorResponseSnapshot<Size>
+    struct Snapshot : PowerResponseSnapshot<Size>
     {
-        using Base = VectorResponseSnapshot<Size>;
-        using typename Base::ComplexVector;
+        using Base = PowerResponseSnapshot<Size>;
         using typename Base::Frequency;
         using typename Base::ResponseVector;
-        typename LinearStateVariableFilterGeneric<float, Size>::Snapshot m_mainSVF;
+        typename MorphingTPTSVFFilterGeneric<float, Size>::Snapshot m_mainSVF;
         typename TunedDecayCombGeneric<Size>::Snapshot m_combFilter;
 
-        ComplexVector ComplexResponses(const Frequency& frequency) const override
+        ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
-            return m_mainSVF.ComplexResponses(frequency) * m_combFilter.ComplexResponses(frequency);
-        }
-
-        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
-        {
-            return m_mainSVF.MagnitudeResponses(frequency) * m_combFilter.MagnitudeResponses(frequency);
+            return m_mainSVF.MagnitudeSquaredResponses(frequency) * m_combFilter.MagnitudeSquaredResponses(frequency);
         }
     };
 
@@ -59,7 +53,6 @@ struct PhysicalModelingSourceGeneric
     {
         Snapshot snapshot;
         snapshot.m_mainSVF = m_mainSVF.MakeSnapshot();
-        snapshot.m_mainSVF.m_weights = m_mainSVF.GetMorphWeights(m_mainSVFMorph);
         snapshot.m_combFilter = m_combFilter.MakeSnapshot();
         return snapshot;
     }
@@ -76,9 +69,8 @@ struct PhysicalModelingSourceGeneric
 
     WhiteNoiseGeneric<Size> m_noise;
     SampleRateReducerGeneric<Size> m_sampleRateReducer;
-    LinearStateVariableFilterGeneric<float, Size> m_mainSVF;
+    MorphingTPTSVFFilterGeneric<float, Size> m_mainSVF;
     TunedDecayCombGeneric<Size> m_combFilter;
-    Vector m_mainSVFMorph;
     Vector m_output;
 
     // Amplitude envelope for ProcessWithAHD
@@ -126,7 +118,6 @@ struct PhysicalModelingSourceGeneric
 
     explicit PhysicalModelingSourceGeneric(uint32_t seed)
         : m_noise(seed)
-        , m_mainSVFMorph(Vector::Splat(0.5))
         , m_output(Vector::Splat(0))
         , m_mainSVFCutoffParam(0.001f, 0.499f)
         // Headroom lets the reducer reach the full-rate bypass.
@@ -166,10 +157,9 @@ struct PhysicalModelingSourceGeneric
 
         // Morph inside the SVF: blend 0 = LP, 1 = HP, equal power.
         //
-        m_mainSVF.SetCutoffAndResonance(input.m_mainSVFCutoff, input.m_mainSVFResonance);
+        m_mainSVF.SetCutoffResonanceAndMorph(input.m_mainSVFCutoff, input.m_mainSVFResonance, input.m_mainSVFMorph);
         m_mainSVF.Process(noise);
-        m_mainSVFMorph = input.m_mainSVFMorph;
-        Vector svfOut = m_mainSVF.GetMorphedOutput(m_mainSVFMorph);
+        Vector svfOut = m_mainSVF.GetOutput();
 
         modOut[0] = svfOut * 0.5f + 0.5f;
         modOut[1] = input.m_envelope;

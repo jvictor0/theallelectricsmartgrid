@@ -14,6 +14,7 @@
 #include "MultiChannelNumber.hpp"
 
 #include "ResponseFrequency.hpp"
+#include "GeneratedFilterUI.hpp"
 struct TPTSVF
 {
     static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);
@@ -81,34 +82,6 @@ struct TPTSVF
         m_state.m_highPass = v24;
         m_state.m_notch = v25;
         m_state.m_allPass = v26;
-    }
-
-    // Coefficients generated from DSP.TPTSVF.computeCoefficientsFloat.
-    //
-
-    struct LogicalSpec
-    {
-        double m_cutoff;
-        double m_q;
-    };
-
-    void ComputeCoefficients(const LogicalSpec& spec)
-    {
-        const double v0 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
-        const double v1 = (1.0 / spec.m_q);
-        const double v2 = (v0 + v1);
-        const double v3 = std::fma(v0, v2, 1.0);
-        const double v4 = (1.0 / v3);
-        const double v5 = (v0 * v4);
-        const double v6 = (v0 * v5);
-        const double v7 = v1;
-        const double v8 = v4;
-        const double v9 = v5;
-        const double v10 = v6;
-        m_state.m_k = v7;
-        m_state.m_a1 = v8;
-        m_state.m_a2 = v9;
-        m_state.m_a3 = v10;
     }
 
     // Response generated from DSP.TPTSVF.Snapshot.lowPassMagnitudeSquaredFloat.
@@ -300,4 +273,100 @@ struct TPTSVF
         return v19;
     }
 
+    // Coefficients generated from DSP.TPTSVF.prepareCoefficientsFloat.
+    //
+
+    Snapshot m_responseSnapshot{};
+
+    Snapshot MakeSnapshot() const
+    {
+        return m_responseSnapshot;
+    }
+
+    struct LogicalSpec
+    {
+        double m_cutoff;
+        double m_q;
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const double v0 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
+        const double v1 = (1.0 / spec.m_q);
+        const double v2 = (v0 + v1);
+        const double v3 = std::fma(v0, v2, 1.0);
+        const double v4 = (1.0 / v3);
+        const double v5 = (v0 * v4);
+        const double v6 = (v0 * v5);
+        const double v7 = v0;
+        const double v8 = v1;
+        const double v9 = v1;
+        const double v10 = v4;
+        const double v11 = v5;
+        const double v12 = v6;
+        m_state.m_k = v9;
+        m_state.m_a1 = v10;
+        m_state.m_a2 = v11;
+        m_state.m_a3 = v12;
+        m_responseSnapshot.m_g = v7;
+        m_responseSnapshot.m_k = v8;
+    }
+
+    // Prepared coefficients generated from DSP.TPTSVF.prepareFromSnapshotFloat.
+    //
+
+    void ComputeCoefficientsFromSnapshot(const Snapshot& spec)
+    {
+        const double v0 = (spec.m_g + spec.m_k);
+        const double v1 = std::fma(spec.m_g, v0, 1.0);
+        const double v2 = (1.0 / v1);
+        const double v3 = (spec.m_g * v2);
+        const double v4 = (spec.m_g * v3);
+        const double v5 = spec.m_g;
+        const double v6 = spec.m_k;
+        const double v7 = spec.m_k;
+        const double v8 = v2;
+        const double v9 = v3;
+        const double v10 = v4;
+        m_state.m_k = v7;
+        m_state.m_a1 = v8;
+        m_state.m_a2 = v9;
+        m_state.m_a3 = v10;
+        m_responseSnapshot.m_g = v5;
+        m_responseSnapshot.m_k = v6;
+    }
+
+    using NumberType = decltype(State{}.m_k);
+    static constexpr size_t x_numChannels = 1;
+
+    using LowPassUIState = TransferFunctionGeneric<GeneratedResponseSnapshot<TPTSVF, &TPTSVF::LowPassMagnitudeSquared>>;
+
+    using BandPassUIState = TransferFunctionGeneric<GeneratedResponseSnapshot<TPTSVF, &TPTSVF::BandPassMagnitudeSquared>>;
+
+    using HighPassUIState = TransferFunctionGeneric<GeneratedResponseSnapshot<TPTSVF, &TPTSVF::HighPassMagnitudeSquared>>;
+
+    using NotchUIState = TransferFunctionGeneric<GeneratedResponseSnapshot<TPTSVF, &TPTSVF::NotchMagnitudeSquared>>;
+
+    using AllPassUIState = TransferFunctionGeneric<GeneratedResponseSnapshot<TPTSVF, &TPTSVF::AllPassMagnitudeSquared>>;
+
+};
+
+struct TPTSVFLowPass : GeneratedFilterView<TPTSVF, &TPTSVF::LowPassMagnitudeSquared>
+{
+};
+
+struct TPTSVFBandPass : GeneratedFilterView<TPTSVF, &TPTSVF::BandPassMagnitudeSquared>
+{
+};
+
+struct TPTSVFHighPass : GeneratedFilterView<TPTSVF, &TPTSVF::HighPassMagnitudeSquared>
+{
+};
+
+struct TPTSVFNotch : GeneratedFilterView<TPTSVF, &TPTSVF::NotchMagnitudeSquared>
+{
+};
+
+struct TPTSVFAllPass : GeneratedFilterView<TPTSVF, &TPTSVF::AllPassMagnitudeSquared>
+{
 };

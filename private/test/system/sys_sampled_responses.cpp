@@ -20,6 +20,24 @@ DOCTEST_TEST_CASE("Sampled response wiring: every displayed filter publishes at 
 
     DOCTEST_CHECK(ui.m_delayUIState.m_dampingFilter.Sample().size() > 1);
     DOCTEST_CHECK(ui.m_reverbUIState.m_dampingFilter.Sample().size() > 1);
+    for (auto* damping : {&ui.m_delayUIState.m_dampingFilter, &ui.m_reverbUIState.m_dampingFilter})
+    {
+        DOCTEST_CHECK(damping->NumLanes() == 4);
+        auto samples = damping->Sample();
+        for (double hz : {20.0, 1000.0, 12000.0, 24000.0})
+        {
+            for (size_t lane = 0; lane < 4; ++lane)
+            {
+                const auto response = damping->ResponseHz(samples, hz, SampleTimer::x_sampleRate, lane);
+                DOCTEST_CHECK(std::isfinite(response.m_lower));
+                DOCTEST_CHECK(std::isfinite(response.m_upper));
+                DOCTEST_CHECK(response.m_lower >= 0);
+                DOCTEST_CHECK(response.m_lower <= response.m_median);
+                DOCTEST_CHECK(response.m_median <= response.m_upper);
+            }
+        }
+    }
+
     DOCTEST_CHECK(ui.m_stereoMasteringChainUIState.Sample().size() > 1);
     DOCTEST_CHECK(ui.m_sourceMixerUIState.Sample().size() > 1);
     DOCTEST_CHECK(ui.m_sourceMixerUIState.NumLanes() == 4);

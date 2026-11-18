@@ -71,8 +71,10 @@ struct LinkwitzRileyCrossoverGeneric
     static ComplexCrossoverOutput TransferFunction(float cutoffFreq, float freq)
     {
         Snapshot snapshot;
+        const auto cutoff = ResponseFrequency::CyclesPerSample(
+            std::clamp(cutoffFreq, x_minCyclesPerSample, x_maxCyclesPerSample));
         snapshot.m_coefficients.m_tangent = MultiChannelNumber<double, 2>::Splat(
-            Math::TanPi(std::clamp(cutoffFreq, x_minCyclesPerSample, x_maxCyclesPerSample)));
+            cutoff.m_sinHalf[0] / cutoff.m_cosHalf[0]);
         return snapshot.Responses(ResponseFrequency::CyclesPerSample(freq));
     }
 

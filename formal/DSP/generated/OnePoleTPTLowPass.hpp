@@ -14,6 +14,7 @@
 #include "MultiChannelNumber.hpp"
 
 #include "ResponseFrequency.hpp"
+#include "GeneratedFilterUI.hpp"
 struct OnePoleTPTLowPass
 {
     static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);
@@ -46,23 +47,6 @@ struct OnePoleTPTLowPass
         m_state.m_y = v5;
     }
 
-    // Coefficients generated from DSP.OnePoleTPTLowPass.computeCoefficientsFloat.
-    //
-
-    struct LogicalSpec
-    {
-        double m_cutoff;
-    };
-
-    void ComputeCoefficients(const LogicalSpec& spec)
-    {
-        const double v0 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
-        const double v1 = (1.0 + v0);
-        const double v2 = (v0 / v1);
-        const double v3 = v2;
-        m_state.m_G = v3;
-    }
-
     // Response generated from DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquaredFloat.
     //
 
@@ -93,6 +77,45 @@ struct OnePoleTPTLowPass
 
         const double v7 = (v1 / v6);
         return v7;
+    }
+
+    // Coefficients generated from DSP.OnePoleTPTLowPass.prepareCoefficientsFloat.
+    //
+
+    Snapshot m_responseSnapshot{};
+
+    Snapshot MakeSnapshot() const
+    {
+        return m_responseSnapshot;
+    }
+
+    struct LogicalSpec
+    {
+        double m_cutoff;
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const double v0 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
+        const double v1 = (1.0 + v0);
+        const double v2 = (v0 / v1);
+        const double v3 = v0;
+        const double v4 = v2;
+        m_state.m_G = v4;
+        m_responseSnapshot.m_g = v3;
+    }
+
+    using NumberType = decltype(State{}.m_G);
+    static constexpr size_t x_numChannels = 1;
+
+    using UIState = TransferFunctionGeneric<GeneratedResponseSnapshot<OnePoleTPTLowPass, &OnePoleTPTLowPass::MagnitudeSquared>>;
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot();
+        });
     }
 
 };

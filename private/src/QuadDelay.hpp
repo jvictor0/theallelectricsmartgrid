@@ -3,6 +3,7 @@
 #include "QuadUtils.hpp"
 #include "DelayLine.hpp"
 #include "Filter.hpp"
+#include "TPTBaseWidthFilter.hpp"
 #include "Saturator.hpp"
 #include "Oversample.hpp"
 #include "PhaseUtils.hpp"
@@ -14,7 +15,7 @@ struct QuadDelay
 {
     struct PostFeedbackFilter
     {
-        QuadOPBaseWidthFilter m_bff;
+        QuadTPTBaseWidthFilter m_bff;
 
         QuadFloat Process(QuadFloat input)
         {
@@ -91,7 +92,7 @@ struct QuadDelay
 
     struct UIState
     {
-        QuadOPBaseWidthFilter::UIState m_dampingFilter;
+        QuadTPTBaseWidthFilter::UIState m_dampingFilter;
         ScopeWriterGeneric<4, 1> m_scopeWriter;
         std::atomic<double> m_readHeadPhase[4]{};
         std::atomic<double> m_writeHeadPhase{0.0};
@@ -109,7 +110,7 @@ struct QuadDelay
 
     }
 
-    SampledSnapshotWriter<QuadOPBaseWidthFilter::UIState> m_responseSampler;
+    SampledSnapshotWriter<QuadTPTBaseWidthFilter::UIState> m_responseSampler;
 
     void SetupResponseUIState(UIState* uiState)
     {
@@ -236,7 +237,7 @@ struct QuadDelayInputSetter
     };
 
     QuadDelayInputSetter()
-      : m_dampingBase(SampleTimer::HzToCycPerSamp(QuadOPBaseWidthFilter::x_minBaseHz), SampleTimer::HzToCycPerSamp(QuadOPBaseWidthFilter::x_maxBaseHz))
+      : m_dampingBase(SampleTimer::HzToCycPerSamp(QuadTPTBaseWidthFilter::x_minBaseHz), SampleTimer::HzToCycPerSamp(QuadTPTBaseWidthFilter::x_maxBaseHz))
       , m_dampingWidth(1.0, 2048.0)
       , m_unisonDetune(ResynthesizerGeneric<float, 4>::GetUnisonBase())
       , m_unisonGain(20)

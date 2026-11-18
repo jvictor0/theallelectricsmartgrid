@@ -32,12 +32,12 @@ struct OPLowPassFilterGeneric
             return ComplexVector(a, DoubleVector()) / denominator;
         }
 
-        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
+        ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
             auto a = m_alpha.template Convert<double>();
             auto norm = a * a + (DoubleVector::Splat(1) - a) * (frequency.m_sinHalf * 4 * frequency.m_sinHalf);
             norm = DoubleVector::IfLess(DoubleVector(), a, norm, DoubleVector::Splat(1));
-            return (a / norm.Sqrt()).template Convert<float>();
+            return (a * a / norm).template Convert<float>();
         }
     };
 
@@ -270,13 +270,13 @@ struct OPHighPassFilterGeneric
             return numerator / denominator;
         }
 
-        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
+        ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
             auto a = m_alpha.template Convert<double>();
             auto s = frequency.m_sinHalf;
             auto norm = (DoubleVector::Splat(1) - a) * (DoubleVector::Splat(1) - a) + a * (s * 4 * s);
             norm = DoubleVector::IfLess(DoubleVector(), s, norm, DoubleVector::Splat(1));
-            return (a * (s * 2) / norm.Sqrt()).template Convert<float>();
+            return (a * a * (s * s * 4) / norm).template Convert<float>();
         }
     };
 
@@ -348,73 +348,3 @@ struct OPHighPassFilterGeneric
 
 using OPHighPassFilter = OPHighPassFilterGeneric<float, 1>;
 using QuadOPHighPassFilter = OPHighPassFilterGeneric<float, 4>;
-
-template <typename Number, size_t Size>
-struct OPBaseWidthFilterGeneric
-{
-    using Vector = MultiChannelNumber<Number, Size>;
-    static constexpr double x_minBaseHz = SampleTimer::CycPerHostSampToHz(1.0 / 2048.0);
-    static constexpr double x_maxBaseHz = SampleTimer::CycPerHostSampToHz(0.5);
-
-    struct Snapshot : VectorResponseSnapshot<Size>
-    {
-        using Base = VectorResponseSnapshot<Size>;
-        using typename Base::ComplexVector;
-        using typename Base::Frequency;
-        using typename Base::ResponseVector;
-        typename OPHighPassFilterGeneric<Number, Size>::Snapshot m_hp;
-        typename OPLowPassFilterGeneric<Number, Size>::Snapshot m_lp;
-
-        ComplexVector ComplexResponses(const Frequency& frequency) const override
-        {
-            return m_hp.ComplexResponses(frequency) * m_lp.ComplexResponses(frequency);
-        }
-
-        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
-        {
-            return m_hp.MagnitudeResponses(frequency) * m_lp.MagnitudeResponses(frequency);
-        }
-    };
-
-    using UIState = TransferFunctionGeneric<Snapshot>;
-
-    Snapshot MakeSnapshot() const
-    {
-        Snapshot snapshot;
-        snapshot.m_hp = m_highPassFilter.MakeSnapshot();
-        snapshot.m_lp = m_lowPassFilter.MakeSnapshot();
-        return snapshot;
-    }
-
-    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
-    {
-        writer.PopulateUIStateSample([&]
-        {
-            return MakeSnapshot();
-        });
-    }
-
-    OPHighPassFilterGeneric<Number, Size> m_highPassFilter;
-    OPLowPassFilterGeneric<Number, Size> m_lowPassFilter;
-
-    void SetBaseWidth(Number base, Number width)
-    {
-        m_highPassFilter.SetAlphaFromNatFreq(base);
-        m_lowPassFilter.SetAlphaFromNatFreq(base * width);
-    }
-
-    void SetBaseWidth(const Vector& base, const Vector& width)
-    {
-        m_highPassFilter.SetAlphaFromNatFreq(base);
-        m_lowPassFilter.SetAlphaFromNatFreq(base * width);
-    }
-
-    Vector Process(const Vector& input)
-    {
-        Vector highPassOutput = m_highPassFilter.Process(input);
-        return m_lowPassFilter.Process(highPassOutput);
-    }
-};
-
-using OPBaseWidthFilter = OPBaseWidthFilterGeneric<float, 1>;
-using QuadOPBaseWidthFilter = OPBaseWidthFilterGeneric<float, 4>;

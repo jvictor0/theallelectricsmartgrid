@@ -63,9 +63,9 @@ struct ResponseFrequencyGeneric
         }
         else
         {
-            float halfPhase = static_cast<float>(frequency * 0.5);
-            s = Math::Sin2pi(halfPhase);
-            c = Math::Cos2pi(halfPhase);
+            const auto halfPhase = MultiChannelNumber<double, 1>::Splat(frequency * 0.5);
+            s = Math4096::Sin2pi(halfPhase)[0];
+            c = Math4096::Cos2pi(halfPhase)[0];
         }
 
         return {BroadcastValue<Value>(frequency), BroadcastValue<Value>(s), BroadcastValue<Value>(c),

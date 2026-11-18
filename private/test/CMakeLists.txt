@@ -61,6 +61,7 @@ add_dependencies(smartgrid_tests smartgrid_build_info)
 target_include_directories(smartgrid_tests PRIVATE
     ${TEST_DIR}
     ${SRC_DIR}
+    "${REPO_ROOT}/formal/DSP/generated"
     "${BUILD_INFO_DIR}"
 )
 
@@ -76,7 +77,7 @@ target_compile_definitions(smartgrid_tests PRIVATE
     SMARTGRID_RECORDING_SYSTEM_FLAC=1
     SMARTGRID_REPO_ROOT="${REPO_ROOT}"
 )
-target_compile_options(smartgrid_tests PRIVATE -funroll-loops)
+target_compile_options(smartgrid_tests PRIVATE -fno-fast-math -ffp-contract=off -funroll-loops)
 target_link_libraries(smartgrid_tests PRIVATE PkgConfig::FLAC)
 
 # Keep warnings on but non-fatal; the DSP core has pre-existing warnings.
@@ -120,14 +121,14 @@ add_executable(smartgrid_passthrough_rate_tests
 )
 add_dependencies(smartgrid_passthrough_rate_tests smartgrid_build_info)
 target_include_directories(smartgrid_passthrough_rate_tests PRIVATE
-    ${TEST_DIR} "${PASSTHROUGH_RATE_SRC_DIR}" "${BUILD_INFO_DIR}")
+    ${TEST_DIR} "${PASSTHROUGH_RATE_SRC_DIR}" "${BUILD_INFO_DIR}" "${REPO_ROOT}/formal/DSP/generated")
 target_compile_definitions(smartgrid_passthrough_rate_tests PRIVATE
     DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES=1
     SMARTGRID_RECORDING_SYSTEM_FLAC=1
     SMARTGRID_REPO_ROOT="${REPO_ROOT}"
     SMARTGRID_TEST_OVERSAMPLE=1
 )
-target_compile_options(smartgrid_passthrough_rate_tests PRIVATE -funroll-loops -Wall -Wno-unused-parameter)
+target_compile_options(smartgrid_passthrough_rate_tests PRIVATE -fno-fast-math -ffp-contract=off -funroll-loops -Wall -Wno-unused-parameter)
 target_link_libraries(smartgrid_passthrough_rate_tests PRIVATE PkgConfig::FLAC)
 add_test(NAME smartgrid_passthrough_rate_tests COMMAND smartgrid_passthrough_rate_tests)
 

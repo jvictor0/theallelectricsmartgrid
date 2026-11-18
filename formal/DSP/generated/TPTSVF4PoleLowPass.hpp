@@ -14,6 +14,7 @@
 #include "MultiChannelNumber.hpp"
 
 #include "ResponseFrequency.hpp"
+#include "GeneratedFilterUI.hpp"
 struct TPTSVF4PoleLowPass
 {
     static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);
@@ -140,59 +141,6 @@ struct TPTSVF4PoleLowPass
         m_state.m_stage2.m_allPass = v53;
     }
 
-    // Coefficients generated from DSP.TPTSVF4Pole.computeCoefficientsFloat.
-    //
-
-    struct LogicalSpec
-    {
-        struct
-        {
-            double m_cutoff;
-            double m_q;
-        } m_stage1;
-
-        struct
-        {
-            double m_cutoff;
-            double m_q;
-        } m_stage2;
-
-    };
-
-    void ComputeCoefficients(const LogicalSpec& spec)
-    {
-        const double v0 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_stage1.m_cutoff))[0];
-        const double v1 = (1.0 / spec.m_stage1.m_q);
-        const double v2 = (v0 + v1);
-        const double v3 = std::fma(v0, v2, 1.0);
-        const double v4 = (1.0 / v3);
-        const double v5 = (v0 * v4);
-        const double v6 = (v0 * v5);
-        const double v7 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_stage2.m_cutoff))[0];
-        const double v8 = (1.0 / spec.m_stage2.m_q);
-        const double v9 = (v7 + v8);
-        const double v10 = std::fma(v7, v9, 1.0);
-        const double v11 = (1.0 / v10);
-        const double v12 = (v7 * v11);
-        const double v13 = (v7 * v12);
-        const double v14 = v1;
-        const double v15 = v4;
-        const double v16 = v5;
-        const double v17 = v6;
-        const double v18 = v8;
-        const double v19 = v11;
-        const double v20 = v12;
-        const double v21 = v13;
-        m_state.m_stage1.m_k = v14;
-        m_state.m_stage1.m_a1 = v15;
-        m_state.m_stage1.m_a2 = v16;
-        m_state.m_stage1.m_a3 = v17;
-        m_state.m_stage2.m_k = v18;
-        m_state.m_stage2.m_a1 = v19;
-        m_state.m_stage2.m_a2 = v20;
-        m_state.m_stage2.m_a3 = v21;
-    }
-
     // Response generated from DSP.TPTSVF4Pole.Snapshot.lowPassMagnitudeSquaredFloat.
     //
 
@@ -274,6 +222,87 @@ struct TPTSVF4PoleLowPass
         const double v37 = (v30 / v36);
         const double v38 = (v18 * v37);
         return v38;
+    }
+
+    // Coefficients generated from DSP.TPTSVF4Pole.prepareCoefficientsFloat.
+    //
+
+    Snapshot m_responseSnapshot{};
+
+    Snapshot MakeSnapshot() const
+    {
+        return m_responseSnapshot;
+    }
+
+    struct LogicalSpec
+    {
+        struct
+        {
+            double m_cutoff;
+            double m_q;
+        } m_stage1;
+
+        struct
+        {
+            double m_cutoff;
+            double m_q;
+        } m_stage2;
+
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const double v0 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_stage1.m_cutoff))[0];
+        const double v1 = (1.0 / spec.m_stage1.m_q);
+        const double v2 = (v0 + v1);
+        const double v3 = std::fma(v0, v2, 1.0);
+        const double v4 = (1.0 / v3);
+        const double v5 = (v0 * v4);
+        const double v6 = (v0 * v5);
+        const double v7 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_stage2.m_cutoff))[0];
+        const double v8 = (1.0 / spec.m_stage2.m_q);
+        const double v9 = (v7 + v8);
+        const double v10 = std::fma(v7, v9, 1.0);
+        const double v11 = (1.0 / v10);
+        const double v12 = (v7 * v11);
+        const double v13 = (v7 * v12);
+        const double v14 = v0;
+        const double v15 = v1;
+        const double v16 = v7;
+        const double v17 = v8;
+        const double v18 = v1;
+        const double v19 = v4;
+        const double v20 = v5;
+        const double v21 = v6;
+        const double v22 = v8;
+        const double v23 = v11;
+        const double v24 = v12;
+        const double v25 = v13;
+        m_state.m_stage1.m_k = v18;
+        m_state.m_stage1.m_a1 = v19;
+        m_state.m_stage1.m_a2 = v20;
+        m_state.m_stage1.m_a3 = v21;
+        m_state.m_stage2.m_k = v22;
+        m_state.m_stage2.m_a1 = v23;
+        m_state.m_stage2.m_a2 = v24;
+        m_state.m_stage2.m_a3 = v25;
+        m_responseSnapshot.m_stage1.m_g = v14;
+        m_responseSnapshot.m_stage1.m_k = v15;
+        m_responseSnapshot.m_stage2.m_g = v16;
+        m_responseSnapshot.m_stage2.m_k = v17;
+    }
+
+    using NumberType = decltype(State{}.m_stage1.m_k);
+    static constexpr size_t x_numChannels = 1;
+
+    using UIState = TransferFunctionGeneric<GeneratedResponseSnapshot<TPTSVF4PoleLowPass, &TPTSVF4PoleLowPass::MagnitudeSquared>>;
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot();
+        });
     }
 
 };

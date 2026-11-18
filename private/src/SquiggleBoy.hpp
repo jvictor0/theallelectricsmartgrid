@@ -9,7 +9,6 @@
 #include "PhaseUtils.hpp"
 #include "RandomLFO.hpp"
 #include "LadderFilter.hpp"
-#include "StateVariableFilter.hpp"
 #include "AHD.hpp"
 #include "BitCrush.hpp"
 #include "Lissajous.hpp"

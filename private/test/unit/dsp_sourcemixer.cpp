@@ -4,6 +4,7 @@
 
 #include "AudioInputBuffer.hpp"
 #include "SourceMixer.hpp"
+#include "../support/SVFReference.hpp"
 #include <cmath>
 
 namespace
@@ -117,8 +118,8 @@ DOCTEST_TEST_CASE("SourceMixer stereo filter pair matches independent mono filte
 
     SourceMixer::Source source;
     SourceMixer::Source::Input input;
-    LinearStateVariableFilter lp[SourceMixer::x_numSourceLanes];
-    LinearStateVariableFilter hp[SourceMixer::x_numSourceLanes];
+    TPTSVFLowPassFilterGeneric<float, 1> lp[SourceMixer::x_numSourceLanes];
+    TPTSVFHighPassFilterGeneric<float, 1> hp[SourceMixer::x_numSourceLanes];
     input.m_gain.m_expParam = 1.5f;
     for (size_t i = 0; i < 2048; ++i)
     {
@@ -139,5 +140,55 @@ DOCTEST_TEST_CASE("SourceMixer stereo filter pair matches independent mono filte
             float expected = hp[lane].GetHighPass();
             DOCTEST_CHECK(source.m_output[lane] == doctest::Approx(expected).epsilon(0.0001).scale(1.0));
         }
+    }
+}
+
+DOCTEST_TEST_CASE("SourceMixer generated snapshots match audio and retain each source cutoff")
+{
+    GlobalEnv::ResetPerTest();
+    SourceMixer mixer;
+    SourceMixer::Input input;
+    std::complex<double> measured[4]{};
+    for (size_t source = 0; source < 4; ++source)
+    {
+        auto& params = input.m_sources[source];
+        params.m_gain.m_expParam = 1;
+        params.m_hpCutoff.m_expParam = 0.003f * (source + 1);
+        params.m_lpFactor.m_expParam = 2 + source;
+    }
+
+    for (size_t sample = 0; sample < 8000; ++sample)
+    {
+        for (size_t source = 0; source < 4; ++source)
+        {
+            const auto tone = std::polar(1.0, 2 * M_PI * 0.007 * (source + 1) * sample);
+            input.m_sources[source].m_input[0] = static_cast<float>(tone.real());
+            input.m_sources[source].m_input[1] = static_cast<float>(tone.imag());
+        }
+
+        mixer.Process(input);
+        if (sample >= 4000)
+        {
+            for (size_t source = 0; source < 4; ++source)
+            {
+                const auto tone = std::polar(1.0, 2 * M_PI * 0.007 * (source + 1) * sample);
+                const auto output = mixer.m_sources[source].m_output;
+                measured[source] += std::complex<double>(output[0], output[1]) / tone / 4000.0;
+            }
+        }
+    }
+
+    const auto snapshot = mixer.MakeSnapshot();
+    for (size_t source = 0; source < 4; ++source)
+    {
+        const double frequency = 0.007 * (source + 1);
+        const auto& params = input.m_sources[source];
+        const double hp = params.m_hpCutoff.m_expParam[0];
+        const double lp = hp * params.m_lpFactor.m_expParam[0];
+        const auto expected = TestSVF::Transfer(std::tan(M_PI * hp), 2, frequency).m_high
+            * TestSVF::Transfer(std::tan(M_PI * lp), 2, frequency).m_low;
+        const double power = snapshot.MagnitudeSquaredResponse(ResponseFrequency::CyclesPerSample(frequency), source);
+        DOCTEST_CHECK(power == doctest::Approx(std::norm(expected)).epsilon(0.00002));
+        DOCTEST_CHECK(std::norm(measured[source]) == doctest::Approx(power).epsilon(0.00002));
     }
 }

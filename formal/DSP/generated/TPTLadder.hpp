@@ -14,6 +14,7 @@
 #include "MultiChannelNumber.hpp"
 
 #include "ResponseFrequency.hpp"
+#include "GeneratedFilterUI.hpp"
 struct TPTLadder
 {
     static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);
@@ -119,41 +120,6 @@ struct TPTLadder
         m_state.m_stage4.m_y = v40;
     }
 
-    // Coefficients generated from DSP.TPTLadder.computeCoefficientsFloat.
-    //
-
-    struct LogicalSpec
-    {
-        double m_cutoff;
-        double m_feedback;
-    };
-
-    void ComputeCoefficients(const LogicalSpec& spec)
-    {
-        const double v0 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
-        const double v1 = (1.0 + v0);
-        const double v2 = (v0 / v1);
-        const double v3 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
-        const double v4 = (1.0 + v3);
-        const double v5 = (v3 / v4);
-        const double v6 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
-        const double v7 = (1.0 + v6);
-        const double v8 = (v6 / v7);
-        const double v9 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
-        const double v10 = (1.0 + v9);
-        const double v11 = (v9 / v10);
-        const double v12 = spec.m_feedback;
-        const double v13 = v2;
-        const double v14 = v5;
-        const double v15 = v8;
-        const double v16 = v11;
-        m_state.m_k = v12;
-        m_state.m_stage1.m_G = v13;
-        m_state.m_stage2.m_G = v14;
-        m_state.m_stage3.m_G = v15;
-        m_state.m_stage4.m_G = v16;
-    }
-
     // Response generated from DSP.TPTLadder.Snapshot.magnitudeSquaredFloat.
     //
 
@@ -210,6 +176,71 @@ struct TPTLadder
 
         const double v29 = (v23 / v28);
         return v29;
+    }
+
+    // Coefficients generated from DSP.TPTLadder.prepareCoefficientsFloat.
+    //
+
+    Snapshot m_responseSnapshot{};
+
+    Snapshot MakeSnapshot() const
+    {
+        return m_responseSnapshot;
+    }
+
+    struct LogicalSpec
+    {
+        double m_cutoff;
+        double m_feedback;
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const double v0 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
+        const double v1 = (1.0 + v0);
+        const double v2 = (v0 / v1);
+        const double v3 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
+        const double v4 = (1.0 + v3);
+        const double v5 = (v3 / v4);
+        const double v6 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
+        const double v7 = (1.0 + v6);
+        const double v8 = (v6 / v7);
+        const double v9 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_cutoff))[0];
+        const double v10 = (1.0 + v9);
+        const double v11 = (v9 / v10);
+        const double v12 = v0;
+        const double v13 = v3;
+        const double v14 = v6;
+        const double v15 = v9;
+        const double v16 = spec.m_feedback;
+        const double v17 = spec.m_feedback;
+        const double v18 = v2;
+        const double v19 = v5;
+        const double v20 = v8;
+        const double v21 = v11;
+        m_state.m_k = v17;
+        m_state.m_stage1.m_G = v18;
+        m_state.m_stage2.m_G = v19;
+        m_state.m_stage3.m_G = v20;
+        m_state.m_stage4.m_G = v21;
+        m_responseSnapshot.m_g1 = v12;
+        m_responseSnapshot.m_g2 = v13;
+        m_responseSnapshot.m_g3 = v14;
+        m_responseSnapshot.m_g4 = v15;
+        m_responseSnapshot.m_k = v16;
+    }
+
+    using NumberType = decltype(State{}.m_k);
+    static constexpr size_t x_numChannels = 1;
+
+    using UIState = TransferFunctionGeneric<GeneratedResponseSnapshot<TPTLadder, &TPTLadder::MagnitudeSquared>>;
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot();
+        });
     }
 
 };

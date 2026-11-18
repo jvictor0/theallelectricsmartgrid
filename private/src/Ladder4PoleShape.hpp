@@ -7,7 +7,7 @@
 #include "SampleTimer.hpp"
 #include "SmartGridOneEncoders.hpp"
 #include "SquiggleBoyShapeBase.hpp"
-#include "StateVariableFilter.hpp"
+#include "TPTSVFFilter.hpp"
 
 // 4-pole ladder low-pass into the sample rate reducer, then a 4-pole SVF
 // high-pass, so the high-pass also removes bass the reducer generates. One
@@ -18,23 +18,17 @@ struct Ladder4PoleShapeGeneric : SquiggleBoyShapeBase
 {
     using Vector = MultiChannelNumber<float, Size>;
 
-    struct Snapshot : VectorResponseSnapshot<Size>
+    struct Snapshot : PowerResponseSnapshot<Size>
     {
-        using Base = VectorResponseSnapshot<Size>;
-        using typename Base::ComplexVector;
+        using Base = PowerResponseSnapshot<Size>;
         using typename Base::Frequency;
         using typename Base::ResponseVector;
         typename LadderFilterLPGeneric<float, Size>::Snapshot m_lp;
-        typename LinearSVF4PoleHighPassGeneric<float, Size>::Snapshot m_hp;
+        typename TPTSVF4PoleHighPassFilterGeneric<float, Size>::Snapshot m_hp;
 
-        ComplexVector ComplexResponses(const Frequency& frequency) const override
+        ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
-            return m_lp.ComplexResponses(frequency) * m_hp.ComplexResponses(frequency);
-        }
-
-        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
-        {
-            return m_lp.MagnitudeResponses(frequency) * m_hp.MagnitudeResponses(frequency);
+            return m_lp.MagnitudeSquaredResponses(frequency) * m_hp.MagnitudeSquaredResponses(frequency);
         }
     };
 
@@ -57,7 +51,7 @@ struct Ladder4PoleShapeGeneric : SquiggleBoyShapeBase
     }
 
     LadderFilterLPGeneric<float, Size> m_lpLadder;
-    LinearSVF4PoleHighPassGeneric<float, Size> m_hp4Pole;
+    TPTSVF4PoleHighPassFilterGeneric<float, Size> m_hp4Pole;
     SampleRateReducerGeneric<Size> m_sampleRateReducer;
 
     // The base frequency is in cycles per sample.

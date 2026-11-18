@@ -4,6 +4,7 @@
 #include "AllPassFilter.hpp"
 #include "DelayLine.hpp"
 #include "Filter.hpp"
+#include "TPTBaseWidthFilter.hpp"
 #include "Saturator.hpp"
 #include "PhaseUtils.hpp"
 #include "SampleTimer.hpp"
@@ -13,7 +14,7 @@ struct QuadReverb
     struct PostFeedbackFilter
     {
         QuadAllPassFilter m_apf1;
-        QuadOPBaseWidthFilter m_bff;
+        QuadTPTBaseWidthFilter m_bff;
         QuadAllPassFilter m_apf2;
 
         QuadFloat Process(QuadFloat input)
@@ -140,10 +141,10 @@ struct QuadReverb
 
     struct UIState
     {
-        QuadOPBaseWidthFilter::UIState m_dampingFilter;
+        QuadTPTBaseWidthFilter::UIState m_dampingFilter;
     };
 
-    SampledSnapshotWriter<QuadOPBaseWidthFilter::UIState> m_responseSampler;
+    SampledSnapshotWriter<QuadTPTBaseWidthFilter::UIState> m_responseSampler;
 
     void SetupResponseUIState(UIState* uiState)
     {
@@ -218,7 +219,7 @@ struct QuadReverbInputSetter
       : m_delayTime(
           QuadReverb::x_minDelayHostSamples * static_cast<float>(QuadReverb::x_oversample),
           QuadReverb::x_maxDelayHostSamples * static_cast<float>(QuadReverb::x_oversample))
-      , m_dampingBase(SampleTimer::HzToCycPerSamp(QuadOPBaseWidthFilter::x_minBaseHz), SampleTimer::HzToCycPerSamp(QuadOPBaseWidthFilter::x_maxBaseHz))
+      , m_dampingBase(SampleTimer::HzToCycPerSamp(QuadTPTBaseWidthFilter::x_minBaseHz), SampleTimer::HzToCycPerSamp(QuadTPTBaseWidthFilter::x_maxBaseHz))
       , m_dampingWidth(1.0, 2048.0)
       , m_wideners
       {

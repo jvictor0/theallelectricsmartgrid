@@ -13,6 +13,7 @@
 #include "Math.hpp"
 
 #include "ResponseFrequency.hpp"
+#include "GeneratedFilterUI.hpp"
 #include "MultiChannelNumber.hpp"
 #include <type_traits>
 
@@ -60,23 +61,6 @@ struct OnePoleTPTHighPassGeneric
         m_state.m_y = v7;
     }
 
-    // Coefficients generated from DSP.OnePoleTPTHighPass.computeCoefficients.
-    //
-
-    struct LogicalSpec
-    {
-        Vector m_cutoff;
-    };
-
-    void ComputeCoefficients(const LogicalSpec& spec)
-    {
-        const Vector v0 = Math4096::TanPi(spec.m_cutoff);
-        const Vector v1 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) + v0);
-        const Vector v2 = (v0 / v1);
-        const Vector v3 = v2;
-        m_state.m_lowPass.m_G = v3;
-    }
-
     // Response generated from DSP.OnePoleTPTHighPass.Snapshot.magnitudeSquared.
     //
 
@@ -98,6 +82,45 @@ struct OnePoleTPTHighPassGeneric
         const Vector v6 = Vector::IfLess(Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0)), v1, v5, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
         const Vector v7 = (v0 / v6);
         return v7;
+    }
+
+    // Coefficients generated from DSP.OnePoleTPTHighPass.prepareCoefficients.
+    //
+
+    Snapshot m_responseSnapshot{};
+
+    Snapshot MakeSnapshot() const
+    {
+        return m_responseSnapshot;
+    }
+
+    struct LogicalSpec
+    {
+        Vector m_cutoff;
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const Vector v0 = Math4096::TanPi(spec.m_cutoff);
+        const Vector v1 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) + v0);
+        const Vector v2 = (v0 / v1);
+        const Vector v3 = v0;
+        const Vector v4 = v2;
+        m_state.m_lowPass.m_G = v4;
+        m_responseSnapshot.m_g = v3;
+    }
+
+    using NumberType = Number;
+    static constexpr size_t x_numChannels = Size;
+
+    using UIState = TransferFunctionGeneric<GeneratedResponseSnapshot<OnePoleTPTHighPassGeneric<Number, Size>, &OnePoleTPTHighPassGeneric<Number, Size>::MagnitudeSquared>>;
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot();
+        });
     }
 
 };

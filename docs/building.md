@@ -116,7 +116,7 @@ boundaries are documented in [formal/DSP/README.md](../formal/DSP/README.md),
 and [formal/PhaseTime/README.md](../formal/PhaseTime/README.md).
 
 `make lean-dsp-test` runs the DSP proofs and axiom audit plus a native executable
-smoke test of the generic one-pole, SVF, morph, ladder and crossover filters with
+smoke test of the generic one-pole, SVF, morph and ladder filters with
 `Float` (and `Float32` for the one-poles). The full `lean-test` target also
 includes this executable check.
 The filter arithmetic and state updates are shared by the executable cores and
@@ -130,6 +130,12 @@ Run
 `make lean-dsp-generate` to refresh those headers for review. See the
 [codegen guide](../formal/DSP/Codegen/README.md) for the supported Lean subset and
 the distinction between model proofs and code-generation tests.
+
+The app's delay/reverb damping filters and SVF consumers include the checked-in
+generated TPT headers. CMake targets and both Xcode projects include
+`formal/DSP/generated` and compile with `-fno-fast-math -ffp-contract=off`, matching
+the codegen arithmetic contract. Explicit `FusedMultiplyAdd` calls remain fused.
+App builds consume the checked-in C++ headers without invoking Lean.
 
 ## Cleanup and completion
 

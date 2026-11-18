@@ -376,8 +376,10 @@ DOCTEST_TEST_CASE("TunedDecayComb: UI agrees with rendered complex transfer")
                         }
                     }
 
-                    auto expectedFloat = ui.ComplexResponse(samples.front(), ResponseFrequency::Hz(hz, rate), 0);
+                    auto expectedFloat = ui.m_readSnapshots[samples.front()].ComplexResponse(ResponseFrequency::Hz(hz, rate), 0);
                     std::complex<double> expected{expectedFloat.real(), expectedFloat.imag()};
+                    DOCTEST_CHECK(ui.MagnitudeSquaredResponse(samples.front(), ResponseFrequency::Hz(hz, rate), 0)
+                        == doctest::Approx(std::norm(expected)).epsilon(0.00001));
                     DOCTEST_INFO("rate=" << rate << " knob=" << knob << " damp=" << damp << " frequency=" << hz);
                     DOCTEST_CHECK(std::abs(measured - expected) / std::max(1.0, std::abs(expected)) < 0.001);
                 }
@@ -428,8 +430,10 @@ DOCTEST_TEST_CASE("TunedDecayComb: UI agrees with frozen transition audio")
                     }
                 }
 
-                auto expectedFloat = ui.ComplexResponse(samples.front(), ResponseFrequency::Hz(hz, rate), 0);
+                auto expectedFloat = ui.m_readSnapshots[samples.front()].ComplexResponse(ResponseFrequency::Hz(hz, rate), 0);
                 std::complex<double> expected{expectedFloat.real(), expectedFloat.imag()};
+                DOCTEST_CHECK(ui.MagnitudeSquaredResponse(samples.front(), ResponseFrequency::Hz(hz, rate), 0)
+                    == doctest::Approx(std::norm(expected)).epsilon(0.00001));
                 DOCTEST_INFO("rate=" << rate << " target damp=" << targetDamp << " Hz=" << hz);
                 DOCTEST_CHECK(std::abs(measured - expected) / std::max(1.0, std::abs(expected)) < 0.001);
             }

@@ -1,9 +1,11 @@
 #include "doctest.h"
 #include "Filter.hpp"
+#include "TPTBaseWidthFilter.hpp"
 #include "FIR.hpp"
 #include "LadderFilter.hpp"
 #include "MultibandSaturator.hpp"
-#include "StateVariableFilter.hpp"
+#include "TPTSVFFilter.hpp"
+#include "../support/SVFReference.hpp"
 #include "TrioUtils.hpp"
 #include "TunedDecayComb.hpp"
 #include "../support/GlobalEnv.hpp"
@@ -66,9 +68,9 @@ DOCTEST_TEST_CASE("Sampled response: order statistics use the recent cohort and 
     DOCTEST_REQUIRE(samples.size() == 5);
     auto frequency = ResponseFrequency::Hz(1000, 48000);
     auto result = ui.Response(samples, frequency, 0);
-    DOCTEST_CHECK(result.m_lower == 16);
-    DOCTEST_CHECK(result.m_median == 18);
-    DOCTEST_CHECK(result.m_upper == 20);
+    DOCTEST_CHECK(result.m_lower == 256);
+    DOCTEST_CHECK(result.m_median == 324);
+    DOCTEST_CHECK(result.m_upper == 400);
     for (int i = 0; i < 100; ++i)
     {
         GainSnapshot snapshot;
@@ -77,13 +79,13 @@ DOCTEST_TEST_CASE("Sampled response: order statistics use the recent cohort and 
     }
 
     result = ui.Response(samples, frequency, 0);
-    DOCTEST_CHECK(result.m_lower == 16);
-    DOCTEST_CHECK(result.m_upper == 20);
+    DOCTEST_CHECK(result.m_lower == 256);
+    DOCTEST_CHECK(result.m_upper == 400);
     samples = ui.Sample();
     result = ui.Response(samples, frequency, 0);
-    DOCTEST_CHECK(result.m_lower == 1000);
-    DOCTEST_CHECK(result.m_median == 1000);
-    DOCTEST_CHECK(result.m_upper == 1000);
+    DOCTEST_CHECK(result.m_lower == 1000000);
+    DOCTEST_CHECK(result.m_median == 1000000);
+    DOCTEST_CHECK(result.m_upper == 1000000);
 
     ui.m_history.Clear();
     DOCTEST_CHECK(ui.Sample().empty());
@@ -104,9 +106,9 @@ DOCTEST_TEST_CASE("Sampled response: configured percentiles and frequency units 
 
     auto samples = ui.Sample();
     auto response = ui.ResponseVOct(samples, 0, 48000, 0);
-    DOCTEST_CHECK(response.m_lower == 2);
-    DOCTEST_CHECK(response.m_median == 5);
-    DOCTEST_CHECK(response.m_upper == 8);
+    DOCTEST_CHECK(response.m_lower == 4);
+    DOCTEST_CHECK(response.m_median == 25);
+    DOCTEST_CHECK(response.m_upper == 64);
 
     OPLowPassFilter filter;
     filter.SetAlphaFromNatFreq(0.01f);
@@ -127,9 +129,9 @@ DOCTEST_TEST_CASE("Sampled response: configured percentiles and frequency units 
 DOCTEST_TEST_CASE("Sampled response: audio sampling is host gated and captures coherent quad base-width state")
 {
     GlobalEnv::ResetPerTest();
-    QuadOPBaseWidthFilter filter;
-    QuadOPBaseWidthFilter::UIState ui(TestConfig(32, 32));
-    SampledSnapshotWriter<QuadOPBaseWidthFilter::UIState> writer;
+    QuadTPTBaseWidthFilter filter;
+    QuadTPTBaseWidthFilter::UIState ui(TestConfig(32, 32));
+    SampledSnapshotWriter<QuadTPTBaseWidthFilter::UIState> writer;
     writer.Bind(&ui);
     for (size_t sample = 1; sample <= 16 * SampleTimer::x_oversample; ++sample)
     {
@@ -149,9 +151,9 @@ DOCTEST_TEST_CASE("Sampled response: audio sampling is host gated and captures c
         filter.SetBaseWidth(QuadFloat(base, base * 2, base * 3, base * 4), QuadFloat::Splat(2));
         for (size_t lane = 0; lane < 4; ++lane)
         {
-            auto expected = filter.MakeSnapshot();
-            DOCTEST_CHECK(ui.MagnitudeResponse(ids[i], frequency, lane)
-                == doctest::Approx(expected.MagnitudeResponse(frequency, lane)));
+            QuadTPTBaseWidthFilter::UIState::SnapshotType expected = filter.MakeSnapshot();
+            DOCTEST_CHECK(ui.MagnitudeSquaredResponse(ids[i], frequency, lane)
+                == doctest::Approx(expected.MagnitudeSquaredResponse(frequency, lane)));
         }
     }
 
@@ -185,7 +187,7 @@ DOCTEST_TEST_CASE("Sampled response: random sampling avoids locking to a periodi
     auto ids = ui.Sample();
     auto response = ui.ResponseHz(ids, 1000, 48000, 0);
     DOCTEST_CHECK(response.m_lower == 1);
-    DOCTEST_CHECK(response.m_upper == 3);
+    DOCTEST_CHECK(response.m_upper == 9);
 }
 
 DOCTEST_TEST_CASE("Sampled response: default history window averages one 60 Hz paint")
@@ -222,31 +224,40 @@ DOCTEST_TEST_CASE("Sampled response: optimized magnitudes match complex response
 {
     OPLowPassFilter lp;
     OPHighPassFilter hp;
-    LinearStateVariableFilter svf;
+    MorphingTPTSVFFilterGeneric<float, 1> svf;
     LadderFilterLP ladder;
     for (float cutoff : {0.00001f, 0.001f, 0.1f, 0.49f})
     {
         lp.SetAlphaFromNatFreq(cutoff);
         hp.SetAlphaFromNatFreq(cutoff);
-        svf.SetCutoffAndResonance(cutoff, 0.8f);
         ladder.SetCutoff(cutoff);
         ladder.SetResonance(0.5f);
         ladder.Process(0.1f);
         auto low = lp.MakeSnapshot();
         auto high = hp.MakeSnapshot();
-        auto state = svf.MakeSnapshot();
         auto ladderState = ladder.MakeSnapshot();
         for (double frequency : {0.0, 0.000001, 0.001, 0.03, 0.2, 0.499, 0.5})
         {
             auto prepared = ResponseFrequency::CyclesPerSample(frequency);
             for (float morph : {0.0f, 0.25f, 0.5f, 0.75f, 1.0f})
             {
-                state.m_weights = svf.GetMorphWeights(morph);
-                for (const FilterResponseSnapshot* snapshot : std::array<const FilterResponseSnapshot*, 4>{&low, &high, &state, &ladderState})
+                svf.SetCutoffResonanceAndMorph(cutoff, 0.8f, morph);
+                const auto state = svf.MakeSnapshot();
+                // Evaluate the independent z-polynomial at the same table-prepared angle.
+                // Exact-frequency audio comparisons are covered by the DSP tests.
+                //
+                const double angle = std::atan2(prepared.m_sinHalf[0], prepared.m_cosHalf[0]) / M_PI;
+                const auto reference = TestSVF::Transfer(state.m_svf.m_g[0], state.m_svf.m_k[0], angle);
+                const auto expected = reference.m_low * static_cast<double>(state.m_low[0])
+                    + reference.m_band * static_cast<double>(state.m_band[0])
+                    + reference.m_high * static_cast<double>(state.m_high[0]);
+                DOCTEST_CHECK(state.MagnitudeSquaredResponse(prepared, 0)
+                    == doctest::Approx(std::norm(expected)).epsilon(0.00002));
+                for (const FilterResponseSnapshot* snapshot : std::array<const FilterResponseSnapshot*, 3>{&low, &high, &ladderState})
                 {
-                    float magnitude = snapshot->MagnitudeResponse(prepared, 0);
+                    float magnitude = snapshot->MagnitudeSquaredResponse(prepared, 0);
                     DOCTEST_CHECK(std::isfinite(magnitude));
-                    DOCTEST_CHECK(magnitude == doctest::Approx(std::abs(snapshot->ComplexResponse(prepared, 0))).epsilon(1e-5));
+                    DOCTEST_CHECK(magnitude == doctest::Approx(std::norm(snapshot->ComplexResponse(prepared, 0))).epsilon(1e-5));
                 }
             }
         }
@@ -307,16 +318,24 @@ DOCTEST_TEST_CASE("Sampled response: concurrent machine switches cannot mix resp
 {
     TransferFunctionGeneric<GainSnapshot> ui(TestConfig(64, 32));
     std::atomic<bool> finished{false};
+    size_t finalPublished = 0;
     std::thread producer([&]
     {
         for (size_t machine = 1; machine <= 20000; ++machine)
         {
             ui.m_history.Clear();
+            finalPublished = 0;
             GainSnapshot snapshot;
             snapshot.m_gain = static_cast<float>(machine);
             for (size_t i = 0; i < 4; ++i)
             {
-                ui.m_history.Push(snapshot);
+                // A UI-owned slot may reject a push. Count accepted samples
+                // for the final cohort; join makes this count safe to read.
+                //
+                if (ui.m_history.Push(snapshot))
+                {
+                    ++finalPublished;
+                }
             }
         }
 
@@ -335,7 +354,7 @@ DOCTEST_TEST_CASE("Sampled response: concurrent machine switches cannot mix resp
     while (!finished.load());
     producer.join();
     DOCTEST_CHECK(coherent);
-    DOCTEST_CHECK(ui.Sample().size() == 4);
+    DOCTEST_CHECK(ui.Sample().size() == finalPublished);
 }
 
 namespace
@@ -356,28 +375,34 @@ void CheckResponseLanes(const Snapshot& snapshot, const std::array<MonoSnapshot,
     for (double frequency : {0.0, 0.000001, 0.001, 0.03, 0.2, 0.499, 0.5})
     {
         auto prepared = ResponseFrequency::CyclesPerSample(frequency);
-        auto vectorFrequency = prepared.template Broadcast<typename Snapshot::DoubleVector>();
-        auto complex = snapshot.ComplexResponses(vectorFrequency);
-        auto magnitude = snapshot.MagnitudeResponses(vectorFrequency);
+        auto vectorFrequency = prepared.template Broadcast<MultiChannelNumber<double, Snapshot::x_numLanes>>();
+        auto magnitude = snapshot.MagnitudeSquaredResponses(vectorFrequency);
         for (size_t lane = 0; lane < 3; ++lane)
         {
-            auto reference = mono[lane].ComplexResponse(prepared, 0);
-            DOCTEST_CHECK(std::abs(complex[lane] - static_cast<std::complex<double>>(reference))
-                <= 0.00002 * std::max(1.0f, std::abs(reference)));
-            DOCTEST_CHECK(magnitude[lane] == doctest::Approx(mono[lane].MagnitudeResponse(prepared, 0)).epsilon(0.00002));
+            if constexpr (std::is_base_of_v<FilterResponseSnapshot, Snapshot>)
+            {
+                auto reference = mono[lane].ComplexResponse(prepared, 0);
+                DOCTEST_CHECK(std::abs(snapshot.ComplexResponses(vectorFrequency)[lane] - static_cast<std::complex<double>>(reference))
+                    <= 0.00002 * std::max(1.0f, std::abs(reference)));
+            }
+
+            DOCTEST_CHECK(magnitude[lane] == doctest::Approx(mono[lane].MagnitudeSquaredResponse(prepared, 0)).epsilon(0.00002));
         }
     }
 
     auto prepared = FrequencyLanes<3>({0.0, 0.03, 0.5});
-    auto complex = snapshot.ComplexResponses(prepared);
-    auto magnitude = snapshot.MagnitudeResponses(prepared);
+    auto magnitude = snapshot.MagnitudeSquaredResponses(prepared);
     for (size_t lane = 0; lane < 3; ++lane)
     {
         auto scalar = prepared.Channel(lane);
-        auto reference = mono[lane].ComplexResponse(scalar, 0);
-        DOCTEST_CHECK(std::abs(complex[lane] - static_cast<std::complex<double>>(reference))
-            <= 0.00002 * std::max(1.0f, std::abs(reference)));
-        DOCTEST_CHECK(magnitude[lane] == doctest::Approx(mono[lane].MagnitudeResponse(scalar, 0)).epsilon(0.00002));
+        if constexpr (std::is_base_of_v<FilterResponseSnapshot, Snapshot>)
+        {
+            auto reference = mono[lane].ComplexResponse(scalar, 0);
+            DOCTEST_CHECK(std::abs(snapshot.ComplexResponses(prepared)[lane] - static_cast<std::complex<double>>(reference))
+                <= 0.00002 * std::max(1.0f, std::abs(reference)));
+        }
+
+        DOCTEST_CHECK(magnitude[lane] == doctest::Approx(mono[lane].MagnitudeSquaredResponse(scalar, 0)).epsilon(0.00002));
     }
 }
 }
@@ -395,11 +420,11 @@ DOCTEST_TEST_CASE("Sampled vectors: generated ZOH uses the handwritten prepared 
     {
         auto frequency = FrequencyLanes(frequencies);
         auto squared = Generated::MagnitudeSquared(generated, frequency);
-        auto magnitude = snapshot.MagnitudeResponses(frequency);
+        auto magnitude = snapshot.MagnitudeSquaredResponses(frequency);
         for (size_t lane = 0; lane < 3; ++lane)
         {
             DOCTEST_CHECK(std::isfinite(squared[lane]));
-            DOCTEST_CHECK(std::sqrt(squared[lane]) == doctest::Approx(magnitude[lane]).epsilon(0.000002));
+            DOCTEST_CHECK(squared[lane] == doctest::Approx(magnitude[lane]).epsilon(0.000002));
         }
     }
 }
@@ -409,15 +434,14 @@ DOCTEST_TEST_CASE("Sampled vectors: DC endpoint selection is independent per fre
     auto frequency = FrequencyLanes<3>({0, 0.1, 0.5});
     OPHighPassFilterGeneric<float, 3>::Snapshot high;
     high.m_alpha = TrioFloat(1, 0.5f, 0.5f);
-    TrioLinearStateVariableFilter::Snapshot svf;
-    svf.m_g = TrioFloat(0, 0.1f, 0.2f);
+    TPTSVFLowPassFilterGeneric<float, 3>::Snapshot svf;
+    svf.m_g = TrioFloat(0.01f, 0.1f, 0.2f);
+    svf.m_k = TrioFloat::Splat(1);
     auto highComplex = high.ComplexResponses(frequency);
-    auto highMagnitude = high.MagnitudeResponses(frequency);
-    auto svfComplex = svf.ComplexResponses(frequency);
-    auto svfMagnitude = svf.MagnitudeResponses(frequency);
+    auto highMagnitude = high.MagnitudeSquaredResponses(frequency);
+    auto svfMagnitude = svf.MagnitudeSquaredResponses(frequency);
     DOCTEST_CHECK(highComplex[0] == std::complex<double>(0, 0));
     DOCTEST_CHECK(highMagnitude[0] == 0);
-    DOCTEST_CHECK(svfComplex[0] == std::complex<double>(1, 0));
     DOCTEST_CHECK(svfMagnitude[0] == 1);
     for (size_t lane = 0; lane < 3; ++lane)
     {
@@ -445,7 +469,7 @@ DOCTEST_TEST_CASE("Sampled vectors: padded order statistics independently sort e
                 {
                     float value = static_cast<float>((sample * (11 + lane * 2) + lane * 7) % 37);
                     snapshot.m_gain[lane] = value;
-                    expected[lane].push_back(value);
+                    expected[lane].push_back(value * value);
                 }
 
                 ui.m_history.Push(snapshot);
@@ -479,41 +503,39 @@ DOCTEST_TEST_CASE("Sampled vectors: captured filter coefficients and responses p
     const TrioFloat resonance(0.1f, 0.6f, 0.9f);
     OPLowPassFilterGeneric<float, 3> lp;
     OPHighPassFilterGeneric<float, 3> hp;
-    TrioLinearStateVariableFilter svf;
+    MorphingTPTSVFFilterGeneric<float, 3> svf;
     LadderFilterLPGeneric<float, 3> ladder;
     lp.SetAlphaFromNatFreq(cutoff);
     hp.SetAlphaFromNatFreq(cutoff);
-    svf.SetCutoffAndResonance(cutoff, resonance);
+    svf.SetCutoffResonanceAndMorph(cutoff, resonance, TrioFloat(0.0f, 0.3f, 0.8f));
     ladder.SetCutoff(cutoff);
     ladder.SetResonance(resonance);
     ladder.Process(TrioFloat::Splat(0.1f));
     std::array<OPLowPassFilter::Snapshot, 3> monoLP;
     std::array<OPHighPassFilter::Snapshot, 3> monoHP;
-    std::array<LinearStateVariableFilter::Snapshot, 3> monoSVF;
+    std::array<MorphingTPTSVFFilterGeneric<float, 1>::Snapshot, 3> monoSVF;
     std::array<LadderFilterLP::Snapshot, 3> monoLadder;
     auto state = svf.MakeSnapshot();
-    state.m_weights = svf.GetMorphWeights(TrioFloat(0.0f, 0.3f, 0.8f));
     for (size_t lane = 0; lane < 3; ++lane)
     {
         OPLowPassFilter oneLP;
         OPHighPassFilter oneHP;
-        LinearStateVariableFilter oneSVF;
+        MorphingTPTSVFFilterGeneric<float, 1> oneSVF;
         LadderFilterLP oneLadder;
         oneLP.SetAlphaFromNatFreq(cutoff[lane]);
         oneHP.SetAlphaFromNatFreq(cutoff[lane]);
-        oneSVF.SetCutoffAndResonance(cutoff[lane], resonance[lane]);
+        oneSVF.SetCutoffResonanceAndMorph(cutoff[lane], resonance[lane], std::array<float, 3>{0.0f, 0.3f, 0.8f}[lane]);
         oneLadder.SetCutoff(cutoff[lane]);
         oneLadder.SetResonance(resonance[lane]);
         oneLadder.Process(0.1f);
         monoLP[lane] = oneLP.MakeSnapshot();
         monoHP[lane] = oneHP.MakeSnapshot();
         monoSVF[lane] = oneSVF.MakeSnapshot();
-        monoSVF[lane].m_weights = oneSVF.GetMorphWeights(std::array<float, 3>{0.0f, 0.3f, 0.8f}[lane]);
         monoLadder[lane] = oneLadder.MakeSnapshot();
     }
 
     DOCTEST_CHECK(lp.MakeSnapshot().m_alpha == lp.m_alpha);
-    DOCTEST_CHECK(svf.MakeSnapshot().m_g == svf.m_g);
+    DOCTEST_CHECK(svf.MakeSnapshot().m_svf.m_k == svf.m_state.m_svf.m_k);
     DOCTEST_CHECK(ladder.MakeSnapshot().m_feedback == ladder.m_kEff);
     CheckResponseLanes(lp.MakeSnapshot(), monoLP);
     CheckResponseLanes(hp.MakeSnapshot(), monoHP);

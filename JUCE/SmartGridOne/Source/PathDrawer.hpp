@@ -242,9 +242,9 @@ struct PathDrawer
         {
             float position = static_cast<float>(i) / (count - 1);
             const auto& values = plot.Get(i, lane);
-            auto screenY = [&](float magnitude)
+            auto screenY = [&](float power)
             {
-                return m_yMin + m_height * (1 - AmpToDbNormalized(magnitude) / 2);
+                return m_yMin + m_height * (1 - NormalizeDb(SampledResponsePlot::PowerToDb(power)) / 2);
             };
             points.push_back({m_xMin + m_width * position,
                 screenY(values.m_lower), screenY(values.m_median), screenY(values.m_upper)});

@@ -9,7 +9,7 @@
 #include "Noise.hpp"
 #include "PhasorPlayHead.hpp"
 #include "PhysicalModelingSource.hpp"
-#include "StateVariableFilter.hpp"
+#include "TPTSVFFilter.hpp"
 #include "TrioUtils.hpp"
 #include <cmath>
 #include <memory>
@@ -196,8 +196,8 @@ DOCTEST_TEST_CASE("PinkNoiseGeneric: bounded, zero mean, channels match mono gen
 
 DOCTEST_TEST_CASE("Trio: SVF channels match mono filters")
 {
-    TrioLinearStateVariableFilter trio;
-    LinearStateVariableFilter mono[3];
+    MorphingTPTSVFFilterGeneric<float, 3> trio;
+    MorphingTPTSVFFilterGeneric<float, 1> mono[3];
     ChannelDifference morphed;
     ChannelDifference lowPass;
     const float morph[3] = {0.1f, 0.5f, 0.85f};
@@ -213,15 +213,15 @@ DOCTEST_TEST_CASE("Trio: SVF channels match mono filters")
             resonance[i] = 0.3f * i;
         }
 
-        trio.SetCutoffAndResonance(cutoff, resonance);
+        trio.SetCutoffResonanceAndMorph(cutoff, resonance, TrioFloat(morph[0], morph[1], morph[2]));
         trio.Process(input);
-        TrioFloat trioMorphed = trio.GetMorphedOutput(TrioFloat(morph[0], morph[1], morph[2]));
+        TrioFloat trioMorphed = trio.GetOutput();
         for (size_t i = 0; i < 3; ++i)
         {
-            mono[i].SetCutoffAndResonance(cutoff[i], resonance[i]);
+            mono[i].SetCutoffResonanceAndMorph(cutoff[i], resonance[i], morph[i]);
             mono[i].Process(input[i]);
-            morphed.Add(i, trioMorphed[i], mono[i].GetMorphedOutput(morph[i])[0]);
-            lowPass.Add(i, trio.m_lowPass[i], mono[i].m_lowPass[0]);
+            morphed.Add(i, trioMorphed[i], mono[i].GetOutput()[0]);
+            lowPass.Add(i, trio.m_state.m_svf.m_lowPass[i], mono[i].m_state.m_svf.m_lowPass[0]);
         }
     }
 

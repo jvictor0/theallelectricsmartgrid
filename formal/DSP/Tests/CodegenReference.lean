@@ -1,4 +1,4 @@
-import DSP.Filters.Tuning
+import DSP.Filters.Capture
 import DSP.Tests.CodegenFixtures
 import DSP.Tests.ResponseCases
 import DSP.Tests.Splitter
@@ -174,6 +174,12 @@ def emitAllResponseCases (out : IO.FS.Stream) : IO Unit := do
     random := r
     emitAllResponses out v s c
 
+def svfSnapshotFields {R : Type} (s : TPTSVF.Snapshot R) : List R := [s.g,s.k]
+def morphSnapshotFields {R : Type} (s : MorphingTPTSVF.Snapshot R) : List R :=
+  svfSnapshotFields s.svf ++ [s.low,s.band,s.high]
+def fourSnapshotFields {R : Type} (s : TPTSVF4Pole.Snapshot R) : List R :=
+  svfSnapshotFields s.stage1 ++ svfSnapshotFields s.stage2
+
 /-- Independent native transcendental reference for coefficient tuning. Generated
 C++ deliberately uses the Math4096 approximation instead. -/
 def tuningRows {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 8]
@@ -191,26 +197,27 @@ def tuningRows {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 8]
   let z := OnePoleZOHLowPass.computeCoefficients ⟨fc1⟩ zoh
   let zfields := fun f : OnePoleZOHLowPass R => [f.alpha,f.y]
   let rows := [
-    ("OnePoleZOHLowPass", [fc1], zfields zoh, zfields z),
+    ("OnePoleZOHLowPass", [fc1], zfields zoh, zfields z ++ [(OnePoleZOHLowPass.prepareCoefficients ⟨fc1⟩ zoh).2.alpha]),
     ("OnePoleTPTLowPass", [fc1], lowPassFields lp,
-      lowPassFields (OnePoleTPTLowPass.computeCoefficients ⟨fc1⟩ lp)),
+      lowPassFields (OnePoleTPTLowPass.computeCoefficients ⟨fc1⟩ lp) ++ ([(OnePoleTPTLowPass.prepareCoefficients ⟨fc1⟩ lp).2.g])),
     ("OnePoleTPTHighPass", [fc1], highPassFields hp,
-      highPassFields (OnePoleTPTHighPass.computeCoefficients ⟨fc1⟩ hp)),
+      highPassFields (OnePoleTPTHighPass.computeCoefficients ⟨fc1⟩ hp) ++ ([(OnePoleTPTHighPass.prepareCoefficients ⟨fc1⟩ hp).2.g])),
     ("TPTBaseWidth", [fc1,fc2], baseWidthFields base,
-      baseWidthFields (TPTBaseWidth.computeCoefficients ⟨⟨fc1⟩,⟨fc2⟩⟩ base)),
+      baseWidthFields (TPTBaseWidth.computeCoefficients ⟨⟨fc1⟩,⟨fc2⟩⟩ base) ++ (let s := (TPTBaseWidth.prepareCoefficients ⟨⟨fc1⟩,⟨fc2⟩⟩ base).2; [s.highPass.g,s.lowPass.g])),
     ("TPTSVF", [fc1,q1], svfFields svf,
-      svfFields (TPTSVF.computeCoefficients ⟨fc1,q1⟩ svf)),
+      svfFields (TPTSVF.computeCoefficients ⟨fc1,q1⟩ svf) ++ (svfSnapshotFields (TPTSVF.prepareCoefficients ⟨fc1,q1⟩ svf).2)),
     ("MorphingTPTSVF", [fc1,q1,blend], morphFields morph,
-      morphFields (MorphingTPTSVF.computeCoefficients ⟨⟨fc1,q1⟩,blend⟩ morph)),
+      morphFields (MorphingTPTSVF.computeCoefficients ⟨⟨fc1,q1⟩,blend⟩ morph) ++ (morphSnapshotFields (MorphingTPTSVF.prepareCoefficients ⟨⟨fc1,q1⟩,blend⟩ morph).2)),
     ("TPTLadder", [fc1,feedback], ladderFields ladder,
-      ladderFields (TPTLadder.computeCoefficients ⟨fc1,feedback⟩ ladder)),
+      ladderFields (TPTLadder.computeCoefficients ⟨fc1,feedback⟩ ladder) ++
+        (let s := (TPTLadder.prepareCoefficients ⟨fc1,feedback⟩ ladder).2; [s.g1,s.g2,s.g3,s.g4,s.k])),
     ("LinkwitzRileySplitter4Band", [fc1,fc2,fc1],
       DSP.Tests.Splitter.fields svfFields (DSP.Tests.Splitter.seeded 4 seed),
       DSP.Tests.Splitter.fields svfFields (LinkwitzRileySplitter.computeCoefficients
         (DSP.Tests.Splitter.spec4 fc1 fc2 fc1) (DSP.Tests.Splitter.seeded 4 seed)))]
   rows ++ ["TPTSVF4PoleLowPass", "TPTSVF4PoleBandPass", "TPTSVF4PoleHighPass"].map (fun name =>
     (name, [fc1,q1,fc2,q2], svf4Fields four,
-      svf4Fields (TPTSVF4Pole.computeCoefficients ⟨⟨fc1,q1⟩,⟨fc2,q2⟩⟩ four)))
+      svf4Fields (TPTSVF4Pole.computeCoefficients ⟨⟨fc1,q1⟩,⟨fc2,q2⟩⟩ four) ++ (fourSnapshotFields (TPTSVF4Pole.prepareCoefficients ⟨⟨fc1,q1⟩,⟨fc2,q2⟩⟩ four).2)))
 
 def emitTuningCases (out : IO.FS.Stream) : IO Unit := do
   let mut random : UInt64 := 0x739dac

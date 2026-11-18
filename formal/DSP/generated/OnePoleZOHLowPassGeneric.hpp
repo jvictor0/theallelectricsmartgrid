@@ -13,6 +13,7 @@
 #include "Math.hpp"
 
 #include "ResponseFrequency.hpp"
+#include "GeneratedFilterUI.hpp"
 #include "MultiChannelNumber.hpp"
 #include <type_traits>
 
@@ -49,23 +50,6 @@ struct OnePoleZOHLowPassGeneric
         m_state.m_y = v4;
     }
 
-    // Coefficients generated from DSP.OnePoleZOHLowPass.computeCoefficients.
-    //
-
-    struct LogicalSpec
-    {
-        Vector m_cutoff;
-    };
-
-    void ComputeCoefficients(const LogicalSpec& spec)
-    {
-        const Vector v0 = (-(Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0xC90FDBp-21f : 0x1921FB54442D18p-50)) * spec.m_cutoff));
-        const Vector v1 = v0.Exp();
-        const Vector v2 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) - v1);
-        const Vector v3 = v2;
-        m_state.m_alpha = v3;
-    }
-
     // Response generated from DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquared.
     //
 
@@ -86,6 +70,45 @@ struct OnePoleZOHLowPassGeneric
         const Vector v5 = Vector::IfLess(Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0)), snapshot.m_alpha, v4, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
         const Vector v6 = (v0 / v5);
         return v6;
+    }
+
+    // Coefficients generated from DSP.OnePoleZOHLowPass.prepareCoefficients.
+    //
+
+    Snapshot m_responseSnapshot{};
+
+    Snapshot MakeSnapshot() const
+    {
+        return m_responseSnapshot;
+    }
+
+    struct LogicalSpec
+    {
+        Vector m_cutoff;
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const Vector v0 = (-(Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0xC90FDBp-21f : 0x1921FB54442D18p-50)) * spec.m_cutoff));
+        const Vector v1 = v0.Exp();
+        const Vector v2 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) - v1);
+        const Vector v3 = v2;
+        const Vector v4 = v2;
+        m_state.m_alpha = v4;
+        m_responseSnapshot.m_alpha = v3;
+    }
+
+    using NumberType = Number;
+    static constexpr size_t x_numChannels = Size;
+
+    using UIState = TransferFunctionGeneric<GeneratedResponseSnapshot<OnePoleZOHLowPassGeneric<Number, Size>, &OnePoleZOHLowPassGeneric<Number, Size>::MagnitudeSquared>>;
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot();
+        });
     }
 
 };

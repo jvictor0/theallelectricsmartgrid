@@ -245,10 +245,10 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
             return response.m_numerator / response.m_denominator;
         }
 
-        ResponseVector MagnitudeResponses(const Frequency& frequency) const override
+        ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
             auto response = Evaluate(frequency);
-            return (response.m_numerator.Norm() / response.m_denominator.Norm()).Sqrt().template Convert<float>();
+            return (response.m_numerator.Norm() / response.m_denominator.Norm()).template Convert<float>();
         }
     };
 

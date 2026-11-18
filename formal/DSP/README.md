@@ -311,7 +311,7 @@ All proofs reuse a few lemmas:
 | `TPTLadder` | `stage4.y` | g₁g₂g₃g₄/(∏(s+gᵢ) + k g₁g₂g₃g₄) |
 | `LinkwitzRileySplitter` | `bands i` | split responses along the path, compensated by sibling all-pass factors |
 
-`TPTSVF` uses the app's `LinearStateVariableFilter` recurrence with explicit FMA and
+`TPTSVF` uses the app's former handwritten SVF recurrence with explicit FMA and
 a1 = 1/(1+g(g+k)), a2 = g a1, a3 = g a2; `streams` derives the analog SVF's two
 integrator equations and summing junction from the stored responses, and the
 four transfers are solved from them. The notch is stored as lowpass plus
@@ -330,7 +330,7 @@ parameter with the app's clamp and quarter-turn phase; `blendWeights_power`
 proves the morph is equal power, and `numerator_endpoints` that blends 0, 1/2
 and 1 are exactly lowpass, bandpass and highpass.
 
-`TPTSVF4Pole.stepHighPass` is the app's `LinearSVF4PoleHighPass`; the lowpass
+`TPTSVF4Pole.stepHighPass` is the app's former handwritten four-pole HP; the lowpass
 and bandpass variants feed and read the corresponding response. Stages may have
 different gains and dampings.
 
@@ -413,15 +413,16 @@ make lean-dsp-test
 
 The DSP target builds the theory with warnings treated as errors, audits all
 transitive DSP declarations for unexpected axioms/admissions, runs native
-Float/Float32 checks, generates C++ and compares 32,268 native Lean/C++ cases bit
+Float/Float32 checks, generates C++ and compares native Lean/C++ cases bit
 for bit. It also checks multichannel trajectories against native Lean at both
 precisions and widths 1, 2, 3 and 4. The coupled example exercises every stored
 coefficient, two interacting state variables, nonzero feedthrough and
 simultaneous state updates.
 
 The exact model is proved in Lean. The exporter and C++ compiler are tested,
-not formally verified; floating-point approximation is trusted. Application
-sources and the independent encoder smoother remain unchanged.
+not formally verified; floating-point approximation is trusted. The app uses
+the generated filter adapters described above; the independent encoder smoother
+is outside this DSP implementation.
 
 ## Logical coefficient tuning
 

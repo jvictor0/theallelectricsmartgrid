@@ -4,7 +4,7 @@ import DSP.FMA
 namespace DSP
 
 /-- Linear trapezoidal state-variable filter with the recurrence of the
-app's `LinearStateVariableFilter`, using explicit fused multiply-adds. `k` is the damping 1/Q, and a1, a2, a3 are
+app's former handwritten SVF, using explicit fused multiply-adds. `k` is the damping 1/Q, and a1, a2, a3 are
 the solved zero-delay loop coefficients for integrator gain g (ideally
 tan(π f)): a1 = 1 / (1 + g (g + k)), a2 = g a1, a3 = g a2. `ic1` and `ic2`
 are the integrator states; every response is stored after each sample. -/

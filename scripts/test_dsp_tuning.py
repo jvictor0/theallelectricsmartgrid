@@ -70,6 +70,23 @@ def coefficient_oracle(name):
             svf(prefix, cutoff, 'Cos(Number(0.125))')
     return result
 
+def snapshot_oracle(name):
+    g = lambda n: f'Math4096::TanPi(MultiChannelNumber<Number,1>::Splat(p[{n}]))[0]'
+    if name == 'OnePoleZOHLowPass': return {'alpha': coefficient_oracle(name)['alpha']}
+    if name in ('OnePoleTPTLowPass', 'OnePoleTPTHighPass'): return {'g': g(0)}
+    if name == 'TPTBaseWidth': return {'highPass.g': g(0), 'lowPass.g': g(1)}
+    if name == 'TPTSVF': return {'g': g(0), 'k': 'Number(1)/p[1]'}
+    if name == 'MorphingTPTSVF':
+        return {'svf.g': g(0), 'svf.k': 'Number(1)/p[1]',
+                'low': 'p[2] > Number(0.5) ? Number(0) : Cos(Phase(p[2]))',
+                'band': 'p[2] > Number(0.5) ? Cos(Phase(p[2])) : Sin(Phase(p[2]))',
+                'high': 'p[2] > Number(0.5) ? Sin(Phase(p[2])) : Number(0)'}
+    if name.startswith('TPTSVF4Pole'):
+        return {'stage1.g': g(0), 'stage1.k': 'Number(1)/p[1]',
+                'stage2.g': g(2), 'stage2.k': 'Number(1)/p[3]'}
+    if name == 'TPTLadder': return dict([(f'g{i}', g(0)) for i in range(1,5)] + [('k','p[1]')])
+    raise AssertionError(name)
+
 PRELUDE = r'''
 #include <array>
 #include <cassert>
@@ -176,11 +193,19 @@ void Test{name}()
             code += f'        inputs[lane][{i}] = Read<Number>();\n        spec.{member(f)}[lane] = inputs[lane][{i}];\n'
         for i, f in enumerate(fields):
             code += f'        before[lane][{i}] = Read<Number>();\n        filter.m_state.{member(f)}[lane] = before[lane][{i}];\n'
-        code += '''    }
-
-    filter.ComputeCoefficients(spec);
+        code += '    }\n\n'
+        if name == 'TPTSVF':
+            code += '    auto fromSnapshot = filter;\n'
+        code += '''    filter.ComputeCoefficients(spec);
     const auto first = filter.m_state;
-    filter.ComputeCoefficients(spec);
+'''
+        if name != SPLITTER:
+            code += '    const auto captured = filter.MakeSnapshot();\n'
+        if name == 'TPTSVF':
+            code += '''    fromSnapshot.ComputeCoefficientsFromSnapshot(captured);
+    fromSnapshot.ComputeCoefficientsFromSnapshot(captured);
+'''
+        code += '''    filter.ComputeCoefficients(spec);
     for (size_t lane = 0; lane < Size; ++lane)
     {
         const auto& p = inputs[lane];
@@ -191,6 +216,16 @@ void Test{name}()
         assert(Raw(filter.m_state.{member(f)}[lane]) == Raw(first.{member(f)}[lane]));
         std::cout << Raw(filter.m_state.{member(f)}[lane]) << ' ';
 '''
+            if name == 'TPTSVF':
+                code += f'        assert(Raw(fromSnapshot.m_state.{member(f)}[lane]) == Raw(first.{member(f)}[lane]));\n'
+        if name != SPLITTER:
+            for f, expr in snapshot_oracle(name).items():
+                code += f'''        assert(Raw(captured.{member(f)}[lane]) == Raw({expr}));
+        assert(Raw(filter.MakeSnapshot().{member(f)}[lane]) == Raw(captured.{member(f)}[lane]));
+        std::cout << Raw(captured.{member(f)}[lane]) << ' ';
+'''
+                if name == 'TPTSVF':
+                    code += f'        assert(Raw(fromSnapshot.MakeSnapshot().{member(f)}[lane]) == Raw(captured.{member(f)}[lane]));\n'
         if name == SPLITTER:
             code += '        const auto snapshot = decltype(filter)::MakeSnapshot(spec);\n'
             for index, node in enumerate(['tree', 'tree.low', 'tree.high']):
@@ -206,9 +241,17 @@ void Test{name}()
                 code += f'            scalarSpec.{member(f)} = p[{i}];\n'
             for i, f in enumerate(fields):
                 code += f'            scalar.m_state.{member(f)} = before[lane][{i}];\n'
+            if name == 'TPTSVF':
+                code += '            auto scalarFromSnapshot = scalar;\n'
             code += '            scalar.ComputeCoefficients(scalarSpec);\n'
+            if name == 'TPTSVF':
+                code += '            scalarFromSnapshot.ComputeCoefficientsFromSnapshot(scalar.MakeSnapshot());\n'
             for f in fields:
                 code += f'            assert(Raw(scalar.m_state.{member(f)}) == Raw(filter.m_state.{member(f)}[lane]));\n'
+                if name == 'TPTSVF':
+                    code += f'            assert(Raw(scalarFromSnapshot.m_state.{member(f)}) == Raw(scalar.m_state.{member(f)}));\n'
+            for f in snapshot_oracle(name):
+                code += f'            assert(Raw(scalar.MakeSnapshot().{member(f)}) == Raw(captured.{member(f)}[lane]));\n'
             code += '        }\n'
         if name == 'OnePoleTPTLowPass':
             code += '''        if constexpr (std::is_same_v<Number,float>)
@@ -251,6 +294,11 @@ def test_tuning(cases, compiler, output, root):
         method = header.split('void ComputeCoefficients(',1)[1].split('\n    }',1)[0]
         stores = set(re.findall(r'm_state\.(\w+(?:\.\w+)*) =', method))
         assert stores == {member(f) for f in coefficient_oracle(name)}, (name, stores)
+        if name == 'TPTSVF':
+            prepared_method = header.split('void ComputeCoefficientsFromSnapshot(',1)[1].split('\n    }',1)[0]
+            prepared_stores = set(re.findall(r'm_state\.(\w+(?:\.\w+)*) =', prepared_method))
+            assert prepared_stores == stores
+            assert 'Math4096' not in prepared_method
         for precision in (32,64):
             rows = [c.split()[2:] for c in cases if c.startswith(f'tuning{precision} {name} ')]
             assert rows
@@ -283,5 +331,5 @@ def test_tuning(cases, compiler, output, root):
             max_error[precision] = max(max_error[precision],error)
             assert error < 2e-5, (label,a,b,error)
     print(f'Tuning: {len(actual)} batches; all {len(SCHEMAS)} exports, both precisions, widths 1–4. '
-          f'Math4096 bit checks, scalar agreement, history, idempotence and sampled poles pass. '
+          f'Math4096 bit checks, scalar agreement, snapshot capture, history, idempotence and sampled poles pass. '
           f'Max native-Lean error |delta|/(1+|reference|): {max_error}')

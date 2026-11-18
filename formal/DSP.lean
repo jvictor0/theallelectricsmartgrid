@@ -30,3 +30,4 @@ import DSP.Filters.Channels
 import DSP.Filters.Responses.Channels
 import DSP.Filters.Tuning.Digital
 import DSP.Filters.LinkwitzRileySplitter.Channels
+import DSP.Filters.Capture.Proofs

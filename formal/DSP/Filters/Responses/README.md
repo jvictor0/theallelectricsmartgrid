@@ -94,7 +94,7 @@ Consequently the base-width response is the highpass squared magnitude times
 the lowpass squared magnitude. Each four-pole SVF response multiplies the two
 selected stage responses. Their gains and dampings may differ; the proof never assumes
 identical stages. Squaring one stage's response is only the equal-stage case.
-No square roots are needed until the UI wants ordinary magnitude.
+The sampled UI retains squared magnitudes through to its `10*log10(power)` display.
 
 ## Composition: mixing
 

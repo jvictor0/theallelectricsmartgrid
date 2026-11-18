@@ -14,6 +14,7 @@
 #include "MultiChannelNumber.hpp"
 
 #include "ResponseFrequency.hpp"
+#include "GeneratedFilterUI.hpp"
 struct MorphingTPTSVF
 {
     static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53);
@@ -114,62 +115,6 @@ struct MorphingTPTSVF
         m_state.m_output = v36;
     }
 
-    // Coefficients generated from DSP.MorphingTPTSVF.computeCoefficientsFloat.
-    //
-
-    struct LogicalSpec
-    {
-        struct
-        {
-            double m_cutoff;
-            double m_q;
-        } m_svf;
-
-        double m_blend;
-    };
-
-    void ComputeCoefficients(const LogicalSpec& spec)
-    {
-        const double v0 = (1.0 / 0x10000000000000p-51);
-        const bool v1 = (v0 < spec.m_blend);
-        double v5;
-        if (v1)
-        {
-            const double v2 = (spec.m_blend - v0);
-            const double v3 = (v2 / 0x10000000000000p-51);
-            v5 = v3;
-        }
-        else
-        {
-            const double v4 = (spec.m_blend / 0x10000000000000p-51);
-            v5 = v4;
-        }
-
-        const double v6 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_svf.m_cutoff))[0];
-        const double v7 = (1.0 / spec.m_svf.m_q);
-        const double v8 = (v6 + v7);
-        const double v9 = std::fma(v6, v8, 1.0);
-        const double v10 = (1.0 / v9);
-        const double v11 = (v6 * v10);
-        const double v12 = (v6 * v11);
-        const double v13 = Math4096::Cos2pi(MultiChannelNumber<double, 1>::Splat(v5))[0];
-        const double v14 = Math4096::Sin2pi(MultiChannelNumber<double, 1>::Splat(v5))[0];
-        const double v15 = v7;
-        const double v16 = v10;
-        const double v17 = v11;
-        const double v18 = v12;
-        const double v19 = v13;
-        const double v20 = v14;
-        const double v21 = spec.m_blend;
-        m_state.m_svf.m_k = v15;
-        m_state.m_svf.m_a1 = v16;
-        m_state.m_svf.m_a2 = v17;
-        m_state.m_svf.m_a3 = v18;
-        m_state.m_cosine = v19;
-        m_state.m_sine = v20;
-        m_state.m_blend = v21;
-    }
-
     // Response generated from DSP.MorphingTPTSVF.Snapshot.magnitudeSquaredFloat.
     //
 
@@ -219,6 +164,125 @@ struct MorphingTPTSVF
 
         const double v18 = (v11 / v17);
         return v18;
+    }
+
+    // Coefficients generated from DSP.MorphingTPTSVF.prepareCoefficientsFloat.
+    //
+
+    Snapshot m_responseSnapshot{};
+
+    Snapshot MakeSnapshot() const
+    {
+        return m_responseSnapshot;
+    }
+
+    struct LogicalSpec
+    {
+        struct
+        {
+            double m_cutoff;
+            double m_q;
+        } m_svf;
+
+        double m_blend;
+    };
+
+    void ComputeCoefficients(const LogicalSpec& spec)
+    {
+        const double v0 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_svf.m_cutoff))[0];
+        const double v1 = (1.0 / spec.m_svf.m_q);
+        const double v2 = (v0 + v1);
+        const double v3 = std::fma(v0, v2, 1.0);
+        const double v4 = (1.0 / v3);
+        const double v5 = (v0 * v4);
+        const double v6 = (v0 * v5);
+        const double v7 = (1.0 / 0x10000000000000p-51);
+        const bool v8 = (v7 < spec.m_blend);
+        double v12;
+        if (v8)
+        {
+            const double v9 = (spec.m_blend - v7);
+            const double v10 = (v9 / 0x10000000000000p-51);
+            v12 = v10;
+        }
+        else
+        {
+            const double v11 = (spec.m_blend / 0x10000000000000p-51);
+            v12 = v11;
+        }
+
+        const double v13 = Math4096::Cos2pi(MultiChannelNumber<double, 1>::Splat(v12))[0];
+        const double v14 = Math4096::Sin2pi(MultiChannelNumber<double, 1>::Splat(v12))[0];
+        const bool v15 = (v7 < spec.m_blend);
+        double v16;
+        if (v15)
+        {
+            v16 = 0.0;
+        }
+        else
+        {
+            v16 = v13;
+        }
+
+        const bool v17 = (v7 < spec.m_blend);
+        double v18;
+        if (v17)
+        {
+            v18 = v13;
+        }
+        else
+        {
+            v18 = v14;
+        }
+
+        const bool v19 = (v7 < spec.m_blend);
+        double v20;
+        if (v19)
+        {
+            v20 = v14;
+        }
+        else
+        {
+            v20 = 0.0;
+        }
+
+        const double v21 = v0;
+        const double v22 = v1;
+        const double v23 = v16;
+        const double v24 = v18;
+        const double v25 = v20;
+        const double v26 = v1;
+        const double v27 = v4;
+        const double v28 = v5;
+        const double v29 = v6;
+        const double v30 = v13;
+        const double v31 = v14;
+        const double v32 = spec.m_blend;
+        m_state.m_svf.m_k = v26;
+        m_state.m_svf.m_a1 = v27;
+        m_state.m_svf.m_a2 = v28;
+        m_state.m_svf.m_a3 = v29;
+        m_state.m_cosine = v30;
+        m_state.m_sine = v31;
+        m_state.m_blend = v32;
+        m_responseSnapshot.m_svf.m_g = v21;
+        m_responseSnapshot.m_svf.m_k = v22;
+        m_responseSnapshot.m_low = v23;
+        m_responseSnapshot.m_band = v24;
+        m_responseSnapshot.m_high = v25;
+    }
+
+    using NumberType = decltype(State{}.m_svf.m_k);
+    static constexpr size_t x_numChannels = 1;
+
+    using UIState = TransferFunctionGeneric<GeneratedResponseSnapshot<MorphingTPTSVF, &MorphingTPTSVF::MagnitudeSquared>>;
+
+    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const
+    {
+        writer.PopulateUIStateSample([&]
+        {
+            return MakeSnapshot();
+        });
     }
 
 };
