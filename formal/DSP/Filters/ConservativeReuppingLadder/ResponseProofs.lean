@@ -72,15 +72,6 @@ theorem magnitudeSquared_channel {n : ℕ} (s : Snapshot (Fin n → ℝ))
 theorem snapshot_channel {n : ℕ} (s : ConservativeReuppingLadder (Fin n → ℝ)) (i : Fin n) :
     channel i (snapshot s) = snapshot (channel i s) := rfl
 
-theorem unitDelay_eq_fourier_inv (frequency : ℝ) :
-    ResponseFrequency.unitDelay frequency =
-      (fourier 1 (frequency : ResponseMeasurement.Phase))⁻¹ := by
-  rw [fourier_coe_apply, ← Complex.exp_neg]
-  unfold ResponseFrequency.unitDelay
-  congr 1
-  push_cast
-  ring
-
 /-- The exact response whose power the UI emits is the time-first limit of
 the actual nonlinear processor, not merely a separate tangent formula. -/
 theorem prepared_ui_smallSignal (spec : LogicalSpec ℝ) (s : ConservativeReuppingLadder ℝ)
@@ -95,7 +86,7 @@ theorem prepared_ui_smallSignal (spec : LogicalSpec ℝ) (s : ConservativeReuppi
       ((prepareCoefficients spec s).2.response (ResponseFrequency.unitDelay frequency)) := by
   dsimp only
   rw [prepareCoefficients_snapshot, snapshot_response _
-    (ne_of_gt (ReuppingLadder.prepareTuning_properties spec.cutoff hc).1), unitDelay_eq_fourier_inv]
+    (ne_of_gt (ReuppingLadder.prepareTuning_properties spec.cutoff hc).1), ResponseMeasurement.unitDelay_eq_fourier_inv]
   exact prepared_hasSmallSignalResponse spec s hc hr0 hr1 hg _ hfrequency
 
 end DSP.ConservativeReuppingLadder

@@ -1,4 +1,4 @@
-# Multiband saturator: executable Lean core
+# Multiband saturator: core and small-signal response
 
 [MultibandSaturator.lean](../MultibandSaturator.lean) composes the existing
 phase-compensated [LR splitter](../LinkwitzRileySplitter/README.md) with band
@@ -6,9 +6,8 @@ gains, unnormalized saturation, summation, master gain and final saturation.
 The splitter calls the shared TPTSVF recurrence. There is no second crossover
 implementation and no call into generated C++.
 
-This first step implements and tests the pure processor. Small-signal transfer
-proofs, an optimized power-response kernel, C++ emission and app integration
-are subsequent work. The current app continues to use its handwritten
+The pure processor, time-first small-signal proofs and optimized power-response
+kernel are implemented. C++ emission and app integration are subsequent work. The current app continues to use its handwritten
 multiband processor. Its legacy crossover has fourth-order Butterworth
 branches; the Lean core uses the proved LR4 splitter with sibling phase
 compensation. The two are intentionally different filters.
@@ -58,10 +57,12 @@ higher bands have been accumulated. The app uses shared gains across channels;
 under that contract the bass observation and `sub` agree in every lane. Master
 gain and saturation follow the addition, and `sub` retains its separate value
 before those master operations. This preserves the app's mono-bass routing
-order. The later transfer proof must include this channel coupling explicitly.
+order. The mono-bass small-signal theorem includes this channel coupling
+explicitly, including different input phases.
 
 `stepWith` exposes the bass routing and saturation functions as pure parameters.
-The eventual tangent program can reuse the same processing order.
+The proofs connect its actual output to a memoryless observation of the actual
+LR state; they do not assume a separate tangent processor is equivalent.
 
 ## Preparing coefficients separately from audio
 
@@ -93,4 +94,104 @@ gains, observations and the final sum against independently evaluated rational
 saturation. Additional tests cover independent audio lanes, stereo/quad mono
 bass, and packed three-cutoff preparation.
 
-These are execution checks. No multiband small-signal theorem is claimed yet.
+Small-signal execution checks independently demodulate the actual nonlinear
+Float output at four frequencies for flat, unequal and muted band gains, and
+compare measured power with the new kernel. A stereo anti-phase check verifies
+mono-bass cancellation. These numerical checks complement the real-number proofs;
+they do not establish floating-point error bounds.
+
+## Proved response
+
+For independent channels, let `B_i(f)` be the existing splitter's exact complex
+band response, `G_i` the linear band gain, and `M` the linear master gain. Then
+
+```
+H(f) = M * sum_i G_i * B_i(f).
+```
+
+Both the band and master saturations have derivative one at zero. The shared
+LR phase compensation gives `B_i = A*w_i`, with `|A|=1`, `w_i >= 0`, and
+`sum_i w_i=1`. Consequently
+
+```
+|H(f)|^2 = M^2 * (sum_i G_i*w_i(f))^2.
+```
+
+Each node uses `low = (g*cos(pi*f))^4`, `high = sin(pi*f)^4`, and the normalized
+weights `low/(low+high)` and `high/(low+high)`. A band's weight is their product
+along its tree path. [Response.lean](Response.lean) evaluates this formula using
+the existing `ResponseFrequency` cache, generic arithmetic and the captured
+snapshot. It requires neither new trig calls, complex arithmetic nor square roots.
+The formula includes all cross terms in the coherent band sum; it is not a sum
+of individual band powers. Equal band gains give a flat magnitude, although the
+common all-pass phase remains.
+
+The convergence statement is about the **actual nonlinear processor** at fixed
+valid coefficients, with reset histories. It first takes the long-time coherent
+average of the output at the input frequency, then divides by input amplitude,
+then takes that amplitude to zero from above. The inner time limit exists: the
+stable LR tree approaches its sinusoidal mode, and the saturations approach a
+continuous function of the same circle phase. Circle averages cover both rational
+and irrational digital frequencies. This measures the complex fundamental,
+not RMS energy of all harmonics, and does not assert linearity at finite drive.
+
+Cutoffs must lie strictly between zero and half the processing sample rate at
+every tree node. Band and master gains may be any finite real values, including
+zero. The coherent theorem excludes DC and Nyquist because its factor-of-two
+normalization is specific to nondegenerate real sinusoids. The power identity
+itself is valid at those endpoints too. Coefficients are held fixed throughout;
+parameter modulation and floating-point/Math4096 approximation errors are not
+part of this theorem. The proof interprets saturation as exact real tanh; the
+native smoke tests use the existing rational approximation.
+
+### Mono bass
+
+For input channel amplitudes `a_j` (complex, retaining relative phase), the
+response at output channel `l` is
+
+```
+M_l * (G_0l * sum_j B_0j*a_j / channels
+       + sum_(i > 0) G_il * B_il*a_l).
+```
+
+This is a matrix response across channels. There is no single input-independent
+scalar curve for arbitrary stereo input in this mode. With identical channel
+tuning, a common input mode gives the scalar response above; any zero-mean input
+mode, such as opposite-phase stereo, removes the bass contribution. The theorem
+also permits lane-specific tuning and gains. The scalar magnitude kernel is not
+claimed to describe every mono-bass input mode.
+
+## Theorem inventory and shared proof structure
+
+| Result | What it establishes |
+| --- | --- |
+| `prepared_smallSignal` | Actual scalar processing has the stated time-first response from the prepared snapshot. |
+| `prepared_monoSmallSignal` | Actual mono-bass processing has the coupled response for any vector of complex channel amplitudes. |
+| `prepared_magnitudeSquared` | The prepared power kernel equals the squared magnitude of that same scalar response. |
+| `Snapshot.equal_gain_flat` | Equal band gains produce constant power `(M*G)^2`. |
+| `Snapshot.monoTransfer_common`, `monoTransfer_zeroMean` | Common and differential channel modes behave as described above. |
+| `output_eq`, `monoBass_output_eq` | The existing processor output is exactly the analyzed observation of the LR bands. |
+| LR `install_prepare`, `prepare_snapshot` | The prepared coefficient path and snapshot equal the existing proved tuner. |
+| LR `bandTransfer_factor`, `bandWeight_nonneg`, `sum_bandWeight` | Common all-pass factor and nonnegative partition of unity. |
+| LR `computeCoefficients_settles_band` | Each actual band settles to its complex mode, even with a vanishing input transient. |
+| SVF `spectrum_lt_one`, `settles_readout` | Actual history recurrence is strictly stable at positive tuning/damping and settles to its low-pass/all-pass response. |
+
+The reusable pieces are deliberately separate from the multiband filter:
+
+- [LinearTracking](../../Analysis/LinearTracking.lean) proves stable linear
+  recurrences reject vanishing input errors. [Tracking](../../ResponseMeasurement/Tracking.lean)
+  packages that contract so projections, cascades and differences compose.
+  The LR proof follows the existing processing tree, including sibling phase compensation.
+- [SaturatingSum](../../Nonlinear/SaturatingSum.lean) proves the derivative and
+  Lipschitz bound of band gains, saturations, sum and master saturation.
+- [StaticObservation](../../ResponseMeasurement/StaticObservation.lean) turns
+  a settled linear bank and differentiable memoryless observation into the
+  time-first small-signal theorem. Mono bass inserts a linear routing map before
+  this observation; it does not require a second nonlinear convergence argument.
+- The tanh calculus facts, phase rotation and digital-frequency/Fourier identity
+  are shared with the conservative ladder and normalized saturator. Their old
+  private copies were removed; the ladder's feedback convergence proof remains.
+
+`DSP.Audit` checks these public results and all DSP dependencies for admissions
+or additional axioms. No new codegen entry point, generated C++ filter, UI adapter
+or app-side behavior is added in this phase.

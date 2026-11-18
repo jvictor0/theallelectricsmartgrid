@@ -5,7 +5,8 @@ import DSP.Channels.Arithmetic
 /-! A pure multiband mastering core. Split with the shared compensated LR tree,
 apply unnormalized saturation after each band gain, sum, then apply master gain
 and saturation. Metering receives observations; it never participates in state
-updates. Transfer and small-signal theorems are a subsequent step. -/
+updates. SmallSignal and MonoBassSmallSignal prove the time-first response;
+Response contains its magnitude-squared kernel. -/
 namespace DSP.MultibandSaturator
 
 structure LogicalSpec (numBands : Nat) (R : Type) where

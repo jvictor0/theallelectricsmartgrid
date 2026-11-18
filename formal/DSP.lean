@@ -37,4 +37,4 @@ import DSP.Filters.ConservativeReuppingLadder.Linearization
 import DSP.Filters.ConservativeReuppingLadder.Convergence
 import DSP.Filters.NormalizedTanh.Proofs
 import DSP.Filters.ConservativeReuppingLadder.ResponseProofs
-import DSP.Filters.MultibandSaturator
+import DSP.Filters.MultibandSaturator.MonoBassSmallSignal

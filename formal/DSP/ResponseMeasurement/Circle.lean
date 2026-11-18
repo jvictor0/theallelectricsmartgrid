@@ -1,4 +1,5 @@
 import DSP.ResponseMeasurement.Uniform
+import DSP.ResponseFrequency.Proofs
 import Mathlib.Analysis.Fourier.AddCircle
 
 /-! Every continuous waveform of one digital phase has a long-time mean,
@@ -11,6 +12,29 @@ open Filter Finset
 open scoped Topology
 
 abbrev Phase := AddCircle (1:ℝ)
+
+def phaseRotation (theta : Phase) : Phase ≃ₜ Phase where
+  toFun x := x+theta
+  invFun x := x-theta
+  left_inv x := by simp
+  right_inv x := by simp
+  continuous_toFun := continuous_id.add continuous_const
+  continuous_invFun := continuous_id.sub continuous_const
+
+theorem phaseRotation_iterate (theta : Phase) (n : ℕ) : (phaseRotation theta)^[n] 0 = n • theta := by
+  induction n with
+  | zero => simp
+  | succ n ih => rw [Function.iterate_succ_apply',ih]; simp [phaseRotation,add_nsmul]
+
+theorem unitDelay_eq_fourier_inv (frequency : ℝ) :
+    ResponseFrequency.unitDelay frequency =
+      (fourier 1 (frequency : ResponseMeasurement.Phase))⁻¹ := by
+  rw [fourier_coe_apply, ← Complex.exp_neg]
+  unfold ResponseFrequency.unitDelay
+  congr 1
+  push_cast
+  ring
+
 
 theorem fourier_arg_add (m : ℤ) (x y : Phase) :
     fourier m (x+y) = fourier m x*fourier m y := by

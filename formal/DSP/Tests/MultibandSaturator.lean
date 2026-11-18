@@ -1,4 +1,4 @@
-import DSP.Filters.MultibandSaturator
+import DSP.Filters.MultibandSaturator.Response
 import DSP.Tests.Splitter
 
 namespace DSP.Tests.Multiband
@@ -144,16 +144,56 @@ def checkPackedPreparation : IO Unit := do
         [scalar.snapshot.g,scalar.snapshot.k,scalar.a1,scalar.a2,scalar.a3].map Float.toBits do
       throw (IO.userError "packed cutoff preparation differs from scalar preparation")
 
+/-- Measure the actual nonlinear recurrence with a small sine, then compare its
+coherent power to the independently evaluated prepared response kernel. -/
+def checkMeasuredResponse : IO Unit := do
+  for gains in [#[1.0,1.0,1.0,1.0],#[0.5,1.8,0.0,3.0],#[0.0,0.0,2.0,0.0]] do
+    let spec : MultibandSaturator.LogicalSpec 4 Float :=
+      ⟨Splitter.spec4 0.12 0.03 0.3,(fun i => gains[i.val]!),1.4⟩
+    let prepared := MultibandSaturator.prepare spec
+    for frequency in [0.015625,0.078125,0.203125,0.421875] do
+      let halfAngle := (3.14159265358979323846 : Float)*frequency
+      let expected := prepared.snapshot.magnitudeSquared
+        (ResponseFrequency.fromHalfAngle frequency halfAngle.sin halfAngle.cos)
+      let mut state := MultibandSaturator.installPrepared prepared MultibandSaturator.zero
+      let mut real := 0.0
+      let mut imag := 0.0
+      let amplitude := 1e-5
+      for k in [:4096] do
+        let angle := 2*(3.14159265358979323846 : Float)*frequency*Float.ofNat k
+        let (next,out) := MultibandSaturator.step state ⟨amplitude*angle.cos⟩
+        state := next
+        if k ≥ 2048 then
+          real := real + out.master.after*angle.cos
+          imag := imag - out.master.after*angle.sin
+      let scale := 2/(2048*amplitude)
+      let measured := (real*scale)*(real*scale)+(imag*scale)*(imag*scale)
+      checkNear "measured multiband small-signal power" 1e-7 measured expected
+
+def checkOppositeBass : IO Unit := do
+  let spec : MultibandSaturator.LogicalSpec 4 (Fin 2 → Float) :=
+    ⟨⟨mapCutoffs (fun f _ => f) _ (Splitter.spec4 (0.12:Float) 0.03 0.3).tree⟩,
+      fun _ _ => 2,fun _ => 1.4⟩
+  let mut state := freeze (MultibandSaturator.computeCoefficients spec MultibandSaturator.zero)
+  for k in [:128] do
+    let x := (Float.ofNat k*0.13).cos
+    let (next,out) := MultibandSaturator.stepMonoBass state ⟨fun i => if i.val == 0 then x else -x⟩
+    checkNear "opposite-phase mono bass cancellation" 0 (out.sub 0) 0
+    checkNear "opposite-phase mono bass cancellation" 0 (out.sub 1) 0
+    state := freeze next
+
 def check : IO Unit := do
   checkPrecision "Float" id id Float.toBits 1e-12
   checkPrecision "Float32" Float.toFloat32 Float32.toFloat (fun x => x.toBits.toUInt64) 2e-6
   checkPackedPreparation
+  checkMeasuredResponse
+  checkOppositeBass
   checkChannels 1 false
   checkChannels 2 false
   checkChannels 3 false
   checkChannels 4 false
   checkChannels 2 true
   checkChannels 4 true
-  IO.println "Multiband: prepared LR coefficients, Float/Float32 processing, meter taps, reset, packed cutoffs, independent lanes and mono bass passed."
+  IO.println "Multiband: prepared LR coefficients, Float/Float32 processing, meter taps, reset, packed cutoffs, independent lanes, mono bass and measured small-signal power passed."
 
 end DSP.Tests.Multiband

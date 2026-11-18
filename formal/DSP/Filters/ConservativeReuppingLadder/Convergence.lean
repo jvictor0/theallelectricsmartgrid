@@ -9,19 +9,6 @@ namespace DSP.ConservativeReuppingLadder
 open Filter ResponseMeasurement
 open scoped Topology
 
-def phaseRotation (theta : Phase) : Phase ≃ₜ Phase where
-  toFun x := x+theta
-  invFun x := x-theta
-  left_inv x := by simp
-  right_inv x := by simp
-  continuous_toFun := continuous_id.add continuous_const
-  continuous_invFun := continuous_id.sub continuous_const
-
-theorem phaseRotation_iterate (theta : Phase) (n : ℕ) : (phaseRotation theta)^[n] 0 = n • theta := by
-  induction n with
-  | zero => simp
-  | succ n ih => rw [Function.iterate_succ_apply',ih]; simp [phaseRotation,add_nsmul]
-
 /-- Every sufficiently small sinusoid approaches a continuous waveform of
 its digital phase. The caller supplies no convergence assumption. -/
 theorem prepared_phase_response (spec : LogicalSpec ℝ) (s : ConservativeReuppingLadder ℝ)

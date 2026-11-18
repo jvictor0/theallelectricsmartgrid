@@ -1,6 +1,7 @@
 import DSP.Filters.ConservativeReuppingLadder.Contracts
 import DSP.Filters.ConservativeReuppingLadder.Linearization
 import DSP.Analysis.StabilityGauge
+import DSP.Nonlinear.Analysis
 import Mathlib.Analysis.Calculus.ContDiff.RCLike
 
 /-! Four-dimensional history coordinates for analysis of the actual processor.
@@ -94,12 +95,6 @@ theorem stateUpdate_zero (s : ConservativeReuppingLadder ℝ) : stateUpdate s 0 
   ext i
   fin_cases i <;> simp [stateUpdate,histories,step,stepWith,withHistory,
     OnePoleZOHLowPass.onePoleStep_eq,fma_eq,NormalizedTanh.apply]
-
-@[fun_prop]
-theorem tanh_contDiff : ContDiff ℝ 1 Real.tanh := by
-  have he : Real.tanh = Real.sinh / Real.cosh := funext Real.tanh_eq_sinh_div_cosh
-  rw [he]
-  exact Real.contDiff_sinh.div Real.contDiff_cosh (fun x => ne_of_gt (Real.cosh_pos x))
 
 theorem stateUpdate_contDiff (s : ConservativeReuppingLadder ℝ) : ContDiff ℝ 1 (stateUpdate s) := by
   apply contDiff_pi.mpr

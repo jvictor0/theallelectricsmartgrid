@@ -99,3 +99,26 @@ It prepares each node once through the shared SVF tuner and copies those
 coefficients to its split and compensation sections. The existing generated
 splitter interface is unchanged; packed preparation and multiband emission
 will use this additional pure interface.
+
+## Settling and common-phase weights
+
+[Settling.lean](Settling.lean) strengthens the formal stream realization with
+time-domain settling: an input approaching a sinusoid produces each band
+approaching its corresponding complex band response. The hypothesis allows
+vanishing input transients, so the proof composes through the actual split and
+phase-compensation tree. It uses the shared SVF history recurrence, proves its
+poles lie strictly inside the unit circle for positive tuning/damping, and
+reuses `ResponseMeasurement.Settles` for projections, cascades and subtraction.
+Valid fixed cutoffs and reset histories establish the public tuning contract.
+
+[Weights.lean](Weights.lean) and [WeightProofs.lean](WeightProofs.lean) factor
+each band as `commonPhase * realWeight`. The weights are nonnegative and sum
+to one. They use homogeneous half-angle coordinates, so DC and Nyquist do not
+require tangent evaluation. A weighted band sum can therefore compute its
+magnitude squared using real arithmetic; the multiband saturator proves this
+kernel represents its actual small-signal response.
+
+[PreparedProofs.lean](PreparedProofs.lean) proves prepared installation and
+snapshot capture equal the existing tuner, and reset establishes zero-history
+contracts. [PreparedChannels.lean](PreparedChannels.lean) proves reset also
+commutes with channel selection.
