@@ -350,6 +350,14 @@ small-signal response equals the transfer. These are local, fixed-parameter,
 exact-real results; global nonlinear attraction and floating-point stability
 are outside their scope.
 
+The [Multiband Saturator](Filters/MultibandSaturator/README.md) currently provides
+an executable Lean core: the existing compensated LR splitter, per-band gain
+and saturation, summation, and master gain/saturation. Its output includes the
+audio values needed by external meters, and a separate entry point retains
+mono-bass routing. A prepared coefficient bank reuses each crossover's tuning
+across split and compensation sections. Native scalar/channel tests are in
+place; small-signal proofs, response emission and app integration are pending.
+
 `TPTLadder` is an idealized linear ladder, not the app's nonlinear `NaiveReuppingLadder`. Each
 TPT stage is affine in its input, y = S + G x, so the global loop e = x - k y₄ is
 solved in closed form: S is the cascade's response to zero input, and

@@ -92,3 +92,10 @@ independent direct-form allpass cascade for 1, 2, 3, 4, 5, 7, and 8 bands;
 every generated four-band state field against native Lean; float/double SIMD
 widths 1–4 with different lane inputs; coefficient-only writes and exact
 history preservation; and snapshot capture against the Math4096 functions.
+
+[Prepared.lean](Prepared.lean) supplies a reusable coefficient bank and reset
+operations for the [Lean multiband saturator](../MultibandSaturator/README.md).
+It prepares each node once through the shared SVF tuner and copies those
+coefficients to its split and compensation sections. The existing generated
+splitter interface is unchanged; packed preparation and multiband emission
+will use this additional pure interface.

@@ -5,6 +5,7 @@ import DSP.Filters.OnePoleTPTLowPass
 import DSP.Filters.OnePoleTPTHighPass
 import DSP.Filters.TPTSVF
 import DSP.Tests.Splitter
+import DSP.Tests.MultibandSaturator
 import DSP.Filters.MorphingTPTSVF
 import DSP.Filters.TPTLadder
 
@@ -31,6 +32,7 @@ def close (a b : Float) : Bool := (a - b).abs < 1.0e-9
 
 def main : IO Unit := do
   DSP.Tests.Splitter.check
+  DSP.Tests.Multiband.check
   let (zoh, zohFinal) := observe OnePoleZOHLowPass.step (·.y)
     ({ alpha := 0.5, y := 0.0 } : OnePoleZOHLowPass Float) [1.0, 0.0, -1.0]
   unless zoh == [0.5, 0.25, -0.375] && zohFinal.alpha == 0.5 do

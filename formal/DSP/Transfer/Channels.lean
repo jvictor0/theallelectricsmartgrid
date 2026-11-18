@@ -1,4 +1,5 @@
 import DSP.Transfer.Bilinear
+import DSP.Channels.Arithmetic
 import Mathlib.Tactic.DeriveTraversable
 
 /-!
@@ -13,10 +14,6 @@ realizes the scalar transfer of its own coefficients, so every scalar
 namespace DSP
 
 deriving instance Functor for Sample
-
-/-- A decimal literal is the same value in every channel, like `Vector::Splat`. -/
-instance {ι K : Type} [OfScientific K] : OfScientific (ι → K) :=
-  ⟨fun m s e _ => OfScientific.ofScientific m s e⟩
 
 namespace Channels
 
