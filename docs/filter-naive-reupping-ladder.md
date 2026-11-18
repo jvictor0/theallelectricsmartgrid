@@ -1,6 +1,6 @@
 # Naive Reupping Ladder
 
-The **Naive Reupping Ladder** is one of the two filter options available per voice
+The **Naive Reupping Ladder** is one of the filter options available per voice
 in the DSP engine. `NaiveReuppingLadderGeneric<Number, Size>` implements the
 low-pass filter; `NaiveReuppingLadderShapeGeneric<Size>` combines it with the
 sample-rate reducer and high-pass filter. The mono and trio filter aliases are
@@ -22,12 +22,11 @@ tanh doing all the work and later stages merely giving the compressed signal
 "haircuts." This repeated drive is intentional.
 
 The name identifies this particular discrete topology so other ladder designs
-can coexist with it. The C++ implementation is the specification for the planned
-Lean `NaiveReuppingLadder` model, including its delay, rational saturation, and
-adaptive damping. The existing ideal linear `TPTLadder` is a separate topology.
+can coexist with it.
 
-The visible machine label is **Naive Reupping Ladder**. Its saved machine ID
-remains `0`; the rename preserves existing patch selection and DSP behavior.
+The handwritten adaptive implementation remains available for A/B testing with
+[Conservative Reupping Ladder](filter-conservative-reupping-ladder.md), which is
+the Lean reupping ladder implementation and uses fixed feedback.
 
 ## Structure
 
@@ -164,10 +163,10 @@ time-varying system. Debug meters and their periodic print dispatch are removed.
 
 The snapshot still represents the frozen unit-gain linear model with effective
 feedback. It excludes saturation slopes and envelope dynamics. This C++
-refactor does not turn the existing generated Lean ladder into a model of the
-app ladder. A subsequent implementation-as-spec model needs the exact state
-ordering, feedback delay, rational saturation, detectors and adaptive damping
-above; a transcendental tanh model alone would not describe this implementation.
+refactor does not turn the existing generated `TPTLadder` into a model of the
+app ladder. The conservative shape instead uses its generated core and proved small-signal
+UI response, including saturation slopes. The adaptive implementation and its
+existing approximate plot remain available for comparison.
 
 ## Vector tuning validation and cost
 

@@ -11,6 +11,9 @@ def nest(prefix, fields):
 
 # Independent schemas also make accidental field/layout changes visible here.
 SCHEMAS = {
+    'ConservativeReuppingLadderCore': (['cutoff', 'resonance', 'gain'],
+        ['alpha', 'saturation.gain', 'saturation.tanhGain', 'k',
+         'stage1', 'stage2', 'stage3', 'stage4', 'input', 'output']),
     'OnePoleZOHLowPass': (['cutoff'], ['alpha', 'y']),
     'OnePoleTPTLowPass': (['cutoff'], LP),
     'OnePoleTPTHighPass': (['cutoff'], nest('lowPass', LP) + ['y']),
@@ -25,6 +28,7 @@ for mode in ['LowPass', 'BandPass', 'HighPass']:
                                  nest('stage1', SVF)+nest('stage2', SVF))
 
 SPLITTER = 'LinkwitzRileySplitter4Band'
+CONSERVATIVE = 'ConservativeReuppingLadderCore'
 def phase_fields(prefix):
     return nest(prefix+'.svf', SVF) + nest(prefix, ['low.x', 'high.x'])
 def two_band_fields(prefix):
@@ -45,7 +49,10 @@ def coefficient_oracle(name):
     def svf(prefix, fc, q):
         for i, field in enumerate(SVF[:4]):
             result[prefix+field] = f'TuneSVF(p[{fc}], {q})[{i}]'
-    if name == 'OnePoleZOHLowPass':
+    if name == CONSERVATIVE:
+        for i, field in enumerate(['alpha', 'saturation.gain', 'saturation.tanhGain', 'k']):
+            result[field] = f'TuneConservative(p[0], p[1], p[2])[{i}]'
+    elif name == 'OnePoleZOHLowPass':
         result['alpha'] = 'Number(1) - MultiChannelNumber<Number,1>::Splat(-(Number(6.283185307179586476925286766559) * p[0])).Exp()[0]'
     elif name == 'OnePoleTPTLowPass': lp('', 0)
     elif name == 'OnePoleTPTHighPass': lp('lowPass.', 0)
@@ -71,6 +78,10 @@ def coefficient_oracle(name):
     return result
 
 def snapshot_oracle(name):
+    if name == CONSERVATIVE:
+        t = 'TuneConservative(p[0], p[1], p[2])'
+        return {'memoryRatio': f'(Number(1)-{t}[0])/{t}[0]',
+                'slope': f'{t}[1]/{t}[2]', 'k': f'{t}[3]'}
     g = lambda n: f'Math4096::TanPi(MultiChannelNumber<Number,1>::Splat(p[{n}]))[0]'
     if name == 'OnePoleZOHLowPass': return {'alpha': coefficient_oracle(name)['alpha']}
     if name in ('OnePoleTPTLowPass', 'OnePoleTPTHighPass'): return {'g': g(0)}
@@ -98,6 +109,25 @@ PRELUDE = r'''
 #include <string>
 #include <type_traits>
 #include "Math.hpp"
+
+template<typename Number>
+std::array<Number,4> TuneConservative(Number cutoff, Number resonance, Number gain)
+{
+    using Mono = MultiChannelNumber<Number,1>;
+    const Number sine = Math4096::Sin2pi(Mono::Splat(std::min(Number(0.5),cutoff)*Number(0.5)))[0];
+    const Number root = std::sqrt(Number(1)+sine*sine);
+    const Number alpha = sine*Number(2)*(root-sine);
+    const Number ratio = sine*Number(2)*(root+sine);
+    const Number crossing = ratio+Number(2);
+    const Number nyquist = Number(1)+Number(2)/std::max(ratio,Number(2));
+    const Number nyquistSquared = nyquist*nyquist;
+    const Number critical = ratio < Number(2) ? crossing*crossing : nyquistSquared*nyquistSquared;
+    const Number g2 = gain*gain;
+    const Number saturation = std::min(Number(1),std::max(Number(-1),
+        gain*(g2+Number(27))/std::fma(gain*Number(9),gain,Number(27))));
+    const Number slope = gain/saturation;
+    return {alpha,gain,saturation,resonance*Number(0.975)*critical/(slope*slope*slope)};
+}
 
 template<typename Number>
 using Bits = std::conditional_t<std::is_same_v<Number,float>, uint32_t, uint64_t>;

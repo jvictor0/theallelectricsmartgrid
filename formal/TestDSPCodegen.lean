@@ -3,6 +3,7 @@ import DSP.Tests.CodegenFixtures
 import DSP.Filters.Responses
 import DSP.Filters.LinkwitzRileySplitter
 import DSP.Filters.Capture
+import DSP.Filters.ConservativeReuppingLadder.Response
 
 #use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
 
@@ -274,3 +275,24 @@ run_cmd liftTermElabM do
       rejected := true
     unless rejected do throwError "C++ codegen incorrectly accepted prepared updater {updater}"
   logInfo "Prepared snapshot updater rejection checks passed."
+
+def DSP.Tests.unrelatedReset {R : Type} (state : DSP.OnePoleZOHLowPass R) := state
+
+open Lean Elab Command in
+run_cmd liftTermElabM do
+  for (resetName, expected) in #[
+      (``DSP.Tests.unrelatedReset, "reset must take and return"),
+      (``DSP.ConservativeReuppingLadder.resetFloat, "expects one arithmetic type parameter")] do
+    let mut rejected := false
+    try
+      let _ ← DSP.Codegen.generateFilterResponses ``DSP.ConservativeReuppingLadder.step
+        #[(``DSP.ConservativeReuppingLadder.Snapshot.magnitudeSquared, "MagnitudeSquared")]
+        "SampledReset" true (some ``DSP.ConservativeReuppingLadder.prepareCoefficients) true
+        (reset := some resetName)
+    catch error =>
+      let message ← error.toMessageData.toString
+      unless (message.splitOn expected).length > 1 do
+        throwError "unexpected sampled reset rejection: {message}"
+      rejected := true
+    unless rejected do throwError "C++ codegen incorrectly accepted mismatched sampled reset"
+  logInfo "Sampled filter reset signature rejection checks passed."

@@ -334,7 +334,23 @@ and 1 are exactly lowpass, bandpass and highpass.
 and bandpass variants feed and read the corresponding response. Stages may have
 different gains and dampings.
 
-`TPTLadder` is an idealized linear ladder, not the app's nonlinear ladder. Each
+The [Conservative Reupping Ladder](Filters/ConservativeReuppingLadder/README.md)
+uses four sequential Euler stages, normalized saturation and delayed feedback
+with a fixed coefficient `k = resonance * 0.975 * kCritical / slope^3`.
+Its proofs connect derivatives of
+the actual nonlinear trajectory to an exact digital transfer and establish
+strict pole stability throughout the valid tuning range. Its scalar and
+multichannel generated cores include coefficient snapshots and a proved
+magnitude-squared kernel. The app offers it as a separate shape alongside the
+handwritten adaptive ladder, with shared knob mapping and routing. The nonlinear
+response is proved to approximate its tangent uniformly over all samples for
+sufficiently small bounded inputs. Small sinusoids
+settle to a continuous waveform of phase, and their time-first coherent
+small-signal response equals the transfer. These are local, fixed-parameter,
+exact-real results; global nonlinear attraction and floating-point stability
+are outside their scope.
+
+`TPTLadder` is an idealized linear ladder, not the app's nonlinear `NaiveReuppingLadder`. Each
 TPT stage is affine in its input, y = S + G x, so the global loop e = x - k y₄ is
 solved in closed form: S is the cascade's response to zero input, and
 e = (x - k S)/(1 + k G₁G₂G₃G₄). `loop_solved` proves the stored `drive` satisfies

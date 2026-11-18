@@ -18,6 +18,7 @@ HEADERS = (
     "TPTBaseWidth.hpp", "TPTSVF.hpp", "MorphingTPTSVF.hpp", "TPTSVF4PoleHighPass.hpp",
     "TPTSVF4PoleLowPass.hpp", "TPTSVF4PoleBandPass.hpp", "TPTLadder.hpp",
     "CoupledProcessor.hpp",
+    "ConservativeReuppingLadderCore.hpp",
 )
 HEADERS += tuple(name.replace(".hpp", "Generic.hpp") for name in HEADERS)
 HEADERS += ("LinkwitzRileySplitter4BandGeneric.hpp",)
@@ -110,7 +111,7 @@ def test_channels(cases, compiler, output, input_counts):
 
 
 def test_all_responses(cases, compiler, output):
-    """Every TPT response at both precisions, independent coefficients in each lane."""
+    """Every generated response at both precisions, independent coefficients in each lane."""
     runner = output / "responses-runner"
     subprocess.run(compiler + [
         "-std=c++17", "-O2", "-fno-fast-math", "-ffp-contract=off",
@@ -135,7 +136,7 @@ def test_all_responses(cases, compiler, output):
     assert len(actual) == len(expected), "Different number of TPT response results"
     for label, found, wanted in zip(labels, actual, expected):
         assert found == wanted, f"{label}\nLean: {wanted}\nC++: {found}"
-    print(f"TPT response codegen: {len(expected)} vector batches, 13 responses each, match native Lean "
+    print(f"Response codegen: {len(expected)} vector batches, 14 responses each, match native Lean "
           "bit for bit in float/double at widths 1, 2, 3, 4; scalar double and independent complex checks pass.")
 
 
@@ -154,6 +155,7 @@ def main():
         "zoh": 3, "tpt": 4, "tptHigh": 5, "baseWidth": 8, "svf": 12, "morph": 16,
         "svf4High": 23, "svf4Low": 23, "svf4Band": 23, "ladder": 15, "splitter": 105,
         "swap": 4, "gain": 2, "coupled": 3, "arithmetic": 3, "fma": 3, "fma32": 3,
+        "conservative": 11,
     }
     inputs, expected = [], []
     scalar_cases = [case for case in cases

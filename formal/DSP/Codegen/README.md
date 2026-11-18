@@ -407,12 +407,14 @@ Lean compiler/runtime used for native reference execution, C++ compiler and
 floating-point environment remain part of the trusted implementation boundary.
 
 The scalar differential test executes the actual Lean source functions and
-compares every generated state/output field bit for bit over 32,268 cases. It covers:
+compares every generated state/output field bit for bit. It covers:
 
 - ZOH and TPT one-pole trajectories with changing inputs, endpoint/near-one coefficients,
   signed-zero initial states and subnormal values.
 - Trajectories of every TPT composite from random coefficients, integrator states
   and stored responses, including both morph halves and ladders with feedback.
+- The nonlinear Conservative Reupping Ladder, including normalized saturation,
+  nonzero histories, fixed feedback and coefficient-preserving reset.
 - A distinct processor that swaps state fields, branches, and emits old-state
   values, so assignment order and independent outputs are exercised.
 - A binary32 processor using division, negation, comparisons and decimal
@@ -456,6 +458,26 @@ Passing these checks is implementation evidence, not a universal compiler proof
 or a floating-point error bound.
 
 ## Fixed topology processors with snapshot capture
+
+The [Conservative Reupping Ladder](../Filters/ConservativeReuppingLadder/README.md)
+adds its proved small-signal response using the same sampled-filter export as
+linear filters, with an optional generated reset:
+
+```lean
+#generate_cpp_sampled_filter_generic DSP.ConservativeReuppingLadder.step
+  DSP.ConservativeReuppingLadder.prepareCoefficients
+  resetWith DSP.ConservativeReuppingLadder.reset
+  [DSP.ConservativeReuppingLadder.Snapshot.magnitudeSquared as MagnitudeSquared]
+  as ConservativeReuppingLadderCoreGeneric to "build/lean/generated/ConservativeReuppingLadderCoreGeneric.hpp"
+```
+
+`resetWith` checks the complete state type and preserves the captured response.
+The Lean reset must preserve coefficients, as proved for this ladder. The kernel
+is proved equal to the power of the actual processor's time-first small-signal
+transfer. `Tanh` lowers to clamped cubic rational arithmetic with explicit FMA;
+the real instance is exact tanh, with no rational/transcendental equality claim.
+`SquareRoot` lowers to vector `Sqrt` or scalar `std::sqrt`. Native source and
+independent complex-response comparisons cover both precisions and widths 1–4.
 
 The splitter uses a processing/tuning/capture export without a response method:
 

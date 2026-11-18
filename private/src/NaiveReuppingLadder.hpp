@@ -284,6 +284,12 @@ struct NaiveReuppingLadderGeneric
         }
     }
 
+    void SetCutoffResonanceAndGain(const Vector& cutoff, const Vector& resonance, const Vector& gain)
+    {
+        SetCutoffAndResonance(cutoff, resonance);
+        SetSaturationGain(gain);
+    }
+
     // Cutoff is each unit-gain stage's half-power frequency, giving -12.0412 dB
     // for the zero-feedback cascade. Saturation and adaptive feedback are separate.
     // Preserve the existing resonance mapping, 0..1 -> feedback 0..3.9.

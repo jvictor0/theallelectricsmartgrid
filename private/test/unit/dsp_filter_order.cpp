@@ -2,6 +2,7 @@
 
 #include "../support/GlobalEnv.hpp"
 #include "NaiveReuppingLadderShape.hpp"
+#include "ConservativeReuppingLadderShape.hpp"
 #include "SVF2PoleShape.hpp"
 #include <cmath>
 #include <complex>
@@ -169,4 +170,9 @@ DOCTEST_TEST_CASE("NaiveReuppingLadderShape: cutoff retains partial pitch tracki
     input.m_hpCutoffFactor.m_expParam = Vector::Splat(1);
     shape.Process(input, Vector());
     DOCTEST_CHECK(shape.m_lpLadder.m_cutoff[1] == doctest::Approx(pivotCutoff / 2).epsilon(0.00001));
+}
+
+DOCTEST_TEST_CASE("ConservativeReuppingLadderShape: high-pass removes bass created by the sample rate reducer")
+{
+    CheckReducerBassRemoved<ConservativeReuppingLadderShapeGeneric<x_lanes>>(x_reducerHz);
 }

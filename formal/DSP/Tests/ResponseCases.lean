@@ -1,9 +1,10 @@
 import DSP.Filters.Responses
+import DSP.Filters.ConservativeReuppingLadder.Response
 
 namespace DSP.Tests
 
 /-- Distinct stage gains and dampings expose accidental stage/lane aliasing. -/
-def responseValues {R : Type} [OfNat R 0] [OfNat R 1] [Sub R] [Neg R]
+def responseValues {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [Add R] [Sub R] [Neg R]
     [Mul R] [Div R] [FMA R] [IfLess R]
     (g1 g2 g3 g4 k1 k2 _k3 low band high : R) (f : ResponseFrequency R) : List R :=
   let svf : TPTSVF.Snapshot R := ⟨g1, k1⟩
@@ -15,5 +16,6 @@ def responseValues {R : Type} [OfNat R 0] [OfNat R 1] [Sub R] [Neg R]
    svf.highPassMagnitudeSquared f, svf.notchMagnitudeSquared f, svf.allPassMagnitudeSquared f,
    MorphingTPTSVF.Snapshot.magnitudeSquared ⟨svf, low, band, high⟩ f,
    pair.lowPassMagnitudeSquared f, pair.bandPassMagnitudeSquared f, pair.highPassMagnitudeSquared f,
-   TPTLadder.Snapshot.magnitudeSquared ⟨g1,g2,g3,g4,k1⟩ f]
+   TPTLadder.Snapshot.magnitudeSquared ⟨g1,g2,g3,g4,k1⟩ f,
+   ConservativeReuppingLadder.Snapshot.magnitudeSquared ⟨g1,g2,k1⟩ f]
 end DSP.Tests

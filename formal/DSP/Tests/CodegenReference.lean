@@ -2,6 +2,7 @@ import DSP.Filters.Capture
 import DSP.Tests.CodegenFixtures
 import DSP.Tests.ResponseCases
 import DSP.Tests.Splitter
+import DSP.Tests.ConservativeReuppingLadder
 import DSP.Filters.OnePoleTPTLowPass
 import DSP.Filters.OnePoleTPTHighPass
 import DSP.Filters.TPTBaseWidth
@@ -183,6 +184,7 @@ def fourSnapshotFields {R : Type} (s : TPTSVF4Pole.Snapshot R) : List R :=
 /-- Independent native transcendental reference for coefficient tuning. Generated
 C++ deliberately uses the Math4096 approximation instead. -/
 def tuningRows {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 8]
+    [OfScientific R] [SquareRoot R] [Tanh R]
     [Add R] [Sub R] [Neg R] [Mul R] [Div R] [FMA R] [IfLess R] [Trig R] [ExpDecay R]
     (fc1 fc2 q1 q2 blend feedback seed : R) : List (String × List R × List R × List R) :=
   let zoh : OnePoleZOHLowPass R := ⟨0,seed⟩
@@ -197,6 +199,12 @@ def tuningRows {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 8]
   let z := OnePoleZOHLowPass.computeCoefficients ⟨fc1⟩ zoh
   let zfields := fun f : OnePoleZOHLowPass R => [f.alpha,f.y]
   let rows := [
+    ("ConservativeReuppingLadderCore", [fc1,blend,q1],
+      DSP.Tests.ConservativeReuppingLadder.fields (DSP.Tests.ConservativeReuppingLadder.seeded seed),
+      DSP.Tests.ConservativeReuppingLadder.fields (ConservativeReuppingLadder.computeCoefficients
+        ⟨fc1,blend,q1⟩ (DSP.Tests.ConservativeReuppingLadder.seeded seed)) ++
+      (let s := (ConservativeReuppingLadder.prepareCoefficients ⟨fc1,blend,q1⟩
+        (DSP.Tests.ConservativeReuppingLadder.seeded seed)).2; [s.memoryRatio,s.slope,s.k])),
     ("OnePoleZOHLowPass", [fc1], zfields zoh, zfields z ++ [(OnePoleZOHLowPass.prepareCoefficients ⟨fc1⟩ zoh).2.alpha]),
     ("OnePoleTPTLowPass", [fc1], lowPassFields lp,
       lowPassFields (OnePoleTPTLowPass.computeCoefficients ⟨fc1⟩ lp) ++ ([(OnePoleTPTLowPass.prepareCoefficients ⟨fc1⟩ lp).2.g])),
@@ -250,6 +258,20 @@ def main : IO Unit := do
   let seeds : Array Float := #[0.0, -0.0, 1.0, -1.0, 1000.0, Float.ofBits 1,
     Float.ofBits 0x0010000000000000]
   let mut random : UInt64 := 0x123456789abcdef
+  for i in [:32] do
+    let cutoff := (#[0.000001, 0.003, 0.03, 0.125, 0.1959, 0.25, 0.5, 0.6] : Array Float)[i % 8]!
+    let gain := (#[0.001, 0.5, 2.0, 10.0] : Array Float)[i / 8]!
+    let resonance := Float.ofNat (i % 5) / 4
+    let seed := Float.ofNat i / 40 - 0.4
+    let conservative := ConservativeReuppingLadder.computeCoefficients ⟨cutoff,resonance,gain⟩
+      (DSP.Tests.ConservativeReuppingLadder.seeded seed)
+    let conservative32 := ConservativeReuppingLadder.computeCoefficients
+      ⟨cutoff.toFloat32,resonance.toFloat32,gain.toFloat32⟩
+      (DSP.Tests.ConservativeReuppingLadder.seeded seed.toFloat32)
+    random ← emit out "conservative" (fun s => bits (DSP.Tests.ConservativeReuppingLadder.fields s))
+      ConservativeReuppingLadder.step conservative random 64
+    emit32 out "conservative" DSP.Tests.ConservativeReuppingLadder.fields
+      ConservativeReuppingLadder.step conservative32 random
   for alpha in coefficients do
     for initial in seeds do
       emit32 out "zoh" (fun f : OnePoleZOHLowPass Float32 => [f.alpha, f.y])

@@ -70,6 +70,7 @@ Terms and concepts used in the Smart Grid One project. Updated as we document th
 - **IoTaskThread** — Background worker that executes file-system tasks (directory navigation, sample bank loading) off the audio/UI control path and applies results during acknowledgment.
 - **Filter Architecture** — The separation of stateful DSP code from stateless frequency response analysis via the UIState paradigm. See [Filter Architecture](filter-architecture.md).
 - **Naive Reupping Ladder** — Four Euler low-pass stages with a one-sample feedback delay and normalized tanh drive reapplied after each stage, followed by a 4-pole SVF high-pass in the filter machine.
+- **Conservative Reupping Ladder** — Generated fixed-feedback version of the reupping topology, with drive-compensated feedback below the delayed loop's critical gain and a proved small-signal response. Shares the naive ladder's controls and outer signal path. See [Conservative Reupping Ladder](filter-conservative-reupping-ladder.md).
 - **SVF Filter Machine** — A 2-pole SVF low-pass filter followed by a 2-pole SVF high-pass filter, with saturation stages.
 - **Quad Panning** — Distributes the 9 voices across four channels using a single global phase oscillator (`m_panPhase`) and per-voice offsets, driven by a Lissajous LFO.
 - **Lissajous LFO** — Generates 2D coordinates (X, Y) from a single phase input to position voices in the quadraphonic field.

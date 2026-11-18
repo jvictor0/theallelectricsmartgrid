@@ -8,6 +8,7 @@
 #include "TPTSVF4PoleLowPass.hpp"
 #include "TPTSVF4PoleBandPass.hpp"
 #include "TPTLadder.hpp"
+#include "ConservativeReuppingLadderCore.hpp"
 #include "SwapProcessor.hpp"
 #include "GainProcessor.hpp"
 #include "FMAProcessor.hpp"
@@ -129,6 +130,11 @@ bool RunFlatKind(const std::string& kind, bool& known)
     if (kind == "ladder")
     {
         return RunFlat<TPTLadder, 14>();
+    }
+
+    if (kind == "conservative")
+    {
+        return RunFlat<ConservativeReuppingLadderCore, 10>();
     }
 
     known = false;

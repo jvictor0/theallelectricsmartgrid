@@ -65,7 +65,8 @@ namespace VoiceMachine
     {
         NaiveReuppingLadder = 0,
         SVF2Pole = 1,
-        NumFilterMachines = 2,
+        ConservativeReuppingLadder = 2,
+        NumFilterMachines = 3,
     };
 
     inline const char* ToString(SourceMachine machine)
@@ -108,6 +109,8 @@ namespace VoiceMachine
                 return "Naive Reupping Ladder";
             case FilterMachine::SVF2Pole:
                 return "SVF";
+            case FilterMachine::ConservativeReuppingLadder:
+                return "Conservative Reupping Ladder";
             default:
                 return "Unknown";
         }

@@ -1,6 +1,6 @@
 # SVF Filter Machine (2-Pole)
 
-The **2-Pole SVF Filter Machine** is one of the two filter options available per voice in the DSP engine (`FilterSection` in `private/src/SquiggleBoy.hpp`).
+The **2-Pole SVF Filter Machine** is one of three filter options available per voice in the DSP engine (`FilterSection` in `private/src/SquiggleBoy.hpp`), alongside the Naive and Conservative Reupping Ladders.
 
 ## Structure
 

@@ -2,6 +2,7 @@
 
 #include "Filter.hpp"
 #include "NaiveReuppingLadderShape.hpp"
+#include "ConservativeReuppingLadderShape.hpp"
 #include "MultiChannelNumber.hpp"
 #include "SampleTimer.hpp"
 #include "SampleTop.hpp"
@@ -23,6 +24,7 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
     using SourceMachine = VoiceMachine::SourceMachine;
     using FilterMachine = VoiceMachine::FilterMachine;
     using NaiveReuppingLadderShape = NaiveReuppingLadderShapeGeneric<Size>;
+    using ConservativeReuppingLadderShape = ConservativeReuppingLadderShapeGeneric<Size>;
     using SVF2PoleShape = SVF2PoleShapeGeneric<Size>;
 
     struct Snapshot : PowerResponseSnapshot<Size>
@@ -32,12 +34,21 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
         using typename Base::ResponseVector;
         FilterMachine m_filterMachine = FilterMachine::NaiveReuppingLadder;
         typename NaiveReuppingLadderShape::Snapshot m_naiveReuppingLadder;
+        typename ConservativeReuppingLadderShape::Snapshot m_conservativeReuppingLadder;
         typename SVF2PoleShape::Snapshot m_svf;
 
         ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
-            return m_filterMachine == FilterMachine::NaiveReuppingLadder
-                ? m_naiveReuppingLadder.MagnitudeSquaredResponses(frequency) : m_svf.MagnitudeSquaredResponses(frequency);
+            switch (m_filterMachine)
+            {
+                case FilterMachine::NaiveReuppingLadder:
+                    return m_naiveReuppingLadder.MagnitudeSquaredResponses(frequency);
+                case FilterMachine::ConservativeReuppingLadder:
+                    return m_conservativeReuppingLadder.MagnitudeSquaredResponses(frequency);
+                case FilterMachine::SVF2Pole:
+                default:
+                    return m_svf.MagnitudeSquaredResponses(frequency);
+            }
         }
     };
 
@@ -50,6 +61,10 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
         if (machine == FilterMachine::NaiveReuppingLadder)
         {
             snapshot.m_naiveReuppingLadder = m_naiveReuppingLadder.MakeSnapshot();
+        }
+        else if (machine == FilterMachine::ConservativeReuppingLadder)
+        {
+            snapshot.m_conservativeReuppingLadder = m_conservativeReuppingLadder.MakeSnapshot();
         }
         else
         {
@@ -74,6 +89,7 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
     // Filter machines
     //
     NaiveReuppingLadderShape m_naiveReuppingLadder;
+    ConservativeReuppingLadderShape m_conservativeReuppingLadder;
     SVF2PoleShape m_svf2Pole;
 
     Vector m_output;
@@ -86,6 +102,7 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
         FilterMachine m_filterMachine;
 
         typename NaiveReuppingLadderShape::Input m_naiveReuppingLadderInput;
+        typename ConservativeReuppingLadderShape::Input m_conservativeReuppingLadderInput;
         typename SVF2PoleShape::Input m_svf2PoleInput;
 
         Input()
@@ -115,6 +132,12 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
             case FilterMachine::NaiveReuppingLadder:
             {
                 m_output = m_naiveReuppingLadder.Process(input.m_naiveReuppingLadderInput, dcBlocked);
+                break;
+            }
+
+            case FilterMachine::ConservativeReuppingLadder:
+            {
+                m_output = m_conservativeReuppingLadder.Process(input.m_conservativeReuppingLadderInput, dcBlocked);
                 break;
             }
 
@@ -165,6 +188,12 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
             case FilterMachine::NaiveReuppingLadder:
             {
                 m_naiveReuppingLadder.SetEncoderParams(encoders, input.m_naiveReuppingLadderInput, track, filterBaseFreq);
+                break;
+            }
+
+            case FilterMachine::ConservativeReuppingLadder:
+            {
+                m_conservativeReuppingLadder.SetEncoderParams(encoders, input.m_conservativeReuppingLadderInput, track, filterBaseFreq);
                 break;
             }
 

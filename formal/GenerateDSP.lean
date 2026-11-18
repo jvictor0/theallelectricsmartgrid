@@ -12,8 +12,18 @@ import DSP.Filters.Coupled
 import DSP.Filters.Responses
 import DSP.Filters.LinkwitzRileySplitter
 import DSP.Filters.Capture
+import DSP.Filters.ConservativeReuppingLadder.Response
 
 #use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
+
+#generate_cpp_sampled_filter DSP.ConservativeReuppingLadder.stepFloat DSP.ConservativeReuppingLadder.prepareCoefficientsFloat
+  resetWith DSP.ConservativeReuppingLadder.resetFloat
+  [DSP.ConservativeReuppingLadder.Snapshot.magnitudeSquaredFloat as MagnitudeSquared]
+  as ConservativeReuppingLadderCore to "build/lean/generated/ConservativeReuppingLadderCore.hpp"
+#generate_cpp_sampled_filter_generic DSP.ConservativeReuppingLadder.step DSP.ConservativeReuppingLadder.prepareCoefficients
+  resetWith DSP.ConservativeReuppingLadder.reset
+  [DSP.ConservativeReuppingLadder.Snapshot.magnitudeSquared as MagnitudeSquared]
+  as ConservativeReuppingLadderCoreGeneric to "build/lean/generated/ConservativeReuppingLadderCoreGeneric.hpp"
 
 #generate_cpp_sampled_filter DSP.OnePoleZOHLowPass.stepFloat DSP.OnePoleZOHLowPass.prepareCoefficientsFloat
   [DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquaredFloat as MagnitudeSquared]
