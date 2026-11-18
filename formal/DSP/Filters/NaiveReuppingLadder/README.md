@@ -98,8 +98,9 @@ small-signal response of this nonlinear system.
 | Bandpass envelope | Tuning preserves both SVF histories and power; tuning is idempotent; reset clears history, preserves coefficients and is idempotent; step/tuning/reset commute with lane selection |
 | Ladder | Feedback reads the old fourth stage and old detector powers; detectors receive the intended current samples; process preserves coefficients; tuning preserves all histories and is idempotent; reset clears history and preserves coefficients; step/tuning/reset commute with lane selection |
 
-Small-signal definitions, derivative/transfer correctness, cutoff and nominal
-oscillation theorems, and stability-region theorems remain the next work. The
+Small-signal measurements are defined below. Derivative/transfer correctness for
+the ladder, cutoff and nominal oscillation theorems, and stability-region
+theorems remain open. The
 existing Nyquist feedback guard is retained as implementation behavior; it is
 not a proved stability condition for the nonlinear adaptive system.
 
@@ -148,12 +149,37 @@ does not by itself imply a large absolute error.
 | `prepared_bandPass_realizes` | Actual tuned bandpasses realize the existing two-SVF transfer from rest |
 | `modulation_components` | Multiplying a sinusoidal signal by a sinusoidal coefficient modulation produces sum/difference frequencies |
 
-The SVF transfer realization and the conditional time-domain convergence theorem
-are separate: convergence of arbitrary initial SVF histories to the sinusoidal
-response, with amplitude and phase identified by that transfer, remains to be
-connected. The amplitude identification is an explicit hypothesis of the
-detector-level ripple bound. No nonlinear ladder settling or sideband bound is
-claimed by these results.
+[TPTSVF/Convergence.lean](../TPTSVF/Convergence.lean) and
+[BandPassedEnvelopeFollower/Convergence.lean](../BandPassedEnvelopeFollower/Convergence.lean)
+now close the detector's transfer-to-trajectory gap. For Q=1, the actual SVF
+histories have the complex coordinate
+
+```
+w = ic1 + ic2/2 + i*sqrt(3)*ic2/2
+wNext = pole(g)*w + drive(g)*input
+|pole(g)|^2 = (1-g+g^2)/(1+g+g^2) < 1, for g > 0
+```
+
+This is a change of coordinates proved from the existing step, not a duplicate
+filter. A shared contraction lemma in [Asymptotic.lean](../../Analysis/Asymptotic.lean)
+proves that a vanishing input disturbance gives a vanishing state disturbance.
+The result composes across the two SVFs, then through squaring and the existing
+power smoother. Arbitrary initial histories are allowed. The settled bandpass
+amplitude and phase are proved equal to the existing snapshot transfer.
+
+| Result | Proven scope |
+| --- | --- |
+| `TPTSVF.Convergence.bandPass_tendsto` | One actual Q=1 SVF approaches its sinusoidal response when its input approaches a sinusoid; g > 0 |
+| `prepared_bandPass_tendsto` | Both detector SVFs converge, including arbitrary initial histories |
+| `convergence_cascade_eq_snapshot` | The time-domain sinusoidal gain equals the existing two-SVF snapshot transfer |
+| `prepared_power_tendsto_snapshot` | Complete detector converges to the explicit persistent power ripple; g > 0 and 0 < alpha <= 1 |
+| `prepared_power_eventually_positive` | Nonzero passed tone, sin(omega) != 0 and 0 < alpha < 1 give an eventually positive lower bound for detector power |
+| `prepared_bandPass_smallSignal` | Both nested coherent-response limits exist for the detector's linear bandpass output, away from DC/Nyquist |
+
+The input detector can use the external sinusoid directly. Applying the same
+theorem to the feedback detector requires proving suitable behavior of the
+ladder's fourth-stage signal. That is a closed-loop obligation, not a premise
+we have discharged by proving the detector alone.
 
 The next ladder estimate must weight detector error by the modulation's effect
 through the feedback loop. Tight bounds matter near the resonant peak; away from
@@ -166,6 +192,103 @@ can also cancel their common bandpass attenuation for a single tone.
 
 This work changes proofs only. The fixed detector power floor and all runtime
 processing, tuning, generated code, and app behavior remain unchanged.
+
+## Floor-free controller analysis
+
+The selected analysis model removes the power floor; the runtime does not.
+[FloorFree.lean](FloorFree.lean) defines only the proof-side controller:
+
+```
+x = feedbackPower/inputPower
+kappa(x) = K / (1 + d*max(0, x-R))
+```
+
+Here K is base feedback, d is dampingScale, and R is referencePowerGain.
+For positive input power this equals the original excess-power expression with
+its floor removed. Results interpreting the quotient require positive input
+power. These quotient identities alone do not specify a startup or silence
+policy. The eventual-positive detector theorem helps after startup,
+but its lower bound depends on stimulus amplitude and is not uniform as that
+amplitude goes to zero.
+
+| Result | Proven scope |
+| --- | --- |
+| `fromPowers_scaled` | A common nonzero amplitude scaling cancels from the controller's power ratio |
+| `feedback_bounds` | 0 <= kappa <= K when K,d >= 0 |
+| `feedback_lipschitz` | `abs(kappa(x)-kappa(y)) <= K*d*abs(x-y)` |
+| `ratio_ripple_bound`, `fromPowers_ripple_bound` | Relative ripple in both detector powers bounds the ratio and controller ripple, with no phase-alignment assumption |
+| `feedback_tendsto` | If the power ratio converges to a constant, its controller coefficient converges; the premise is explicit |
+| `below_critical_iff` | Exact scalar inequality for frozen `kappa*slope^3 < critical`; no time-varying stability claim |
+
+[FloorFreeDynamics.lean](FloorFreeDynamics.lean) supplies a separate exact-real
+ladder trajectory for this study. Its `advance` calls the existing one-poles,
+normalized tanh and detectors. `runtime_step_eq_advance` proves definitionally
+that it matches all production sample operations when given the same feedback
+coefficient. The only change in `FloorFree.step` is how that coefficient is
+chosen; both previous-power reads and the old fourth-stage feedback are kept.
+At exactly zero input detector power, this analysis model uses base feedback K.
+That convention is explicit in `effectiveFeedback_zero_power`, allowing reset
+to start the model; it is not a new runtime silence policy. For positive input
+power, `effectiveFeedback_eq_fromPowers` connects the trajectory to the ratio
+theorems above. `inputPowerOutput_eq` identifies its input detector with the
+existing detector trajectory, so the detector convergence results apply
+independently of what the adaptive loop does. No such decoupling is claimed for
+the feedback detector.
+
+For positive input mean I, nonnegative feedback mean F, and relative ripple at
+most rho < 1 in each power, the bound is
+
+```
+|feedbackPower/inputPower - F/I| <= (F/I)*2*rho/(1-rho)
+|kappa(feedbackPower/inputPower) - kappa(F/I)|
+    <= K*d*(F/I)*2*rho/(1-rho)
+```
+
+For single tones at the same frequency, the detectors' common bandpass power
+gain cancels in F/I. Bandpass attenuation alone therefore does not make this
+floor-free controller modulation small. This bound concerns the coefficient,
+not the output sidebands; it can be loose when rho approaches one. It also does
+not justify replacing the rippling coefficient by `kappa(F/I)` in the ladder.
+
+## Long-time response and the small-signal limit
+
+[ResponseMeasurement.lean](../../ResponseMeasurement.lean) defines two separate
+measurements for real stimulus `eps*cos(omega*n)`, eps > 0:
+
+```
+coherent(eps,N) = 2/(eps*N) * sum[n < N] output_eps[n]*exp(-i*omega*n)
+powerGain(eps,N) = 2/(eps^2*N) * sum[n < N] output_eps[n]^2
+```
+
+The proposed response takes N to infinity first, then eps to zero from above.
+`HasSmallSignalResponse` and `HasSmallSignalPowerGain` make both existence
+requirements explicit. RMS gain is the square root of power gain. Asymptotic
+RMS is a seminorm on signals with suitable averages (a norm only after
+identifying signals that differ by zero asymptotic energy). Coherent measurement
+is a complex Fourier projection, not a norm of the full signal.
+
+The proofs establish that decaying startup errors disappear from coherent
+measurement and that a sinusoid converges to its expected complex amplitude.
+Distinct unit-frequency modes average to zero, with a finite-window bound
+`2/(N*|z-1|)` after demodulation. The detector bandpasses provide a complete
+calibration: their nested coherent limit equals their existing transfer. The
+RMS/power measurements currently have definitions, not analogous calibration
+theorems.
+
+Projection can reject other output frequencies, but it cannot remove their
+effect inside the feedback loop or remove a contribution they generate at the
+stimulus frequency. RMS retains their energy. An autonomous oscillation could
+therefore be hidden by coherent projection while making normalized RMS
+unbounded; both measurements matter.
+
+**Still unproved:** convergence of the coupled floor-free ladder and controller,
+a bound on the output sidebands, and existence of the ladder's outer
+small-amplitude limit. The defined trajectory needs a closed-loop
+attracting-response argument and amplitude-uniform estimates. A
+constant-power-ratio hypothesis or a frozen-k transfer calculation would assume
+away the difficult part.
+Scale invariance of the controller alone does not prove linearity, nor does
+convergence at each fixed amplitude prove the outer limit exists.
 
 ## Validation boundaries
 

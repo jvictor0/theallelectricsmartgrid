@@ -7,8 +7,8 @@ import DSP.Filters.Capture.Proofs
 /-! The smoothing result is attached to the actual composed detector. The
 bandpass gain below reuses both existing SVF response proofs. Convergence of
 the smoothed power is conditional on the bandpass waveform approaching its
-sinusoidal response; this file does not yet prove that spectral-to-trajectory
-bridge for the SVFs, or settling of the nonlinear ladder feedback loop. -/
+sinusoidal response. Convergence.lean proves that spectral-to-trajectory bridge
+for the SVFs; neither file proves settling of the nonlinear ladder feedback loop. -/
 
 noncomputable section
 

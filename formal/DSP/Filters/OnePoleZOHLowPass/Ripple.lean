@@ -108,6 +108,19 @@ theorem ratio_le_one (alpha omega : ℝ) (ha : 0 < alpha) (hupper : alpha ≤ 1)
   rw [← denominator_double]
   exact (Real.sqrt_le_one).mpr ((div_le_one hd).mpr hb)
 
+/-- Strict smoothing and a nonzero sine leave a positive gap between ripple
+amplitude and mean power. DC/Nyquist and alpha=1 cannot use this gap. -/
+theorem ratio_lt_one (alpha omega : ℝ) (ha : 0 < alpha) (hupper : alpha < 1)
+    (hfrequency : Real.sin omega ≠ 0) : ratio alpha omega < 1 := by
+  have hd := denominator_pos alpha (2 * omega) ha hupper.le
+  have hb : alpha ^ 2 < denominator alpha (2 * omega) := by
+    rw [denominator_double]
+    have h := mul_pos (sub_pos.mpr hupper) (sq_pos_of_ne_zero hfrequency)
+    nlinarith
+  unfold ratio
+  rw [← denominator_double, Real.sqrt_lt' (by norm_num : (0 : ℝ) < 1)]
+  simpa only [one_pow] using (div_lt_one hd).mpr hb
+
 def sinusoid (amplitude omega phase : ℝ) (n : ℕ) : ℝ :=
   amplitude * Real.cos (omega * n + phase)
 
