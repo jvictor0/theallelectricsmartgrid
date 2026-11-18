@@ -177,10 +177,6 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
         }
     }
 
-    void DebugPrint()
-    {
-        m_ladder4Pole.m_lpLadder.DebugPrint();
-    }
 };
 
 using SquiggleBoyShape = SquiggleBoyShapeGeneric<1>;

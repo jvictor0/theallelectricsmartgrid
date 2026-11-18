@@ -477,10 +477,6 @@ struct SquiggleBoyTrackGeneric
     {
     }
 
-    void DebugPrint()
-    {
-        m_shape.DebugPrint();
-    }
 
     // targetFreq is the note frequency per voice in cycles per sample before
     // portamento; gainFader is the track fader.

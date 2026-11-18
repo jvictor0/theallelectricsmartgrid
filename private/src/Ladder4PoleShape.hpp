@@ -82,8 +82,9 @@ struct Ladder4PoleShapeGeneric : SquiggleBoyShapeBase
     {
         Vector hpCutoff = input.m_hpCutoffFactor.m_expParam;
         m_hp4Pole.SetCutoffAndResonance(HighPassFreq(input.m_baseFreq, hpCutoff), input.m_hpResonance.m_expParam);
-        m_lpLadder.SetCutoff(LowPassFreq(input.m_baseFreq, hpCutoff, input.m_lpCutoffFactor.m_expParam));
-        m_lpLadder.SetResonance(input.m_lpResonance.m_expParam);
+        m_lpLadder.SetCutoffAndResonance(
+            LowPassFreq(input.m_baseFreq, hpCutoff, input.m_lpCutoffFactor.m_expParam),
+            input.m_lpResonance.m_expParam);
         m_lpLadder.SetSaturationGain(input.m_saturationGain.m_expParam);
 
         m_sampleRateReducer.SetFreq(SampleRateReducerFreq(input.m_baseFreq, input.m_sampleRateReducerFreq.m_expParam));

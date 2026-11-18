@@ -177,8 +177,7 @@ auto Ladder(size_t i)
         cutoff[lane] = 0.001f * std::exp2(5 * control[lane]);
     }
 
-    filter.SetCutoff(cutoff);
-    filter.SetResonance(control * 0.7f + 0.2f);
+    filter.SetCutoffAndResonance(cutoff, control * 0.7f + 0.2f);
     filter.Process(MultiChannelNumber<float, Size>::Splat(0.1f));
     return filter.MakeSnapshot();
 }

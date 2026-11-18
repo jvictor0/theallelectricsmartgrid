@@ -246,13 +246,11 @@ DOCTEST_TEST_CASE("Trio: ladder channels match mono filters")
             resonance[i] = 0.4f * i;
         }
 
-        trio.SetCutoff(cutoff);
-        trio.SetResonance(resonance);
+        trio.SetCutoffAndResonance(cutoff, resonance);
         TrioFloat trioOutput = trio.Process(input);
         for (size_t i = 0; i < 3; ++i)
         {
-            mono[i].SetCutoff(cutoff[i]);
-            mono[i].SetResonance(resonance[i]);
+            mono[i].SetCutoffAndResonance(cutoff[i], resonance[i]);
             output.Add(i, trioOutput[i], mono[i].Process(input[i])[0]);
         }
     }

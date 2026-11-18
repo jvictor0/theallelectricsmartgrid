@@ -48,8 +48,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: passband sine near unity gain")
     const float cutoffCps = cutoffHz / static_cast<float>(kSR);
 
     LadderFilterLP filt;
-    filt.SetCutoff(cutoffCps);
-    filt.SetResonance(0.0f);
+    filt.SetCutoffAndResonance(cutoffCps, 0.0f);
 
     // Drive with small sine at 1 kHz (well below the 4 kHz cutoff).
     //
@@ -68,7 +67,8 @@ DOCTEST_TEST_CASE("LadderFilterLP: passband sine near unity gain")
     {
         float x = sine.Next();
         sumIn  += x * x;
-        sumOut += filt.Process(x) * filt.Process(x);
+        const float output = filt.Process(x);
+        sumOut += output * output;
     }
 
     // Passband gain should be close to 1 (within 3 dB ~ factor of 0.7).
@@ -101,8 +101,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: stopband attenuation >= 40 dB vs passband")
     //
     {
         LadderFilterLP filt;
-        filt.SetCutoff(cutoffCps);
-        filt.SetResonance(0.0f);
+        filt.SetCutoffAndResonance(cutoffCps, 0.0f);
         TestSignal::Sine sine(300.0f, kSR, amp);
         for (std::size_t i = 0; i < warmup; ++i) filt.Process(sine.Next());
         float sumOut = 0.0f;
@@ -117,8 +116,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: stopband attenuation >= 40 dB vs passband")
         // Stopband measurement at 8x cutoff (8 kHz).
         //
         LadderFilterLP filt2;
-        filt2.SetCutoff(cutoffCps);
-        filt2.SetResonance(0.0f);
+        filt2.SetCutoffAndResonance(cutoffCps, 0.0f);
         TestSignal::Sine sine2(8000.0f, kSR, amp);
         for (std::size_t i = 0; i < warmup; ++i) filt2.Process(sine2.Next());
         float sumOut2 = 0.0f;
@@ -150,8 +148,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: measured TF near analytic at low drive (3 dB)
     const float cutoffCps = cutoffHz / static_cast<float>(kSR);
 
     LadderFilterLP filt;
-    filt.SetCutoff(cutoffCps);
-    filt.SetResonance(0.0f);
+    filt.SetCutoffAndResonance(cutoffCps, 0.0f);
 
     float alpha = filt.m_stage1.m_alpha;
     float feedback = filt.m_kEff;
@@ -188,8 +185,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: high resonance self-oscillation bounded and N
     const float cutoffCps = cutoffHz / static_cast<float>(kSR);
 
     LadderFilterLP filt;
-    filt.SetCutoff(cutoffCps);
-    filt.SetResonance(0.95f);  // near maximum resonance
+    filt.SetCutoffAndResonance(cutoffCps, 0.95f);  // near maximum resonance
 
     const std::size_t nSamples = 48000;  // one second
     std::vector<float> out(nSamples);
@@ -229,8 +225,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: NaN-clean across parameter sweep")
         for (float res : resonances)
         {
             LadderFilterLP filt;
-            filt.SetCutoff(cps);
-            filt.SetResonance(res);
+            filt.SetCutoffAndResonance(cps, res);
             for (std::size_t i = 0; i < nSamples; ++i)
             {
                 out[i] = filt.Process(noise.Next());
@@ -247,7 +242,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: four-pole detectors focus on the loop resonan
 
     constexpr float x_cutoff = 0.005f;
     LadderFilterLP reference;
-    reference.SetCutoff(x_cutoff);
+    reference.SetCutoffAndResonance(x_cutoff, 0.0f);
     double alpha = reference.m_stage4.m_alpha;
     double ratio = alpha / (1.0 - alpha);
     float center = static_cast<float>(std::acos(1.0 - 0.5 * ratio * ratio) / (2.0 * M_PI));
@@ -256,8 +251,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: four-pole detectors focus on the loop resonan
     for (int i = 0; i < 3; ++i)
     {
         LadderFilterLP filter;
-        filter.SetCutoff(x_cutoff);
-        filter.SetResonance(0.0f);
+        filter.SetCutoffAndResonance(x_cutoff, 0.0f);
         TestSignal::Sine sine(frequencies[i] * static_cast<float>(kSR), kSR, 1.0f);
         for (int sample = 0; sample < 48000; ++sample)
         {
@@ -284,9 +278,8 @@ DOCTEST_TEST_CASE("LadderFilterLP: RMS damping suppresses resonance over the noi
     GlobalEnv::ResetPerTest();
 
     LadderFilterLP filter;
-    filter.SetCutoff(0.002f);
+    filter.SetCutoffAndResonance(0.002f, 1.0f);
     filter.SetSaturationGain(2.0f);
-    filter.SetResonance(1.0f);
 
     float noiseAmplitude = 0.0f;
     DOCTEST_SUBCASE("silence")
@@ -328,9 +321,8 @@ DOCTEST_TEST_CASE("LadderFilterLP: RMS damping preserves tones and distinguishes
     LadderFilterLP floorFilter;
     for (LadderFilterLP* configured : {&filter, &floorFilter})
     {
-        configured->SetCutoff(0.002f);
+        configured->SetCutoffAndResonance(0.002f, 1.0f);
         configured->SetSaturationGain(2.0f);
-        configured->SetResonance(1.0f);
     }
 
     bool useNoise = false;
@@ -389,9 +381,8 @@ DOCTEST_TEST_CASE("LadderFilterLP: reset clears RMS damping history")
     LadderFilterLP fresh;
     for (LadderFilterLP* configured : {&filter, &fresh})
     {
-        configured->SetCutoff(0.002f);
+        configured->SetCutoffAndResonance(0.002f, 1.0f);
         configured->SetSaturationGain(2.0f);
-        configured->SetResonance(1.0f);
     }
 
     for (int i = 0; i < 24000; ++i)
@@ -413,9 +404,10 @@ DOCTEST_TEST_CASE("LadderFilterLP: direct resonance height matches the linear re
     GlobalEnv::ResetPerTest();
 
     LadderFilterLP filter;
-    for (float alpha : {0.01f, 0.1f, 0.5f, 0.7f, 0.95f})
+    for (float cutoff : {0.0007f, 0.0073f, 0.049f, 0.09f, 0.25f})
     {
-        filter.SetAlphaDirect(alpha);
+        filter.SetCutoffAndResonance(cutoff, 0.0f);
+        const float alpha = filter.m_stage4.m_alpha;
         float frequency = 0.5f;
         if (alpha < 2.0f / 3.0f)
         {
@@ -428,6 +420,112 @@ DOCTEST_TEST_CASE("LadderFilterLP: direct resonance height matches the linear re
         float reference = LadderFilterLP::FrequencyResponse(alpha, feedback, frequency) / (1.0f + feedback);
         DOCTEST_INFO("alpha: " << alpha);
         DOCTEST_CHECK(height == doctest::Approx(reference).epsilon(0.001f));
+    }
+}
+
+DOCTEST_TEST_CASE("LadderFilterLP: tuning preserves history and refreshes feedback on every parameter change")
+{
+    using Vector = TrioLadderFilterLP::Vector;
+    TrioLadderFilterLP filter;
+    Vector cutoff(0.002f, 0.04f, 0.2f);
+    Vector resonance(0.9f, 0.7f, 0.8f);
+    Vector drive(0.5f, 2.0f, 4.0f);
+
+    for (size_t change = 0; change < 6; ++change)
+    {
+        if (change == 1)
+        {
+            resonance = Vector(0.4f, 0.95f, 0.1f);
+        }
+        else if (change == 2)
+        {
+            drive = Vector(2.0f, 0.5f, 1.0f);
+        }
+        else if (change == 3)
+        {
+            cutoff = Vector(0.02f, 0.1f, 0.005f);
+        }
+        else if (change == 4)
+        {
+            cutoff = Vector(0.04f, 0.003f, 0.4f);
+            resonance = Vector(0.8f, 0.4f, 1.0f);
+            drive = Vector(3.0f, 1.0f, 0.25f);
+        }
+
+        const auto before = filter;
+        if (change % 2 == 0)
+        {
+            filter.SetSaturationGain(drive);
+            filter.SetCutoffAndResonance(cutoff, resonance);
+        }
+        else
+        {
+            filter.SetCutoffAndResonance(cutoff, resonance);
+            filter.SetSaturationGain(drive);
+        }
+
+        DOCTEST_CHECK(filter.m_stage1.m_output == before.m_stage1.m_output);
+        DOCTEST_CHECK(filter.m_stage2.m_output == before.m_stage2.m_output);
+        DOCTEST_CHECK(filter.m_stage3.m_output == before.m_stage3.m_output);
+        DOCTEST_CHECK(filter.m_stage4.m_output == before.m_stage4.m_output);
+        DOCTEST_CHECK(filter.m_inputEnvelope.GetPower() == before.m_inputEnvelope.GetPower());
+        DOCTEST_CHECK(filter.m_feedbackEnvelope.GetPower() == before.m_feedbackEnvelope.GetPower());
+
+        // A newly configured filter must agree regardless of parameter history
+        // and setter order, including a repeated identical tuning request.
+        //
+        TrioLadderFilterLP fresh;
+        fresh.SetCutoffAndResonance(cutoff, resonance);
+        fresh.SetSaturationGain(drive);
+        DOCTEST_CHECK(filter.m_kSafe == fresh.m_kSafe);
+        DOCTEST_CHECK(filter.m_baseFeedback == fresh.m_baseFeedback);
+        DOCTEST_CHECK(filter.m_referencePowerGain == fresh.m_referencePowerGain);
+        DOCTEST_CHECK(filter.m_dampingScale == fresh.m_dampingScale);
+
+        // Use controlled previous-sample powers to exercise active damping.
+        // Check the feedback applied to the delayed, unsaturated stage state.
+        //
+        filter.m_inputEnvelope.m_power = Vector(0.01f, 0.0001f, 0.1f);
+        filter.m_feedbackEnvelope.m_power = Vector(1.0f, 0.2f, 0.3f);
+        const Vector previousStage4 = filter.m_stage4.m_output;
+        Vector expectedFeedback;
+        for (size_t lane = 0; lane < 3; ++lane)
+        {
+            const double alpha = filter.m_stage4.m_alpha[lane];
+            const double slope = drive[lane] / filter.m_saturationTanhGain[lane];
+            const double safe = 0.9 / (std::pow(alpha * slope / (2 - alpha), 4) + 1e-8);
+            const double base = std::min(3.9 * resonance[lane], safe);
+            const double inputPower = filter.m_inputEnvelope.GetPower()[lane];
+            const double feedbackPower = filter.m_feedbackEnvelope.GetPower()[lane];
+            const double referencePower = inputPower / std::pow(filter.m_criticalFeedback[lane] - base, 2);
+            const double excess = std::max(0.0, feedbackPower - referencePower) / (inputPower + 1e-8);
+            expectedFeedback[lane] = static_cast<float>(base / (1 + 1e-4 * std::pow(slope, 3) * excess));
+        }
+
+        const Vector input(0.2f, -0.1f, 0.4f);
+        filter.Process(input);
+        for (size_t lane = 0; lane < 3; ++lane)
+        {
+            DOCTEST_CHECK(filter.m_kEff[lane] == doctest::Approx(expectedFeedback[lane]).epsilon(2e-6));
+            DOCTEST_CHECK(filter.m_input[lane] ==
+                doctest::Approx(input[lane] - expectedFeedback[lane] * previousStage4[lane]).epsilon(2e-6));
+        }
+    }
+}
+
+DOCTEST_TEST_CASE("LadderFilterLP: cutoff remains the unit-gain cascade half-power point")
+{
+    LadderFilterLP filter;
+    for (float cutoff : {0.005f, 0.01f, 0.04f, 0.08f, 0.125f, 0.25f, 0.499f})
+    {
+        filter.SetCutoffAndResonance(cutoff, 0.0f);
+        const double alpha = filter.m_stage4.m_alpha;
+        const auto zInverse = std::polar(1.0, -2 * M_PI * cutoff);
+        const auto stage = alpha / (1.0 - (1.0 - alpha) * zInverse);
+        DOCTEST_INFO("cutoff: " << cutoff);
+        // Allow the existing 1024-entry cosine interpolation and float tuning.
+        //
+        DOCTEST_CHECK(std::pow(std::norm(stage), 4) == doctest::Approx(0.5).epsilon(0.003));
     }
 }
 

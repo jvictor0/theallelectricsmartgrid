@@ -42,15 +42,7 @@ struct Filters
     Core m_core[3 / Size];
     void Set(size_t g, const V& cutoff, const V& resonance)
     {
-        if constexpr (Kind == 1)
-        {
-            m_core[g].SetCutoffAndResonance(cutoff, resonance);
-        }
-        else
-        {
-            m_core[g].SetCutoff(cutoff);
-            m_core[g].SetResonance(resonance);
-        }
+        m_core[g].SetCutoffAndResonance(cutoff, resonance);
     }
 
     Filters()

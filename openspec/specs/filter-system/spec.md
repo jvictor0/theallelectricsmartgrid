@@ -20,11 +20,17 @@ Before either machine, the input passes a shared DC-blocking one-pole high-pass 
 
 ### Requirement: Ladder Filter Machine
 The Ladder Filter Machine SHALL apply a 4-pole transistor-ladder low-pass (`LadderFilterLP`), then the sample-rate reducer, then a 4-pole SVF high-pass (`TPTSVF4PoleHighPassFilterGeneric`, two cascaded 2-pole SVF high-pass stages).
-The ladder is four cascaded one-pole low-pass stages with a `TanhSaturator` after each stage and resonance feedback from the fourth stage's output. `SetCutoff` solves the per-stage alpha so the 4-stage cascade is -3 dB at the requested cutoff; `SetResonance` maps resonance to `feedback = resonance * 4`. Each sample, the effective feedback `m_kEff` is clamped to `0.9 / Cpi`, where `Cpi` is the fourth power of the per-stage Nyquist gain including the saturator's small-signal gain, guaranteeing stability; the output is scaled by `1 + m_kEff` to hold approximately unity DC gain as resonance rises. The saturation gain parameter sets the ladder saturators' input gain.
+The ladder is four cascaded one-pole low-pass stages with normalized `TanhSaturator` after each stage. Feedback SHALL use the previous sample's **unsaturated** fourth-stage state. `SetCutoffAndResonance` SHALL retain the unit-gain, zero-feedback cascade's half-power (-3.0103 dB) cutoff convention and map resonance to `feedback = resonance * 3.9`. The knob range and pitch-tracking mapping SHALL remain unchanged. Alpha, detector center frequency and critical feedback SHALL be derived from shared cutoff intermediates, without recovering detector tuning from the rounded alpha.
 
-#### Scenario: Resonance feedback is clamped for stability
-- **WHEN** the resonance parameter requests `feedback = resonance * 4` exceeding `0.9 / Cpi` for the current alpha and saturation gain
-- **THEN** the effective feedback `m_kEff` is limited to `0.9 / Cpi` and the published UIState feedback coefficient equals the clamped value
+Parameter setters SHALL cache `kSafe = 0.9 / (Cpi + 1e-8)` and `baseFeedback = min(feedback, kSafe)`, where `Cpi` is the fourth power of the per-stage Nyquist gain including the saturator's small-signal gain. This preserves the existing Nyquist heuristic, not a general nonlinear stability guarantee. Each sample SHALL reduce base feedback using the previous input and feedback detector powers, then advance the ladder and detectors in that order. The output SHALL be scaled by `1 + m_kEff` to counter resonance-induced passband drop. The normalized saturator SHALL retain the clamped rational `Tanh` implementation. Setters SHALL preserve stage and detector histories, and saturation-gain changes SHALL refresh the parameter-only feedback terms.
+
+#### Scenario: Feedback respects the cached guard and adaptive damping
+- **WHEN** resonance requests feedback above `kSafe`, or the feedback detector exceeds its input-referenced power
+- **THEN** `m_kEff` is no greater than `min(resonance * 3.9, kSafe)` and the published UIState uses that sample's effective feedback coefficient
+
+#### Scenario: Coefficient updates preserve the running filter
+- **WHEN** cutoff, resonance or saturation gain changes, in either setter order
+- **THEN** all dependent feedback coefficients are refreshed without clearing the four stage states or either detector history
 
 #### Scenario: DC gain stays near unity as resonance increases
 - **WHEN** resonance is raised while a low-frequency signal passes the ladder

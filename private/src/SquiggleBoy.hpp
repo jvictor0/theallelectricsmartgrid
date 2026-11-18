@@ -370,11 +370,6 @@ struct SquiggleBoy
             mixerTrack.m_y = squiggleBoyTrack.m_pan.m_outputY;
         }
 
-        if (SampleTimer::GetSample() % SampleTimer::x_sampleRate == 0)
-        {
-            m_tracks[0].DebugPrint();
-        }
-
         m_deepVocoderState.m_enabled = m_sourceMixer.IsVocoderEnabled(m_sourceMixerState);
         float deepVocoderInput = m_sourceMixer.GetDeepVocoderInput(m_sourceMixerState);
         m_deepVocoder.Process(deepVocoderInput, m_deepVocoderState);

@@ -230,8 +230,7 @@ DOCTEST_TEST_CASE("Sampled response: optimized magnitudes match complex response
     {
         lp.SetAlphaFromNatFreq(cutoff);
         hp.SetAlphaFromNatFreq(cutoff);
-        ladder.SetCutoff(cutoff);
-        ladder.SetResonance(0.5f);
+        ladder.SetCutoffAndResonance(cutoff, 0.5f);
         ladder.Process(0.1f);
         auto low = lp.MakeSnapshot();
         auto high = hp.MakeSnapshot();
@@ -500,8 +499,7 @@ DOCTEST_TEST_CASE("Sampled vectors: captured filter coefficients and responses p
     lp.SetAlphaFromNatFreq(cutoff);
     hp.SetAlphaFromNatFreq(cutoff);
     svf.SetCutoffResonanceAndMorph(cutoff, resonance, TrioFloat(0.0f, 0.3f, 0.8f));
-    ladder.SetCutoff(cutoff);
-    ladder.SetResonance(resonance);
+    ladder.SetCutoffAndResonance(cutoff, resonance);
     ladder.Process(TrioFloat::Splat(0.1f));
     std::array<OPLowPassFilter::Snapshot, 3> monoLP;
     std::array<OPHighPassFilter::Snapshot, 3> monoHP;
@@ -517,8 +515,7 @@ DOCTEST_TEST_CASE("Sampled vectors: captured filter coefficients and responses p
         oneLP.SetAlphaFromNatFreq(cutoff[lane]);
         oneHP.SetAlphaFromNatFreq(cutoff[lane]);
         oneSVF.SetCutoffResonanceAndMorph(cutoff[lane], resonance[lane], std::array<float, 3>{0.0f, 0.3f, 0.8f}[lane]);
-        oneLadder.SetCutoff(cutoff[lane]);
-        oneLadder.SetResonance(resonance[lane]);
+        oneLadder.SetCutoffAndResonance(cutoff[lane], resonance[lane]);
         oneLadder.Process(0.1f);
         monoLP[lane] = oneLP.MakeSnapshot();
         monoHP[lane] = oneHP.MakeSnapshot();
