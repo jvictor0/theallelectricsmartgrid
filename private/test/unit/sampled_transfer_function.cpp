@@ -317,16 +317,24 @@ DOCTEST_TEST_CASE("Sampled response: concurrent machine switches cannot mix resp
 {
     TransferFunctionGeneric<GainSnapshot> ui(TestConfig(64, 32));
     std::atomic<bool> finished{false};
+    size_t finalPublished = 0;
     std::thread producer([&]
     {
         for (size_t machine = 1; machine <= 20000; ++machine)
         {
             ui.m_history.Clear();
+            finalPublished = 0;
             GainSnapshot snapshot;
             snapshot.m_gain = static_cast<float>(machine);
             for (size_t i = 0; i < 4; ++i)
             {
-                ui.m_history.Push(snapshot);
+                // A UI-owned slot may reject a push. Count accepted samples
+                // for the final cohort; join makes this count safe to read.
+                //
+                if (ui.m_history.Push(snapshot))
+                {
+                    ++finalPublished;
+                }
             }
         }
 
@@ -345,7 +353,7 @@ DOCTEST_TEST_CASE("Sampled response: concurrent machine switches cannot mix resp
     while (!finished.load());
     producer.join();
     DOCTEST_CHECK(coherent);
-    DOCTEST_CHECK(ui.Sample().size() == 4);
+    DOCTEST_CHECK(ui.Sample().size() == finalPublished);
 }
 
 namespace
