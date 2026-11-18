@@ -82,10 +82,11 @@ sibling compensation sections. `LogicalSpec` stores the three cutoffs as
 - `MakeSnapshot(spec)` returns the three `(g,k)` pairs directly from the same specification.
 - `Process(input)` updates the state and its four band outputs.
 
-There are no emitted response or transfer methods. A later consumer can
+There are no emitted response or transfer methods on the splitter. Consumers
 combine the proved complex band transfers with its gains and then take the
-magnitude of that sum. The generated header is a pipeline artifact; production
-C++ integration and the multiband saturator rewrite are separate work.
+magnitude of that sum. The [multiband saturator](../MultibandSaturator/README.md)
+composes this splitter in Lean and generates the production mastering core
+and its small-signal magnitude-squared response through the same generator.
 
 Validation includes native impulse/sinusoidal reconstruction against an
 independent direct-form allpass cascade for 1, 2, 3, 4, 5, 7, and 8 bands;

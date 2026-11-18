@@ -20,11 +20,17 @@ The system simultaneously generates three parallel mixdowns:
 
 Before leaving the synthesizer, both the Quad and Stereo mixdowns pass through a `DualMasteringChain`, which contains a `MultibandSaturator` (`private/src/MultibandSaturator.hpp`).
 
-The Multiband Saturator splits the signal into 4 frequency bands using fourth-order Butterworth branches (the legacy type name is `LinkwitzRileyCrossoverGeneric`). The retained section Qs are approximately 0.541196 and 1.306563: each branch is −3 dB at cutoff, and their unsaturated sum is +3 dB there, rather than a flat LR4 sum. Each crossover uses linear trapezoidal state-variable sections to avoid low-cutoff float precision loss at the engine rate. LP and HP share the first section, with a separate second section for each branch. All channels are processed as one vector, with shared coefficients and the three cutoff calculations batched across SIMD lanes.
-- Each band can have its gain adjusted independently.
-- Each band is then passed through a tanh saturator (`ProcessAndSaturate` in `Metering`), using the clamped rational approximation from `TanhSaturator` to provide soft clipping and harmonic saturation.
-- Because the saturation is applied per-band, it prevents intermodulation distortion (e.g., heavy bass notes won't cause the high frequencies to duck or distort).
-- The bands are then summed back together, providing a loud, glued, and polished final output.
+The generated Lean core splits the signal into four bands using phase-compensated fourth-order Linkwitz–Riley crossovers. Each split uses two Butterworth-2 TPT SVF sections (Q = 1/√2): its LP and HP branches are −6.02 dB at the crossover, and their sum is allpass. Sibling allpass compensation aligns the branches throughout the tree, so the complete small-signal sum has flat magnitude at unity band and master gains (for common-channel input when mono bass is enabled). This replaces the old handwritten Butterworth-4 branches, which were −3 dB at crossover and did not reconstruct flat.
+
+All audio channels are processed as one vector with shared coefficients. The three cutoff calculations remain batched across SIMD lanes using Math4096. Knob mappings and cutoff clamps are unchanged: at a 48 kHz host rate, the low cutoff spans 23.4–236.2 Hz, and each subsequent cutoff is 1–32 times the previous one. Default crossovers are approximately 74.4 Hz, 420.9 Hz, and 2.381 kHz.
+
+- Each band has independent gain followed by saturation. Lean proofs use tanh; generated audio uses the clamped cubic rational approximation shared with `TanhSaturator`.
+- With mono bass enabled, the lowest band is averaged across channels before gain and saturation, then added to each channel and exposed as the sub output.
+- The bands are summed, multiplied by master gain, and saturated once more.
+- The C++ wrapper owns the meters and records the generated before/after samples through `RecordSaturated`, preserving meter timing without saturating twice.
+- UI snapshots capture coefficients and gains together. The generated magnitude-squared kernel implements the proved small-signal response, including phase during recombination; the UI plots its sampled lower/median/upper power curves in dB.
+
+See the [Lean model and theorem inventory](../formal/DSP/Filters/MultibandSaturator/README.md) for proof assumptions and the generated interface.
 
 ## Engine and Host Rates
 

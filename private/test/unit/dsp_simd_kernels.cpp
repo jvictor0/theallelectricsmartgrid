@@ -2,7 +2,6 @@
 #include "../support/GlobalEnv.hpp"
 #include "AllPassFilter.hpp"
 #include "DelayLine.hpp"
-#include "LinkwitzRileyCrossover.hpp"
 #include "Metering.hpp"
 #include "QuadReverb.hpp"
 #include <array>
@@ -93,38 +92,6 @@ DOCTEST_TEST_CASE("Delay interpolation: packed cubic matches scalar and linear r
             double expected = delay.m_delayLine[i][lane] * (1 - fraction)
                 + delay.m_delayLine[(i + 1) % 64][lane] * fraction;
             DOCTEST_CHECK(linear[lane] == doctest::Approx(expected).epsilon(2e-7).scale(1));
-        }
-    }
-}
-
-DOCTEST_TEST_CASE("Crossover: packed cutoff coefficients match the double-precision filter formula across clamped range")
-{
-    using Crossover = LinkwitzRileyCrossoverGeneric<float, 4>;
-    Crossover packed[3];
-    LinkwitzRileyCrossover scalar;
-    for (size_t step = 0; step < 8192; ++step)
-    {
-        float t = static_cast<float>(step) / 8191;
-        MultiChannelNumber<float, 3> frequency(
-            std::pow(10.0f, -5.0f + 5.0f * t), t * 0.5f, 0.499f - 0.499f * t);
-        Crossover::SetCyclesPerSampleBatch(packed, frequency);
-        for (size_t lane = 0; lane < 3; ++lane)
-        {
-            scalar.SetCyclesPerSample(frequency[lane]);
-            double cutoff = std::clamp(frequency[lane], scalar.x_minCyclesPerSample, scalar.x_maxCyclesPerSample);
-            double g = std::tan(M_PI * cutoff);
-            auto check = [g](const auto& actual, double q)
-            {
-                double a1 = 1 / (1 + g * (g + 1 / q));
-                DOCTEST_CHECK(actual.m_a1 == doctest::Approx(a1).epsilon(2e-6).scale(1e-8));
-                DOCTEST_CHECK(actual.m_a2 == doctest::Approx(g * a1).epsilon(2e-6).scale(1e-8));
-                DOCTEST_CHECK(actual.m_a3 == doctest::Approx(g * g * a1).epsilon(2e-6).scale(1e-8));
-                DOCTEST_CHECK(actual.m_k == doctest::Approx(1 / q).epsilon(2e-6));
-            };
-            DOCTEST_CHECK(packed[lane].m_cyclesPerSample == scalar.m_cyclesPerSample);
-            check(packed[lane].m_first, scalar.Q1());
-            check(packed[lane].m_lowSecond, scalar.Q2());
-            check(packed[lane].m_highSecond, scalar.Q2());
         }
     }
 }

@@ -129,10 +129,11 @@ possible negative feedback values. The ladder boundary theorem is
   uses stage natural frequency and raw loop feedback, without the app's
   saturation, adaptive damping, or output compensation. The two topologies
   have distinct models.
-- The handwritten `LinkwitzRileyCrossover.hpp` uses unequal Butterworth-4
-  dampings. The new tuner deliberately uses standard LR4 equal Butterworth-2
-  sections within a phase-compensated splitter tree. The old Lean crossover
-  model has been removed; the production app itself is unchanged.
+- The removed handwritten crossover used unequal Butterworth-4 dampings.
+  The tuner uses standard LR4 equal Butterworth-2 sections within a
+  phase-compensated splitter tree. The generated multiband saturator now
+  uses this model in the app; crossover knob mappings and clamps are retained,
+  while the unity-gain small-signal sum is flat.
 - Morph retains the app's adjacent equal-power weighting on `[0,1]`, but the
   tuner requires the range rather than clamping invalid input.
 

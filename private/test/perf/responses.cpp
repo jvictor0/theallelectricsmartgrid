@@ -7,7 +7,6 @@
 #include "SourceMixer.hpp"
 #include "TPTBaseWidthFilter.hpp"
 #include "MultibandSaturator.hpp"
-#include "LinkwitzRileyCrossover.hpp"
 #include <functional>
 #include <iomanip>
 #include <random>
@@ -260,12 +259,6 @@ std::vector<Case> Cases()
         s.m_hp = GeneratedSVF<TPTSVFHighPassFilterGeneric<float, 4>>(i);
         s.m_hp.m_g *= 0.05f;
         return s;
-    });
-    Add(cases, "crossover_lp_hp/pair", [](size_t i)
-    {
-        LinkwitzRileyCrossoverGeneric<float, 2> filter;
-        filter.SetCyclesPerSample(0.001f * std::exp2(5 * Control(i)));
-        return filter.MakeSnapshot();
     });
     Add(cases, "master_four_band/mono", [](size_t i)
     {
