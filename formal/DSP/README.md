@@ -334,7 +334,7 @@ and 1 are exactly lowpass, bandpass and highpass.
 and bandpass variants feed and read the corresponding response. Stages may have
 different gains and dampings.
 
-`TPTLadder` is an idealized linear ladder, not the app's nonlinear ladder. Each
+`TPTLadder` is an idealized linear ladder, not the app's nonlinear `NaiveReuppingLadder`. Each
 TPT stage is affine in its input, y = S + G x, so the global loop e = x - k y₄ is
 solved in closed form: S is the cascade's response to zero input, and
 e = (x - k S)/(1 + k G₁G₂G₃G₄). `loop_solved` proves the stored `drive` satisfies

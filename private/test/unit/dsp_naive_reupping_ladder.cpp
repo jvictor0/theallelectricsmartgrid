@@ -1,4 +1,4 @@
-// dsp_ladder.cpp -- unit tests for LadderFilterLP (private/src/LadderFilter.hpp)
+// dsp_naive_reupping_ladder.cpp -- unit tests for NaiveReuppingLadder (private/src/NaiveReuppingLadder.hpp)
 //
 // 4-pole LP ladder with per-stage tanh saturation and resonance feedback.
 // Nonlinear -- tests focus on passband/stopband ratio, resonance bounds, NaN-clean.
@@ -25,7 +25,7 @@
 #include "../support/Spectral.hpp"
 #include "../support/NanScan.hpp"
 
-#include "LadderFilter.hpp"
+#include "NaiveReuppingLadder.hpp"
 
 using namespace TestSpectral;
 using namespace TestSignal;
@@ -50,14 +50,14 @@ float StageCornerFromHalfPower(float cutoff)
 // 1. Passband sine passes at close to unity (low amplitude, no resonance).
 // ---------------------------------------------------------------------------
 //
-DOCTEST_TEST_CASE("LadderFilterLP: passband sine near unity gain")
+DOCTEST_TEST_CASE("NaiveReuppingLadder: passband sine near unity gain")
 {
     GlobalEnv::ResetPerTest();
 
     const float cutoffHz  = 4000.0f;
     const float cutoffCps = cutoffHz / static_cast<float>(kSR);
 
-    LadderFilterLP filt;
+    NaiveReuppingLadder filt;
     filt.SetCutoffAndResonance(cutoffCps, 0.0f);
 
     // Drive with small sine at 1 kHz (well below the 4 kHz cutoff).
@@ -96,7 +96,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: passband sine near unity gain")
 // 2. Stopband sine attenuated >= 40 dB relative to passband sine.
 // ---------------------------------------------------------------------------
 //
-DOCTEST_TEST_CASE("LadderFilterLP: stopband attenuation >= 40 dB vs passband")
+DOCTEST_TEST_CASE("NaiveReuppingLadder: stopband attenuation >= 40 dB vs passband")
 {
     GlobalEnv::ResetPerTest();
 
@@ -110,7 +110,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: stopband attenuation >= 40 dB vs passband")
     // Passband measurement at 300 Hz.
     //
     {
-        LadderFilterLP filt;
+        NaiveReuppingLadder filt;
         filt.SetCutoffAndResonance(cutoffCps, 0.0f);
         TestSignal::Sine sine(300.0f, kSR, amp);
         for (std::size_t i = 0; i < warmup; ++i) filt.Process(sine.Next());
@@ -125,7 +125,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: stopband attenuation >= 40 dB vs passband")
 
         // Stopband measurement at 8x cutoff (8 kHz).
         //
-        LadderFilterLP filt2;
+        NaiveReuppingLadder filt2;
         filt2.SetCutoffAndResonance(cutoffCps, 0.0f);
         TestSignal::Sine sine2(8000.0f, kSR, amp);
         for (std::size_t i = 0; i < warmup; ++i) filt2.Process(sine2.Next());
@@ -150,14 +150,14 @@ DOCTEST_TEST_CASE("LadderFilterLP: stopband attenuation >= 40 dB vs passband")
 // 3. Low-signal linear approx: measured TF roughly matches analytic model (3 dB tol).
 // ---------------------------------------------------------------------------
 //
-DOCTEST_TEST_CASE("LadderFilterLP: measured TF near analytic at low drive (3 dB)")
+DOCTEST_TEST_CASE("NaiveReuppingLadder: measured TF near analytic at low drive (3 dB)")
 {
     GlobalEnv::ResetPerTest();
 
     const float cutoffHz  = 2000.0f;
     const float cutoffCps = cutoffHz / static_cast<float>(kSR);
 
-    LadderFilterLP filt;
+    NaiveReuppingLadder filt;
     filt.SetCutoffAndResonance(cutoffCps, 0.0f);
 
     float alpha = filt.m_stage1.m_alpha;
@@ -172,7 +172,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: measured TF near analytic at low drive (3 dB)
     auto H = MeasureTransferFunction(proc, kN, kSR, 0xA1D1A1D100000001ull, 48, 4);
 
     auto expected = [alpha, feedback](double hz) -> double {
-        return LadderFilterLP::FrequencyResponse(
+        return NaiveReuppingLadder::FrequencyResponse(
             alpha, feedback, static_cast<float>(hz / kSR));
     };
 
@@ -187,14 +187,14 @@ DOCTEST_TEST_CASE("LadderFilterLP: measured TF near analytic at low drive (3 dB)
 // 4. Resonance self-oscillation bounded (long run, no NaN, amplitude finite).
 // ---------------------------------------------------------------------------
 //
-DOCTEST_TEST_CASE("LadderFilterLP: high resonance self-oscillation bounded and NaN-clean")
+DOCTEST_TEST_CASE("NaiveReuppingLadder: high resonance self-oscillation bounded and NaN-clean")
 {
     GlobalEnv::ResetPerTest();
 
     const float cutoffHz  = 500.0f;
     const float cutoffCps = cutoffHz / static_cast<float>(kSR);
 
-    LadderFilterLP filt;
+    NaiveReuppingLadder filt;
     filt.SetCutoffAndResonance(cutoffCps, 0.95f);  // near maximum resonance
 
     const std::size_t nSamples = 48000;  // one second
@@ -219,7 +219,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: high resonance self-oscillation bounded and N
 // 5. Parameter sweep NaN-clean.
 // ---------------------------------------------------------------------------
 //
-DOCTEST_TEST_CASE("LadderFilterLP: NaN-clean across parameter sweep")
+DOCTEST_TEST_CASE("NaiveReuppingLadder: NaN-clean across parameter sweep")
 {
     GlobalEnv::ResetPerTest();
 
@@ -234,7 +234,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: NaN-clean across parameter sweep")
     {
         for (float res : resonances)
         {
-            LadderFilterLP filt;
+            NaiveReuppingLadder filt;
             filt.SetCutoffAndResonance(cps, res);
             for (std::size_t i = 0; i < nSamples; ++i)
             {
@@ -246,12 +246,12 @@ DOCTEST_TEST_CASE("LadderFilterLP: NaN-clean across parameter sweep")
     }
 }
 
-DOCTEST_TEST_CASE("LadderFilterLP: four-pole detectors focus on the loop resonance")
+DOCTEST_TEST_CASE("NaiveReuppingLadder: four-pole detectors focus on the loop resonance")
 {
     GlobalEnv::ResetPerTest();
 
     constexpr float x_cutoff = 0.005f;
-    LadderFilterLP reference;
+    NaiveReuppingLadder reference;
     reference.SetCutoffAndResonance(x_cutoff, 0.0f);
     double alpha = reference.m_stage4.m_alpha;
     double ratio = alpha / (1.0 - alpha);
@@ -260,7 +260,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: four-pole detectors focus on the loop resonan
     float detectedPower[3] = {};
     for (int i = 0; i < 3; ++i)
     {
-        LadderFilterLP filter;
+        NaiveReuppingLadder filter;
         filter.SetCutoffAndResonance(x_cutoff, 0.0f);
         TestSignal::Sine sine(frequencies[i] * static_cast<float>(kSR), kSR, 1.0f);
         for (int sample = 0; sample < 48000; ++sample)
@@ -283,11 +283,11 @@ DOCTEST_TEST_CASE("LadderFilterLP: four-pole detectors focus on the loop resonan
     DOCTEST_CHECK(detectedPower[2] < 0.003f * detectedPower[1]);
 }
 
-DOCTEST_TEST_CASE("LadderFilterLP: RMS damping suppresses resonance over the noise floor")
+DOCTEST_TEST_CASE("NaiveReuppingLadder: RMS damping suppresses resonance over the noise floor")
 {
     GlobalEnv::ResetPerTest();
 
-    LadderFilterLP filter;
+    NaiveReuppingLadder filter;
     filter.SetCutoffAndResonance(StageCornerFromHalfPower(0.002f), 1.0f);
     filter.SetSaturationGain(2.0f);
 
@@ -323,13 +323,13 @@ DOCTEST_TEST_CASE("LadderFilterLP: RMS damping suppresses resonance over the noi
     DOCTEST_CHECK(feedbackSum / 48000.0f < 1.0f);
 }
 
-DOCTEST_TEST_CASE("LadderFilterLP: RMS damping preserves tones and distinguishes driven noise from the floor")
+DOCTEST_TEST_CASE("NaiveReuppingLadder: RMS damping preserves tones and distinguishes driven noise from the floor")
 {
     GlobalEnv::ResetPerTest();
 
-    LadderFilterLP filter;
-    LadderFilterLP floorFilter;
-    for (LadderFilterLP* configured : {&filter, &floorFilter})
+    NaiveReuppingLadder filter;
+    NaiveReuppingLadder floorFilter;
+    for (NaiveReuppingLadder* configured : {&filter, &floorFilter})
     {
         configured->SetCutoffAndResonance(StageCornerFromHalfPower(0.002f), 1.0f);
         configured->SetSaturationGain(2.0f);
@@ -383,13 +383,13 @@ DOCTEST_TEST_CASE("LadderFilterLP: RMS damping preserves tones and distinguishes
     }
 }
 
-DOCTEST_TEST_CASE("LadderFilterLP: reset clears RMS damping history")
+DOCTEST_TEST_CASE("NaiveReuppingLadder: reset clears RMS damping history")
 {
     GlobalEnv::ResetPerTest();
 
-    LadderFilterLP filter;
-    LadderFilterLP fresh;
-    for (LadderFilterLP* configured : {&filter, &fresh})
+    NaiveReuppingLadder filter;
+    NaiveReuppingLadder fresh;
+    for (NaiveReuppingLadder* configured : {&filter, &fresh})
     {
         configured->SetCutoffAndResonance(StageCornerFromHalfPower(0.002f), 1.0f);
         configured->SetSaturationGain(2.0f);
@@ -409,11 +409,11 @@ DOCTEST_TEST_CASE("LadderFilterLP: reset clears RMS damping history")
     }
 }
 
-DOCTEST_TEST_CASE("LadderFilterLP: direct resonance height matches the linear response")
+DOCTEST_TEST_CASE("NaiveReuppingLadder: direct resonance height matches the linear response")
 {
     GlobalEnv::ResetPerTest();
 
-    LadderFilterLP filter;
+    NaiveReuppingLadder filter;
     for (float cutoff : {0.0007f, 0.0073f, 0.049f, 0.09f, 0.25f})
     {
         filter.SetCutoffAndResonance(cutoff, 0.0f);
@@ -427,16 +427,16 @@ DOCTEST_TEST_CASE("LadderFilterLP: direct resonance height matches the linear re
 
         float feedback = std::min(3.9f, 0.9f * filter.m_criticalFeedback);
         float height = 1.0f / (filter.m_criticalFeedback - feedback);
-        float reference = LadderFilterLP::FrequencyResponse(alpha, feedback, frequency) / (1.0f + feedback);
+        float reference = NaiveReuppingLadder::FrequencyResponse(alpha, feedback, frequency) / (1.0f + feedback);
         DOCTEST_INFO("alpha: " << alpha);
         DOCTEST_CHECK(height == doctest::Approx(reference).epsilon(0.001f));
     }
 }
 
-DOCTEST_TEST_CASE("LadderFilterLP: tuning preserves history and refreshes feedback on every parameter change")
+DOCTEST_TEST_CASE("NaiveReuppingLadder: tuning preserves history and refreshes feedback on every parameter change")
 {
-    using Vector = TrioLadderFilterLP::Vector;
-    TrioLadderFilterLP filter;
+    using Vector = TrioNaiveReuppingLadder::Vector;
+    TrioNaiveReuppingLadder filter;
     Vector cutoff(0.002f, 0.04f, 0.2f);
     Vector resonance(0.9f, 0.7f, 0.8f);
     Vector drive(0.5f, 2.0f, 4.0f);
@@ -484,7 +484,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: tuning preserves history and refreshes feedba
         // A newly configured filter must agree regardless of parameter history
         // and setter order, including a repeated identical tuning request.
         //
-        TrioLadderFilterLP fresh;
+        TrioNaiveReuppingLadder fresh;
         fresh.SetCutoffAndResonance(cutoff, resonance);
         fresh.SetSaturationGain(drive);
         DOCTEST_CHECK(filter.m_kSafe == fresh.m_kSafe);
@@ -523,9 +523,9 @@ DOCTEST_TEST_CASE("LadderFilterLP: tuning preserves history and refreshes feedba
     }
 }
 
-DOCTEST_TEST_CASE("LadderFilterLP: cutoff is the stage half-power point and cascade quarter-amplitude point")
+DOCTEST_TEST_CASE("NaiveReuppingLadder: cutoff is the stage half-power point and cascade quarter-amplitude point")
 {
-    LadderFilterLP filter;
+    NaiveReuppingLadder filter;
     for (float cutoff : {0.000001f, 0.0001f, 0.005f, 0.01f, 0.04f, 0.08f, 0.125f, 0.25f, 0.499f, 0.5f})
     {
         filter.SetCutoffAndResonance(cutoff, 0.0f);
@@ -546,9 +546,9 @@ DOCTEST_TEST_CASE("LadderFilterLP: cutoff is the stage half-power point and casc
     }
 }
 
-DOCTEST_TEST_CASE("LadderFilterLP: stage cutoff and nominal oscillation center stay distinct")
+DOCTEST_TEST_CASE("NaiveReuppingLadder: stage cutoff and nominal oscillation center stay distinct")
 {
-    LadderFilterLP filter;
+    NaiveReuppingLadder filter;
     for (float cutoff : {0.005f, 0.0625f, 0.125f, 0.195f, 0.197f, 0.25f, 0.499f})
     {
         filter.SetCutoffAndResonance(cutoff, 1.0f);
@@ -589,9 +589,9 @@ DOCTEST_TEST_CASE("LadderFilterLP: stage cutoff and nominal oscillation center s
     DOCTEST_CHECK(filter.m_criticalFeedback[0] == doctest::Approx(4.0).epsilon(0.000002));
 }
 
-DOCTEST_TEST_CASE("Ladder envelope: simple power rate stays within one percent of the previous time constant")
+DOCTEST_TEST_CASE("NaiveReuppingLadder envelope: simple power rate stays within one percent of the previous time constant")
 {
-    LadderFilterLP filter;
+    NaiveReuppingLadder filter;
     for (size_t i = 1; i <= 4096; ++i)
     {
         const float cutoff = 0.5f * i / 4096;
@@ -608,9 +608,9 @@ DOCTEST_TEST_CASE("Ladder envelope: simple power rate stays within one percent o
     }
 }
 
-DOCTEST_TEST_CASE("LadderFilterLP: vector tuning selects interior and Nyquist crossings independently")
+DOCTEST_TEST_CASE("NaiveReuppingLadder: vector tuning selects interior and Nyquist crossings independently")
 {
-    TrioLadderFilterLP filter;
+    TrioNaiveReuppingLadder filter;
     const float boundary = std::asin(1 / std::sqrt(3.0)) / M_PI;
     for (const TrioFloat cutoff : {TrioFloat(0.000001f, 0.125f, 0.5f),
         TrioFloat(std::nextafter(boundary, 0.0f), boundary, std::nextafter(boundary, 0.5f))})
@@ -618,7 +618,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: vector tuning selects interior and Nyquist cr
         filter.SetCutoffAndResonance(cutoff, TrioFloat::Splat(1));
         for (size_t lane = 0; lane < 3; ++lane)
         {
-            LadderFilterLP mono;
+            NaiveReuppingLadder mono;
             mono.SetCutoffAndResonance(cutoff[lane], 1.0f);
             DOCTEST_CHECK(filter.m_stage4.m_alpha[lane] == mono.m_stage4.m_alpha[0]);
             DOCTEST_CHECK(filter.m_criticalFeedback[lane] == mono.m_criticalFeedback[0]);
@@ -630,7 +630,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: vector tuning selects interior and Nyquist cr
     }
 }
 
-DOCTEST_TEST_CASE("Ladder envelope: generated band-pass cascade retains unity center gain and reset")
+DOCTEST_TEST_CASE("NaiveReuppingLadder envelope: generated band-pass cascade retains unity center gain and reset")
 {
     BandPassedEnvelopeFollowerGeneric<float, 3> follower;
     const TrioFloat cutoff(0.005f, 0.03f, 0.2f);

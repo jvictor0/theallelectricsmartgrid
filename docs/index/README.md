@@ -18,7 +18,7 @@ It interfaces with a custom MIDI controller.
   - **[DSP Overview](../dsp-overview.md)** — Voice architecture (Dual VCO, Physical Modeling, Thru, Sample, Filters, Amp, Sub) and quadraphonic effects routing.
   - **[Source Machine](../source-machine.md)** — Dual Wave Shaping VCO (dual VPS wavetable oscillators), Physical Modeling, Thru, and Sample source modes.
   - **[Filter Architecture](../filter-architecture.md)** — Explanation of the filter layout, DSP classes, transfer functions, and UI state synchronization.
-  - **[Ladder Filter Machine](../filter-ladder.md)** — 4-pole Ladder LP and 4-pole SVF HP.
+  - **[Naive Reupping Ladder](../filter-naive-reupping-ladder.md)** — Four-stage reupping LP and 4-pole SVF HP.
   - **[SVF Filter Machine](../filter-svf.md)** — 2-pole SVF LP/HP with saturation.
   - **[Sub Oscillator](../sub-oscillator.md)** — Per-voice mono sub signal, saturation, and unison behavior.
   - **[Sampler-Looper Recording](../sampler-looper-recording.md)** — Source-routed recording buffers, sample directories, and loop-aligned sample persistence.

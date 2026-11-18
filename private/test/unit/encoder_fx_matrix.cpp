@@ -157,7 +157,7 @@ DOCTEST_TEST_CASE("FX Matrix: gesture colors come from encoders across pages and
     DOCTEST_CHECK_FALSE(GetBank(encoders, Bank::Source, 0).GetGesturesAffecting().Get(4));
     DOCTEST_CHECK(encoders.IsGestureAffecting(4));
     DOCTEST_CHECK(encoders.GetGestureColor(4) == hidden->m_color);
-    encoders.UpdateEncodersForMachine(VoiceMachine::SourceMachine::Sample, VoiceMachine::FilterMachine::Ladder4Pole, 0);
+    encoders.UpdateEncodersForMachine(VoiceMachine::SourceMachine::Sample, VoiceMachine::FilterMachine::NaiveReuppingLadder, 0);
     DOCTEST_CHECK(GetBank(encoders, Bank::Source, 0).GetGesturesAffecting().Get(4));
     DOCTEST_CHECK(encoders.GetGestureColor(4) == hidden->m_color);
 }

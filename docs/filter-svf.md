@@ -19,4 +19,4 @@ The audio signal from the source machine passes through the low-pass SVF first, 
 
 ## Related
 - [DSP Overview](dsp-overview.md)
-- [Ladder Filter Machine (4-Pole)](filter-ladder.md)
+- [Naive Reupping Ladder](filter-naive-reupping-ladder.md)

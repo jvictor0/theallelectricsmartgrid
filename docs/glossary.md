@@ -69,7 +69,7 @@ Terms and concepts used in the Smart Grid One project. Updated as we document th
 - **DirectoryExplorer** — Runtime tree browser for selecting sample directories from the `samples/` root. UI navigation is sent as `DirectoryExplorer::MessageType` commands through `IoTaskThread`.
 - **IoTaskThread** — Background worker that executes file-system tasks (directory navigation, sample bank loading) off the audio/UI control path and applies results during acknowledgment.
 - **Filter Architecture** — The separation of stateful DSP code from stateless frequency response analysis via the UIState paradigm. See [Filter Architecture](filter-architecture.md).
-- **Ladder Filter Machine** — A 4-pole transistor ladder low-pass filter followed by a 4-pole SVF high-pass filter.
+- **Naive Reupping Ladder** — Four Euler low-pass stages with a one-sample feedback delay and normalized tanh drive reapplied after each stage, followed by a 4-pole SVF high-pass in the filter machine.
 - **SVF Filter Machine** — A 2-pole SVF low-pass filter followed by a 2-pole SVF high-pass filter, with saturation stages.
 - **Quad Panning** — Distributes the 9 voices across four channels using a single global phase oscillator (`m_panPhase`) and per-voice offsets, driven by a Lissajous LFO.
 - **Lissajous LFO** — Generates 2D coordinates (X, Y) from a single phase input to position voices in the quadraphonic field.

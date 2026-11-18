@@ -8,7 +8,7 @@
 #include "QuadUtils.hpp"
 #include "PhaseUtils.hpp"
 #include "RandomLFO.hpp"
-#include "LadderFilter.hpp"
+#include "NaiveReuppingLadder.hpp"
 #include "AHD.hpp"
 #include "BitCrush.hpp"
 #include "Lissajous.hpp"
@@ -464,7 +464,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             using TrioSquiggleBoyShape::UIState::UIState;
 
-            std::atomic<VoiceMachine::FilterMachine> m_filterMachine{VoiceMachine::FilterMachine::Ladder4Pole};
+            std::atomic<VoiceMachine::FilterMachine> m_filterMachine{VoiceMachine::FilterMachine::NaiveReuppingLadder};
         };
 
         struct VoiceSourceUIState

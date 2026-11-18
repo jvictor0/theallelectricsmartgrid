@@ -1,7 +1,7 @@
 #include "Bench.hpp"
 #include "ResponsesCase.hpp"
 #include "FIR.hpp"
-#include "Ladder4PoleShape.hpp"
+#include "NaiveReuppingLadderShape.hpp"
 #include "PhysicalModelingSource.hpp"
 #include "SquiggleBoyShape.hpp"
 #include "SourceMixer.hpp"
@@ -169,7 +169,7 @@ auto GeneratedBW(size_t i)
 template<size_t Size>
 auto Ladder(size_t i)
 {
-    LadderFilterLPGeneric<float, Size> filter;
+    NaiveReuppingLadderGeneric<float, Size> filter;
     auto control = Controls<Size>(i);
     auto cutoff = control;
     for (size_t lane = 0; lane < Size; ++lane)
@@ -236,9 +236,9 @@ void AddWidth(std::vector<Case>& cases)
         Add(cases, std::string(ladder ? "shape_ladder" : "shape_svf") + suffix, [ladder](size_t i)
         {
             typename SquiggleBoyShapeGeneric<Size>::Snapshot s;
-            s.m_filterMachine = ladder ? VoiceMachine::FilterMachine::Ladder4Pole : VoiceMachine::FilterMachine::SVF2Pole;
-            s.m_ladder.m_lp = Ladder<Size>(i);
-            s.m_ladder.m_hp = GeneratedSVF<TPTSVF4PoleHighPassFilterGeneric<float, Size>>(i);
+            s.m_filterMachine = ladder ? VoiceMachine::FilterMachine::NaiveReuppingLadder : VoiceMachine::FilterMachine::SVF2Pole;
+            s.m_naiveReuppingLadder.m_lp = Ladder<Size>(i);
+            s.m_naiveReuppingLadder.m_hp = GeneratedSVF<TPTSVF4PoleHighPassFilterGeneric<float, Size>>(i);
             s.m_svf.m_lp = GeneratedSVF<TPTSVFLowPassFilterGeneric<float, Size>>(i);
             s.m_svf.m_hp = GeneratedSVF<TPTSVFHighPassFilterGeneric<float, Size>>(i + 7);
             return s;

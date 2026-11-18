@@ -63,7 +63,7 @@ namespace VoiceMachine
 
     enum class FilterMachine : int
     {
-        Ladder4Pole = 0,
+        NaiveReuppingLadder = 0,
         SVF2Pole = 1,
         NumFilterMachines = 2,
     };
@@ -104,8 +104,8 @@ namespace VoiceMachine
     {
         switch (machine)
         {
-            case FilterMachine::Ladder4Pole:
-                return "Ladder";
+            case FilterMachine::NaiveReuppingLadder:
+                return "Naive Reupping Ladder";
             case FilterMachine::SVF2Pole:
                 return "SVF";
             default:

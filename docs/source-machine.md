@@ -133,5 +133,5 @@ Sample-specific Source bank controls are only visible for Sample voices:
 ## Related
 
 - [DSP Overview](dsp-overview.md)
-- [Ladder Filter Machine](filter-ladder.md)
+- [Naive Reupping Ladder](filter-naive-reupping-ladder.md)
 - [SVF Filter Machine](filter-svf.md)

@@ -15,7 +15,7 @@ A selected generated SVF view (LP, BP or HP) has a composable `Snapshot` and a
 `UIState = TransferFunctionGeneric<Snapshot>`. The generated morphing filter
 captures its own LP/BP/HP weights. Four-pole HP snapshots contain both sections.
 App machines own these child snapshots alongside any handwritten child snapshots
-such as the comb or ladder low-pass. Cascades multiply power responses; the morph
+such as the comb or Naive Reupping Ladder low-pass. Cascades multiply power responses; the morph
 kernel includes phase-dependent cross terms before its magnitude is squared.
 These plots represent the frozen linear filters, excluding saturation,
 envelopes and sample-rate reduction.

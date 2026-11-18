@@ -16,7 +16,7 @@ DOCTEST_TEST_CASE("encoder layout binding: changed pages close modulation while 
     GlobalEnv::ResetPerTest();
     SmartGridOneContext context;
     Encoders encoders(&context);
-    encoders.UpdateEncodersForMachine(Source::DualWaveShapingVCO, Filter::Ladder4Pole);
+    encoders.UpdateEncodersForMachine(Source::DualWaveShapingVCO, Filter::NaiveReuppingLadder);
     auto& source = encoders.m_encoderBankBank.m_banks[0];
     auto* carrier = source.GetBase(0, 0);
     source.MakeSelection(0, 0, carrier);
@@ -62,7 +62,7 @@ DOCTEST_TEST_CASE("encoder layout binding: routes preserve owned hidden cells ne
         encoders.SetTrack(trio);
         for (auto machine : {Source::Thru, Source::PhysicalModeling, Source::Sample, Source::DualWaveShapingVCO})
         {
-            encoders.UpdateEncodersForMachine(machine, Filter::Ladder4Pole);
+            encoders.UpdateEncodersForMachine(machine, Filter::NaiveReuppingLadder);
             auto* cell = carriers[trio];
             DOCTEST_CHECK(cell == encoders.m_encoderBankBank.GetEncoder(encoders.EncoderIndex(Encoders::Param::Harmonics1, trio)));
             DOCTEST_CHECK(cell->m_targets[0] == doctest::Approx(0.2f * static_cast<float>(trio + 1)));
@@ -118,7 +118,7 @@ DOCTEST_TEST_CASE("encoder layout binding: initially hidden cells keep processin
         encoders.SetTrack(trio);
         encoders.ResetBank(Encoders::Bank::Source);
         DOCTEST_CHECK(hidden->m_targets[0] == doctest::Approx(0.37f));
-        encoders.UpdateEncodersForMachine(Source::Sample, Filter::Ladder4Pole);
+        encoders.UpdateEncodersForMachine(Source::Sample, Filter::NaiveReuppingLadder);
         DOCTEST_CHECK(encoders.m_encoderBankBank.m_banks[trio].GetBase(1, 0) == hidden);
         encoders.ResetBank(Encoders::Bank::Source);
         DOCTEST_CHECK(hidden->m_targets[0] == hidden->m_defaultValue);
@@ -183,7 +183,7 @@ DOCTEST_TEST_CASE("encoder layout binding: moved controls survive machine change
             bank.MakeSelection(control.m_x, control.m_y, cell);
             for (auto source : {Source::Thru, Source::PhysicalModeling, Source::Sample, Source::DualWaveShapingVCO})
             {
-                for (auto filter : {Filter::SVF2Pole, Filter::Ladder4Pole})
+                for (auto filter : {Filter::SVF2Pole, Filter::NaiveReuppingLadder})
                 {
                     encoders.UpdateEncodersForMachine(source, filter);
                     DOCTEST_CHECK(bank.GetBase(control.m_x, control.m_y) == cell);

@@ -2,7 +2,7 @@
 #include "Filter.hpp"
 #include "TPTBaseWidthFilter.hpp"
 #include "FIR.hpp"
-#include "LadderFilter.hpp"
+#include "NaiveReuppingLadder.hpp"
 #include "MultibandSaturator.hpp"
 #include "TPTSVFFilter.hpp"
 #include "../support/SVFReference.hpp"
@@ -225,7 +225,7 @@ DOCTEST_TEST_CASE("Sampled response: optimized magnitudes match complex response
     OPLowPassFilter lp;
     OPHighPassFilter hp;
     MorphingTPTSVFFilterGeneric<float, 1> svf;
-    LadderFilterLP ladder;
+    NaiveReuppingLadder ladder;
     for (float cutoff : {0.00001f, 0.001f, 0.1f, 0.49f})
     {
         lp.SetAlphaFromNatFreq(cutoff);
@@ -503,7 +503,7 @@ DOCTEST_TEST_CASE("Sampled vectors: captured filter coefficients and responses p
     OPLowPassFilterGeneric<float, 3> lp;
     OPHighPassFilterGeneric<float, 3> hp;
     MorphingTPTSVFFilterGeneric<float, 3> svf;
-    LadderFilterLPGeneric<float, 3> ladder;
+    NaiveReuppingLadderGeneric<float, 3> ladder;
     lp.SetAlphaFromNatFreq(cutoff);
     hp.SetAlphaFromNatFreq(cutoff);
     svf.SetCutoffResonanceAndMorph(cutoff, resonance, TrioFloat(0.0f, 0.3f, 0.8f));
@@ -512,14 +512,14 @@ DOCTEST_TEST_CASE("Sampled vectors: captured filter coefficients and responses p
     std::array<OPLowPassFilter::Snapshot, 3> monoLP;
     std::array<OPHighPassFilter::Snapshot, 3> monoHP;
     std::array<MorphingTPTSVFFilterGeneric<float, 1>::Snapshot, 3> monoSVF;
-    std::array<LadderFilterLP::Snapshot, 3> monoLadder;
+    std::array<NaiveReuppingLadder::Snapshot, 3> monoLadder;
     auto state = svf.MakeSnapshot();
     for (size_t lane = 0; lane < 3; ++lane)
     {
         OPLowPassFilter oneLP;
         OPHighPassFilter oneHP;
         MorphingTPTSVFFilterGeneric<float, 1> oneSVF;
-        LadderFilterLP oneLadder;
+        NaiveReuppingLadder oneLadder;
         oneLP.SetAlphaFromNatFreq(cutoff[lane]);
         oneHP.SetAlphaFromNatFreq(cutoff[lane]);
         oneSVF.SetCutoffResonanceAndMorph(cutoff[lane], resonance[lane], std::array<float, 3>{0.0f, 0.3f, 0.8f}[lane]);

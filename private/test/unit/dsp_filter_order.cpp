@@ -1,7 +1,7 @@
 #include "doctest.h"
 
 #include "../support/GlobalEnv.hpp"
-#include "Ladder4PoleShape.hpp"
+#include "NaiveReuppingLadderShape.hpp"
 #include "SVF2PoleShape.hpp"
 #include <cmath>
 #include <complex>
@@ -110,9 +110,9 @@ constexpr double x_reducerHz[x_lanes][2] = {
 
 }
 
-DOCTEST_TEST_CASE("Ladder4PoleShape: high-pass removes bass created by the sample rate reducer")
+DOCTEST_TEST_CASE("NaiveReuppingLadderShape: high-pass removes bass created by the sample rate reducer")
 {
-    CheckReducerBassRemoved<Ladder4PoleShapeGeneric<x_lanes>>(x_reducerHz);
+    CheckReducerBassRemoved<NaiveReuppingLadderShapeGeneric<x_lanes>>(x_reducerHz);
 }
 
 DOCTEST_TEST_CASE("SVF2PoleShape: high-pass removes bass created by the sample rate reducer")
@@ -120,9 +120,9 @@ DOCTEST_TEST_CASE("SVF2PoleShape: high-pass removes bass created by the sample r
     CheckReducerBassRemoved<SVF2PoleShapeGeneric<x_lanes>>(x_reducerHz);
 }
 
-DOCTEST_TEST_CASE("Ladder4PoleShape: stage-corner knob preserves its octave span and opens to engine Nyquist")
+DOCTEST_TEST_CASE("NaiveReuppingLadderShape: stage-corner knob preserves its octave span and opens to engine Nyquist")
 {
-    using Shape = Ladder4PoleShapeGeneric<3>;
+    using Shape = NaiveReuppingLadderShapeGeneric<3>;
     using Vector = Shape::Vector;
     GlobalEnv::Init();
     Shape shape;
@@ -147,9 +147,9 @@ DOCTEST_TEST_CASE("Ladder4PoleShape: stage-corner knob preserves its octave span
     DOCTEST_CHECK(input.m_lpCutoffFactor.m_expParam[0] == doctest::Approx(2354.134).epsilon(0.00001));
 }
 
-DOCTEST_TEST_CASE("Ladder4PoleShape: cutoff retains partial pitch tracking and the shared high-pass factor")
+DOCTEST_TEST_CASE("NaiveReuppingLadderShape: cutoff retains partial pitch tracking and the shared high-pass factor")
 {
-    using Shape = Ladder4PoleShapeGeneric<3>;
+    using Shape = NaiveReuppingLadderShapeGeneric<3>;
     using Vector = Shape::Vector;
     GlobalEnv::Init();
     Shape shape;

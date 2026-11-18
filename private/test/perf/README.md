@@ -173,7 +173,7 @@ Direct executable arguments are `KIND LANES MODE SECONDS [OUTPUT.f32]`.
 
 | Executable | Kinds | LANES |
 | --- | --- | --- |
-| `perf_voices` | `ladder`, `svf`, `physical`, `vps`, `dual` | 1 = three independent mono instances; 3 = one trio |
+| `perf_voices` | `ladder` (Naive Reupping Ladder), `svf`, `physical`, `vps`, `dual` | 1 = three independent mono instances; 3 = one trio |
 | `perf_effects` | `reverb`, `delay`, `partial`, `quad_master` | 4 |
 | `perf_effects` | `stereo_master`, `random` | 2 and 3 respectively |
 | `perf_effects` | `polyxfader` | 1 = three mono; 3 = one trio; 4 = one quad |

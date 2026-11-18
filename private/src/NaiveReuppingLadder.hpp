@@ -60,8 +60,13 @@ struct BandPassedEnvelopeFollowerGeneric
 
 using BandPassedEnvelopeFollower = BandPassedEnvelopeFollowerGeneric<float, 1>;
 
+// Naive: four Euler updates with one sample of feedback delay. Reupping:
+// every stage applies Tanh(gain * x) / Tanh(gain). At low gain the saturator
+// approaches identity; at high gain each stage drives its own tanh again,
+// so later stages contribute rather than just trimming the first one's output.
+//
 template <typename Number, size_t Size>
-struct LadderFilterLPGeneric
+struct NaiveReuppingLadderGeneric
 {
     static constexpr float x_maxCutoff = 0.5f;
     static constexpr float x_dampingEpsilon = 0.0001f;
@@ -186,7 +191,7 @@ struct LadderFilterLPGeneric
     Vector m_dampingScale;
     bool m_coefficientsInitialized;
 
-    LadderFilterLPGeneric()
+    NaiveReuppingLadderGeneric()
         : m_saturationGain()
         , m_saturationTanhGain()
         , m_cutoff(Vector::Splat(static_cast<Number>(0.1)))
@@ -373,5 +378,5 @@ struct LadderFilterLPGeneric
     }
 };
 
-using LadderFilterLP = LadderFilterLPGeneric<float, 1>;
-using TrioLadderFilterLP = LadderFilterLPGeneric<float, 3>;
+using NaiveReuppingLadder = NaiveReuppingLadderGeneric<float, 1>;
+using TrioNaiveReuppingLadder = NaiveReuppingLadderGeneric<float, 3>;

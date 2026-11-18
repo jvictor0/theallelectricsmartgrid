@@ -1,11 +1,38 @@
-# Ladder Filter Machine (4-Pole)
+# Naive Reupping Ladder
 
-The **4-Pole Ladder Filter Machine** is one of the two filter options available per voice in the DSP engine (`FilterSection` in `private/src/SquiggleBoy.hpp`).
+The **Naive Reupping Ladder** is one of the two filter options available per voice
+in the DSP engine. `NaiveReuppingLadderGeneric<Number, Size>` implements the
+low-pass filter; `NaiveReuppingLadderShapeGeneric<Size>` combines it with the
+sample-rate reducer and high-pass filter. The mono and trio filter aliases are
+`NaiveReuppingLadder` and `TrioNaiveReuppingLadder`.
+
+## Why this topology has this name
+
+**Naive** refers to the four Euler updates, `y ← y + alpha * (x - y)`, and the
+explicit one-sample feedback delay. Feedback reads the previous unsaturated
+fourth-stage state before any of the current sample's stage updates.
+
+**Reupping** describes applying drive again at every stage. Each stage passes
+its output through `S_g(x) = Tanh(g * x) / Tanh(g)`, using the existing clamped
+rational tanh approximation. At low gain, this normalized saturator approaches
+the identity, so it adds little coloration to the filter's linear response.
+At high gain, the next stage multiplies its own input by `g` afresh before its
+tanh. Each stage can therefore contribute saturation, rather than the first
+tanh doing all the work and later stages merely giving the compressed signal
+"haircuts." This repeated drive is intentional.
+
+The name identifies this particular discrete topology so other ladder designs
+can coexist with it. The C++ implementation is the specification for the planned
+Lean `NaiveReuppingLadder` model, including its delay, rational saturation, and
+adaptive damping. The existing ideal linear `TPTLadder` is a separate topology.
+
+The visible machine label is **Naive Reupping Ladder**. Its saved machine ID
+remains `0`; the rename preserves existing patch selection and DSP behavior.
 
 ## Structure
 
 This filter machine consists of two 4-pole filters in series:
-1. **Low-Pass Filter**: A 4-pole transistor ladder filter emulation (`LadderFilterLP`).
+1. **Low-Pass Filter**: The four-stage `NaiveReuppingLadder` described above.
 2. **High-Pass Filter**: A 4-pole linear State Variable Filter (SVF) configured as a high-pass (`TPTSVF4PoleHighPassFilterGeneric`).
 
 The audio signal from the source machine passes through the low-pass ladder filter first, then the sample rate reducer, and the reduced signal is then processed by the high-pass SVF. The high-pass follows the reducer so it also removes low-frequency content the reducer creates.

@@ -5,7 +5,7 @@
 #include "AudioBuffer.hpp"
 #include "DualSampleSource.hpp"
 #include "DualWaveShapingVCO.hpp"
-#include "LadderFilter.hpp"
+#include "NaiveReuppingLadder.hpp"
 #include "Noise.hpp"
 #include "PhasorPlayHead.hpp"
 #include "PhysicalModelingSource.hpp"
@@ -229,10 +229,10 @@ DOCTEST_TEST_CASE("Trio: SVF channels match mono filters")
     lowPass.Check(1e-6);
 }
 
-DOCTEST_TEST_CASE("Trio: ladder channels match mono filters")
+DOCTEST_TEST_CASE("Trio: Naive Reupping Ladder channels match mono filters")
 {
-    TrioLadderFilterLP trio;
-    LadderFilterLP mono[3];
+    TrioNaiveReuppingLadder trio;
+    NaiveReuppingLadder mono[3];
     ChannelDifference output;
     for (size_t n = 0; n < 4000; ++n)
     {
