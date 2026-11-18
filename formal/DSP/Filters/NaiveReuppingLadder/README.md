@@ -115,3 +115,35 @@ clamp boundaries and scalar/vector agreement.
 
 These tests validate the lowering and implementation; they do not prove
 floating-point accuracy or turn the backend into a verified compiler.
+
+## Desktop performance
+
+A serial comparison of implementation commit `2fa2db5` used one float trio on
+an arm64 Mac, AppleClang 17.0.0.17000013, Release `-O3` with LTO,
+`-fno-fast-math -ffp-contract=off -funroll-loops`. Each implementation ran nine
+times per workload, with alternating order, 32,768 warmup samples and 4,194,304
+timed engine samples per run. All audio output hashes agreed.
+
+Median calling-thread CPU times, in **nanoseconds per three-channel engine
+sample** (coefficient-only row: nanoseconds per three-channel preparation):
+
+| Workload | Handwritten | Generated | Generated change |
+| --- | ---: | ---: | ---: |
+| Processing; coefficients already prepared | 58.19 | 57.52 | −1.2%; effectively equal |
+| Unchanged settings submitted each sample, plus processing | 58.03 | 66.13 | +14.0% |
+| Drive changes each sample, plus processing | 58.18 | 65.92 | +13.3% |
+| Cutoff, resonance and drive change each sample, plus processing | 74.47 | 65.93 | −11.5% |
+| All coefficients change; preparation only | 23.50 | 18.37 | −21.8% |
+
+The sample recurrence has comparable cost. The current API explains the other
+differences: the handwritten setters skip unchanged settings and can refresh
+drive-dependent terms alone. The generated `ComputeCoefficients` always prepares
+everything, but does the combined update once; the handwritten two-setter path
+refreshes feedback terms after both changes. App integration should retain
+unchanged-parameter caching and expose a drive-only preparation path. These
+results do not measure iPad callback deadlines or justify a processing-speed
+claim for the roughly 1% difference.
+
+Reproduce with `make perf-ladder PERF_ARGS="9 4194304"`; the harness is
+[ladder.cpp](../../../../private/test/perf/ladder.cpp). Raw local runs and summaries
+are in `build/results/naive-reupping-ladder-performance/`.

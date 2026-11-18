@@ -131,6 +131,13 @@ perf-responses-build: perf-configure
 perf-responses: perf-responses-build
 	"$(PERF_DIR)/perf_responses" $(PERF_ARGS)
 
+.PHONY: perf-ladder-build perf-ladder
+perf-ladder-build: perf-configure
+	cmake --build "$(PERF_DIR)" --config Release --target perf_ladder --parallel "$(JOBS)"
+
+perf-ladder: perf-ladder-build
+	"$(PERF_DIR)/perf_ladder" $(PERF_ARGS)
+
 perf-test: perf-build
 	ctest --test-dir "$(PERF_DIR)" --build-config Release --output-on-failure
 

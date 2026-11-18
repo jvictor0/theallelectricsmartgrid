@@ -140,6 +140,17 @@ runner and SQLite report schema. Preserve JSONL output when comparing revisions.
 
 ## Units and measurement boundaries
 
+`make perf-ladder PERF_ARGS="9 4194304"` compares the handwritten and generated
+Naive Reupping Ladder cores in one Release/LTO executable. It runs one float
+trio, alternates implementation order, rotates five workloads between rounds,
+and prints JSONL CPU/wall times and matching output hashes. Inputs and parameters
+are precomputed; each case warms up for 32,768 samples before timing. Modes are
+processing alone, unchanged setter calls, drive-only modulation, all-parameter
+modulation, and coefficient preparation alone. The generated case uses the raw
+`ComputeCoefficients` API without an added parameter cache. Coefficient-only
+timing uses a compiler memory barrier to keep all writes observable. No timing
+thresholds are imposed. See the [implementation results](../../../formal/DSP/Filters/NaiveReuppingLadder/README.md#desktop-performance).
+
 The main unit is **milliseconds of calling-thread CPU time per second of audio**.
 1000 ms/sec is one completely occupied CPU core; 10 ms/sec is 1% of that budget.
 This is an offline throughput measurement, not an iPad callback deadline or xrun
