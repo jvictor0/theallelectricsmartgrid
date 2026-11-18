@@ -334,6 +334,11 @@ and 1 are exactly lowpass, bandpass and highpass.
 and bandpass variants feed and read the corresponding response. Stages may have
 different gains and dampings.
 
+The separate [NaiveReuppingLadder implementation](Filters/NaiveReuppingLadder/README.md)
+now composes the existing Lean SVFs and one-poles with normalized saturation and
+adaptive damping. Its generated core matches the handwritten recurrence; its
+small-signal response and stability theorems are still separate future work.
+
 `TPTLadder` is an idealized linear ladder, not the app's nonlinear `NaiveReuppingLadder`. Each
 TPT stage is affine in its input, y = S + G x, so the global loop e = x - k y₄ is
 solved in closed form: S is the cascade's response to zero input, and

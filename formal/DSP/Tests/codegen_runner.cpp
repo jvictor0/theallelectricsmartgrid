@@ -8,6 +8,9 @@
 #include "TPTSVF4PoleLowPass.hpp"
 #include "TPTSVF4PoleBandPass.hpp"
 #include "TPTLadder.hpp"
+#include "NaiveReuppingLadderCore.hpp"
+#include "BandPassedEnvelopeFollowerCore.hpp"
+#include "NormalizedTanh.hpp"
 #include "SwapProcessor.hpp"
 #include "GainProcessor.hpp"
 #include "FMAProcessor.hpp"
@@ -129,6 +132,21 @@ bool RunFlatKind(const std::string& kind, bool& known)
     if (kind == "ladder")
     {
         return RunFlat<TPTLadder, 14>();
+    }
+
+    if (kind == "naive")
+    {
+        return RunFlat<NaiveReuppingLadderCore, 65>();
+    }
+
+    if (kind == "envelope")
+    {
+        return RunFlat<BandPassedEnvelopeFollowerCore, 24>();
+    }
+
+    if (kind == "normalizedTanh")
+    {
+        return RunFlat<NormalizedTanh, 3>();
     }
 
     known = false;

@@ -22,9 +22,12 @@ tanh doing all the work and later stages merely giving the compressed signal
 "haircuts." This repeated drive is intentional.
 
 The name identifies this particular discrete topology so other ladder designs
-can coexist with it. The C++ implementation is the specification for the planned
-Lean `NaiveReuppingLadder` model, including its delay, rational saturation, and
-adaptive damping. The existing ideal linear `TPTLadder` is a separate topology.
+can coexist with it. The C++ implementation is the specification for the
+[Lean `NaiveReuppingLadder` implementation](../formal/DSP/Filters/NaiveReuppingLadder/README.md),
+including its delay, executable rational saturation, and adaptive damping.
+The real interpretation uses exact tanh, with the rational interpretation also
+available for separate analysis. The existing ideal linear `TPTLadder` is a
+separate topology.
 
 The visible machine label is **Naive Reupping Ladder**. Its saved machine ID
 remains `0`; the rename preserves existing patch selection and DSP behavior.
@@ -164,10 +167,11 @@ time-varying system. Debug meters and their periodic print dispatch are removed.
 
 The snapshot still represents the frozen unit-gain linear model with effective
 feedback. It excludes saturation slopes and envelope dynamics. This C++
-refactor does not turn the existing generated Lean ladder into a model of the
-app ladder. A subsequent implementation-as-spec model needs the exact state
-ordering, feedback delay, rational saturation, detectors and adaptive damping
-above; a transcendental tanh model alone would not describe this implementation.
+refactor does not turn the existing generated `TPTLadder` into a model of the
+app ladder. The separate generated `NaiveReuppingLadderCore` now implements the
+state ordering, feedback delay, rational saturation, detectors and adaptive
+damping above. It has no response/UI API yet: defining and proving the proper
+small-signal response is a separate step before replacing this app wrapper.
 
 ## Vector tuning validation and cost
 

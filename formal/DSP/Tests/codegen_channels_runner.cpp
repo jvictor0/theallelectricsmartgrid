@@ -17,6 +17,9 @@
 #include "TPTSVF4PoleLowPassGeneric.hpp"
 #include "TPTSVF4PoleBandPassGeneric.hpp"
 #include "TPTLadderGeneric.hpp"
+#include "NaiveReuppingLadderCoreGeneric.hpp"
+#include "BandPassedEnvelopeFollowerCoreGeneric.hpp"
+#include "NormalizedTanhGeneric.hpp"
 #include "CoupledProcessorGeneric.hpp"
 #include "ArithmeticProcessorGeneric.hpp"
 #include "FMAProcessorGeneric.hpp"
@@ -125,6 +128,37 @@ auto StateFields(TPTLadderGeneric<Number, Size>& processor)
     auto& state = processor.m_state;
     return std::tuple_cat(std::tie(state.m_k, state.m_drive), LowPassFields(state.m_stage1),
         LowPassFields(state.m_stage2), LowPassFields(state.m_stage3), LowPassFields(state.m_stage4));
+}
+
+template<typename State>
+auto EnvelopeFields(State& state)
+{
+    return std::tuple_cat(SVFFields(state.m_stage1), SVFFields(state.m_stage2),
+        std::tie(state.m_power, state.m_powerAlpha));
+}
+
+template<typename Number, size_t Size>
+auto StateFields(NormalizedTanhGeneric<Number, Size>& processor)
+{
+    auto& s = processor.m_state;
+    return std::tie(s.m_coefficients.m_gain, s.m_coefficients.m_tanhGain, s.m_output);
+}
+
+template<typename Number, size_t Size>
+auto StateFields(BandPassedEnvelopeFollowerCoreGeneric<Number, Size>& processor)
+{
+    return EnvelopeFields(processor.m_state);
+}
+
+template<typename Number, size_t Size>
+auto StateFields(NaiveReuppingLadderCoreGeneric<Number, Size>& processor)
+{
+    auto& s = processor.m_state;
+    return std::tuple_cat(std::tie(s.m_alpha, s.m_saturation.m_gain, s.m_saturation.m_tanhGain,
+        s.m_cutoff, s.m_feedback, s.m_stage1, s.m_stage2, s.m_stage3, s.m_stage4,
+        s.m_input, s.m_output, s.m_kEff), EnvelopeFields(s.m_inputEnvelope),
+        EnvelopeFields(s.m_feedbackEnvelope), std::tie(s.m_criticalFeedback, s.m_kSafe,
+        s.m_baseFeedback, s.m_referencePowerGain, s.m_dampingScale));
 }
 
 template<typename State>
@@ -421,6 +455,21 @@ bool RunKind(const std::string& kind, size_t steps)
     if (kind == "ladder")
     {
         return Run<TPTLadderGeneric<Number, Size>, Number, Size>(steps);
+    }
+
+    if (kind == "naive")
+    {
+        return Run<NaiveReuppingLadderCoreGeneric<Number, Size>, Number, Size>(steps);
+    }
+
+    if (kind == "envelope")
+    {
+        return Run<BandPassedEnvelopeFollowerCoreGeneric<Number, Size>, Number, Size>(steps);
+    }
+
+    if (kind == "normalizedTanh")
+    {
+        return Run<NormalizedTanhGeneric<Number, Size>, Number, Size>(steps);
     }
 
     if (kind == "coupled")

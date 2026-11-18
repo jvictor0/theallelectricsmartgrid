@@ -17,7 +17,8 @@ HEADERS = (
     "OnePoleZOHLowPass.hpp", "OnePoleTPTLowPass.hpp", "OnePoleTPTHighPass.hpp",
     "TPTBaseWidth.hpp", "TPTSVF.hpp", "MorphingTPTSVF.hpp", "TPTSVF4PoleHighPass.hpp",
     "TPTSVF4PoleLowPass.hpp", "TPTSVF4PoleBandPass.hpp", "TPTLadder.hpp",
-    "CoupledProcessor.hpp",
+    "CoupledProcessor.hpp", "NormalizedTanh.hpp", "BandPassedEnvelopeFollowerCore.hpp",
+    "NaiveReuppingLadderCore.hpp",
 )
 HEADERS += tuple(name.replace(".hpp", "Generic.hpp") for name in HEADERS)
 HEADERS += ("LinkwitzRileySplitter4BandGeneric.hpp",)
@@ -154,6 +155,7 @@ def main():
         "zoh": 3, "tpt": 4, "tptHigh": 5, "baseWidth": 8, "svf": 12, "morph": 16,
         "svf4High": 23, "svf4Low": 23, "svf4Band": 23, "ladder": 15, "splitter": 105,
         "swap": 4, "gain": 2, "coupled": 3, "arithmetic": 3, "fma": 3, "fma32": 3,
+        "naive": 66, "envelope": 25, "normalizedTanh": 4,
     }
     inputs, expected = [], []
     scalar_cases = [case for case in cases

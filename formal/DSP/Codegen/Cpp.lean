@@ -2,6 +2,7 @@ import Lean
 import DSP.IfLess
 import DSP.FMA
 import DSP.Transcendental
+import DSP.Nonlinear
 
 /-! A deliberately small backend for pure processor functions.
 It reads elaborated Lean definitions, resolves their arithmetic instances,
@@ -126,7 +127,7 @@ def primitive (name : Name) : Bool :=
     ``ExpDecay.float, ``ExpDecay.float32, ``FMA.float, ``FMA.float32, ``Float.add, ``Float.sub, ``Float.mul, ``Float.div, ``Float.neg,
     ``Float32.add, ``Float32.sub, ``Float32.mul, ``Float32.div, ``Float32.neg,
     ``Float.ofNat, ``Float32.ofNat, ``Float.ofScientific, ``Float32.ofScientific,
-    ``Float.lt, ``Float.le, ``Float32.lt, ``Float32.le,
+    ``Float.sqrt, ``Float32.sqrt, ``Float.lt, ``Float.le, ``Float32.lt, ``Float32.le,
     ``Float.beq, ``Float32.beq, ``ite, ``Bool.true, ``Bool.false, ``Eq,
     ``Bool.decEq, ``Float.decLt, ``Float.decLe, ``Float32.decLt, ``Float32.decLe].contains name
 
@@ -333,6 +334,18 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
         return ← emitTranscendental (#["Sin2pi", "Cos2pi", "TanPi"][index]!) "Vector" values[0]!
       if name == ``DSP.ExpDecay && values.size == 1 && index == 0 then
         return ← emitTranscendental "ExpNegTwoPi" "Vector" values[0]!
+      if name == ``DSP.SquareRoot && values.size == 1 && index == 0 then
+        return ← temporary "Vector" s!"{values[0]!}.Sqrt()"
+      if name == ``DSP.Tanh && values.size == 1 && index == 0 then
+        -- Lower the executable interpretation, Tanh.rational, with exactly its
+        -- multiplication/FMA order and ordered clamp. Native tests cover both.
+        let x := values[0]!
+        let (_, x2) ← scalar (← temporary "Vector" s!"({x} * {x})")
+        let (_, numerator) ← scalar (← temporary "Vector" s!"({x} * ({x2} + Vector::Splat(27)))")
+        let (_, denominator) ← scalar (← temporary "Vector"
+          s!"Vector::FusedMultiplyAdd({x} * Vector::Splat(9), {x}, Vector::Splat(27))")
+        let (_, y) ← scalar (← temporary "Vector" s!"({numerator} / {denominator})")
+        return ← temporary "Vector" s!"Vector::Min(Vector::Splat(1), Vector::Max(Vector::Splat(-1), {y}))"
       if name == ``DSP.IfLess && values.size == 4 then
         return ← temporary "Vector"
           s!"Vector::IfLess({values[0]!}, {values[1]!}, {values[2]!}, {values[3]!})"
@@ -405,11 +418,11 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
       let (result, yesAssign, noAssign) ← joinValues yes no
       emit s!"if ({condition})"
       emit "{"
-      for line in yesLines ++ yesAssign do emit ("    " ++ line)
+      for line in yesLines ++ yesAssign do emit (if line.isEmpty then "" else "    " ++ line)
       emit "}"
       emit "else"
       emit "{"
-      for line in noLines ++ noAssign do emit ("    " ++ line)
+      for line in noLines ++ noAssign do emit (if line.isEmpty then "" else "    " ++ line)
       emit "}"
       emit ""
       return result
@@ -446,6 +459,10 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
       let (_, b) ← scalar (← evaluate args[1]! locals)
       let (_, c) ← scalar (← evaluate args[2]! locals)
       return ← temporary type s!"std::fma({a}, {b}, {c})"
+    if name == ``Float.sqrt || name == ``Float32.sqrt then
+      unless args.size == 1 do throwError "C++ codegen: invalid square root application"
+      let (type, value) ← scalar (← evaluate args[0]! locals)
+      return ← temporary type s!"std::sqrt({value})"
     if name == ``Float.neg || name == ``Float32.neg then
       let (type, value) ← scalar (← evaluate args[0]! locals)
       return ← temporary type s!"(-{value})"
@@ -637,7 +654,8 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
     (method : Option String) (inputName : String) (declareRecords : Bool := true)
     (tuningState : Option Expr := none) (captureSpec : Option Expr := none)
     (captureSnapshot : Option Expr := none)
-    (tuningMethod : String := "ComputeCoefficients") : MetaM (Array String × Array String) := do
+    (tuningMethod : String := "ComputeCoefficients")
+    (resetState : Option Expr := none) : MetaM (Array String × Array String) := do
   unless validIdentifier cppName && cppName.toList.head!.isUpper do
     throwError "C++ codegen: processor name must be a simple uppercase C++ identifier"
   if #["State", "Input", "Output"].contains cppName ||
@@ -658,7 +676,7 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
     let mut numberType := none
     let mut arithmetic := #[]
     let mut runtime := parameters
-    let runtimeCount := if captureSpec.isSome then 1 else 2
+    let runtimeCount := if captureSpec.isSome || resetState.isSome then 1 else 2
     if generic then
       unless parameters.size ≥ runtimeCount + 1 do
         throwError "C++ codegen: generic export expects one arithmetic type parameter"
@@ -671,7 +689,7 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
         let name := type.getAppFn.constName?
         let args := type.getAppArgs
         unless args.size ≥ 1 && args[0]! == number &&
-            #[``Add, ``Sub, ``Mul, ``Div, ``Neg, ``OfNat, ``OfScientific, ``DSP.IfLess, ``DSP.FMA, ``DSP.Trig, ``DSP.ExpDecay].any
+            #[``Add, ``Sub, ``Mul, ``Div, ``Neg, ``OfNat, ``OfScientific, ``DSP.IfLess, ``DSP.FMA, ``DSP.Trig, ``DSP.ExpDecay, ``DSP.Tanh, ``DSP.SquareRoot].any
               (fun supported => name == some supported) do
           throwError "C++ codegen: unsupported generic parameter {type}"
         if name == some ``OfNat then
@@ -681,6 +699,19 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
       runtime := parameters.extract (parameters.size - runtimeCount) parameters.size
     unless runtime.size == runtimeCount do
       throwError "C++ codegen: expected exactly {if runtimeCount == 2 then "two" else "one"} runtime arguments"
+    if let some expected := resetState then
+      let stateType ← inferType runtime[0]!
+      unless (← isDefEq (← recordSignature stateType numberType) expected) &&
+          (← isDefEq stateType resultType) do
+        throwError "C++ codegen: reset must take and return the processor's State"
+      let fields ← fieldShape stateType numberType
+      let (_, emission) ← (do
+        let next ← evaluate (mkAppN (mkConst function) parameters)
+          [(runtime[0]!.fvarId!, readValue fields "m_state")]
+        let assignments ← changedAssignments fields next "m_state"
+        for line in assignments do emit line).run {numberType, arithmetic}
+      return (mathIncludes emission.usesMath,
+        #["    void Reset()", "    {"] ++ emission.lines.map ("        " ++ ·) ++ #["    }", ""])
     if let some expected := captureSpec then
       return ← renderSnapshot function parameters runtime resultType numberType arithmetic expected
     if let some method := method then
@@ -872,6 +903,21 @@ def generateTunedSnapshot (step tuning capture : Name) (cppName : String) : Meta
     #[s!"    // Snapshot generated from {capture}.", "    //", ""] ++ captureBody
   return String.intercalate "\n" (renderHeader step cppName true includes ++ body ++ #["};", ""]).toList
 
+/-- Stateful nonlinear components need tuning/reset, without a transfer claim. -/
+def generateTunedProcessor (step tuning reset : Name) (cppName : String) (generic : Bool) : MetaM String := do
+  if #["LogicalSpec", "Reset", "ComputeCoefficients"].contains cppName then
+    throwError "C++ codegen: processor name conflicts with a coefficient member"
+  let (stepIncludes, stepBody) ← generateParts step cppName generic none "Input"
+  let expected ← forallTelescopeReducing (← getConstInfo step).type fun ps _ => do
+    recordSignature (← inferType ps[ps.size-2]!) (if generic then some ps[0]! else none)
+  let (tuneIncludes, tuneBody) ← generateParts tuning cppName generic none "LogicalSpec" true (some expected)
+  let (resetIncludes, resetBody) ← generateParts reset cppName generic none "Input"
+    (resetState := some expected)
+  let includes := (stepIncludes ++ tuneIncludes ++ resetIncludes).toList.eraseDups.toArray
+  let body := stepBody ++ #[s!"    // Coefficients generated from {tuning}.", "    //", ""] ++ tuneBody ++
+    #[s!"    // Reset generated from {reset}.", "    //", ""] ++ resetBody
+  return String.intercalate "\n" (renderHeader step cppName generic includes ++ body ++ #["};", ""]).toList
+
 def generateFilter (step response : Name) (cppName : String) (generic : Bool) : MetaM String :=
   generateFilterResponses step #[(response, "MagnitudeSquared")] cppName generic
 
@@ -976,6 +1022,22 @@ elab "#generate_cpp_tuned_snapshot_generic " step:ident tuning:ident capture:ide
   if let some parent := output.parent then IO.FS.createDirAll parent
   IO.FS.writeFile output code
   logInfo m!"Generated {output} with coefficient update and snapshot capture"
+
+elab "#generate_cpp_tuned_processor " step:ident tuning:ident reset:ident
+    " as " cppName:ident " to " path:str : command => do
+  let code ← liftTermElabM <| generateTunedProcessor step.getId tuning.getId reset.getId cppName.getId.toString false
+  let output : System.FilePath := path.getString
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  logInfo m!"Generated {output} with coefficient update and reset"
+
+elab "#generate_cpp_tuned_processor_generic " step:ident tuning:ident reset:ident
+    " as " cppName:ident " to " path:str : command => do
+  let code ← liftTermElabM <| generateTunedProcessor step.getId tuning.getId reset.getId cppName.getId.toString true
+  let output : System.FilePath := path.getString
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  logInfo m!"Generated {output} with coefficient update and reset"
 
 elab "#generate_cpp_record " record:ident " as " cppName:ident " to " path:str : command => do
   let recordName := record.getId

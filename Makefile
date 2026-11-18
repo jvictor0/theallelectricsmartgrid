@@ -79,10 +79,10 @@ lean-cache:
 DSP_RUNTIME_MODULES := DSP.Filters.Capture DSP.Filters.OnePoleZOHLowPass.Response DSP.Filters.OnePoleTPTLowPass \
 	DSP.Filters.OnePoleTPTHighPass DSP.Filters.TPTBaseWidth DSP.Filters.TPTSVF \
 	DSP.Filters.MorphingTPTSVF DSP.Filters.TPTSVF4Pole DSP.Filters.TPTLadder \
-	DSP.Filters.LinkwitzRileySplitter DSP.Filters.Coupled
+	DSP.Filters.LinkwitzRileySplitter DSP.Filters.Coupled DSP.Filters.NaiveReuppingLadder
 DSP_HEADERS := OnePoleZOHLowPass OnePoleTPTLowPass OnePoleTPTHighPass TPTBaseWidth TPTSVF \
 	MorphingTPTSVF TPTSVF4PoleHighPass TPTSVF4PoleLowPass TPTSVF4PoleBandPass TPTLadder \
-	CoupledProcessor
+	CoupledProcessor NormalizedTanh BandPassedEnvelopeFollowerCore NaiveReuppingLadderCore
 
 DSP_GENERIC_HEADERS := $(addsuffix Generic,$(DSP_HEADERS)) LinkwitzRileySplitter4BandGeneric
 

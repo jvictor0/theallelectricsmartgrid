@@ -3,6 +3,27 @@ import DSP.Tests.CodegenFixtures
 import DSP.Filters.Responses
 import DSP.Filters.LinkwitzRileySplitter
 import DSP.Filters.Capture
+import DSP.Filters.NaiveReuppingLadder
+
+open Lean Elab Command in
+run_cmd liftTermElabM do
+  for (tuning, reset, expected) in #[
+      (``DSP.TPTSVF.computeCoefficients, ``DSP.NaiveReuppingLadder.reset, "different state record"),
+      (``DSP.NaiveReuppingLadder.computeCoefficients, ``DSP.NormalizedTanh.reset,
+        "reset must take and return"),
+      (``DSP.NaiveReuppingLadder.computeCoefficients, ``DSP.NaiveReuppingLadder.resetFloat,
+        "expects one arithmetic type parameter")] do
+    let mut rejected := false
+    try
+      let _ ← DSP.Codegen.generateTunedProcessor ``DSP.NaiveReuppingLadder.step
+        tuning reset "TestNonlinear" true
+    catch error =>
+      let message ← error.toMessageData.toString
+      unless (message.splitOn expected).length > 1 do
+        throwError "unexpected nonlinear processor rejection: {message}"
+      rejected := true
+    unless rejected do throwError "C++ codegen incorrectly accepted mismatched nonlinear component"
+  logInfo "Nonlinear processor tuning/reset signature rejection checks passed."
 
 #use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
 

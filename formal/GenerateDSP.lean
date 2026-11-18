@@ -12,8 +12,24 @@ import DSP.Filters.Coupled
 import DSP.Filters.Responses
 import DSP.Filters.LinkwitzRileySplitter
 import DSP.Filters.Capture
+import DSP.Filters.NaiveReuppingLadder
 
 #use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
+
+#generate_cpp_tuned_processor DSP.NormalizedTanh.stepFloat DSP.NormalizedTanh.computeCoefficientsFloat
+  DSP.NormalizedTanh.resetFloat as NormalizedTanh to "build/lean/generated/NormalizedTanh.hpp"
+#generate_cpp_tuned_processor_generic DSP.NormalizedTanh.step DSP.NormalizedTanh.computeCoefficients
+  DSP.NormalizedTanh.reset as NormalizedTanhGeneric to "build/lean/generated/NormalizedTanhGeneric.hpp"
+
+#generate_cpp_tuned_processor DSP.BandPassedEnvelopeFollower.stepFloat DSP.BandPassedEnvelopeFollower.computeCoefficientsFloat
+  DSP.BandPassedEnvelopeFollower.resetFloat as BandPassedEnvelopeFollowerCore to "build/lean/generated/BandPassedEnvelopeFollowerCore.hpp"
+#generate_cpp_tuned_processor_generic DSP.BandPassedEnvelopeFollower.step DSP.BandPassedEnvelopeFollower.computeCoefficients
+  DSP.BandPassedEnvelopeFollower.reset as BandPassedEnvelopeFollowerCoreGeneric to "build/lean/generated/BandPassedEnvelopeFollowerCoreGeneric.hpp"
+
+#generate_cpp_tuned_processor DSP.NaiveReuppingLadder.stepFloat DSP.NaiveReuppingLadder.computeCoefficientsFloat
+  DSP.NaiveReuppingLadder.resetFloat as NaiveReuppingLadderCore to "build/lean/generated/NaiveReuppingLadderCore.hpp"
+#generate_cpp_tuned_processor_generic DSP.NaiveReuppingLadder.step DSP.NaiveReuppingLadder.computeCoefficients
+  DSP.NaiveReuppingLadder.reset as NaiveReuppingLadderCoreGeneric to "build/lean/generated/NaiveReuppingLadderCoreGeneric.hpp"
 
 #generate_cpp_sampled_filter DSP.OnePoleZOHLowPass.stepFloat DSP.OnePoleZOHLowPass.prepareCoefficientsFloat
   [DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquaredFloat as MagnitudeSquared]

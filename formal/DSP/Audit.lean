@@ -8,6 +8,23 @@ open Lean in
 run_cmd do
   let env ← getEnv
   let required := #[
+    ``DSP.NormalizedTanh.apply_real,
+    ``DSP.NormalizedTanh.apply_zero,
+    ``DSP.NormalizedTanh.apply_one,
+    ``DSP.NormalizedTanh.step_channel,
+    ``DSP.BandPassedEnvelopeFollower.computeCoefficients_preserves_history,
+    ``DSP.BandPassedEnvelopeFollower.reset_clears_history,
+    ``DSP.BandPassedEnvelopeFollower.step_channel,
+    ``DSP.NaiveReuppingLadder.step_feedback_delay,
+    ``DSP.NaiveReuppingLadder.step_uses_previous_powers,
+    ``DSP.NaiveReuppingLadder.step_feedback_detector,
+    ``DSP.NaiveReuppingLadder.step_preserves_coefficients,
+    ``DSP.NaiveReuppingLadder.computeCoefficients_preserves_history,
+    ``DSP.NaiveReuppingLadder.computeCoefficients_idempotent,
+    ``DSP.NaiveReuppingLadder.reset_preserves_coefficients,
+    ``DSP.NaiveReuppingLadder.reset_clears_history,
+    ``DSP.NaiveReuppingLadder.step_channel,
+    ``DSP.NaiveReuppingLadder.computeCoefficients_channel,
     ``DSP.TPTSVF.realizes_allPass,
     ``DSP.TPTSVF.realizes_allPass_snapshot,
     ``DSP.TPTSVF.realizes_allPass_channels,

@@ -11,6 +11,11 @@ structure OnePoleZOHLowPass (R : Type) where
 
 namespace OnePoleZOHLowPass
 
+/-- Difference-form evaluation of the same one-pole recurrence. The envelope
+smoother uses this unfused order; audio stages use `onePoleStep` below. -/
+@[inline] def relax {R : Type} [Add R] [Sub R] [Mul R] (alpha input state : R) : R :=
+  state + alpha * (input - state)
+
 /-- Coefficients determining the frozen filter's transfer function.
 The accumulated output `y` affects transients, not this response. -/
 structure Snapshot (R : Type) where

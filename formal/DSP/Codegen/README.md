@@ -407,12 +407,14 @@ Lean compiler/runtime used for native reference execution, C++ compiler and
 floating-point environment remain part of the trusted implementation boundary.
 
 The scalar differential test executes the actual Lean source functions and
-compares every generated state/output field bit for bit over 32,268 cases. It covers:
+compares every generated state/output field bit for bit. It covers:
 
 - ZOH and TPT one-pole trajectories with changing inputs, endpoint/near-one coefficients,
   signed-zero initial states and subnormal values.
 - Trajectories of every TPT composite from random coefficients, integrator states
   and stored responses, including both morph halves and ladders with feedback.
+- Normalized saturation, cascaded bandpass power envelopes, and the nonlinear
+  Naive Reupping Ladder, including nonzero histories and adaptive feedback.
 - A distinct processor that swaps state fields, branches, and emits old-state
   values, so assignment order and independent outputs are exercised.
 - A binary32 processor using division, negation, comparisons and decimal
@@ -456,6 +458,26 @@ Passing these checks is implementation evidence, not a universal compiler proof
 or a floating-point error bound.
 
 ## Fixed topology processors with snapshot capture
+
+Nonlinear processors can export tuning and reset without a response or snapshot:
+
+```lean
+#generate_cpp_tuned_processor_generic DSP.NaiveReuppingLadder.step
+  DSP.NaiveReuppingLadder.computeCoefficients DSP.NaiveReuppingLadder.reset
+  as NaiveReuppingLadderCoreGeneric to "build/lean/generated/NaiveReuppingLadderCoreGeneric.hpp"
+```
+
+The scalar command is `#generate_cpp_tuned_processor`. Both emit `Process`,
+`ComputeCoefficients`, and `Reset`, checking the full state types across all
+three functions. Reset is a unary `State → State` transformation and writes
+only changed fields. No linear response or UI contract is implied.
+
+The [Naive Reupping Ladder](../Filters/NaiveReuppingLadder/README.md) composes
+the existing Lean SVFs and one-poles. `Tanh` lowers to the app's clamped cubic
+rational arithmetic with explicit FMA; its default real instance is exact tanh,
+with no rational/transcendental equality claim. `SquareRoot` lowers to vector
+`Sqrt` or scalar `std::sqrt`. Native source comparisons and handwritten parity
+tests cover these new components at both precisions and widths 1–4.
 
 The splitter uses a processing/tuning/capture export without a response method:
 

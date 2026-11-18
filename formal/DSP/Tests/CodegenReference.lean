@@ -2,6 +2,7 @@ import DSP.Filters.Capture
 import DSP.Tests.CodegenFixtures
 import DSP.Tests.ResponseCases
 import DSP.Tests.Splitter
+import DSP.Tests.NaiveReuppingLadder
 import DSP.Filters.OnePoleTPTLowPass
 import DSP.Filters.OnePoleTPTHighPass
 import DSP.Filters.TPTBaseWidth
@@ -250,6 +251,28 @@ def main : IO Unit := do
   let seeds : Array Float := #[0.0, -0.0, 1.0, -1.0, 1000.0, Float.ofBits 1,
     Float.ofBits 0x0010000000000000]
   let mut random : UInt64 := 0x123456789abcdef
+  for i in [:32] do
+    let cutoff := (#[0.000001, 0.003, 0.03, 0.125, 0.1959, 0.25, 0.5, 0.6] : Array Float)[i % 8]!
+    let gain := (#[0.001, 0.5, 2.0, 10.0] : Array Float)[i / 8]!
+    let resonance := Float.ofNat (i % 5) / 4
+    let seed := Float.ofNat i / 40 - 0.4
+    let state := NaiveReuppingLadder.computeCoefficients ⟨cutoff, resonance, gain⟩
+      (DSP.Tests.NaiveReuppingLadder.seeded seed)
+    let state32 := NaiveReuppingLadder.computeCoefficients
+      ⟨cutoff.toFloat32, resonance.toFloat32, gain.toFloat32⟩
+      (DSP.Tests.NaiveReuppingLadder.seeded seed.toFloat32)
+    random ← emit out "naive" (fun s => bits (DSP.Tests.NaiveReuppingLadder.fields s))
+      NaiveReuppingLadder.step state random 64
+    emit32 out "naive" DSP.Tests.NaiveReuppingLadder.fields NaiveReuppingLadder.step state32 random
+    random ← emit out "envelope" (fun s => bits (DSP.Tests.NaiveReuppingLadder.envelopeFields s))
+      BandPassedEnvelopeFollower.step state.inputEnvelope random 64
+    emit32 out "envelope" DSP.Tests.NaiveReuppingLadder.envelopeFields
+      BandPassedEnvelopeFollower.step state32.inputEnvelope random
+    let saturator : NormalizedTanh Float := ⟨state.saturation, seed⟩
+    random ← emit out "normalizedTanh" (fun s => bits [s.coefficients.gain,s.coefficients.tanhGain,s.output])
+      NormalizedTanh.step saturator random 64
+    emit32 out "normalizedTanh" (fun s => [s.coefficients.gain,s.coefficients.tanhGain,s.output])
+      NormalizedTanh.step ⟨state32.saturation, seed.toFloat32⟩ random
   for alpha in coefficients do
     for initial in seeds do
       emit32 out "zoh" (fun f : OnePoleZOHLowPass Float32 => [f.alpha, f.y])
