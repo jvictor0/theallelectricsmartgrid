@@ -123,6 +123,14 @@ includes this executable check.
 `make lean-dsp-floor-free-probe` separately runs the proof-side ladder response
 experiment in binary64, with native tanh and with its zero-input slope. It keeps
 the runtime unchanged; its finite-window measurements are not convergence proofs.
+Set `FLOOR_FREE_PROBE_ARGS=smoothing` for the slower-envelope sweep,
+`FLOOR_FREE_PROBE_ARGS=quadrature` for single/cascaded SVF quadrature detectors,
+or `FLOOR_FREE_PROBE_ARGS=quadrature-check` for additional frequencies, gains,
+and the small-amplitude native-tanh comparison. These modes report coefficient
+variation, period-repeat error, and the fundamental mixing term missed by
+replacing the coefficient with its mean. See the
+[ladder findings](../formal/DSP/Filters/NaiveReuppingLadder/README.md#detector-and-periodic-response-experiments)
+for limitations and theorem inventory.
 The filter arithmetic and state updates are shared by the executable cores and
 the real-number proofs;
 the smoke test does not establish floating-point error bounds.

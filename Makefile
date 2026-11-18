@@ -109,7 +109,7 @@ lean-dsp-test: lean-dsp-codegen-test
 .PHONY: lean-dsp-floor-free-probe
 lean-dsp-floor-free-probe:
 	"$(REPO_ROOT)/scripts/lean.sh" build dsp_floor_free_probe
-	"$(REPO_ROOT)/scripts/lean.sh" exe dsp_floor_free_probe
+	"$(REPO_ROOT)/scripts/lean.sh" exe dsp_floor_free_probe $(FLOOR_FREE_PROBE_ARGS)
 
 lean-test:
 	python3 "$(REPO_ROOT)/scripts/check_encoder_spec.py"

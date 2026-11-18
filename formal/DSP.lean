@@ -38,3 +38,6 @@ import DSP.Filters.NaiveReuppingLadder.FloorFree
 import DSP.Filters.NaiveReuppingLadder.FloorFreeDynamics
 import DSP.Filters.NaiveReuppingLadder.FloorFreeNormalization
 import DSP.ResponseMeasurement
+import DSP.ResponseMeasurement.Periodic
+import DSP.ResponseMeasurement.Modulation
+import DSP.Filters.QuadratureEnvelopeFollower.Proofs

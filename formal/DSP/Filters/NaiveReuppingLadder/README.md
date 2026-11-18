@@ -349,6 +349,7 @@ proof interpretation up to floating-point error, and separately uses its
 zero-input slope. Tuning and all sample operations reuse the existing Lean
 implementation; only the chosen feedback coefficient is replaced. The app's
 rational tanh and its fixed power floor are not the model in this probe.
+Optional modes below also replace the detector measurement and smoothing rate.
 
 For cutoff 0.01 cycles/engine sample, resonance 0.8, gain 2 and stimulus period
 96 samples, one recorded window after 245,760 startup samples gave:
@@ -372,6 +373,112 @@ averages. A low-drive control case (gain 0.1) has matching fundamental/RMS gain
 frequencies use periods 384 and 32. These experiments neither prove convergence
 nor establish a floating-point error bound. Raw local output is retained under
 `build/results/naive-reupping-ladder-convergence/`.
+
+## Detector and periodic-response experiments
+
+The experimental [QuadratureEnvelopeFollower](../QuadratureEnvelopeFollower.lean)
+reuses the existing Q=1 `TPTSVF.step` and `OnePoleZOHLowPass.relax`. It measures
+`(bandPass² + lowPass²)/2` before smoothing. At the SVF center the two outputs
+approach equal-amplitude quadratures, so the sum is constant. This is proved
+from the actual state recurrence and arbitrary initial histories, not assumed
+from an ideal quadrature source. The exact digital center satisfies
+`(1 - i*g)*z = 1 + i*g`, where g is the prepared SVF integrator gain and
+`z = exp(i*omega)` advances one sample. The explicit carrier `(1+i*g)/(1-i*g)`
+satisfies that condition and has unit norm.
+
+This measurement changes the detector's frequency weighting. In particular,
+the single-SVF version includes a lowpass path and responds to DC. The
+cascaded experiment retains an upstream bandpass and hence DC rejection, but
+has different selectivity from the original two-bandpass power detector.
+Neither version is generated into C++ or installed in the runtime ladder.
+
+Away from center, an ideal quadrature pair with amplitudes a and b has energy
+
+```
+((a*cos(theta))² + (b*sin(theta))²)/2
+  = (a²+b²)/4 + (a²-b²)/4 * cos(2*theta).
+```
+
+Equal amplitudes cancel the twice-frequency term exactly. Unequal amplitudes
+leave ripple. This identity does not say the closed-loop output is a single
+tone: other components can still move the measurement and the controller.
+
+The binary64 sweeps keep cutoff 0.01 and resonance 0.8. The following are late
+windows at gain 2 and input period 96, using the amplitude-normalized slope
+model (which retains the adaptive controller):
+
+| Detector | Smoothing alpha multiplier | Observed k range | Output period-repeat RMS error |
+| --- | --- | --- | --- |
+| Original two-bandpass power | 1 | 0.185385–0.828097 | 180.454481 |
+| Original two-bandpass power | 1/64 | 0.455201–0.484505 | 13.323198 |
+| Single-SVF quadrature | 64 | 0.473223–0.479265 | below six-decimal print resolution |
+
+The base alpha is about 0.002174; multipliers are capped at alpha=1. The first
+and third rows use window 7 (512 periods per window), while the slower second
+row uses window 15 to allow more startup time. The repeat error is the RMS of
+`output[n] - output[n-period]`, divided by stimulus peak amplitude. Slower
+smoothing reduces the motion but did not establish period locking. The
+single-SVF version with faster smoothing looks much better near the tested
+peak, with fundamental `-205.573339 + 126.857102i`, total RMS gain 241.564036,
+and third-harmonic amplitude 0.247516. Native tanh at input amplitude 1e-7
+matches this slope-model case at the printed precision.
+
+The broader checks prevent a general convergence claim. At period 32 the
+single-SVF variant still has substantial period-repeat error (75.654709).
+At period 384 the output repeats to printed resolution but its total RMS gain
+is 206.656551 while its fundamental gain is only about 0.810: periodicity alone
+does not mean a nearly sinusoidal response. Gain 1 at period 96 also retains
+period-repeat error. The cascaded quadrature experiment did not remove the
+large motion in the tested near-peak case. No runtime detector or rate has
+been selected from these results.
+
+Reproduce with `make lean-dsp-floor-free-probe FLOOR_FREE_PROBE_ARGS=smoothing`,
+`quadrature`, or `quadrature-check`. The diagnostic still advances both original
+SVFs even when only one is observed; it is not a performance implementation.
+It prints k's mean/range/standard deviation, its 2ω component, and the coherent
+mixing correction `coherent(k*delayedStage4) - mean(k)*coherent(delayedStage4)`.
+The last quantity is about `-0.082166 - 0.086509i` in the period-96, alpha×64
+example, even though the waveform appears periodic.
+
+### What averaging proves
+
+Write `signal[n] = Re(A*z^n)` and a coefficient wobble
+`k[n] = center + Re(C*z^(2*n))`. The product's coherent fundamental is
+
+```
+center*A + C*conj(A)/2,
+```
+
+with the usual DC/Nyquist and third-harmonic alias exclusions. There is also a
+third-harmonic component `C*A/2`. Thus a zero-mean coefficient wobble generally
+survives coherent integration through its correlation with the signal. We
+cannot replace k by its mean to obtain an exact transfer function.
+
+If the actual output approaches a periodic waveform, its long-time coherent
+response and RMS can instead be computed from that whole waveform over one
+period. The proof handles all observation-window lengths, not just exact
+multiples of the period, and discards decaying startup errors. The carrier must
+repeat over the chosen period for the coherent theorem; the period can include
+subharmonics. This is a sufficient route for rational digital frequencies,
+not a theorem that every driven nonlinear system becomes periodic.
+
+| New theorem | Proven scope |
+| --- | --- |
+| `TPTSVF.Quadrature.outputs_tendsto` | Actual prepared Q=1 SVF BP/LP approach equal-amplitude quadratures at center, with arbitrary histories and input tending to a tone |
+| `QuadratureEnvelopeFollower.unequal_quadrature_energy` | Exact mean plus twice-frequency ripple for unequal ideal quadratures |
+| `QuadratureEnvelopeFollower.prepared_energy_tendsto` | Actual squared-norm measurement approaches `norm(A)²/2` at center |
+| `QuadratureEnvelopeFollower.prepared_power_tendsto` | Actual smoothed detector approaches the same constant for alpha in (0,1], from arbitrary histories |
+| `ResponseMeasurement.coherent_feedback_split` | Exact finite-window center/wobble split; no independence assumption |
+| `ResponseMeasurement.coherent_modulated_tone` | The wobble's fundamental correction survives infinite-time averaging |
+| `ResponseMeasurement.average_of_periodic` | All-window average of a periodic sequence equals its one-period average |
+| `ResponseMeasurement.coherent_of_periodic_tracking` | Output tracking a periodic waveform has its one-period coherent response |
+| `ResponseMeasurement.meanSquare_of_periodic_tracking`, `rms_of_periodic_tracking` | Companion energy/RMS limit retains all harmonics of that waveform |
+
+The remaining obligations are to prove settling or existence of long-time
+averages for the **coupled ladder/controller**, and their small-amplitude limit.
+The driven-detector theorem assumes a tone-approaching input; that hypothesis
+is not yet proved for the ladder's feedback signal. Numerical repetition and
+these conditional averaging theorems do not discharge either obligation.
 
 ## Validation boundaries
 
