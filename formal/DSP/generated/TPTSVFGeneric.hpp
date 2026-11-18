@@ -268,6 +268,30 @@ struct TPTSVFGeneric
         m_responseSnapshot.m_k = v8;
     }
 
+    // Prepared coefficients generated from DSP.TPTSVF.prepareFromSnapshot.
+    //
+
+    void ComputeCoefficientsFromSnapshot(const Snapshot& spec)
+    {
+        const Vector v0 = (spec.m_g + spec.m_k);
+        const Vector v1 = Vector::FusedMultiplyAdd(spec.m_g, v0, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
+        const Vector v2 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v1);
+        const Vector v3 = (spec.m_g * v2);
+        const Vector v4 = (spec.m_g * v3);
+        const Vector v5 = spec.m_g;
+        const Vector v6 = spec.m_k;
+        const Vector v7 = spec.m_k;
+        const Vector v8 = v2;
+        const Vector v9 = v3;
+        const Vector v10 = v4;
+        m_state.m_k = v7;
+        m_state.m_a1 = v8;
+        m_state.m_a2 = v9;
+        m_state.m_a3 = v10;
+        m_responseSnapshot.m_g = v5;
+        m_responseSnapshot.m_k = v6;
+    }
+
     using NumberType = Number;
     static constexpr size_t x_numChannels = Size;
 

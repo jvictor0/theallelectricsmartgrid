@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
+#include <utility>
 
 // Fixed-width bundle of arithmetic per-channel values. Element-wise operations
 // run on a compiler vector type.
@@ -108,6 +109,23 @@ struct MultiChannelNumber
     void Store(Vector values)
     {
         memcpy(m_values, &values, sizeof(m_values));
+    }
+
+    // Gather scalar table entries into a vector. Expand only the real channels,
+    // leaving the padding lane zero for Size == 3.
+    //
+    template<typename Source, typename Index, size_t... Lanes>
+    static MultiChannelNumber Gather(const Source* table, const MultiChannelNumber<Index, Size>& indices,
+        std::index_sequence<Lanes...>)
+    {
+        return FromVector(Vector{static_cast<Number>(table[indices[Lanes]])...});
+    }
+
+    template<typename Source, typename Index>
+    static MultiChannelNumber Gather(const Source* table, const MultiChannelNumber<Index, Size>& indices)
+    {
+        static_assert(std::is_integral_v<Index>);
+        return Gather(table, indices, std::make_index_sequence<Size>{});
     }
 
     Number& operator[](int index)

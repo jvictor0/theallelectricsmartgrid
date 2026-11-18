@@ -247,6 +247,16 @@ is different from the original field, after capturing all new values. This
 preserves simultaneous record-update semantics while avoiding history writes.
 The production tuners separately prove that all history fields remain unchanged.
 
+Sampled-filter exports may additionally name `prepared <Lean function>` before
+their response list. This generates
+`ComputeCoefficientsFromSnapshot(const Snapshot& spec)` in the same filter. The
+function must accept that exact response snapshot and the processor state, and
+return the matching state/snapshot pair; the generator checks both record
+identities and numeric types. It reuses the snapshot declaration and cache,
+and still writes only changed state fields. `TPTSVF` uses this for already known
+integrator gain `g` and damping `k`, avoiding a conversion to frequency and back.
+Its ordinary cutoff/Q preparation delegates to the same Lean function.
+
 `Trig.sin2pi/cos2pi/tanPi` lower to `Math4096::Sin2pi/Cos2pi/TanPi`.
 `ExpDecay.expNegTwoPi` lowers to `MultiChannelNumber::Exp()` after multiplication
 by the target-precision −2π constant. Scalar exports use the one-lane vector

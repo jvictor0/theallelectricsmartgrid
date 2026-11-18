@@ -1,9 +1,11 @@
 #pragma once
 
 #include "Filter.hpp"
+#include "Math.hpp"
 #include "MultiChannelNumber.hpp"
 #include "Saturator.hpp"
 #include "TPTSVFFilter.hpp"
+#include <cassert>
 #include <cmath>
 #include <complex>
 
@@ -11,7 +13,6 @@ template <typename Number, size_t Size>
 struct BandPassedEnvelopeFollowerGeneric
 {
     using Vector = MultiChannelNumber<Number, Size>;
-    static constexpr Number x_rmsCycles = static_cast<Number>(2);
 
     TPTSVFBandPassFilterGeneric<Number, Size> m_stage1;
     TPTSVFBandPassFilterGeneric<Number, Size> m_stage2;
@@ -28,14 +29,11 @@ struct BandPassedEnvelopeFollowerGeneric
         m_stage2.SetCutoffAndQ(Vector::Splat(0.1), Vector::Splat(1));
     }
 
-    void SetCutoff(const Vector& cutoff, const Vector& envelopeCutoff)
+    void SetIntegratorGainAndPowerAlpha(const Vector& gain, const Vector& powerAlpha)
     {
-        m_stage1.SetCutoffAndQ(cutoff, Vector::Splat(1));
-        m_stage2.SetCutoffAndQ(cutoff, Vector::Splat(1));
-        for (size_t i = 0; i < Size; ++i)
-        {
-            m_powerAlpha[i] = -std::expm1(-envelopeCutoff[i] / x_rmsCycles);
-        }
+        m_stage1.ComputeCoefficientsFromSnapshot({gain, Vector::Splat(1)});
+        m_stage2.ComputeCoefficientsFromSnapshot({gain, Vector::Splat(1)});
+        m_powerAlpha = powerAlpha;
     }
 
     Vector Process(const Vector& input)
@@ -70,6 +68,14 @@ struct LadderFilterLPGeneric
     // sqrt(2^(1/4) - 1): low-frequency cascade half-power / stage-corner ratio.
     //
     static constexpr Number x_halfPowerRatio = static_cast<Number>(0.43497944204608224);
+    // Approximately two cycles of the cascade half-power frequency per power
+    // smoothing time constant. Reuse the stage sine instead of exact retiming.
+    //
+    static constexpr Number x_envelopeAlphaScale = x_halfPowerRatio / static_cast<Number>(2 * M_PI);
+    // tan(pi * 0.499): retain the detector's cap just below engine Nyquist.
+    //
+    static constexpr Number x_maxDetectorGain = static_cast<Number>(318.30883898555044);
+    static constexpr Number x_detectorInverseMaxGainSquared = 1 / (x_maxDetectorGain * x_maxDetectorGain);
 
     static std::complex<float> TransferFunction(float alpha, float feedback, float freq)
     {
@@ -279,6 +285,7 @@ struct LadderFilterLPGeneric
     //
     void SetCutoffAndResonance(const Vector& cutoffParam, const Vector& resonance)
     {
+        assert(Vector::IfLess(Vector(), cutoffParam, Vector::Splat(1), Vector()) == Vector::Splat(1));
         const Vector cutoff = Vector::Min(Vector::Splat(x_maxCutoff), cutoffParam);
         const Vector feedback = resonance * static_cast<Number>(3.9);
         const bool cutoffChanged = !m_coefficientsInitialized || cutoff != m_cutoff;
@@ -291,12 +298,7 @@ struct LadderFilterLPGeneric
             // in 1-cos(2*pi*f) at low cutoffs. poleRatio is alpha/(1-alpha),
             // derived directly from cutoff rather than from the rounded alpha.
             //
-            Vector sine;
-            for (size_t lane = 0; lane < Size; ++lane)
-            {
-                sine[lane] = std::sin(static_cast<Number>(M_PI) * cutoff[lane]);
-            }
-
+            const Vector sine = Math4096::Sin2pi(cutoff * 0.5);
             const Vector root = (Vector::Splat(1) + sine * sine).Sqrt();
             const Vector alpha = sine * 2 * (root - sine);
             const Vector poleRatio = sine * 2 * (root + sine);
@@ -310,32 +312,27 @@ struct LadderFilterLPGeneric
             // Its critical feedback is (poleRatio+2)^2 below that boundary,
             // and ((poleRatio+2)/poleRatio)^4 above it.
             //
-            Vector detectorCutoff = Vector::Splat(static_cast<Number>(0.5));
-            Vector envelopeCutoff;
-            for (size_t lane = 0; lane < Size; ++lane)
-            {
-                const Number ratio = poleRatio[lane];
-                if (ratio < 2)
-                {
-                    const Number crossingGain = ratio + 2;
-                    m_criticalFeedback[lane] = crossingGain * crossingGain;
-                    detectorCutoff[lane] = std::asin(ratio / 2) / static_cast<Number>(M_PI);
-                }
-                else
-                {
-                    const Number crossingGain = (ratio + 2) / ratio;
-                    const Number squared = crossingGain * crossingGain;
-                    m_criticalFeedback[lane] = squared * squared;
-                }
-
-                envelopeCutoff[lane] = std::asin(x_halfPowerRatio * sine[lane]) / static_cast<Number>(M_PI);
-            }
-
-            // Detector centers follow the loop crossing. Keep envelope timing
-            // tied to the cascade's half-power frequency, as before retuning.
+            // The SVF needs g = tan(pi*f), so tan(asin(r/2)) becomes
+            // s/sqrt(1-s*s). Bound the denominator to cap g without an
+            // inverse sine, another tangent, or division by zero at Nyquist.
             //
-            m_inputEnvelope.SetCutoff(detectorCutoff, envelopeCutoff);
-            m_feedbackEnvelope.SetCutoff(detectorCutoff, envelopeCutoff);
+            const Vector detectorSine = Vector::Min(poleRatio * 0.5, Vector::Splat(1));
+            const Vector detectorCosineSquared = (Vector::Splat(1) - detectorSine) * (Vector::Splat(1) + detectorSine);
+            const Vector minimumCosineSquared = detectorSine * detectorSine * x_detectorInverseMaxGainSquared;
+            const Vector detectorGain = detectorSine / Vector::Max(detectorCosineSquared, minimumCosineSquared).Sqrt();
+            const Vector crossingGain = poleRatio + 2;
+            const Vector nyquistGain = Vector::Splat(1) + Vector::Splat(2) / Vector::Max(poleRatio, Vector::Splat(2));
+            const Vector nyquistSquared = nyquistGain * nyquistGain;
+            m_criticalFeedback = Vector::IfLess(poleRatio, Vector::Splat(2),
+                crossingGain * crossingGain, nyquistSquared * nyquistSquared);
+
+            // Detector centers follow the loop crossing. The simple power rate
+            // stays within 1% of the old two-cycle smoothing time across the
+            // full cutoff range, without an inverse sine or exponential.
+            //
+            const Vector powerAlpha = sine * x_envelopeAlphaScale;
+            m_inputEnvelope.SetIntegratorGainAndPowerAlpha(detectorGain, powerAlpha);
+            m_feedbackEnvelope.SetIntegratorGainAndPowerAlpha(detectorGain, powerAlpha);
             m_coefficientsInitialized = true;
         }
 

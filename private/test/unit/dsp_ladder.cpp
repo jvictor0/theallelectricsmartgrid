@@ -542,8 +542,6 @@ DOCTEST_TEST_CASE("LadderFilterLP: cutoff is the stage half-power point and casc
         const auto halfPowerZ = std::polar(1.0, -2 * M_PI * halfPower);
         const auto halfPowerStage = alpha / (1.0 - (1.0 - alpha) * halfPowerZ);
         DOCTEST_CHECK(std::pow(std::norm(halfPowerStage), 4) == doctest::Approx(0.5).epsilon(0.0002));
-        DOCTEST_CHECK(filter.m_inputEnvelope.m_powerAlpha[0] ==
-            doctest::Approx(-std::expm1(-halfPower / 2)).epsilon(0.00002));
         DOCTEST_CHECK(filter.m_feedbackEnvelope.m_powerAlpha == filter.m_inputEnvelope.m_powerAlpha);
     }
 }
@@ -591,11 +589,52 @@ DOCTEST_TEST_CASE("LadderFilterLP: stage cutoff and nominal oscillation center s
     DOCTEST_CHECK(filter.m_criticalFeedback[0] == doctest::Approx(4.0).epsilon(0.000002));
 }
 
+DOCTEST_TEST_CASE("Ladder envelope: simple power rate stays within one percent of the previous time constant")
+{
+    LadderFilterLP filter;
+    for (size_t i = 1; i <= 4096; ++i)
+    {
+        const float cutoff = 0.5f * i / 4096;
+        filter.SetCutoffAndResonance(cutoff, 0.0f);
+        const double alpha = filter.m_inputEnvelope.m_powerAlpha[0];
+        const double halfPower = std::asin(std::sqrt(std::pow(2.0, 0.25) - 1) * std::sin(M_PI * cutoff)) / M_PI;
+        const double timeRatio = (halfPower / 2) / -std::log1p(-alpha);
+        DOCTEST_CAPTURE(cutoff);
+        DOCTEST_CHECK(alpha > 0);
+        DOCTEST_CHECK(alpha < 1);
+        DOCTEST_CHECK(timeRatio > 0.99);
+        DOCTEST_CHECK(timeRatio < 1.000002);
+        DOCTEST_CHECK(filter.m_inputEnvelope.m_powerAlpha == filter.m_feedbackEnvelope.m_powerAlpha);
+    }
+}
+
+DOCTEST_TEST_CASE("LadderFilterLP: vector tuning selects interior and Nyquist crossings independently")
+{
+    TrioLadderFilterLP filter;
+    const float boundary = std::asin(1 / std::sqrt(3.0)) / M_PI;
+    for (const TrioFloat cutoff : {TrioFloat(0.000001f, 0.125f, 0.5f),
+        TrioFloat(std::nextafter(boundary, 0.0f), boundary, std::nextafter(boundary, 0.5f))})
+    {
+        filter.SetCutoffAndResonance(cutoff, TrioFloat::Splat(1));
+        for (size_t lane = 0; lane < 3; ++lane)
+        {
+            LadderFilterLP mono;
+            mono.SetCutoffAndResonance(cutoff[lane], 1.0f);
+            DOCTEST_CHECK(filter.m_stage4.m_alpha[lane] == mono.m_stage4.m_alpha[0]);
+            DOCTEST_CHECK(filter.m_criticalFeedback[lane] == mono.m_criticalFeedback[0]);
+            DOCTEST_CHECK(filter.m_inputEnvelope.m_powerAlpha[lane] == mono.m_inputEnvelope.m_powerAlpha[0]);
+            DOCTEST_CHECK(filter.m_inputEnvelope.m_stage1.MakeSnapshot().m_g[lane] ==
+                mono.m_inputEnvelope.m_stage1.MakeSnapshot().m_g[0]);
+            DOCTEST_CHECK(std::isfinite(filter.m_criticalFeedback[lane]));
+        }
+    }
+}
+
 DOCTEST_TEST_CASE("Ladder envelope: generated band-pass cascade retains unity center gain and reset")
 {
     BandPassedEnvelopeFollowerGeneric<float, 3> follower;
     const TrioFloat cutoff(0.005f, 0.03f, 0.2f);
-    follower.SetCutoff(cutoff, TrioFloat::Splat(0.01f));
+    follower.SetIntegratorGainAndPowerAlpha(Math4096::TanPi(cutoff), TrioFloat::Splat(0.005f));
     double sums[3]{};
     for (size_t sample = 0; sample < 10000; ++sample)
     {

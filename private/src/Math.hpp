@@ -3,6 +3,7 @@
 #include <complex>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 
 // Defined in MultiChannelNumber.hpp and BasicWaveTable.hpp, which include this
 // file. The vector overloads below only need them complete where they are used.
@@ -35,7 +36,15 @@ struct MathGeneric
         //
         for (size_t i = 0; i < x_tableSize; ++i)
         {
-            m_cosTable[i] = cosf(2.0f * M_PI * i / x_tableSize);
+            m_cosTable[i] = static_cast<float>(std::cos(2.0 * M_PI * i / x_tableSize));
+        }
+
+        // Exact axes preserve relative accuracy when interpolating near zero.
+        //
+        if constexpr (Bits >= 2)
+        {
+            m_cosTable[x_tableSize / 4] = 0;
+            m_cosTable[3 * x_tableSize / 4] = 0;
         }
 
         // Initialize root of unity table
@@ -63,9 +72,14 @@ struct MathGeneric
     //
     static float EvaluateCosTable(float phase)
     {
+        return EvaluateCosTable(phase, 0);
+    }
+
+    static float EvaluateCosTable(float phase, size_t indexOffset)
+    {
         float pos = phase * x_tableSize;
         float floored = std::floor(pos);
-        int index = static_cast<int>(floored) % x_tableSize;
+        size_t index = (static_cast<size_t>(floored) + indexOffset) % x_tableSize;
         float frac = pos - floored;
         return s_instance.m_cosTable[index] * (1.0f - frac) + s_instance.m_cosTable[(index + 1) % x_tableSize] * frac;
     }
@@ -73,24 +87,37 @@ struct MathGeneric
     template<typename Number, size_t Size>
     static MultiChannelNumber<Number, Size> EvaluateCosTable(const MultiChannelNumber<Number, Size>& phase)
     {
+        return EvaluateCosTable(phase, 0);
+    }
+
+    template<typename Number, size_t Size>
+    static MultiChannelNumber<Number, Size> EvaluateCosTable(const MultiChannelNumber<Number, Size>& phase, size_t indexOffset)
+    {
         using Vector = MultiChannelNumber<Number, Size>;
+        using Index = MultiChannelNumber<uint32_t, Size>;
         Vector pos = phase * x_tableSize;
         Vector floored = pos.Floor();
         Vector frac = pos - floored;
-        Vector y0;
-        Vector y1;
-        for (size_t i = 0; i < Size; ++i)
-        {
-            int index = static_cast<int>(floored[i]) % x_tableSize;
-            y0[i] = s_instance.m_cosTable[index];
-            y1[i] = s_instance.m_cosTable[(index + 1) % x_tableSize];
-        }
+        const auto indices = floored.template Convert<uint32_t>().Load() + static_cast<uint32_t>(indexOffset);
+        const Vector y0 = Vector::Gather(s_instance.m_cosTable, Index::FromVector(indices & (x_tableSize - 1)));
+        const Vector y1 = Vector::Gather(s_instance.m_cosTable, Index::FromVector((indices + 1) & (x_tableSize - 1)));
 
         return Vector::FusedMultiplyAdd(frac, y1 - y0, y0);
     }
 
     static float Sin2pi(float x)
     {
+        // Shift the table index, not the floating phase: adding 0.75 loses
+        // significant bits for small inputs. Odd symmetry also preserves them
+        // for small negative inputs when reducing phase modulo one.
+        //
+        if constexpr (Bits >= 2)
+        {
+            const float magnitude = std::abs(x);
+            const float phase = magnitude - std::floor(magnitude);
+            return EvaluateCosTable(phase, 3 * x_tableSize / 4) * std::copysign(1.0f, x);
+        }
+
         float phase = x - std::floor(x);
         phase += 0.75f;
         phase -= std::floor(phase);
@@ -100,6 +127,14 @@ struct MathGeneric
     template<typename Number, size_t Size>
     static MultiChannelNumber<Number, Size> Sin2pi(const MultiChannelNumber<Number, Size>& x)
     {
+        if constexpr (Bits >= 2)
+        {
+            using Vector = MultiChannelNumber<Number, Size>;
+            const Vector magnitude = x.Abs();
+            const Vector phase = magnitude - magnitude.Floor();
+            return EvaluateCosTable(phase, 3 * x_tableSize / 4) * Vector::Splat(1).CopySign(x);
+        }
+
         MultiChannelNumber<Number, Size> phase = x - x.Floor();
         phase = phase + 0.75f;
         phase = phase - phase.Floor();

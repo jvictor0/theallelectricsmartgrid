@@ -32,6 +32,7 @@ import DSP.Filters.Capture
   as TPTBaseWidth to "build/lean/generated/TPTBaseWidth.hpp"
 
 #generate_cpp_sampled_filter DSP.TPTSVF.stepFloat DSP.TPTSVF.prepareCoefficientsFloat
+  prepared DSP.TPTSVF.prepareFromSnapshotFloat
   [DSP.TPTSVF.Snapshot.lowPassMagnitudeSquaredFloat as LowPassMagnitudeSquared,
     DSP.TPTSVF.Snapshot.bandPassMagnitudeSquaredFloat as BandPassMagnitudeSquared,
     DSP.TPTSVF.Snapshot.highPassMagnitudeSquaredFloat as HighPassMagnitudeSquared,
@@ -78,6 +79,7 @@ import DSP.Filters.Capture
   as TPTBaseWidthGeneric to "build/lean/generated/TPTBaseWidthGeneric.hpp"
 
 #generate_cpp_sampled_filter_generic DSP.TPTSVF.step DSP.TPTSVF.prepareCoefficients
+  prepared DSP.TPTSVF.prepareFromSnapshot
   [DSP.TPTSVF.Snapshot.lowPassMagnitudeSquared as LowPassMagnitudeSquared,
     DSP.TPTSVF.Snapshot.bandPassMagnitudeSquared as BandPassMagnitudeSquared,
     DSP.TPTSVF.Snapshot.highPassMagnitudeSquared as HighPassMagnitudeSquared,

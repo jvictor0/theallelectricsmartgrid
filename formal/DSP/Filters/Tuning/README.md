@@ -59,6 +59,15 @@ These quantify over the arithmetic type, so the history/naturality statements
 also apply to executable Float instances. Transcendental response/stability
 claims are stated over **ℝ/ℂ**.
 
+The SVF also accepts its existing `{g,k}` snapshot as prepared input via
+`prepareFromSnapshot`, generated as `ComputeCoefficientsFromSnapshot`.
+[Capture/Proofs.lean](../Capture/Proofs.lean) proves:
+
+- `prepareCoefficients_fromSnapshot`: ordinary cutoff/Q preparation is this same updater after prewarping.
+- `prepareFromSnapshot_snapshot`: the prepared snapshot is retained exactly.
+- `prepareFromSnapshot_preserves_history`, `prepareFromSnapshot_idempotent`, and `prepareFromSnapshot_channel`: the corresponding generic update contracts.
+- `prepareFromSnapshot_tuned`: nonnegative real g and k satisfy the SVF's solved coefficient invariant, connecting this entry point to the existing transfer proofs.
+
 | Filter | Named tuning/response results |
 | --- | --- |
 | ZOH | `computeCoefficients_bounds`, `computeCoefficients_stable`, `cutoff_gain`, `peak_dc`; the existing `Snapshot.magnitudeSquared_dc` supplies attainment at DC. |

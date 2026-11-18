@@ -312,6 +312,30 @@ struct TPTSVF
         m_responseSnapshot.m_k = v8;
     }
 
+    // Prepared coefficients generated from DSP.TPTSVF.prepareFromSnapshotFloat.
+    //
+
+    void ComputeCoefficientsFromSnapshot(const Snapshot& spec)
+    {
+        const double v0 = (spec.m_g + spec.m_k);
+        const double v1 = std::fma(spec.m_g, v0, 1.0);
+        const double v2 = (1.0 / v1);
+        const double v3 = (spec.m_g * v2);
+        const double v4 = (spec.m_g * v3);
+        const double v5 = spec.m_g;
+        const double v6 = spec.m_k;
+        const double v7 = spec.m_k;
+        const double v8 = v2;
+        const double v9 = v3;
+        const double v10 = v4;
+        m_state.m_k = v7;
+        m_state.m_a1 = v8;
+        m_state.m_a2 = v9;
+        m_state.m_a3 = v10;
+        m_responseSnapshot.m_g = v5;
+        m_responseSnapshot.m_k = v6;
+    }
+
     using NumberType = decltype(State{}.m_k);
     static constexpr size_t x_numChannels = 1;
 

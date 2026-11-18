@@ -636,7 +636,8 @@ def renderSnapshot (function : Name) (parameters runtime : Array Expr)
 def generateParts (function : Name) (cppName : String) (generic : Bool)
     (method : Option String) (inputName : String) (declareRecords : Bool := true)
     (tuningState : Option Expr := none) (captureSpec : Option Expr := none)
-    (captureSnapshot : Option Expr := none) : MetaM (Array String × Array String) := do
+    (captureSnapshot : Option Expr := none)
+    (tuningMethod : String := "ComputeCoefficients") : MetaM (Array String × Array String) := do
   unless validIdentifier cppName && cppName.toList.head!.isUpper do
     throwError "C++ codegen: processor name must be a simple uppercase C++ identifier"
   if #["State", "Input", "Output"].contains cppName ||
@@ -691,6 +692,10 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
       unless ← isDefEq (← recordSignature stateType numberType) expected do
         throwError "C++ codegen: coefficient updater uses a different state record or different numeric type"
     let inputType ← inferType runtime[1]!
+    if tuningState.isSome && !declareRecords then
+      unless captureSnapshot.isSome &&
+          (← isDefEq (← recordSignature inputType numberType) captureSnapshot.get!) do
+        throwError "C++ codegen: prepared updater input must be the response Snapshot with matching numeric type and static parameters"
     let resultType ← whnf resultType
     let stateOnly ← isDefEq stateType resultType
     if tuningState.isSome && !stateOnly && captureSnapshot.isNone then
@@ -736,12 +741,13 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
     let body := if emission.lines.any (fun line => (line.splitOn (inputVariable ++ ".")).length > 1)
       then emission.lines else #[s!"static_cast<void>({inputVariable});"] ++ emission.lines
     if tuningState.isSome then
-      let cache := if captureSnapshot.isSome then
+      let cache := if captureSnapshot.isSome && declareRecords then
         #["    Snapshot m_responseSnapshot{};", "",
           "    Snapshot MakeSnapshot() const", "    {", "        return m_responseSnapshot;", "    }", ""]
         else #[]
-      let lines := cache ++ (← renderRecord "LogicalSpec" inputFields) ++
-        #["    void ComputeCoefficients(const LogicalSpec& spec)", "    {"] ++
+      let specRecord ← if declareRecords then renderRecord inputName inputFields else pure #[]
+      let lines := cache ++ specRecord ++
+        #[s!"    void {tuningMethod}(const {inputName}& spec)", "    {"] ++
         body.map (fun line => if line.isEmpty then "" else "        " ++ line) ++ #["    }", ""]
       return (mathIncludes emission.usesMath, lines)
     let outputLines ← match outputFields with
@@ -770,14 +776,16 @@ private partial def firstScalarField : Shape → String
 
 def generateFilterResponses (step : Name) (responses : Array (Name × String))
     (cppName : String) (generic : Bool) (tuning : Option Name := none)
-    (capture : Bool := false) : MetaM String := do
+    (capture : Bool := false) (preparedTuning : Option Name := none) : MetaM String := do
+  if preparedTuning.isSome && !(capture && tuning.isSome) then
+    throwError "C++ codegen: prepared updater requires a sampled filter"
   if #["Snapshot", "Frequency", "LogicalSpec"].contains cppName then
     throwError "C++ codegen: filter name conflicts with a response member"
   if responses.isEmpty then throwError "C++ codegen: filter needs at least one response"
   let (stepIncludes, stepBody) ← generateParts step cppName generic none "Input"
   let mut includes := stepIncludes
   let mut body := stepBody
-  let mut methods := #["Process", "State", "Output", "LogicalSpec", "ComputeCoefficients", "MakeSnapshot", "UIState"]
+  let mut methods := #["Process", "State", "Output", "LogicalSpec", "ComputeCoefficients", "ComputeCoefficientsFromSnapshot", "MakeSnapshot", "UIState"]
   let mut tuningMembers := #[]
   if let some tuning := tuning then
     let info ← getConstInfo step
@@ -794,6 +802,11 @@ def generateFilterResponses (step : Name) (responses : Array (Name × String))
       (some expected) none snapshotSignature
     includes := includes ++ extraIncludes
     tuningMembers := #[s!"    // Coefficients generated from {tuning}.", "    //", ""] ++ tuningBody
+    if let some prepared := preparedTuning then
+      let (extraIncludes, preparedBody) ← generateParts prepared cppName generic none "Snapshot" false
+        (some expected) none snapshotSignature "ComputeCoefficientsFromSnapshot"
+      includes := includes ++ extraIncludes
+      tuningMembers := tuningMembers ++ #[s!"    // Prepared coefficients generated from {prepared}.", "    //", ""] ++ preparedBody
   let mut signature : Option Expr := none
   for (response, method) in responses do
     if methods.contains method then throwError "C++ codegen: duplicate or reserved response method {method}"
@@ -905,6 +918,9 @@ elab "#generate_cpp_filter_generic " step:ident " response " responseFunction:id
 declare_syntax_cat cppResponse
 syntax ident " as " ident : cppResponse
 
+declare_syntax_cat cppPrepared
+syntax "prepared " ident : cppPrepared
+
 elab "#generate_cpp_filter_responses " step:ident
     "[" entries:cppResponse,* "]" " as " cppName:ident " to " path:str : command => do
   let pairs ← entries.getElems.mapM fun entry => do
@@ -1009,24 +1025,28 @@ elab "#generate_cpp_function_generic " function:ident " as " cppName:ident " met
   logInfo m!"Generated {output} from {function.getId} as a pure function with MultiChannelNumber arithmetic"
 
 elab "#generate_cpp_sampled_filter " step:ident tuning:ident
+    preparedSyntax:(cppPrepared)?
     "[" entries:cppResponse,* "]" " as " cppName:ident " to " path:str : command => do
   let pairs ← entries.getElems.mapM fun entry => do
     match entry with
     | `(cppResponse| $r:ident as $m:ident) => pure (r.getId, m.getId.toString)
     | _ => throwError "C++ codegen: invalid response entry"
   let code ← liftTermElabM <| generateFilterResponses step.getId pairs cppName.getId.toString false (some tuning.getId) true
+    (preparedSyntax.map (fun p => p.raw[1].getId))
   let output : System.FilePath := path.getString
   if let some parent := output.parent then IO.FS.createDirAll parent
   IO.FS.writeFile output code
   logInfo m!"Generated {output} with captured response and sampled UI"
 
 elab "#generate_cpp_sampled_filter_generic " step:ident tuning:ident
+    preparedSyntax:(cppPrepared)?
     "[" entries:cppResponse,* "]" " as " cppName:ident " to " path:str : command => do
   let pairs ← entries.getElems.mapM fun entry => do
     match entry with
     | `(cppResponse| $r:ident as $m:ident) => pure (r.getId, m.getId.toString)
     | _ => throwError "C++ codegen: invalid response entry"
   let code ← liftTermElabM <| generateFilterResponses step.getId pairs cppName.getId.toString true (some tuning.getId) true
+    (preparedSyntax.map (fun p => p.raw[1].getId))
   let output : System.FilePath := path.getString
   if let some parent := output.parent then IO.FS.createDirAll parent
   IO.FS.writeFile output code

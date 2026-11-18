@@ -40,7 +40,7 @@ stage corner or the exact finite-resonance response peak. At a 24 kHz stage
 corner its center is 36.0459 kHz and the unit-gain critical feedback is 9.68696.
 The normalized saturators have positive small-signal gain, changing the critical
 feedback but not that phase-crossing frequency. At a stage corner of about 37.615 kHz the crossing reaches engine Nyquist;
-the generated bandpasses retain their existing 0.499 clamp to avoid the TPT
+the detectors retain the equivalent of their existing 0.499 center cap to avoid the TPT
 singularity. At engine Nyquist itself a TPT bandpass has zero gain, so the
 Nyquist feedback guard remains important in that regime. The zero-feedback -12 dB convention and
 delayed-loop tuning distinction are discussed in
@@ -66,15 +66,46 @@ The setter calculates alpha and detector tuning together. With
   feedback is `(r+2)^2`. Otherwise the crossing is Nyquist and the critical
   feedback is `((r+2)/r)^4`.
 - Both Q=1 band-pass cascades use that crossing as their center; their generated
-  SVFs cap it at 0.499. Power smoothing stays tied to the cascade half-power
-  frequency: `powerAlpha = -expm1(-f3/2)`. This preserves the old envelope timing
-  for equivalent stage coefficients instead of speeding damping up with the new
-  cutoff parameter.
+  SVFs receive the prewarped gain directly:
+  `g = tan(asin(r/2)) = (r/2) / sqrt(1-(r/2)^2)` below the Nyquist transition.
+  No inverse sine or tangent is evaluated for the detector. The gain is capped
+  at `tan(pi*0.499)`, approximately 318.309. Both regimes use that cap when the
+  nominal crossing is at or beyond the detector's maximum center frequency.
+  Power smoothing uses `powerAlpha = 0.0692291283 * s`,
+  reusing the stage sine. The constant is `sqrt(2^(1/4)-1) / (2*pi)`. This gives
+  approximately two cycles of the cascade half-power frequency per time constant.
 
-The setter uses `std::sin` for this sine: the existing cosine-table phase shift
-loses relative accuracy at very small float arguments. The sine form also avoids
-low-frequency cancellation in `1-cos(2*pi*cutoff)`. The sample recurrence does
-not gain any transcendental calls; coefficient work remains cached.
+The earlier exact envelope calculation, `-expm1(-f3/2)`, merely preserved the
+old timing after changing cutoff conventions; the damping algorithm does not
+require that precision. The simpler coefficient needs one multiply. A sweep
+over the full cutoff range finds smoothing times at most 0.956% shorter than
+before. At a 24 kHz stage corner and a 192 kHz engine, the time constant changes
+from 0.19568 ms to 0.19398 ms. This timing parameter controls averaging of the
+squared bandpass output; it is not another bandpass center or an exact EMA
+half-power cutoff. The follower API now takes `powerAlpha` directly.
+
+The setter uses vector `Math4096::Sin2pi`. Sine shifts
+table indices rather than adding a fractional cycle to the float phase, preserving
+small-cutoff relative accuracy. Cosine table initialization uses double angles
+and exact quadrant zeros; the FFT root-of-unity tables are unchanged. Runtime
+interpolation uses vector FMA and a shared gather with no runtime lane loop.
+The two critical-feedback regimes use `IfLess`. Clamping the unused Nyquist
+denominator at 2 keeps both selection operands finite even as cutoff approaches
+zero. For detector tuning, `t = min(r/2,1)` and
+`g = t / sqrt(max((1-t)*(1+t), t*t/gMax^2))`; this applies the gain cap before
+division and keeps the square root and division valid at Nyquist.
+
+The generated SVF exposes `ComputeCoefficientsFromSnapshot({g,k})`. It applies
+the existing snapshot as prepared coefficients, including its cached response,
+without changing integrator history. Both frequency/Q tuning and this direct
+path use Lean's `prepareFromSnapshot`. Proofs establish their equivalence,
+snapshot identity, preservation of all history fields, idempotence, channel
+lifting, and the SVF `Tuned` invariant for nonnegative real g and k. This avoids
+duplicating the generated SVF's coefficient equations in the handwritten ladder.
+
+The sine form also avoids low-frequency cancellation in `1-cos(2*pi*cutoff)`.
+The sample recurrence does not gain any transcendental calls; coefficient work
+remains cached.
 At engine Nyquist, alpha reaches `2*(sqrt(2)-1)`, approximately 0.828427, so
 all four standalone one-poles remain strictly stable. This cap does not replace
 the feedback guard or establish nonlinear closed-loop stability.
@@ -111,15 +142,40 @@ app ladder. A subsequent implementation-as-spec model needs the exact state
 ordering, feedback delay, rational saturation, detectors and adaptive damping
 above; a transcendental tanh model alone would not describe this implementation.
 
-## Stage-corner validation and cost
+## Vector tuning validation and cost
 
-The stage-corner change passes the full core suite, including the alternate
+Regression coverage includes small positive/negative sine phases, the ladder's
+stage-corner gain and detector centers, mixed-channel Nyquist transitions, and
+the envelope time-constant approximation. Generated snapshot updates are checked
+against ordinary tuning at both precisions and widths 1–4, including history,
+idempotence, cached responses, and which state fields are written. The Lean
+proof audit covers the six new SVF preparation theorems.
+
+Validation passes the full core suite and alternate sample-rate target, all
+eight performance tests, Lean execution/codegen checks and the proof audit,
+and unsigned macOS/iOS app builds. The full suite exposed a pre-existing test
+assumption that all concurrent snapshot pushes succeed; the test now counts
+accepted publications, matching the nonblocking history contract. That test
+also passes 100 consecutive runs; production snapshot history is unchanged.
+
+A serial desktop comparison against `fe2675b` used the same stage-corner
+parameters, six alternating runs, and 1,048,576 trio samples per workload.
+Median time with drive-only modulation was 61.214 ms before and 61.130 ms after
+(-0.14%, effectively unchanged). With cutoff, resonance and drive all changing
+every sample, it was 123.991 ms before and 78.542 ms after (-36.65%). These are
+desktop microbenchmarks; iPad callback cost has not been measured. Parameter
+preparation is faster; the sample recurrence remains unchanged.
+
+## Historical stage-corner validation and cost
+
+The stage-corner change in `fe2675b`, before vector lookup and simplified envelope
+timing, passed the full core suite, including the alternate
 sample-rate target, all eight performance tests, and unsigned macOS and iOS app
 builds. Regression tests cover the -12.0412 dB corner, the cascade half-power
 relation, detector phase crossing and Nyquist fallback, envelope timing, the
 engine-Nyquist cap, the 12-octave knob span and preserved 0.707 pitch tracking.
-Very small cutoffs are checked explicitly; the sine-table accuracy failure
-found there is avoided by the setter's `std::sin` calculation.
+Very small cutoffs were checked explicitly; that revision used `std::sin` to
+avoid the sine-table accuracy failure that the current lookup implementation fixes.
 
 A serial desktop comparison against `83d2685` used matched physical tunings,
 with the new stage-corner parameters prepared outside the timed loop. Six

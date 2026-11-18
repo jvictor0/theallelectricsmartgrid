@@ -45,13 +45,20 @@ def prepareCoefficientsFloat := prepareCoefficients (R := Float)
 end TPTBaseWidth
 
 namespace TPTSVF
-def prepareCoefficients {R : Type} [OfNat R 1] [Add R] [Mul R] [Div R] [FMA R] [Trig R]
-    (spec : LogicalSpec R) (state : TPTSVF R) : TPTSVF R × Snapshot R :=
-  let g := Trig.tanPi spec.cutoff
-  let k := 1 / spec.q
+/-- A snapshot is already a prepared specification: integrator gain g and damping k.
+This entry point avoids converting known g to a frequency and back again. -/
+def prepareFromSnapshot {R : Type} [OfNat R 1] [Add R] [Mul R] [Div R] [FMA R]
+    (snapshot : Snapshot R) (state : TPTSVF R) : TPTSVF R × Snapshot R :=
+  let g := snapshot.g
+  let k := snapshot.k
   let a1 := 1 / FMA.fma g (g+k) 1
   let a2 := g*a1
   ({state with k,a1,a2,a3 := g*a2}, ⟨g,k⟩)
+def prepareFromSnapshotFloat := prepareFromSnapshot (R := Float)
+
+def prepareCoefficients {R : Type} [OfNat R 1] [Add R] [Mul R] [Div R] [FMA R] [Trig R]
+    (spec : LogicalSpec R) (state : TPTSVF R) : TPTSVF R × Snapshot R :=
+  prepareFromSnapshot ⟨Trig.tanPi spec.cutoff, 1 / spec.q⟩ state
 def prepareCoefficientsFloat := prepareCoefficients (R := Float)
 end TPTSVF
 

@@ -193,13 +193,18 @@ void Test{name}()
             code += f'        inputs[lane][{i}] = Read<Number>();\n        spec.{member(f)}[lane] = inputs[lane][{i}];\n'
         for i, f in enumerate(fields):
             code += f'        before[lane][{i}] = Read<Number>();\n        filter.m_state.{member(f)}[lane] = before[lane][{i}];\n'
-        code += '''    }
-
-    filter.ComputeCoefficients(spec);
+        code += '    }\n\n'
+        if name == 'TPTSVF':
+            code += '    auto fromSnapshot = filter;\n'
+        code += '''    filter.ComputeCoefficients(spec);
     const auto first = filter.m_state;
 '''
         if name != SPLITTER:
             code += '    const auto captured = filter.MakeSnapshot();\n'
+        if name == 'TPTSVF':
+            code += '''    fromSnapshot.ComputeCoefficientsFromSnapshot(captured);
+    fromSnapshot.ComputeCoefficientsFromSnapshot(captured);
+'''
         code += '''    filter.ComputeCoefficients(spec);
     for (size_t lane = 0; lane < Size; ++lane)
     {
@@ -211,12 +216,16 @@ void Test{name}()
         assert(Raw(filter.m_state.{member(f)}[lane]) == Raw(first.{member(f)}[lane]));
         std::cout << Raw(filter.m_state.{member(f)}[lane]) << ' ';
 '''
+            if name == 'TPTSVF':
+                code += f'        assert(Raw(fromSnapshot.m_state.{member(f)}[lane]) == Raw(first.{member(f)}[lane]));\n'
         if name != SPLITTER:
             for f, expr in snapshot_oracle(name).items():
                 code += f'''        assert(Raw(captured.{member(f)}[lane]) == Raw({expr}));
         assert(Raw(filter.MakeSnapshot().{member(f)}[lane]) == Raw(captured.{member(f)}[lane]));
         std::cout << Raw(captured.{member(f)}[lane]) << ' ';
 '''
+                if name == 'TPTSVF':
+                    code += f'        assert(Raw(fromSnapshot.MakeSnapshot().{member(f)}[lane]) == Raw(captured.{member(f)}[lane]));\n'
         if name == SPLITTER:
             code += '        const auto snapshot = decltype(filter)::MakeSnapshot(spec);\n'
             for index, node in enumerate(['tree', 'tree.low', 'tree.high']):
@@ -232,9 +241,15 @@ void Test{name}()
                 code += f'            scalarSpec.{member(f)} = p[{i}];\n'
             for i, f in enumerate(fields):
                 code += f'            scalar.m_state.{member(f)} = before[lane][{i}];\n'
+            if name == 'TPTSVF':
+                code += '            auto scalarFromSnapshot = scalar;\n'
             code += '            scalar.ComputeCoefficients(scalarSpec);\n'
+            if name == 'TPTSVF':
+                code += '            scalarFromSnapshot.ComputeCoefficientsFromSnapshot(scalar.MakeSnapshot());\n'
             for f in fields:
                 code += f'            assert(Raw(scalar.m_state.{member(f)}) == Raw(filter.m_state.{member(f)}[lane]));\n'
+                if name == 'TPTSVF':
+                    code += f'            assert(Raw(scalarFromSnapshot.m_state.{member(f)}) == Raw(scalar.m_state.{member(f)}));\n'
             for f in snapshot_oracle(name):
                 code += f'            assert(Raw(scalar.MakeSnapshot().{member(f)}) == Raw(captured.{member(f)}[lane]));\n'
             code += '        }\n'
@@ -279,6 +294,11 @@ def test_tuning(cases, compiler, output, root):
         method = header.split('void ComputeCoefficients(',1)[1].split('\n    }',1)[0]
         stores = set(re.findall(r'm_state\.(\w+(?:\.\w+)*) =', method))
         assert stores == {member(f) for f in coefficient_oracle(name)}, (name, stores)
+        if name == 'TPTSVF':
+            prepared_method = header.split('void ComputeCoefficientsFromSnapshot(',1)[1].split('\n    }',1)[0]
+            prepared_stores = set(re.findall(r'm_state\.(\w+(?:\.\w+)*) =', prepared_method))
+            assert prepared_stores == stores
+            assert 'Math4096' not in prepared_method
         for precision in (32,64):
             rows = [c.split()[2:] for c in cases if c.startswith(f'tuning{precision} {name} ')]
             assert rows

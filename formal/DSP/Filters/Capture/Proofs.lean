@@ -61,6 +61,41 @@ theorem prepareCoefficients_snapshot (spec : LogicalSpec ℝ) (state : TPTBaseWi
 end TPTBaseWidth
 
 namespace TPTSVF
+theorem prepareCoefficients_fromSnapshot {R : Type} [OfNat R 1] [Add R] [Mul R] [Div R] [FMA R] [Trig R]
+    (spec : LogicalSpec R) (state : TPTSVF R) :
+    prepareCoefficients spec state = prepareFromSnapshot ⟨Trig.tanPi spec.cutoff, 1 / spec.q⟩ state := rfl
+
+theorem prepareFromSnapshot_snapshot {R : Type} [OfNat R 1] [Add R] [Mul R] [Div R] [FMA R]
+    (snapshot : Snapshot R) (state : TPTSVF R) :
+    (prepareFromSnapshot snapshot state).2 = snapshot := rfl
+
+theorem prepareFromSnapshot_preserves_history {R : Type} [OfNat R 1] [Add R] [Mul R] [Div R] [FMA R]
+    (snapshot : Snapshot R) (state : TPTSVF R) :
+    let next := (prepareFromSnapshot snapshot state).1
+    next.ic1 = state.ic1 ∧ next.ic2 = state.ic2 ∧ next.lowPass = state.lowPass ∧
+      next.bandPass = state.bandPass ∧ next.highPass = state.highPass ∧
+      next.notch = state.notch ∧ next.allPass = state.allPass := ⟨rfl,rfl,rfl,rfl,rfl,rfl,rfl⟩
+
+theorem prepareFromSnapshot_idempotent {R : Type} [OfNat R 1] [Add R] [Mul R] [Div R] [FMA R]
+    (snapshot : Snapshot R) (state : TPTSVF R) :
+    prepareFromSnapshot snapshot (prepareFromSnapshot snapshot state).1 =
+      prepareFromSnapshot snapshot state := rfl
+
+theorem prepareFromSnapshot_channel {R : Type} [OfNat R 1] [Add R] [Mul R] [Div R] [FMA R] {n : ℕ}
+    (snapshot : Snapshot (Fin n → R)) (state : TPTSVF (Fin n → R)) (i : Fin n) :
+    (channel i (prepareFromSnapshot snapshot state).1, channel i (prepareFromSnapshot snapshot state).2) =
+      prepareFromSnapshot (channel i snapshot) (channel i state) := rfl
+
+theorem prepareFromSnapshot_tuned (snapshot : Snapshot ℝ) (state : TPTSVF ℝ)
+    (hg : 0 ≤ snapshot.g) (hk : 0 ≤ snapshot.k) :
+    (prepareFromSnapshot snapshot state).1.Tuned snapshot.g := by
+  have hd : snapshot.g * (snapshot.g + snapshot.k) + 1 ≠ 0 := by positivity
+  constructor
+  · simp only [prepareFromSnapshot, fma_eq]
+    rw [add_comm 1, one_div_mul_cancel hd]
+  · rfl
+  · rfl
+
 theorem prepareCoefficients_state {R : Type} [OfNat R 1] [Add R] [Mul R] [Div R] [FMA R] [Trig R]
     (spec : LogicalSpec R) (state : TPTSVF R) :
     (prepareCoefficients spec state).1 = computeCoefficients spec state := rfl

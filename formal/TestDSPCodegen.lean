@@ -255,3 +255,22 @@ run_cmd liftTermElabM do
       rejected := true
     unless rejected do throwError "C++ codegen incorrectly accepted snapshot capture {updater}"
   logInfo "Snapshot capture rejection checks passed."
+
+open Lean Elab Command in
+run_cmd liftTermElabM do
+  for (updater, expected) in #[
+      (``DSP.TPTSVF.prepareCoefficientsFloat, "prepared updater input must be the response Snapshot"),
+      (``DSP.OnePoleTPTLowPass.prepareCoefficientsFloat, "different state record"),
+      (``DSP.TPTSVF.prepareFromSnapshot, "two runtime arguments")] do
+    let mut rejected := false
+    try
+      let _ ← DSP.Codegen.generateFilterResponses ``DSP.TPTSVF.stepFloat
+        #[(``DSP.TPTSVF.Snapshot.bandPassMagnitudeSquaredFloat,"BandPassMagnitudeSquared")]
+        "TestFilter" false (some ``DSP.TPTSVF.prepareCoefficientsFloat) true (some updater)
+    catch error =>
+      let message ← error.toMessageData.toString
+      unless (message.splitOn expected).length > 1 do
+        throwError "unexpected prepared updater rejection: {message}"
+      rejected := true
+    unless rejected do throwError "C++ codegen incorrectly accepted prepared updater {updater}"
+  logInfo "Prepared snapshot updater rejection checks passed."
