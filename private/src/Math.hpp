@@ -30,6 +30,17 @@ struct MathGeneric
     std::complex<float> m_rootOfUnity[x_tableSize];
     std::complex<float> m_hannKernel[x_hannKernelTableSize + 1];
 
+    // Exact eighth-cycle table entries, also available to generated constants.
+    // Retain the float table's rounding when the caller uses double arithmetic.
+    //
+    static constexpr float CosEighth(size_t index)
+    {
+        static_assert(Bits >= 3);
+        constexpr float x_values[8] = {1, 0x1.6a09e6p-1f, 0, -0x1.6a09e6p-1f,
+            -1, -0x1.6a09e6p-1f, 0, 0x1.6a09e6p-1f};
+        return x_values[index % 8];
+    }
+
     MathGeneric()
     {
         // Initialize cosine wavetable
@@ -45,6 +56,14 @@ struct MathGeneric
         {
             m_cosTable[x_tableSize / 4] = 0;
             m_cosTable[3 * x_tableSize / 4] = 0;
+        }
+
+        if constexpr (Bits >= 3)
+        {
+            for (size_t i = 0; i < 8; ++i)
+            {
+                m_cosTable[i * x_tableSize / 8] = CosEighth(i);
+            }
         }
 
         // Initialize root of unity table

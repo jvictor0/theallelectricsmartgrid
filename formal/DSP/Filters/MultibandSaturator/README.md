@@ -83,9 +83,13 @@ adds a prepared coefficient bank without changing the existing splitter tuner:
 `prepareSection` can itself use function-backed channels: each lane then holds
 an independent cutoff. The generated `Preparation<3>::Prepare` evaluates a packed three-cutoff
 bank with Math4096. The wrapper broadcasts those records into stereo or quad
-audio sections and calls `InstallPrepared`. Cutoff preparation is cached while
-the clamped cutoffs remain unchanged. Installation and response capture run when
+audio sections in a local bank and calls the shared by-value `InstallPrepared`.
+Only the packed three-cutoff preparation is cached; there is no persistent
+audio-width prepared bank duplicating the installed coefficients and gains.
+Cutoff preparation is cached while the clamped cutoffs remain unchanged.
+Installation and response capture run when
 cutoffs or gains change, preserving histories; fixed controls do not recopy the bank.
+The constant LR damping folds through the constexpr Math4096 table entry.
 Those preparation lanes are distinct from the audio lanes used by mono bass.
 The preparer, installer, audio processor, reset, snapshot and power response
 live in `MultibandSaturator4BandCoreGeneric.hpp`, using the existing generator.

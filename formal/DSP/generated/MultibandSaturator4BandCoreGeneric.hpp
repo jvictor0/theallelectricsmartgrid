@@ -574,8 +574,7 @@ struct MultibandSaturator4BandCoreGeneric
         static Prepared Prepare(const Vector& input)
         {
             const Vector v0 = Math4096::TanPi(input);
-            const Vector v1 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-20f : 0x10000000000000p-49)));
-            const Vector v2 = Math4096::Cos2pi(v1);
+            const Vector v2 = Vector::Splat(static_cast<Number>(Math4096::CosEighth(1)));
             const Vector v3 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v2);
             const Vector v4 = (v0 + v3);
             const Vector v5 = Vector::FusedMultiplyAdd(v0, v4, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
@@ -787,8 +786,7 @@ struct MultibandSaturator4BandCoreGeneric
     void ComputeCoefficients(const LogicalSpec& spec)
     {
         const Vector v0 = Math4096::TanPi(spec.m_splitter.m_tree.m_value);
-        const Vector v1 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-20f : 0x10000000000000p-49)));
-        const Vector v2 = Math4096::Cos2pi(v1);
+        const Vector v2 = Vector::Splat(static_cast<Number>(Math4096::CosEighth(1)));
         const Vector v3 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v2);
         const Vector v4 = (v0 + v3);
         const Vector v5 = Vector::FusedMultiplyAdd(v0, v4, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
@@ -796,8 +794,7 @@ struct MultibandSaturator4BandCoreGeneric
         const Vector v7 = (v0 * v6);
         const Vector v8 = (v0 * v7);
         const Vector v9 = Math4096::TanPi(spec.m_splitter.m_tree.m_low.m_value);
-        const Vector v10 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-20f : 0x10000000000000p-49)));
-        const Vector v11 = Math4096::Cos2pi(v10);
+        const Vector v11 = Vector::Splat(static_cast<Number>(Math4096::CosEighth(1)));
         const Vector v12 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v11);
         const Vector v13 = (v9 + v12);
         const Vector v14 = Vector::FusedMultiplyAdd(v9, v13, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
@@ -805,8 +802,7 @@ struct MultibandSaturator4BandCoreGeneric
         const Vector v16 = (v9 * v15);
         const Vector v17 = (v9 * v16);
         const Vector v18 = Math4096::TanPi(spec.m_splitter.m_tree.m_high.m_value);
-        const Vector v19 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-20f : 0x10000000000000p-49)));
-        const Vector v20 = Math4096::Cos2pi(v19);
+        const Vector v20 = Vector::Splat(static_cast<Number>(Math4096::CosEighth(1)));
         const Vector v21 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v20);
         const Vector v22 = (v18 + v21);
         const Vector v23 = Vector::FusedMultiplyAdd(v18, v22, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
@@ -950,7 +946,8 @@ struct MultibandSaturator4BandCoreGeneric
         Vector m_masterGain;
     };
 
-    void InstallPrepared(const PreparedSpec& spec)
+    [[gnu::always_inline]]
+    void InstallPrepared(PreparedSpec spec)
     {
         const Vector v0 = spec.m_splitter.m_tree.m_value.m_snapshot.m_g;
         const Vector v1 = spec.m_splitter.m_tree.m_value.m_snapshot.m_k;

@@ -4,6 +4,7 @@ import DSP.Filters.Responses
 import DSP.Filters.LinkwitzRileySplitter
 import DSP.Filters.Capture
 import DSP.Filters.ConservativeReuppingLadder.Response
+import DSP.Filters.MultibandSaturator.Exports
 
 #use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
 
@@ -27,6 +28,25 @@ import DSP.Filters.ConservativeReuppingLadder.Response
   as ConstantFunctionGeneric method Evaluate to "build/lean/generated/ConstantFunctionGeneric.hpp"
 #generate_cpp_function_generic DSP.Tests.snapshotFunction
   as SnapshotFunctionGeneric method Evaluate to "build/lean/generated/SnapshotFunctionGeneric.hpp"
+
+-- Exact table constants must not become a native transcendental evaluation.
+-- The C++ tuning oracle checks both precisions against Math4096 bit for bit.
+open Lean Elab Command in
+run_cmd liftTermElabM do
+  let (_, lines) ← DSP.Codegen.generateParts ``DSP.LinkwitzRileySplitter.prepareSection
+    "ConstantPreparation" true none "Input" (preparation := true)
+  let code := String.intercalate "\n" lines.toList
+  unless (code.splitOn "Math4096::CosEighth(1)").length == 2 do
+    throwError "constant LR damping must use the constexpr Math4096 table entry"
+  unless (code.splitOn "Math4096::TanPi(input)").length == 2 do
+    throwError "runtime cutoff must retain Math4096 tangent"
+  if (code.splitOn "Math4096::Cos2pi(").length > 1 then
+    throwError "constant cosine still performs runtime table interpolation"
+  for (value, expected) in [(0.125, some 1), (-0.125, some 7), (2.125, some 1),
+      (0.0625, none), (0.1, none)] do
+    unless DSP.Codegen.eighthCycle value == expected do
+      throwError "incorrect constant cosine phase recognition"
+  logInfo "Constant Math4096 preparation regression checks passed."
 
 -- The coupled processor needs its old q values for the output. Store q0 only
 -- after that read, but do not retain it across the independent output tail.

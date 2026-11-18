@@ -522,12 +522,26 @@ prepareWith DSP.LinkwitzRileySplitter.prepareSection
 
 This emits a `PreparedSpec` and `InstallPrepared` method that preserve histories
 and update the cached response snapshot. The installer is checked against the
-same state and snapshot types as normal tuning. `Preparation<Width>::Prepare`
+same state and snapshot types as normal tuning. It takes its prepared record by
+value, making its inputs independent of the destination during installation.
+The pure installer is always inlined so this value does not become an aggregate
+copy across a function-call boundary.
+Callers can construct a local bank for the compiler to eliminate without
+retaining a second expanded coefficient bank in the processor.
+`Preparation<Width>::Prepare`
 is a nested pure factory accepting a numeric or record input and returning a
 `Prepared` record. Its arithmetic width is independent of the audio width, so
 three cutoffs can share a Math4096 call before their fields are broadcast into
 the audio bank. The factory uses the existing expression evaluator, including
 external-operation checks and FMA/trig lowering.
+
+The evaluator tracks closed literal arithmetic at both float and double
+precision. A cosine whose phase is exactly an eighth-cycle multiple at the
+target precision uses `Math4096::CosEighth`, a constexpr entry shared with the
+runtime table. This lets C++ fold the LR damping and its reciprocal, retaining
+the table's float rounding even for double arithmetic. Other constant phases
+and all runtime phases keep the normal Math4096 lookup; the generator does not
+substitute a higher-precision transcendental result or approximate nearby phases.
 
 Unused pure expression temporaries are removed after result projection. This
 avoids computing or retaining the unused side of a compound result such as the

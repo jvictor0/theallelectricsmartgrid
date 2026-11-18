@@ -33,6 +33,7 @@ structure Emission where
   numberType : Option Expr := none
   arithmetic : Array FVarId := #[]
   usesMath : Bool := false
+  constants : Std.HashMap String (Float32 × Float) := {}
 
 abbrev GenM := StateT Emission MetaM
 abbrev Locals := List (FVarId × Value)
@@ -65,6 +66,32 @@ def temporary (type text : String) : GenM Value := do
   let name ← fresh
   emit s!"const {type} {name} = {text};"
   return .scalar type name
+
+/-- Track closed arithmetic separately at each target precision. The emitted
+arithmetic remains unchanged; this only recognizes exact constant trig inputs. -/
+def rememberConstant (value : Value) (single : Float32) (double : Float) : GenM Value := do
+  let (_, text) ← scalar value
+  if single.isFinite && double.isFinite then
+    modify fun s => {s with constants := s.constants.insert text (single, double)}
+  return value
+
+def binaryTemporary (type op a b : String) : GenM Value := do
+  let value ← temporary type s!"({a} {op} {b})"
+  if let some (a32, a64) := (← get).constants[a]? then
+    if let some (b32, b64) := (← get).constants[b]? then
+      match op with
+      | "+" => return ← rememberConstant value (a32 + b32) (a64 + b64)
+      | "-" => return ← rememberConstant value (a32 - b32) (a64 - b64)
+      | "*" => return ← rememberConstant value (a32 * b32) (a64 * b64)
+      | "/" => return ← rememberConstant value (a32 / b32) (a64 / b64)
+      | _ => pure ()
+  return value
+
+def negativeTemporary (type argument : String) : GenM Value := do
+  let value ← temporary type s!"(-{argument})"
+  if let some (single, double) := (← get).constants[argument]? then
+    return ← rememberConstant value (-single) (-double)
+  return value
 
 /-- Expression temporaries and branch joins already hold a saved value. -/
 def savedScalar (type text : String) : GenM Value := do
@@ -328,16 +355,16 @@ def floatLiteral (name : Name) (args : Array Expr) : GenM Value := do
       else Float.ofNat mantissa
     let singleText ← hexLiteral single.toBits.toNat 23 8 127 "f"
     let doubleText ← hexLiteral double.toBits.toNat 52 11 1023 ""
-    return .scalar "Vector"
-      s!"Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? {singleText} : {doubleText}))"
+    return ← rememberConstant (.scalar "Vector"
+      s!"Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? {singleText} : {doubleText}))") single double
   else if name == ``Float.ofNat || name == ``Float.ofScientific then
     let value := if scientific then Float.ofScientific mantissa negativeExponent exponent
       else Float.ofNat mantissa
-    return .scalar "double" (← hexLiteral value.toBits.toNat 52 11 1023 "")
+    return ← rememberConstant (.scalar "double" (← hexLiteral value.toBits.toNat 52 11 1023 "")) value.toFloat32 value
   else
     let value := if scientific then Float32.ofScientific mantissa negativeExponent exponent
       else Float32.ofNat mantissa
-    return .scalar "float" (← hexLiteral value.toBits.toNat 23 8 127 "f")
+    return ← rememberConstant (.scalar "float" (← hexLiteral value.toBits.toNat 23 8 127 "f")) value value.toFloat
 
 def withLocal {α : Type} (name : Name) (type : Expr) (k : Expr → GenM α) : GenM α :=
   fun state => withLocalDeclD name type fun value => k value state
@@ -374,10 +401,31 @@ partial def joinValues (yes no : Value) : GenM (Value × Array String × Array S
 def mathIncludes (used : Bool) : Array String :=
   if used then #["#include \"Math.hpp\"", "#include \"MultiChannelNumber.hpp\"", ""] else #[]
 
+/-- Only exact eighth-cycle phases have a constexpr Math4096 table entry.
+Other constants and all runtime phases retain the ordinary lookup path. -/
+def eighthCycle (x : Float) : Option Nat := do
+  if !x.isFinite then none else
+    let phase := x - x.floor
+    let index := (phase * 8).toUInt64.toNat
+    if index < 8 && phase == Float.ofNat index / 8 then some index else none
+
+def constantEighth (type value : String) : GenM (Option Nat) := do
+  let some (single, double) := (← get).constants[value]? | return none
+  if type == "float" then return eighthCycle single.toFloat
+  if type == "double" then return eighthCycle double
+  let a := eighthCycle single.toFloat
+  let b := eighthCycle double
+  return if a == b then a else none
+
 /-- Scalar exports use the one-lane overload too, preserving target precision
 and the same lookup/interpolation path as the multichannel export. -/
 def emitTranscendental (operation type value : String) : GenM Value := do
   modify fun s => { s with usesMath := true }
+  if operation == "Cos2pi" then
+    if let some index ← constantEighth type value then
+      return ← temporary type (if type == "Vector" then
+        s!"Vector::Splat(static_cast<Number>(Math4096::CosEighth({index})))"
+        else s!"static_cast<{type}>(Math4096::CosEighth({index}))")
   if operation == "ExpNegTwoPi" then
     let literal := if type == "Vector" then
         "Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0xC90FDBp-21f : 0x1921FB54442D18p-50))"
@@ -426,11 +474,11 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
         return ← temporary "Vector"
           s!"Vector::FusedMultiplyAdd({values[0]!}, {values[1]!}, {values[2]!})"
       if name == ``Neg && values.size == 1 then
-        return ← temporary "Vector" s!"(-{values[0]!})"
+        return ← negativeTemporary "Vector" values[0]!
       if let some (_, op) := #[(``Add, "+"), (``Sub, "-"), (``Mul, "*"), (``Div, "/")].find?
           (fun item => item.1 == name) then
         unless values.size == 2 do throwError "C++ codegen: invalid generic arithmetic application"
-        return ← temporary "Vector" s!"({values[0]!} {op} {values[1]!})"
+        return ← binaryTemporary "Vector" op values[0]! values[1]!
       throwError "C++ codegen: unsupported generic arithmetic {e}"
   match e with
   | .fvar id =>
@@ -521,7 +569,7 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
       let (_, b) ← scalar (← evaluate args[1]! locals)
       let type ← inferType e
       let cppType ← if ← isProp e then pure "bool" else scalarType type (← get).numberType
-      return ← temporary cppType s!"({a} {op.2} {b})"
+      return ← binaryTemporary cppType op.2 a b
     if let some (_, operation) := #[(``Trig.sinFloat, "Sin2pi"), (``Trig.sinFloat32, "Sin2pi"),
         (``Trig.cosFloat, "Cos2pi"), (``Trig.cosFloat32, "Cos2pi"),
         (``Trig.tanFloat, "TanPi"), (``Trig.tanFloat32, "TanPi"),
@@ -542,7 +590,7 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
       return ← temporary type s!"std::sqrt({value})"
     if name == ``Float.neg || name == ``Float32.neg then
       let (type, value) ← scalar (← evaluate args[0]! locals)
-      return ← temporary type s!"(-{value})"
+      return ← negativeTemporary type value
     if let .ctorInfo info ← getConstInfo name then
       unless isStructure (← getEnv) info.induct && args.size == info.numParams + info.numFields do
         throwError "C++ codegen: unsupported constructor {name}"
@@ -739,7 +787,7 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
     (captureSnapshot : Option Expr := none)
     (tuningMethod : String := "ComputeCoefficients")
     (resetState : Option Expr := none) (preparation : Bool := false)
-    (declareCache : Bool := true) : MetaM (Array String × Array String) := do
+    (declareCache : Bool := true) (copySpec : Bool := false) : MetaM (Array String × Array String) := do
   unless validIdentifier cppName && cppName.toList.head!.isUpper do
     throwError "C++ codegen: processor name must be a simple uppercase C++ identifier"
   if #["State", "Input", "Output"].contains cppName ||
@@ -875,8 +923,12 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
           "    Snapshot MakeSnapshot() const", "    {", "        return m_responseSnapshot;", "    }", ""]
         else #[]
       let specRecord ← if declareRecords then renderRecord inputName inputFields else pure #[]
-      let lines := cache ++ specRecord ++
-        #[s!"    void {tuningMethod}(const {inputName}& spec)", "    {"] ++
+      let specArgument := if copySpec then s!"{inputName} spec" else s!"const {inputName}& spec"
+      -- Prepared banks are short-lived value aggregates. Keep their installation
+      -- in the caller so scalar replacement can remove the aggregate copy.
+      let inlineAttribute := if copySpec then #["    [[gnu::always_inline]]"] else #[]
+      let lines := cache ++ specRecord ++ inlineAttribute ++
+        #[s!"    void {tuningMethod}({specArgument})", "    {"] ++
         (pruneTemporaries body).map (fun line => if line.isEmpty then "" else "        " ++ line) ++ #["    }", ""]
       return (mathIncludes emission.usesMath, lines)
     let outputLines ← match outputFields with
@@ -944,7 +996,7 @@ def generateFilterResponses (step : Name) (responses : Array (Name × String))
       tuningMembers := tuningMembers ++ #[s!"    // Prepared coefficients generated from {prepared}.", "    //", ""] ++ preparedBody
     if let some prepared := preparedBank then
       let (extraIncludes, preparedBody) ← generateParts prepared cppName generic none "PreparedSpec" true
-        (some expected) none snapshotSignature "InstallPrepared" (declareCache := false)
+        (some expected) none snapshotSignature "InstallPrepared" (declareCache := false) (copySpec := true)
       includes := includes ++ extraIncludes
       tuningMembers := tuningMembers ++ preparedBody
   if let some prepare := preparation then

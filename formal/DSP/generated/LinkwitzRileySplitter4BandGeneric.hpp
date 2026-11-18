@@ -486,8 +486,7 @@ struct LinkwitzRileySplitter4BandGeneric
     void ComputeCoefficients(const LogicalSpec& spec)
     {
         const Vector v0 = Math4096::TanPi(spec.m_tree.m_value);
-        const Vector v1 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-20f : 0x10000000000000p-49)));
-        const Vector v2 = Math4096::Cos2pi(v1);
+        const Vector v2 = Vector::Splat(static_cast<Number>(Math4096::CosEighth(1)));
         const Vector v3 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v2);
         const Vector v4 = (v0 + v3);
         const Vector v5 = Vector::FusedMultiplyAdd(v0, v4, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
@@ -495,8 +494,7 @@ struct LinkwitzRileySplitter4BandGeneric
         const Vector v7 = (v0 * v6);
         const Vector v8 = (v0 * v7);
         const Vector v9 = Math4096::TanPi(spec.m_tree.m_value);
-        const Vector v10 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-20f : 0x10000000000000p-49)));
-        const Vector v11 = Math4096::Cos2pi(v10);
+        const Vector v11 = Vector::Splat(static_cast<Number>(Math4096::CosEighth(1)));
         const Vector v12 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v11);
         const Vector v13 = (v9 + v12);
         const Vector v14 = Vector::FusedMultiplyAdd(v9, v13, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
@@ -504,8 +502,7 @@ struct LinkwitzRileySplitter4BandGeneric
         const Vector v16 = (v9 * v15);
         const Vector v17 = (v9 * v16);
         const Vector v18 = Math4096::TanPi(spec.m_tree.m_high.m_value);
-        const Vector v19 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-20f : 0x10000000000000p-49)));
-        const Vector v20 = Math4096::Cos2pi(v19);
+        const Vector v20 = Vector::Splat(static_cast<Number>(Math4096::CosEighth(1)));
         const Vector v21 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v20);
         const Vector v22 = (v18 + v21);
         const Vector v23 = Vector::FusedMultiplyAdd(v18, v22, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
@@ -513,8 +510,7 @@ struct LinkwitzRileySplitter4BandGeneric
         const Vector v25 = (v18 * v24);
         const Vector v26 = (v18 * v25);
         const Vector v27 = Math4096::TanPi(spec.m_tree.m_low.m_value);
-        const Vector v28 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-20f : 0x10000000000000p-49)));
-        const Vector v29 = Math4096::Cos2pi(v28);
+        const Vector v29 = Vector::Splat(static_cast<Number>(Math4096::CosEighth(1)));
         const Vector v30 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v29);
         const Vector v31 = (v27 + v30);
         const Vector v32 = Vector::FusedMultiplyAdd(v27, v31, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
@@ -522,8 +518,7 @@ struct LinkwitzRileySplitter4BandGeneric
         const Vector v34 = (v27 * v33);
         const Vector v35 = (v27 * v34);
         const Vector v36 = Math4096::TanPi(spec.m_tree.m_low.m_value);
-        const Vector v37 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-20f : 0x10000000000000p-49)));
-        const Vector v38 = Math4096::Cos2pi(v37);
+        const Vector v38 = Vector::Splat(static_cast<Number>(Math4096::CosEighth(1)));
         const Vector v39 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v38);
         const Vector v40 = (v36 + v39);
         const Vector v41 = Vector::FusedMultiplyAdd(v36, v40, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
@@ -531,8 +526,7 @@ struct LinkwitzRileySplitter4BandGeneric
         const Vector v43 = (v36 * v42);
         const Vector v44 = (v36 * v43);
         const Vector v45 = Math4096::TanPi(spec.m_tree.m_low.m_value);
-        const Vector v46 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-20f : 0x10000000000000p-49)));
-        const Vector v47 = Math4096::Cos2pi(v46);
+        const Vector v47 = Vector::Splat(static_cast<Number>(Math4096::CosEighth(1)));
         const Vector v48 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v47);
         const Vector v49 = (v45 + v48);
         const Vector v50 = Vector::FusedMultiplyAdd(v45, v49, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
@@ -540,8 +534,7 @@ struct LinkwitzRileySplitter4BandGeneric
         const Vector v52 = (v45 * v51);
         const Vector v53 = (v45 * v52);
         const Vector v54 = Math4096::TanPi(spec.m_tree.m_high.m_value);
-        const Vector v55 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-20f : 0x10000000000000p-49)));
-        const Vector v56 = Math4096::Cos2pi(v55);
+        const Vector v56 = Vector::Splat(static_cast<Number>(Math4096::CosEighth(1)));
         const Vector v57 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v56);
         const Vector v58 = (v54 + v57);
         const Vector v59 = Vector::FusedMultiplyAdd(v54, v58, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
@@ -549,8 +542,7 @@ struct LinkwitzRileySplitter4BandGeneric
         const Vector v61 = (v54 * v60);
         const Vector v62 = (v54 * v61);
         const Vector v63 = Math4096::TanPi(spec.m_tree.m_high.m_value);
-        const Vector v64 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-20f : 0x10000000000000p-49)));
-        const Vector v65 = Math4096::Cos2pi(v64);
+        const Vector v65 = Vector::Splat(static_cast<Number>(Math4096::CosEighth(1)));
         const Vector v66 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v65);
         const Vector v67 = (v63 + v66);
         const Vector v68 = Vector::FusedMultiplyAdd(v63, v67, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
@@ -647,16 +639,13 @@ struct LinkwitzRileySplitter4BandGeneric
     static Snapshot MakeSnapshot(const LogicalSpec& spec)
     {
         const Vector v0 = Math4096::TanPi(spec.m_tree.m_value);
-        const Vector v1 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-20f : 0x10000000000000p-49)));
-        const Vector v2 = Math4096::Cos2pi(v1);
+        const Vector v2 = Vector::Splat(static_cast<Number>(Math4096::CosEighth(1)));
         const Vector v3 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v2);
         const Vector v4 = Math4096::TanPi(spec.m_tree.m_low.m_value);
-        const Vector v5 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-20f : 0x10000000000000p-49)));
-        const Vector v6 = Math4096::Cos2pi(v5);
+        const Vector v6 = Vector::Splat(static_cast<Number>(Math4096::CosEighth(1)));
         const Vector v7 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v6);
         const Vector v8 = Math4096::TanPi(spec.m_tree.m_high.m_value);
-        const Vector v9 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-20f : 0x10000000000000p-49)));
-        const Vector v10 = Math4096::Cos2pi(v9);
+        const Vector v10 = Vector::Splat(static_cast<Number>(Math4096::CosEighth(1)));
         const Vector v11 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) / v10);
         Snapshot result{};
         result.m_tree.m_value.m_g = v0;

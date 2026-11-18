@@ -13,13 +13,14 @@ struct MultibandSaturator
     using Core = MultibandSaturator4BandCoreGeneric<float, NumChannels>;
     using Vector = typename Core::Vector;
     using CutoffVector = MultiChannelNumber<float, 3>;
+    using Preparation = typename Core::template Preparation<3>;
     using ResponseCore = MultibandSaturator4BandCoreGeneric<float, 1>;
     using Snapshot = GeneratedResponseSnapshot<ResponseCore, &ResponseCore::MagnitudeSquared>;
     static constexpr float x_minCutoff = 0.0001f;
     static constexpr float x_maxCutoff = 0.499f;
 
     Core m_core{};
-    typename Core::PreparedSpec m_prepared{};
+    typename Preparation::Prepared m_preparedCutoffs{};
     CutoffVector m_cutoffs{};
     Vector m_output{};
     float m_sub = 0;
@@ -119,18 +120,15 @@ struct MultibandSaturator
             CutoffVector::Min(CutoffVector::Splat(x_maxCutoff), CutoffVector(low, middle, high)));
         if (cutoffs != m_cutoffs)
         {
-            const auto bank = Core::template Preparation<3>::Prepare(cutoffs);
-            BroadcastSection(m_prepared.m_splitter.m_tree.m_value, bank, 1);
-            BroadcastSection(m_prepared.m_splitter.m_tree.m_low.m_value, bank, 0);
-            BroadcastSection(m_prepared.m_splitter.m_tree.m_high.m_value, bank, 2);
+            m_preparedCutoffs = Preparation::Prepare(cutoffs);
             m_cutoffs = cutoffs;
         }
         else
         {
-            bool gainsChanged = input.m_masterGain.m_expParam != m_prepared.m_masterGain[0];
+            bool gainsChanged = input.m_masterGain.m_expParam != m_core.m_state.m_masterGain[0];
             for (size_t band = 0; band < NumBands; ++band)
             {
-                gainsChanged |= input.m_gain[band].m_expParam != m_prepared.m_bandGain[band][0];
+                gainsChanged |= input.m_gain[band].m_expParam != m_core.m_state.m_bandGain[band][0];
             }
 
             if (!gainsChanged)
@@ -139,13 +137,17 @@ struct MultibandSaturator
             }
         }
 
+        typename Core::PreparedSpec prepared{};
+        BroadcastSection(prepared.m_splitter.m_tree.m_value, m_preparedCutoffs, 1);
+        BroadcastSection(prepared.m_splitter.m_tree.m_low.m_value, m_preparedCutoffs, 0);
+        BroadcastSection(prepared.m_splitter.m_tree.m_high.m_value, m_preparedCutoffs, 2);
         for (size_t band = 0; band < NumBands; ++band)
         {
-            m_prepared.m_bandGain[band] = Vector::Splat(input.m_gain[band].m_expParam);
+            prepared.m_bandGain[band] = Vector::Splat(input.m_gain[band].m_expParam);
         }
 
-        m_prepared.m_masterGain = Vector::Splat(input.m_masterGain.m_expParam);
-        m_core.InstallPrepared(m_prepared);
+        prepared.m_masterGain = Vector::Splat(input.m_masterGain.m_expParam);
+        m_core.InstallPrepared(prepared);
     }
 
     template<typename Target, typename Source>

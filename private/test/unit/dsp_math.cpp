@@ -6,6 +6,26 @@
 #include "Math.hpp"
 #include "MultiChannelNumber.hpp"
 
+DOCTEST_TEST_CASE_TEMPLATE("Math constant cosine matches table rounding at every eighth cycle", Number, float, double)
+{
+    static_assert(Math4096::CosEighth(1) == 0x1.6a09e6p-1f);
+    using Vector = MultiChannelNumber<Number, 3>;
+    for (int eighth = -16; eighth <= 16; ++eighth)
+    {
+        const auto index = static_cast<size_t>((eighth % 8 + 8) % 8);
+        const Number constant = Math4096::CosEighth(index);
+        const auto actual = Math4096::Cos2pi(Vector::Splat(static_cast<Number>(eighth) / 8));
+        const float expected = index == 2 || index == 6 ? 0
+            : static_cast<float>(std::cos(2 * M_PI * index / 8));
+        DOCTEST_CHECK(constant == static_cast<Number>(expected));
+        for (size_t lane = 0; lane < 3; ++lane)
+        {
+            DOCTEST_CHECK(actual[lane] == constant);
+            DOCTEST_CHECK(std::signbit(actual[lane]) == std::signbit(constant));
+        }
+    }
+}
+
 DOCTEST_TEST_CASE_TEMPLATE("Math sine preserves small positive and negative phases", MathType, Math, Math4096)
 {
     for (float phase : {0.0f, 1e-12f, 1e-9f, 1e-6f, 1e-4f, 0.125f, 0.25f, 0.5f, 0.75f})
