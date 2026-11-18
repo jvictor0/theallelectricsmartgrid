@@ -65,7 +65,7 @@ struct SquiggleBoyVoiceConfig
 
     SquiggleBoyVoiceConfig()
         : m_sourceMachine(SourceMachine::DualWaveShapingVCO)
-        , m_filterMachine(FilterMachine::Ladder4Pole)
+        , m_filterMachine(FilterMachine::NaiveReuppingLadder)
         , m_sourceAssignment(SourceAssignment::Left(0))
         , m_audioBufferBank(nullptr)
     {

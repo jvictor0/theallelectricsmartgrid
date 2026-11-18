@@ -10,7 +10,7 @@
     "private/src/QuadDelay.hpp": "d236458a04acb828049bf58b8e0d24d32f93297f8b268ab64a7eea7d7651dfa5",
     "private/src/ScopeWriter.hpp": "d567768335118202cec6add7f61d123d3de5d968267627cd9a19abbd4e46b0a3",
     "private/src/SmartGridOneModulatorHistory.hpp": "8c17b7abd10f07d0d953cf543b425b49a027c2d30fdbf2cba278e28309ee15d6",
-    "private/src/SquiggleBoyTrack.hpp": "8ea8a18b397ae8203d765eb50ca8f884efbd90d81ad3126bd3d983436aa24d7d",
+    "private/src/SquiggleBoyTrack.hpp": "0d3288cbbd18b196c30caa6d26a5c9a3d2a2509aaa60aab9892f0f2581aded5a",
     "private/src/TapeHead.hpp": "fd7e94c9eca576ba8ed19bc0df9100970657c1683b96c8685ab1283f825a999f",
     "private/src/TheoryOfTime.hpp": "653250fa379a48326b44439fc57eb5b037654462257a5cab6b04c717905a85e4",
     "private/src/TheoryOfTimeBase.hpp": "753a7ae7c1d173261a46b307c38611c4883f715d4e42cfa4e50d5ad2d227bf9c",
@@ -18,7 +18,7 @@
     "private/src/TimeWarpView.hpp": "d6787c25d2229d1437c57fa96d99302542508654c925c3a7192c909c0ae178e4",
     "JUCE/SmartGridOne/Source/ScopeComponent.hpp": "04b6baf84984533be097b811268fcb35ae6febf3cd3027dc2025f4420a7b35d1",
     "private/src/Resynthesis.hpp": "01663ac984d85a5570e024e0a50760471b0c5d7ae20073c5babf66cab1f04e16",
-    "private/src/SquiggleBoy.hpp": "bf6c7cdc581ff628e358eb1f0182e78962469285f887196dac6db2324ffc6f3d"
+    "private/src/SquiggleBoy.hpp": "fb4b90ff8d15091d7277427b30e8e2e7484902a846591b4633ed633229655da2"
   },
   "anchors": {
     "clock_init": [

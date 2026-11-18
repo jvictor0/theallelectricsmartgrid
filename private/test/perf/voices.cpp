@@ -1,6 +1,6 @@
 #include "Bench.hpp"
 #include "DualWaveShapingVCO.hpp"
-#include "LadderFilter.hpp"
+#include "NaiveReuppingLadder.hpp"
 #include "PhysicalModelingSource.hpp"
 #include "TPTSVFFilter.hpp"
 #include <cstring>
@@ -36,21 +36,13 @@ template <int Kind, size_t Size, int Mode>
 struct Filters
 {
     using V = MultiChannelNumber<float, Size>;
-    using Core = std::conditional_t<Kind == 0, LadderFilterLPGeneric<float, Size>,
+    using Core = std::conditional_t<Kind == 0, NaiveReuppingLadderGeneric<float, Size>,
                                     TPTSVFLowPassFilterGeneric<float, Size>>;
     Signals m_signals{SampleTimer::x_sampleRate};
     Core m_core[3 / Size];
     void Set(size_t g, const V& cutoff, const V& resonance)
     {
-        if constexpr (Kind == 1)
-        {
-            m_core[g].SetCutoffAndResonance(cutoff, resonance);
-        }
-        else
-        {
-            m_core[g].SetCutoff(cutoff);
-            m_core[g].SetResonance(resonance);
-        }
+        m_core[g].SetCutoffAndResonance(cutoff, resonance);
     }
 
     Filters()

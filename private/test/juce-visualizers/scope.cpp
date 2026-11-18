@@ -113,12 +113,12 @@ DOCTEST_TEST_CASE("Analyser: spectrum and oversampled response share the frequen
     ui->m_squiggleBoyUIState.m_activeTrack.store(1);
     auto& filter = ui->m_squiggleBoyUIState.m_voiceFilterUIState[1];
     TrioSquiggleBoyShape::Snapshot filterSnapshot;
-    filterSnapshot.m_ladder.m_lp.m_alpha = TrioFloat::Splat(1.0f);
-    filterSnapshot.m_ladder.m_lp.m_feedback = TrioFloat::Splat(0.0f);
-    filterSnapshot.m_ladder.m_hp.m_stage1.m_g = TrioFloat::Splat(0.0f);
-    filterSnapshot.m_ladder.m_hp.m_stage1.m_k = TrioFloat::Splat(1.0f);
-    filterSnapshot.m_ladder.m_hp.m_stage2.m_g = TrioFloat::Splat(0.0f);
-    filterSnapshot.m_ladder.m_hp.m_stage2.m_k = TrioFloat::Splat(1.0f);
+    filterSnapshot.m_naiveReuppingLadder.m_lp.m_alpha = TrioFloat::Splat(1.0f);
+    filterSnapshot.m_naiveReuppingLadder.m_lp.m_feedback = TrioFloat::Splat(0.0f);
+    filterSnapshot.m_naiveReuppingLadder.m_hp.m_stage1.m_g = TrioFloat::Splat(0.0f);
+    filterSnapshot.m_naiveReuppingLadder.m_hp.m_stage1.m_k = TrioFloat::Splat(1.0f);
+    filterSnapshot.m_naiveReuppingLadder.m_hp.m_stage2.m_g = TrioFloat::Splat(0.0f);
+    filterSnapshot.m_naiveReuppingLadder.m_hp.m_stage2.m_k = TrioFloat::Splat(1.0f);
     filter.m_history.Push(filterSnapshot);
     auto writer = std::make_unique<ScopeWriterGeneric<3, 3>>(1, 4096);
     int voiceOffset = 0;
@@ -207,8 +207,8 @@ DOCTEST_TEST_CASE("Analyser: sub spectrum follows the trio and ignores the main 
         DOCTEST_CHECK(peak == 8 + 8 * trio);
         auto& filter = ui->m_squiggleBoyUIState.m_voiceFilterUIState[trio];
         TrioSquiggleBoyShape::Snapshot filterSnapshot;
-        filterSnapshot.m_ladder.m_lp.m_alpha = TrioFloat::Splat(0.01f);
-        filterSnapshot.m_ladder.m_lp.m_feedback = TrioFloat::Splat(3.0f);
+        filterSnapshot.m_naiveReuppingLadder.m_lp.m_alpha = TrioFloat::Splat(0.01f);
+        filterSnapshot.m_naiveReuppingLadder.m_lp.m_feedback = TrioFloat::Splat(3.0f);
         filter.m_history.Push(filterSnapshot);
         AnalyserComponent changedFilter(TrioWindowedFFT(&writer, subScope), &voiceOffset, ui.get(),
             AnalyserComponent::FilterOverlay::None);

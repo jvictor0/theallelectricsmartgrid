@@ -322,3 +322,10 @@ voice/quad LFO axis before publishing its scope bank. These three full-file
 hashes were refreshed after reviewing those combined paths; the mathematical
 contracts and Lean definitions are unchanged. Encoder source hashes retain
 main's reviewed modulation-group implementation.
+
+The filter integration refreshed the fingerprints for `Filter`,
+`QuadDelay`, `SquiggleBoyTrack`, `ScopeComponent`, and `SquiggleBoy` after
+reviewing the intervening filter and UI refactors. The anchored phase-travel
+coefficient, delay scope setup, phase sampling, and scope-period publication
+retain their modeled behavior. Encoder and filter-response UI plumbing is
+outside these phase-time contracts; no Lean definitions or proofs changed.

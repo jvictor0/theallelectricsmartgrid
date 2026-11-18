@@ -1,7 +1,7 @@
 #include "doctest.h"
 
 #include "../support/GlobalEnv.hpp"
-#include "Ladder4PoleShape.hpp"
+#include "NaiveReuppingLadderShape.hpp"
 #include "SVF2PoleShape.hpp"
 #include <cmath>
 #include <complex>
@@ -110,12 +110,63 @@ constexpr double x_reducerHz[x_lanes][2] = {
 
 }
 
-DOCTEST_TEST_CASE("Ladder4PoleShape: high-pass removes bass created by the sample rate reducer")
+DOCTEST_TEST_CASE("NaiveReuppingLadderShape: high-pass removes bass created by the sample rate reducer")
 {
-    CheckReducerBassRemoved<Ladder4PoleShapeGeneric<x_lanes>>(x_reducerHz);
+    CheckReducerBassRemoved<NaiveReuppingLadderShapeGeneric<x_lanes>>(x_reducerHz);
 }
 
 DOCTEST_TEST_CASE("SVF2PoleShape: high-pass removes bass created by the sample rate reducer")
 {
     CheckReducerBassRemoved<SVF2PoleShapeGeneric<x_lanes>>(x_reducerHz);
+}
+
+DOCTEST_TEST_CASE("NaiveReuppingLadderShape: stage-corner knob preserves its octave span and opens to engine Nyquist")
+{
+    using Shape = NaiveReuppingLadderShapeGeneric<3>;
+    using Vector = Shape::Vector;
+    GlobalEnv::Init();
+    Shape shape;
+    Shape::Input input;
+    PhaseUtils::ExpParam legacyCutoff(0.25f, 1024.0f);
+    input.m_baseFreq = Vector::Splat(Shape::x_lpTrackingPivot);
+    input.m_hpCutoffFactor.m_expParam = Vector::Splat(1);
+    for (float knob : {0.0f, 0.1f, 0.2f, 0.3f})
+    {
+        const double oldHalfPower = Shape::x_lpTrackingPivot * legacyCutoff.Update(knob)[0];
+        input.m_lpCutoffFactor.Update(Vector::Splat(knob));
+        shape.Process(input, Vector());
+        const double alpha = shape.m_lpLadder.m_stage4.m_alpha[0];
+        const double sineHalfPower = std::sqrt((std::pow(2.0, 0.25) - 1) * alpha * alpha / (4 * (1 - alpha)));
+        const double actualHalfPower = std::asin(sineHalfPower) / M_PI;
+        DOCTEST_CHECK(actualHalfPower == doctest::Approx(oldHalfPower).epsilon(0.001));
+    }
+
+    input.m_lpCutoffFactor.Update(Vector::Splat(1));
+    shape.Process(input, Vector());
+    DOCTEST_CHECK(shape.m_lpLadder.m_cutoff == Vector::Splat(0.5f));
+    DOCTEST_CHECK(input.m_lpCutoffFactor.m_expParam[0] == doctest::Approx(2354.134).epsilon(0.00001));
+}
+
+DOCTEST_TEST_CASE("NaiveReuppingLadderShape: cutoff retains partial pitch tracking and the shared high-pass factor")
+{
+    using Shape = NaiveReuppingLadderShapeGeneric<3>;
+    using Vector = Shape::Vector;
+    GlobalEnv::Init();
+    Shape shape;
+    Shape::Input input;
+    input.m_baseFreq = Vector(Shape::x_lpTrackingPivot * 0.5f, Shape::x_lpTrackingPivot, Shape::x_lpTrackingPivot * 2);
+    input.m_hpCutoffFactor.m_expParam = Vector::Splat(2);
+    input.m_lpCutoffFactor.m_expParam = Vector::Splat(100);
+    shape.Process(input, Vector());
+    const double pivotCutoff = 200 * Shape::x_lpTrackingPivot;
+    for (size_t lane = 0; lane < 3; ++lane)
+    {
+        const double expected = pivotCutoff * std::pow(2.0, (static_cast<double>(lane) - 1) * 0.707);
+        DOCTEST_CHECK(shape.m_lpLadder.m_cutoff[lane] == doctest::Approx(expected).epsilon(0.00001));
+        DOCTEST_CHECK(shape.m_lpLadder.m_cutoff[lane] > Shape::x_maxCutoff);
+    }
+
+    input.m_hpCutoffFactor.m_expParam = Vector::Splat(1);
+    shape.Process(input, Vector());
+    DOCTEST_CHECK(shape.m_lpLadder.m_cutoff[1] == doctest::Approx(pivotCutoff / 2).epsilon(0.00001));
 }

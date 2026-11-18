@@ -8,7 +8,7 @@
 #include "QuadUtils.hpp"
 #include "PhaseUtils.hpp"
 #include "RandomLFO.hpp"
-#include "LadderFilter.hpp"
+#include "NaiveReuppingLadder.hpp"
 #include "AHD.hpp"
 #include "BitCrush.hpp"
 #include "Lissajous.hpp"
@@ -370,11 +370,6 @@ struct SquiggleBoy
             mixerTrack.m_y = squiggleBoyTrack.m_pan.m_outputY;
         }
 
-        if (SampleTimer::GetSample() % SampleTimer::x_sampleRate == 0)
-        {
-            m_tracks[0].DebugPrint();
-        }
-
         m_deepVocoderState.m_enabled = m_sourceMixer.IsVocoderEnabled(m_sourceMixerState);
         float deepVocoderInput = m_sourceMixer.GetDeepVocoderInput(m_sourceMixerState);
         m_deepVocoder.Process(deepVocoderInput, m_deepVocoderState);
@@ -469,7 +464,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             using TrioSquiggleBoyShape::UIState::UIState;
 
-            std::atomic<VoiceMachine::FilterMachine> m_filterMachine{VoiceMachine::FilterMachine::Ladder4Pole};
+            std::atomic<VoiceMachine::FilterMachine> m_filterMachine{VoiceMachine::FilterMachine::NaiveReuppingLadder};
         };
 
         struct VoiceSourceUIState

@@ -23,7 +23,7 @@ struct TrioEncoderRig
             m_encoders.SetTrack(trio);
             m_encoders.UpdateEncodersForMachine(
                 VoiceMachine::SourceMachine::DualWaveShapingVCO,
-                VoiceMachine::FilterMachine::Ladder4Pole);
+                VoiceMachine::FilterMachine::NaiveReuppingLadder);
         }
 
         m_encoders.SetTrack(0);

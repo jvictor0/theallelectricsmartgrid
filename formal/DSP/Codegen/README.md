@@ -9,7 +9,7 @@ every audio output they expose is a field of `m_state`. Headers have no Lean run
 dependency. Delay and reverb now use `TPTBaseWidthGeneric<float, 4>` through
 the app wrapper [TPTBaseWidthFilter.hpp](../../../private/src/TPTBaseWidthFilter.hpp);
 the app also uses generated SVFs in the source mixer, both shape machines,
-the ladder's band-pass envelope followers, and the physical-modeling source.
+the Naive Reupping Ladder's band-pass envelope followers, and the physical-modeling source.
 [TPTSVFFilter.hpp](../../../private/src/TPTSVFFilter.hpp) preserves the app's
 `SetCutoffAndResonance` mapping: natural frequency in cycles per engine sample,
 clamped to 0.499, and `Q = 0.5 * 11^resonance`. Q is per section in the four-pole

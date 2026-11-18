@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Filter.hpp"
-#include "Ladder4PoleShape.hpp"
+#include "NaiveReuppingLadderShape.hpp"
 #include "MultiChannelNumber.hpp"
 #include "SampleTimer.hpp"
 #include "SampleTop.hpp"
@@ -22,7 +22,7 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
     using Vector = MultiChannelNumber<float, Size>;
     using SourceMachine = VoiceMachine::SourceMachine;
     using FilterMachine = VoiceMachine::FilterMachine;
-    using Ladder4PoleShape = Ladder4PoleShapeGeneric<Size>;
+    using NaiveReuppingLadderShape = NaiveReuppingLadderShapeGeneric<Size>;
     using SVF2PoleShape = SVF2PoleShapeGeneric<Size>;
 
     struct Snapshot : PowerResponseSnapshot<Size>
@@ -30,14 +30,14 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
         using Base = PowerResponseSnapshot<Size>;
         using typename Base::Frequency;
         using typename Base::ResponseVector;
-        FilterMachine m_filterMachine = FilterMachine::Ladder4Pole;
-        typename Ladder4PoleShape::Snapshot m_ladder;
+        FilterMachine m_filterMachine = FilterMachine::NaiveReuppingLadder;
+        typename NaiveReuppingLadderShape::Snapshot m_naiveReuppingLadder;
         typename SVF2PoleShape::Snapshot m_svf;
 
         ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
-            return m_filterMachine == FilterMachine::Ladder4Pole
-                ? m_ladder.MagnitudeSquaredResponses(frequency) : m_svf.MagnitudeSquaredResponses(frequency);
+            return m_filterMachine == FilterMachine::NaiveReuppingLadder
+                ? m_naiveReuppingLadder.MagnitudeSquaredResponses(frequency) : m_svf.MagnitudeSquaredResponses(frequency);
         }
     };
 
@@ -47,9 +47,9 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
     {
         Snapshot snapshot;
         snapshot.m_filterMachine = machine;
-        if (machine == FilterMachine::Ladder4Pole)
+        if (machine == FilterMachine::NaiveReuppingLadder)
         {
-            snapshot.m_ladder = m_ladder4Pole.MakeSnapshot();
+            snapshot.m_naiveReuppingLadder = m_naiveReuppingLadder.MakeSnapshot();
         }
         else
         {
@@ -73,7 +73,7 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
 
     // Filter machines
     //
-    Ladder4PoleShape m_ladder4Pole;
+    NaiveReuppingLadderShape m_naiveReuppingLadder;
     SVF2PoleShape m_svf2Pole;
 
     Vector m_output;
@@ -85,12 +85,12 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
         SourceMachine m_sourceMachine;
         FilterMachine m_filterMachine;
 
-        typename Ladder4PoleShape::Input m_ladder4PoleInput;
+        typename NaiveReuppingLadderShape::Input m_naiveReuppingLadderInput;
         typename SVF2PoleShape::Input m_svf2PoleInput;
 
         Input()
             : m_sourceMachine(SourceMachine::DualWaveShapingVCO)
-            , m_filterMachine(FilterMachine::Ladder4Pole)
+            , m_filterMachine(FilterMachine::NaiveReuppingLadder)
         {
         }
     };
@@ -112,9 +112,9 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
         Vector dcBlocked = m_dcBlocker.Process(x);
         switch (input.m_filterMachine)
         {
-            case FilterMachine::Ladder4Pole:
+            case FilterMachine::NaiveReuppingLadder:
             {
-                m_output = m_ladder4Pole.Process(input.m_ladder4PoleInput, dcBlocked);
+                m_output = m_naiveReuppingLadder.Process(input.m_naiveReuppingLadderInput, dcBlocked);
                 break;
             }
 
@@ -162,9 +162,9 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
 
         switch (input.m_filterMachine)
         {
-            case FilterMachine::Ladder4Pole:
+            case FilterMachine::NaiveReuppingLadder:
             {
-                m_ladder4Pole.SetEncoderParams(encoders, input.m_ladder4PoleInput, track, filterBaseFreq);
+                m_naiveReuppingLadder.SetEncoderParams(encoders, input.m_naiveReuppingLadderInput, track, filterBaseFreq);
                 break;
             }
 
@@ -177,10 +177,6 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
         }
     }
 
-    void DebugPrint()
-    {
-        m_ladder4Pole.m_lpLadder.DebugPrint();
-    }
 };
 
 using SquiggleBoyShape = SquiggleBoyShapeGeneric<1>;

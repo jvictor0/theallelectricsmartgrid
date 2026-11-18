@@ -568,3 +568,8 @@ and restores them before processing another root. Native regressions cover share
 identity, child inheritance and cross-group restoration, and full SynthRig audio
 captures match before/after this refactor. Ownership, pointer binding and host
 sampling remain integration obligations; no Lean definitions or proofs change.
+
+The filter integration refreshed the `MultiChannelNumber.hpp`
+fingerprint after reviewing its new gather helpers and `<utility>` include.
+The modeled `Exp2` implementation and all 34 pinned shared C++ bodies are
+unchanged. This refresh changes no encoder contracts or proof claims.

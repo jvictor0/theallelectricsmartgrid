@@ -4,9 +4,8 @@
 #include "Math.hpp"
 #include "MultiChannelNumber.hpp"
 #include "Saturator.hpp"
-#include "DebugMeter.hpp"
 #include "TPTSVFFilter.hpp"
-#include <atomic>
+#include <cassert>
 #include <cmath>
 #include <complex>
 
@@ -14,7 +13,6 @@ template <typename Number, size_t Size>
 struct BandPassedEnvelopeFollowerGeneric
 {
     using Vector = MultiChannelNumber<Number, Size>;
-    static constexpr Number x_rmsCycles = static_cast<Number>(2);
 
     TPTSVFBandPassFilterGeneric<Number, Size> m_stage1;
     TPTSVFBandPassFilterGeneric<Number, Size> m_stage2;
@@ -31,14 +29,11 @@ struct BandPassedEnvelopeFollowerGeneric
         m_stage2.SetCutoffAndQ(Vector::Splat(0.1), Vector::Splat(1));
     }
 
-    void SetCutoff(const Vector& cutoff, const Vector& envelopeCutoff)
+    void SetIntegratorGainAndPowerAlpha(const Vector& gain, const Vector& powerAlpha)
     {
-        m_stage1.SetCutoffAndQ(cutoff, Vector::Splat(1));
-        m_stage2.SetCutoffAndQ(cutoff, Vector::Splat(1));
-        for (size_t i = 0; i < Size; ++i)
-        {
-            m_powerAlpha[i] = -std::expm1(-envelopeCutoff[i] / x_rmsCycles);
-        }
+        m_stage1.ComputeCoefficientsFromSnapshot({gain, Vector::Splat(1)});
+        m_stage2.ComputeCoefficientsFromSnapshot({gain, Vector::Splat(1)});
+        m_powerAlpha = powerAlpha;
     }
 
     Vector Process(const Vector& input)
@@ -65,11 +60,27 @@ struct BandPassedEnvelopeFollowerGeneric
 
 using BandPassedEnvelopeFollower = BandPassedEnvelopeFollowerGeneric<float, 1>;
 
+// Naive: four Euler updates with one sample of feedback delay. Reupping:
+// every stage applies Tanh(gain * x) / Tanh(gain). At low gain the saturator
+// approaches identity; at high gain each stage drives its own tanh again,
+// so later stages contribute rather than just trimming the first one's output.
+//
 template <typename Number, size_t Size>
-struct LadderFilterLPGeneric
+struct NaiveReuppingLadderGeneric
 {
-    static constexpr float x_maxCutoff = 0.499f;
+    static constexpr float x_maxCutoff = 0.5f;
     static constexpr float x_dampingEpsilon = 0.0001f;
+    // sqrt(2^(1/4) - 1): low-frequency cascade half-power / stage-corner ratio.
+    //
+    static constexpr Number x_halfPowerRatio = static_cast<Number>(0.43497944204608224);
+    // Approximately two cycles of the cascade half-power frequency per power
+    // smoothing time constant. Reuse the stage sine instead of exact retiming.
+    //
+    static constexpr Number x_envelopeAlphaScale = x_halfPowerRatio / static_cast<Number>(2 * M_PI);
+    // tan(pi * 0.499): retain the detector's cap just below engine Nyquist.
+    //
+    static constexpr Number x_maxDetectorGain = static_cast<Number>(318.30883898555044);
+    static constexpr Number x_detectorInverseMaxGainSquared = 1 / (x_maxDetectorGain * x_maxDetectorGain);
 
     static std::complex<float> TransferFunction(float alpha, float feedback, float freq)
     {
@@ -170,25 +181,17 @@ struct LadderFilterLPGeneric
     BandPassedEnvelopeFollowerGeneric<Number, Size> m_feedbackEnvelope;
     Vector m_criticalFeedback;
 
-    // Debug meters on the first channel: input, feedback input, output
+    // Parameter-only feedback terms. The envelope-dependent reduction remains
+    // in Process. The Nyquist guard is the existing heuristic, not a proof of
+    // stability of the complete nonlinear, time-varying loop.
     //
-    static constexpr bool x_debugMetersOn = false;
-    DebugMeter<x_debugMetersOn> m_meterInput;
-    DebugMeter<x_debugMetersOn> m_meterFbInput;
-    DebugMeter<x_debugMetersOn> m_meterOutput;
+    Vector m_kSafe;
+    Vector m_baseFeedback;
+    Vector m_referencePowerGain;
+    Vector m_dampingScale;
+    bool m_coefficientsInitialized;
 
-    // Debug meters: before and after saturation for each stage
-    //
-    DebugMeter<x_debugMetersOn> m_meterStage1Pre;
-    DebugMeter<x_debugMetersOn> m_meterStage1Post;
-    DebugMeter<x_debugMetersOn> m_meterStage2Pre;
-    DebugMeter<x_debugMetersOn> m_meterStage2Post;
-    DebugMeter<x_debugMetersOn> m_meterStage3Pre;
-    DebugMeter<x_debugMetersOn> m_meterStage3Post;
-    DebugMeter<x_debugMetersOn> m_meterStage4Pre;
-    DebugMeter<x_debugMetersOn> m_meterStage4Post;
-
-    LadderFilterLPGeneric()
+    NaiveReuppingLadderGeneric()
         : m_saturationGain()
         , m_saturationTanhGain()
         , m_cutoff(Vector::Splat(static_cast<Number>(0.1)))
@@ -197,6 +200,11 @@ struct LadderFilterLPGeneric
         , m_output()
         , m_kEff()
         , m_criticalFeedback(Vector::Splat(4))
+        , m_kSafe()
+        , m_baseFeedback()
+        , m_referencePowerGain()
+        , m_dampingScale()
+        , m_coefficientsInitialized(false)
     {
         SetSaturationGain(Vector::Splat(static_cast<Number>(0.5)));
     }
@@ -226,63 +234,35 @@ struct LadderFilterLPGeneric
 
     Vector Process(const Vector& input)
     {
-        m_meterInput.Process(input[0]);
-
-        // Calculate effective Nyquist gain including saturation small-signal gain
-        //
-        Vector smallSignalGain = SaturationDerivativeZero();
-        Vector perStageGain = (m_stage4.m_alpha / (Vector::Splat(2) - m_stage4.m_alpha)) * smallSignalGain;
-        Vector perStageGainSquared = perStageGain * perStageGain;
-        Vector Cpi = perStageGainSquared * perStageGainSquared;
-        Vector kSafe = Vector::Splat(static_cast<Number>(0.9)) / (Cpi + static_cast<Number>(1e-8));
-        Vector baseFeedback = Vector::Min(m_feedback, kSafe);
-
-        // At the ideal loop's 180-degree crossover, the raw LP gain is
-        // 1 / (critical feedback - feedback). No saturation or output gain.
-        //
-        Vector referenceGain = Vector::Splat(1) / (m_criticalFeedback - baseFeedback);
-
         // Compare the previous sample's mean-square estimates in power units.
         // Epsilon squared is the input power floor; epsilon scales excess power.
         //
         Vector inputPower = m_inputEnvelope.GetPower();
         Vector feedbackPower = m_feedbackEnvelope.GetPower();
         Vector excessPower = Vector::Max(Vector(),
-            feedbackPower - referenceGain * referenceGain * inputPower)
+            feedbackPower - m_referencePowerGain * inputPower)
             / (inputPower + x_dampingEpsilon * x_dampingEpsilon);
 
-        // Scale damping by the three saturators inside the feedback loop.
-        //
-        Vector dampingStrength = smallSignalGain * smallSignalGain * smallSignalGain;
-        m_kEff = baseFeedback / (dampingStrength * x_dampingEpsilon * excessPower + 1);
+        m_kEff = m_baseFeedback / (m_dampingScale * excessPower + 1);
 
-        // Apply resonance feedback from LP output
+        // Feed back the previous sample's unsaturated fourth-stage state.
         //
         Vector feedbackInput = input - m_kEff * m_stage4.m_output;
         m_input = feedbackInput;
-        m_meterFbInput.Process(feedbackInput[0]);
 
         // Process through the 4-pole ladder with saturation after each stage
         //
         Vector stage1Pre = m_stage1.Process(feedbackInput);
-        m_meterStage1Pre.Process(stage1Pre[0]);
         Vector stage1Out = Saturate(stage1Pre);
-        m_meterStage1Post.Process(stage1Out[0]);
 
         Vector stage2Pre = m_stage2.Process(stage1Out);
-        m_meterStage2Pre.Process(stage2Pre[0]);
         Vector stage2Out = Saturate(stage2Pre);
-        m_meterStage2Post.Process(stage2Out[0]);
 
         Vector stage3Pre = m_stage3.Process(stage2Out);
-        m_meterStage3Pre.Process(stage3Pre[0]);
         Vector stage3Out = Saturate(stage3Pre);
-        m_meterStage3Post.Process(stage3Out[0]);
 
         Vector stage4Pre = m_stage4.Process(stage3Out);
-        m_meterStage4Pre.Process(stage4Pre[0]);
         Vector stage4Out = Saturate(stage4Pre);
-        m_meterStage4Post.Process(stage4Out[0]);
 
         m_inputEnvelope.Process(input);
         m_feedbackEnvelope.Process(stage4Pre);
@@ -291,7 +271,6 @@ struct LadderFilterLPGeneric
         // Maintains approximately unity DC gain as resonance increases
         //
         m_output = stage4Out * (m_kEff + 1);
-        m_meterOutput.Process(m_output[0]);
         return m_output;
     }
 
@@ -301,78 +280,88 @@ struct LadderFilterLPGeneric
         {
             m_saturationGain = gain;
             m_saturationTanhGain = Saturator::Tanh(gain);
+            UpdateFeedbackCoefficients();
         }
     }
 
-    void SetCutoff(const Vector& cutoffParam)
+    // Cutoff is each unit-gain stage's half-power frequency, giving -12.0412 dB
+    // for the zero-feedback cascade. Saturation and adaptive feedback are separate.
+    // Preserve the existing resonance mapping, 0..1 -> feedback 0..3.9.
+    //
+    void SetCutoffAndResonance(const Vector& cutoffParam, const Vector& resonance)
     {
-        Vector cutoff = Vector::Min(Vector::Splat(x_maxCutoff), cutoffParam);
-        bool initialized = true;
-        for (size_t i = 0; i < Size; ++i)
+        assert(Vector::IfLess(Vector(), cutoffParam, Vector::Splat(1), Vector()) == Vector::Splat(1));
+        const Vector cutoff = Vector::Min(Vector::Splat(x_maxCutoff), cutoffParam);
+        const Vector feedback = resonance * static_cast<Number>(3.9);
+        const bool cutoffChanged = !m_coefficientsInitialized || cutoff != m_cutoff;
+        const bool feedbackChanged = feedback != m_feedback;
+        m_feedback = feedback;
+        if (cutoffChanged)
         {
-            initialized = initialized && m_stage4.m_alpha[i] > 0;
+            m_cutoff = cutoff;
+            // Shared stage-corner solution, using sin(pi*f) to avoid cancellation
+            // in 1-cos(2*pi*f) at low cutoffs. poleRatio is alpha/(1-alpha),
+            // derived directly from cutoff rather than from the rounded alpha.
+            //
+            const Vector sine = Math4096::Sin2pi(cutoff * 0.5);
+            const Vector root = (Vector::Splat(1) + sine * sine).Sqrt();
+            const Vector alpha = sine * 2 * (root - sine);
+            const Vector poleRatio = sine * 2 * (root + sine);
+            m_stage1.m_alpha = alpha;
+            m_stage2.m_alpha = alpha;
+            m_stage3.m_alpha = alpha;
+            m_stage4.m_alpha = alpha;
+
+            // For the unit-gain loop z^-1 * H(z)^4, the first -180-degree
+            // crossing is asin(poleRatio/2)/pi below poleRatio=2, else Nyquist.
+            // Its critical feedback is (poleRatio+2)^2 below that boundary,
+            // and ((poleRatio+2)/poleRatio)^4 above it.
+            //
+            // The SVF needs g = tan(pi*f), so tan(asin(r/2)) becomes
+            // s/sqrt(1-s*s). Bound the denominator to cap g without an
+            // inverse sine, another tangent, or division by zero at Nyquist.
+            //
+            const Vector detectorSine = Vector::Min(poleRatio * 0.5, Vector::Splat(1));
+            const Vector detectorCosineSquared = (Vector::Splat(1) - detectorSine) * (Vector::Splat(1) + detectorSine);
+            const Vector minimumCosineSquared = detectorSine * detectorSine * x_detectorInverseMaxGainSquared;
+            const Vector detectorGain = detectorSine / Vector::Max(detectorCosineSquared, minimumCosineSquared).Sqrt();
+            const Vector crossingGain = poleRatio + 2;
+            const Vector nyquistGain = Vector::Splat(1) + Vector::Splat(2) / Vector::Max(poleRatio, Vector::Splat(2));
+            const Vector nyquistSquared = nyquistGain * nyquistGain;
+            m_criticalFeedback = Vector::IfLess(poleRatio, Vector::Splat(2),
+                crossingGain * crossingGain, nyquistSquared * nyquistSquared);
+
+            // Detector centers follow the loop crossing. The simple power rate
+            // stays within 1% of the old two-cycle smoothing time across the
+            // full cutoff range, without an inverse sine or exponential.
+            //
+            const Vector powerAlpha = sine * x_envelopeAlphaScale;
+            m_inputEnvelope.SetIntegratorGainAndPowerAlpha(detectorGain, powerAlpha);
+            m_feedbackEnvelope.SetIntegratorGainAndPowerAlpha(detectorGain, powerAlpha);
+            m_coefficientsInitialized = true;
         }
 
-        if (cutoff == m_cutoff && initialized)
+        if (cutoffChanged || feedbackChanged)
         {
-            return;
+            UpdateFeedbackCoefficients();
         }
-
-        m_cutoff = cutoff;
-        Vector c = Math::Cos2pi(m_cutoff);
-
-        // Solve for the -3dB point: |H|² = 2^(-1/4) per stage
-        // Equation: (1-k)α² + 2k(1-c)α - 2k(1-c) = 0
-        //
-        static constexpr Number k = static_cast<Number>(0.84089641525);
-        Vector oneMinusC = Vector::Splat(1) - c;
-        Vector kOneMinusC = oneMinusC * k;
-        Vector discriminant = kOneMinusC * (kOneMinusC + 2 * (1 - k));
-
-        Vector alpha = (discriminant.Sqrt() - kOneMinusC) / (1 - k);
-        SetAlphaDirect(alpha);
     }
 
-    void SetAlphaDirect(const Vector& alpha)
+    void UpdateFeedbackCoefficients()
     {
-        m_stage1.m_alpha = alpha;
-        m_stage2.m_alpha = alpha;
-        m_stage3.m_alpha = alpha;
-        m_stage4.m_alpha = alpha;
+        const Vector smallSignalGain = SaturationDerivativeZero();
+        const Vector perStageGain = (m_stage4.m_alpha / (Vector::Splat(2) - m_stage4.m_alpha)) * smallSignalGain;
+        const Vector squared = perStageGain * perStageGain;
+        const Vector nyquistGain = squared * squared;
+        m_kSafe = Vector::Splat(static_cast<Number>(0.9)) / (nyquistGain + static_cast<Number>(1e-8));
+        m_baseFeedback = Vector::Min(m_feedback, m_kSafe);
 
-        // Unit-gain one-poles with one sample of feedback delay. The first
-        // unit-circle crossing moves to Nyquist when alpha reaches 2/3.
+        // Unit-gain reference at the loop crossing, before output compensation.
+        // Three normalized saturators contribute to the adaptive damping strength.
         //
-        Vector bandPassCutoff = Vector::Splat(static_cast<Number>(0.5));
-        for (size_t i = 0; i < Size; ++i)
-        {
-            Number a = alpha[i];
-            if (a < static_cast<Number>(2) / 3)
-            {
-                Number ratio = (2 - a) / (1 - a);
-                m_criticalFeedback[i] = ratio * ratio;
-                bandPassCutoff[i] = std::asin(a / (2 * (1 - a))) / static_cast<Number>(M_PI);
-            }
-            else
-            {
-                Number ratio = (2 - a) / a;
-                Number ratioSquared = ratio * ratio;
-                m_criticalFeedback[i] = ratioSquared * ratioSquared;
-            }
-        }
-
-        // Track the loop resonance while retaining the ladder cutoff's envelope timing.
-        //
-        m_inputEnvelope.SetCutoff(bandPassCutoff, m_cutoff);
-        m_feedbackEnvelope.SetCutoff(bandPassCutoff, m_cutoff);
-    }
-
-    void SetResonance(const Vector& resonance)
-    {
-        // Calculate feedback amount based on resonance
-        // Higher resonance = more feedback = more pronounced filter character
-        //
-        m_feedback = resonance * static_cast<Number>(3.9);
+        const Vector referenceGain = Vector::Splat(1) / (m_criticalFeedback - m_baseFeedback);
+        m_referencePowerGain = referenceGain * referenceGain;
+        m_dampingScale = smallSignalGain * smallSignalGain * smallSignalGain * x_dampingEpsilon;
     }
 
     void Reset()
@@ -386,56 +375,8 @@ struct LadderFilterLPGeneric
         m_stage4.m_output = Vector();
         m_inputEnvelope.Reset();
         m_feedbackEnvelope.Reset();
-
-        m_meterInput.Reset();
-        m_meterFbInput.Reset();
-        m_meterOutput.Reset();
-        m_meterStage1Pre.Reset();
-        m_meterStage1Post.Reset();
-        m_meterStage2Pre.Reset();
-        m_meterStage2Post.Reset();
-        m_meterStage3Pre.Reset();
-        m_meterStage3Post.Reset();
-        m_meterStage4Pre.Reset();
-        m_meterStage4Post.Reset();
-    }
-
-    void DebugPrint()
-    {
-        if (!x_debugMetersOn)
-        {
-            return;
-        }
-
-        float smallSignalGain = SaturationDerivativeZero()[0];
-        float satInputGain = m_saturationGain[0];
-        float alpha = m_stage4.m_alpha[0];
-        float perStageGain = (alpha / (2.0f - alpha)) * smallSignalGain;
-        float Cpi = std::pow(perStageGain, 4.0f);
-
-        printf("=== LadderFilterLP Debug ===\n");
-        printf("Cutoff: %.6f  Alpha: %.6f\n", static_cast<float>(m_cutoff[0]), alpha);
-        printf("Feedback: %.6f  kEff: %.6f\n", static_cast<float>(m_feedback[0]), static_cast<float>(m_kEff[0]));
-        printf("Sat InputGain: %.6f  SmallSigGain: %.6f\n", satInputGain, smallSignalGain);
-        printf("PerStageGain: %.6f  Cpi: %.6f\n", perStageGain, Cpi);
-        printf("\n");
-
-        m_meterInput.Print("Input          ");
-        m_meterFbInput.Print("FB Input       ");
-        m_meterOutput.Print("Output         ");
-        printf("\n");
-
-        m_meterStage1Pre.Print("Stage1 Pre-Sat ");
-        m_meterStage1Post.Print("Stage1 Post-Sat");
-        m_meterStage2Pre.Print("Stage2 Pre-Sat ");
-        m_meterStage2Post.Print("Stage2 Post-Sat");
-        m_meterStage3Pre.Print("Stage3 Pre-Sat ");
-        m_meterStage3Post.Print("Stage3 Post-Sat");
-        m_meterStage4Pre.Print("Stage4 Pre-Sat ");
-        m_meterStage4Post.Print("Stage4 Post-Sat");
-        printf("============================\n");
     }
 };
 
-using LadderFilterLP = LadderFilterLPGeneric<float, 1>;
-using TrioLadderFilterLP = LadderFilterLPGeneric<float, 3>;
+using NaiveReuppingLadder = NaiveReuppingLadderGeneric<float, 1>;
+using TrioNaiveReuppingLadder = NaiveReuppingLadderGeneric<float, 3>;

@@ -12,7 +12,8 @@ struct SquiggleBoyShapeBase
     static constexpr float x_lpPitchTracking = 0.707f;
     static constexpr float x_lpTrackingPivot = SampleTimer::HzToCycPerSamp(261.6256f);
 
-    // Filter cutoffs stay below the host Nyquist.
+    // High-pass and SVF low-pass cutoffs stay below host Nyquist. The ladder
+    // supplies its own upper limit to the shared low-pass pitch-tracking law.
     //
     static constexpr float x_maxCutoff = 0.5f / SampleTimer::x_oversample;
 
@@ -27,8 +28,14 @@ struct SquiggleBoyShapeBase
     template <typename Vector>
     static Vector LowPassFreq(const Vector& baseFreq, const Vector& hpCutoff, const Vector& lpCutoff)
     {
+        return LowPassFreq(baseFreq, hpCutoff, lpCutoff, x_maxCutoff);
+    }
+
+    template <typename Vector>
+    static Vector LowPassFreq(const Vector& baseFreq, const Vector& hpCutoff, const Vector& lpCutoff, float maxCutoff)
+    {
         Vector lpBaseFreq = ((baseFreq / x_lpTrackingPivot).Log2() * x_lpPitchTracking).Exp2() * x_lpTrackingPivot;
-        return Vector::Min(Vector::Splat(x_maxCutoff), lpBaseFreq * hpCutoff * lpCutoff);
+        return Vector::Min(Vector::Splat(maxCutoff), lpBaseFreq * hpCutoff * lpCutoff);
     }
 
     template <typename Vector>

@@ -59,6 +59,15 @@ These quantify over the arithmetic type, so the history/naturality statements
 also apply to executable Float instances. Transcendental response/stability
 claims are stated over **ℝ/ℂ**.
 
+The SVF also accepts its existing `{g,k}` snapshot as prepared input via
+`prepareFromSnapshot`, generated as `ComputeCoefficientsFromSnapshot`.
+[Capture/Proofs.lean](../Capture/Proofs.lean) proves:
+
+- `prepareCoefficients_fromSnapshot`: ordinary cutoff/Q preparation is this same updater after prewarping.
+- `prepareFromSnapshot_snapshot`: the prepared snapshot is retained exactly.
+- `prepareFromSnapshot_preserves_history`, `prepareFromSnapshot_idempotent`, and `prepareFromSnapshot_channel`: the corresponding generic update contracts.
+- `prepareFromSnapshot_tuned`: nonnegative real g and k satisfy the SVF's solved coefficient invariant, connecting this entry point to the existing transfer proofs.
+
 | Filter | Named tuning/response results |
 | --- | --- |
 | ZOH | `computeCoefficients_bounds`, `computeCoefficients_stable`, `cutoff_gain`, `peak_dc`; the existing `Snapshot.magnitudeSquared_dc` supplies attainment at DC. |
@@ -113,10 +122,13 @@ possible negative feedback values. The ladder boundary theorem is
 - Base-width accepts both physical section cutoffs rather than a base×width UI
   parameterization. There is no hidden overall −3 dB reinterpretation.
 - The generated ladder already describes an **ideal linear TPT feedback loop**.
-  The app's ladder uses a nonlinear/delayed-feedback ZOH architecture, retunes
-  the complete cascade to −3 dB, and maps a UI resonance control. This tuner uses
-  stage natural frequency and raw loop feedback, with neither that retuning nor
-  saturation/gain compensation. It is not a drop-in model of the app ladder.
+  The app's `NaiveReuppingLadder` uses four Euler updates, normalized rational
+  tanh after every stage, and one sample of feedback delay. Its cutoff is the
+  individual-stage half-power corner (−12.0412 dB for the unit-gain cascade at
+  zero feedback), and it maps the UI resonance control. The ideal TPT tuner
+  uses stage natural frequency and raw loop feedback, without the app's
+  saturation, adaptive damping, or output compensation. The two topologies
+  have distinct models.
 - The handwritten `LinkwitzRileyCrossover.hpp` uses unequal Butterworth-4
   dampings. The new tuner deliberately uses standard LR4 equal Butterworth-2
   sections within a phase-compensated splitter tree. The old Lean crossover

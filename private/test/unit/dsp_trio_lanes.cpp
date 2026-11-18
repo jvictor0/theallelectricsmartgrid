@@ -5,7 +5,7 @@
 #include "AudioBuffer.hpp"
 #include "DualSampleSource.hpp"
 #include "DualWaveShapingVCO.hpp"
-#include "LadderFilter.hpp"
+#include "NaiveReuppingLadder.hpp"
 #include "Noise.hpp"
 #include "PhasorPlayHead.hpp"
 #include "PhysicalModelingSource.hpp"
@@ -229,10 +229,10 @@ DOCTEST_TEST_CASE("Trio: SVF channels match mono filters")
     lowPass.Check(1e-6);
 }
 
-DOCTEST_TEST_CASE("Trio: ladder channels match mono filters")
+DOCTEST_TEST_CASE("Trio: Naive Reupping Ladder channels match mono filters")
 {
-    TrioLadderFilterLP trio;
-    LadderFilterLP mono[3];
+    TrioNaiveReuppingLadder trio;
+    NaiveReuppingLadder mono[3];
     ChannelDifference output;
     for (size_t n = 0; n < 4000; ++n)
     {
@@ -246,13 +246,11 @@ DOCTEST_TEST_CASE("Trio: ladder channels match mono filters")
             resonance[i] = 0.4f * i;
         }
 
-        trio.SetCutoff(cutoff);
-        trio.SetResonance(resonance);
+        trio.SetCutoffAndResonance(cutoff, resonance);
         TrioFloat trioOutput = trio.Process(input);
         for (size_t i = 0; i < 3; ++i)
         {
-            mono[i].SetCutoff(cutoff[i]);
-            mono[i].SetResonance(resonance[i]);
+            mono[i].SetCutoffAndResonance(cutoff[i], resonance[i]);
             output.Add(i, trioOutput[i], mono[i].Process(input[i])[0]);
         }
     }

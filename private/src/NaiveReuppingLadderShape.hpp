@@ -1,7 +1,7 @@
 #pragma once
 
 #include "BitCrush.hpp"
-#include "LadderFilter.hpp"
+#include "NaiveReuppingLadder.hpp"
 #include "MultiChannelNumber.hpp"
 #include "PhaseUtils.hpp"
 #include "SampleTimer.hpp"
@@ -9,21 +9,25 @@
 #include "SquiggleBoyShapeBase.hpp"
 #include "TPTSVFFilter.hpp"
 
-// 4-pole ladder low-pass into the sample rate reducer, then a 4-pole SVF
+// Naive Reupping Ladder low-pass into the sample rate reducer, then a 4-pole SVF
 // high-pass, so the high-pass also removes bass the reducer generates. One
 // sample per call for every channel.
 //
 template <size_t Size>
-struct Ladder4PoleShapeGeneric : SquiggleBoyShapeBase
+struct NaiveReuppingLadderShapeGeneric : SquiggleBoyShapeBase
 {
     using Vector = MultiChannelNumber<float, Size>;
+    // Preserve the old half-power knob tuning approximately at low frequencies
+    // while exposing the traditional stage corner over the same 12-octave span.
+    //
+    static constexpr float x_lpCutoffScale = 1.0f / NaiveReuppingLadderGeneric<float, Size>::x_halfPowerRatio;
 
     struct Snapshot : PowerResponseSnapshot<Size>
     {
         using Base = PowerResponseSnapshot<Size>;
         using typename Base::Frequency;
         using typename Base::ResponseVector;
-        typename LadderFilterLPGeneric<float, Size>::Snapshot m_lp;
+        typename NaiveReuppingLadderGeneric<float, Size>::Snapshot m_lp;
         typename TPTSVF4PoleHighPassFilterGeneric<float, Size>::Snapshot m_hp;
 
         ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
@@ -50,7 +54,7 @@ struct Ladder4PoleShapeGeneric : SquiggleBoyShapeBase
         });
     }
 
-    LadderFilterLPGeneric<float, Size> m_lpLadder;
+    NaiveReuppingLadderGeneric<float, Size> m_lpLadder;
     TPTSVF4PoleHighPassFilterGeneric<float, Size> m_hp4Pole;
     SampleRateReducerGeneric<Size> m_sampleRateReducer;
 
@@ -68,7 +72,7 @@ struct Ladder4PoleShapeGeneric : SquiggleBoyShapeBase
 
         Input()
             : m_baseFreq(Vector::Splat(PhaseUtils::VOctToNatural(0.0, SampleTimer::x_samplePeriod)))
-            , m_lpCutoffFactor(0.25f, 1024.0f)
+            , m_lpCutoffFactor(0.25f * x_lpCutoffScale, 1024.0f * x_lpCutoffScale)
             , m_hpCutoffFactor(0.25f, 256.0f)
             , m_saturationGain(0.25f, 5.0f)
             , m_sampleRateReducerFreq(1.0f, 2048.0f)
@@ -82,8 +86,10 @@ struct Ladder4PoleShapeGeneric : SquiggleBoyShapeBase
     {
         Vector hpCutoff = input.m_hpCutoffFactor.m_expParam;
         m_hp4Pole.SetCutoffAndResonance(HighPassFreq(input.m_baseFreq, hpCutoff), input.m_hpResonance.m_expParam);
-        m_lpLadder.SetCutoff(LowPassFreq(input.m_baseFreq, hpCutoff, input.m_lpCutoffFactor.m_expParam));
-        m_lpLadder.SetResonance(input.m_lpResonance.m_expParam);
+        m_lpLadder.SetCutoffAndResonance(
+            LowPassFreq(input.m_baseFreq, hpCutoff, input.m_lpCutoffFactor.m_expParam,
+                NaiveReuppingLadderGeneric<float, Size>::x_maxCutoff),
+            input.m_lpResonance.m_expParam);
         m_lpLadder.SetSaturationGain(input.m_saturationGain.m_expParam);
 
         m_sampleRateReducer.SetFreq(SampleRateReducerFreq(input.m_baseFreq, input.m_sampleRateReducerFreq.m_expParam));
@@ -109,4 +115,4 @@ struct Ladder4PoleShapeGeneric : SquiggleBoyShapeBase
     }
 };
 
-using TrioLadder4PoleShape = Ladder4PoleShapeGeneric<3>;
+using TrioNaiveReuppingLadderShape = NaiveReuppingLadderShapeGeneric<3>;
