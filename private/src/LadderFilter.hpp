@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Filter.hpp"
-#include "Math.hpp"
 #include "MultiChannelNumber.hpp"
 #include "Saturator.hpp"
 #include "TPTSVFFilter.hpp"
@@ -66,8 +65,11 @@ using BandPassedEnvelopeFollower = BandPassedEnvelopeFollowerGeneric<float, 1>;
 template <typename Number, size_t Size>
 struct LadderFilterLPGeneric
 {
-    static constexpr float x_maxCutoff = 0.499f;
+    static constexpr float x_maxCutoff = 0.5f;
     static constexpr float x_dampingEpsilon = 0.0001f;
+    // sqrt(2^(1/4) - 1): low-frequency cascade half-power / stage-corner ratio.
+    //
+    static constexpr Number x_halfPowerRatio = static_cast<Number>(0.43497944204608224);
 
     static std::complex<float> TransferFunction(float alpha, float feedback, float freq)
     {
@@ -271,8 +273,8 @@ struct LadderFilterLPGeneric
         }
     }
 
-    // Cutoff is the unit-gain, zero-feedback four-stage cascade's -3.0103 dB
-    // frequency. The normalized saturators and adaptive feedback are separate.
+    // Cutoff is each unit-gain stage's half-power frequency, giving -12.0412 dB
+    // for the zero-feedback cascade. Saturation and adaptive feedback are separate.
     // Preserve the existing resonance mapping, 0..1 -> feedback 0..3.9.
     //
     void SetCutoffAndResonance(const Vector& cutoffParam, const Vector& resonance)
@@ -285,18 +287,19 @@ struct LadderFilterLPGeneric
         if (cutoffChanged)
         {
             m_cutoff = cutoff;
-            const Vector c = Math::Cos2pi(cutoff);
-
-            // Shared quadratic solution: alpha = (root - d)/(1-k), while
-            // poleRatio = (root + d)/(1-k) is mathematically alpha/(1-alpha).
-            // Derive both from cutoff; do not reconstruct detector tuning by
-            // inverting the rounded alpha. Keep the existing alpha arithmetic.
+            // Shared stage-corner solution, using sin(pi*f) to avoid cancellation
+            // in 1-cos(2*pi*f) at low cutoffs. poleRatio is alpha/(1-alpha),
+            // derived directly from cutoff rather than from the rounded alpha.
             //
-            static constexpr Number x_stagePower = static_cast<Number>(0.84089641525);
-            const Vector d = (Vector::Splat(1) - c) * x_stagePower;
-            const Vector root = (d * (d + 2 * (1 - x_stagePower))).Sqrt();
-            const Vector alpha = (root - d) / (1 - x_stagePower);
-            const Vector poleRatio = (root + d) / (1 - x_stagePower);
+            Vector sine;
+            for (size_t lane = 0; lane < Size; ++lane)
+            {
+                sine[lane] = std::sin(static_cast<Number>(M_PI) * cutoff[lane]);
+            }
+
+            const Vector root = (Vector::Splat(1) + sine * sine).Sqrt();
+            const Vector alpha = sine * 2 * (root - sine);
+            const Vector poleRatio = sine * 2 * (root + sine);
             m_stage1.m_alpha = alpha;
             m_stage2.m_alpha = alpha;
             m_stage3.m_alpha = alpha;
@@ -308,6 +311,7 @@ struct LadderFilterLPGeneric
             // and ((poleRatio+2)/poleRatio)^4 above it.
             //
             Vector detectorCutoff = Vector::Splat(static_cast<Number>(0.5));
+            Vector envelopeCutoff;
             for (size_t lane = 0; lane < Size; ++lane)
             {
                 const Number ratio = poleRatio[lane];
@@ -323,13 +327,15 @@ struct LadderFilterLPGeneric
                     const Number squared = crossingGain * crossingGain;
                     m_criticalFeedback[lane] = squared * squared;
                 }
+
+                envelopeCutoff[lane] = std::asin(x_halfPowerRatio * sine[lane]) / static_cast<Number>(M_PI);
             }
 
-            // Detector centers follow the loop crossing. Envelope timing retains
-            // the original -3 dB cutoff, in engine cycles/sample.
+            // Detector centers follow the loop crossing. Keep envelope timing
+            // tied to the cascade's half-power frequency, as before retuning.
             //
-            m_inputEnvelope.SetCutoff(detectorCutoff, cutoff);
-            m_feedbackEnvelope.SetCutoff(detectorCutoff, cutoff);
+            m_inputEnvelope.SetCutoff(detectorCutoff, envelopeCutoff);
+            m_feedbackEnvelope.SetCutoff(detectorCutoff, envelopeCutoff);
             m_coefficientsInitialized = true;
         }
 

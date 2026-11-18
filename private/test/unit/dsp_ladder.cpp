@@ -34,6 +34,16 @@ namespace
 {
 constexpr double kSR = 48000.0;
 constexpr std::size_t kN = kFftSize1024;
+
+// Keep the established damping scenarios at the same cascade half-power
+// frequency while expressing their tuning through the new stage corner.
+//
+float StageCornerFromHalfPower(float cutoff)
+{
+    const double ratio = std::sqrt(std::pow(2.0, 0.25) - 1);
+    return static_cast<float>(std::asin(std::sin(M_PI * cutoff) / ratio) / M_PI);
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -278,7 +288,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: RMS damping suppresses resonance over the noi
     GlobalEnv::ResetPerTest();
 
     LadderFilterLP filter;
-    filter.SetCutoffAndResonance(0.002f, 1.0f);
+    filter.SetCutoffAndResonance(StageCornerFromHalfPower(0.002f), 1.0f);
     filter.SetSaturationGain(2.0f);
 
     float noiseAmplitude = 0.0f;
@@ -321,7 +331,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: RMS damping preserves tones and distinguishes
     LadderFilterLP floorFilter;
     for (LadderFilterLP* configured : {&filter, &floorFilter})
     {
-        configured->SetCutoffAndResonance(0.002f, 1.0f);
+        configured->SetCutoffAndResonance(StageCornerFromHalfPower(0.002f), 1.0f);
         configured->SetSaturationGain(2.0f);
     }
 
@@ -381,7 +391,7 @@ DOCTEST_TEST_CASE("LadderFilterLP: reset clears RMS damping history")
     LadderFilterLP fresh;
     for (LadderFilterLP* configured : {&filter, &fresh})
     {
-        configured->SetCutoffAndResonance(0.002f, 1.0f);
+        configured->SetCutoffAndResonance(StageCornerFromHalfPower(0.002f), 1.0f);
         configured->SetSaturationGain(2.0f);
     }
 
@@ -513,20 +523,72 @@ DOCTEST_TEST_CASE("LadderFilterLP: tuning preserves history and refreshes feedba
     }
 }
 
-DOCTEST_TEST_CASE("LadderFilterLP: cutoff remains the unit-gain cascade half-power point")
+DOCTEST_TEST_CASE("LadderFilterLP: cutoff is the stage half-power point and cascade quarter-amplitude point")
 {
     LadderFilterLP filter;
-    for (float cutoff : {0.005f, 0.01f, 0.04f, 0.08f, 0.125f, 0.25f, 0.499f})
+    for (float cutoff : {0.000001f, 0.0001f, 0.005f, 0.01f, 0.04f, 0.08f, 0.125f, 0.25f, 0.499f, 0.5f})
     {
         filter.SetCutoffAndResonance(cutoff, 0.0f);
         const double alpha = filter.m_stage4.m_alpha;
         const auto zInverse = std::polar(1.0, -2 * M_PI * cutoff);
         const auto stage = alpha / (1.0 - (1.0 - alpha) * zInverse);
         DOCTEST_INFO("cutoff: " << cutoff);
-        // Allow the existing 1024-entry cosine interpolation and float tuning.
+        // Allow float coefficient rounding, including at sub-Hz cutoffs.
         //
-        DOCTEST_CHECK(std::pow(std::norm(stage), 4) == doctest::Approx(0.5).epsilon(0.003));
+        DOCTEST_CHECK(std::norm(stage) == doctest::Approx(0.5).epsilon(0.0002));
+        DOCTEST_CHECK(std::pow(std::norm(stage), 4) == doctest::Approx(0.0625).epsilon(0.0002));
+
+        const double halfPower = std::asin(std::sqrt(std::pow(2.0, 0.25) - 1) * std::sin(M_PI * cutoff)) / M_PI;
+        const auto halfPowerZ = std::polar(1.0, -2 * M_PI * halfPower);
+        const auto halfPowerStage = alpha / (1.0 - (1.0 - alpha) * halfPowerZ);
+        DOCTEST_CHECK(std::pow(std::norm(halfPowerStage), 4) == doctest::Approx(0.5).epsilon(0.0002));
+        DOCTEST_CHECK(filter.m_inputEnvelope.m_powerAlpha[0] ==
+            doctest::Approx(-std::expm1(-halfPower / 2)).epsilon(0.00002));
+        DOCTEST_CHECK(filter.m_feedbackEnvelope.m_powerAlpha == filter.m_inputEnvelope.m_powerAlpha);
     }
+}
+
+DOCTEST_TEST_CASE("LadderFilterLP: stage cutoff and nominal oscillation center stay distinct")
+{
+    LadderFilterLP filter;
+    for (float cutoff : {0.005f, 0.0625f, 0.125f, 0.195f, 0.197f, 0.25f, 0.499f})
+    {
+        filter.SetCutoffAndResonance(cutoff, 1.0f);
+        const double alpha = filter.m_stage4.m_alpha;
+        const double ratio = alpha / (1 - alpha);
+        const double center = ratio < 2 ? std::asin(ratio / 2) / M_PI : 0.5;
+        const double clampedCenter = std::min(center, 0.499);
+        for (const auto* follower : {&filter.m_inputEnvelope, &filter.m_feedbackEnvelope})
+        {
+            for (const auto* stage : {&follower->m_stage1, &follower->m_stage2})
+            {
+                const double actualCenter = std::atan(stage->MakeSnapshot().m_g[0]) / M_PI;
+                DOCTEST_CHECK(actualCenter == doctest::Approx(clampedCenter).epsilon(0.00002));
+            }
+        }
+
+        const auto zInverse = std::polar(1.0, -2 * M_PI * center);
+        const auto stage = alpha / (1.0 - (1.0 - alpha) * zInverse);
+        const auto criticalLoop = zInverse * std::pow(stage, 4) * static_cast<double>(filter.m_criticalFeedback);
+        DOCTEST_CHECK(criticalLoop.real() == doctest::Approx(-1).epsilon(0.00002));
+        DOCTEST_CHECK(std::abs(criticalLoop.imag()) < 0.00002);
+    }
+
+    // 24 kHz stage corner at a 192 kHz engine: the detector is around 36 kHz,
+    // and the Nyquist guard does not clamp requested feedback at default drive.
+    //
+    filter.SetCutoffAndResonance(0.125f, 1.0f);
+    DOCTEST_CHECK(filter.m_criticalFeedback[0] == doctest::Approx(9.68696).epsilon(0.00002));
+    DOCTEST_CHECK(filter.m_kSafe[0] == doctest::Approx(41.5484).epsilon(0.00002));
+    DOCTEST_CHECK(filter.m_baseFeedback == filter.m_feedback);
+    filter.SetSaturationGain(2.0f);
+    DOCTEST_CHECK(filter.m_kSafe[0] == doctest::Approx(3.23352).epsilon(0.00002));
+    DOCTEST_CHECK(filter.m_baseFeedback == filter.m_kSafe);
+
+    filter.SetCutoffAndResonance(2.0f, 1.0f);
+    DOCTEST_CHECK(filter.m_cutoff[0] == 0.5f);
+    DOCTEST_CHECK(filter.m_stage4.m_alpha[0] == doctest::Approx(2 * (std::sqrt(2.0) - 1)).epsilon(0.000002));
+    DOCTEST_CHECK(filter.m_criticalFeedback[0] == doctest::Approx(4.0).epsilon(0.000002));
 }
 
 DOCTEST_TEST_CASE("Ladder envelope: generated band-pass cascade retains unity center gain and reset")

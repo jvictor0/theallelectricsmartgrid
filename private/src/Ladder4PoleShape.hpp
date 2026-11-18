@@ -17,6 +17,10 @@ template <size_t Size>
 struct Ladder4PoleShapeGeneric : SquiggleBoyShapeBase
 {
     using Vector = MultiChannelNumber<float, Size>;
+    // Preserve the old half-power knob tuning approximately at low frequencies
+    // while exposing the traditional stage corner over the same 12-octave span.
+    //
+    static constexpr float x_lpCutoffScale = 1.0f / LadderFilterLPGeneric<float, Size>::x_halfPowerRatio;
 
     struct Snapshot : PowerResponseSnapshot<Size>
     {
@@ -68,7 +72,7 @@ struct Ladder4PoleShapeGeneric : SquiggleBoyShapeBase
 
         Input()
             : m_baseFreq(Vector::Splat(PhaseUtils::VOctToNatural(0.0, SampleTimer::x_samplePeriod)))
-            , m_lpCutoffFactor(0.25f, 1024.0f)
+            , m_lpCutoffFactor(0.25f * x_lpCutoffScale, 1024.0f * x_lpCutoffScale)
             , m_hpCutoffFactor(0.25f, 256.0f)
             , m_saturationGain(0.25f, 5.0f)
             , m_sampleRateReducerFreq(1.0f, 2048.0f)
@@ -83,7 +87,8 @@ struct Ladder4PoleShapeGeneric : SquiggleBoyShapeBase
         Vector hpCutoff = input.m_hpCutoffFactor.m_expParam;
         m_hp4Pole.SetCutoffAndResonance(HighPassFreq(input.m_baseFreq, hpCutoff), input.m_hpResonance.m_expParam);
         m_lpLadder.SetCutoffAndResonance(
-            LowPassFreq(input.m_baseFreq, hpCutoff, input.m_lpCutoffFactor.m_expParam),
+            LowPassFreq(input.m_baseFreq, hpCutoff, input.m_lpCutoffFactor.m_expParam,
+                LadderFilterLPGeneric<float, Size>::x_maxCutoff),
             input.m_lpResonance.m_expParam);
         m_lpLadder.SetSaturationGain(input.m_saturationGain.m_expParam);
 

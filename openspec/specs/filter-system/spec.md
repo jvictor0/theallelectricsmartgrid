@@ -20,9 +20,9 @@ Before either machine, the input passes a shared DC-blocking one-pole high-pass 
 
 ### Requirement: Ladder Filter Machine
 The Ladder Filter Machine SHALL apply a 4-pole transistor-ladder low-pass (`LadderFilterLP`), then the sample-rate reducer, then a 4-pole SVF high-pass (`TPTSVF4PoleHighPassFilterGeneric`, two cascaded 2-pole SVF high-pass stages).
-The ladder is four cascaded one-pole low-pass stages with normalized `TanhSaturator` after each stage. Feedback SHALL use the previous sample's **unsaturated** fourth-stage state. `SetCutoffAndResonance` SHALL retain the unit-gain, zero-feedback cascade's half-power (-3.0103 dB) cutoff convention and map resonance to `feedback = resonance * 3.9`. The knob range and pitch-tracking mapping SHALL remain unchanged. Alpha, detector center frequency and critical feedback SHALL be derived from shared cutoff intermediates, without recovering detector tuning from the rounded alpha.
+The ladder is four cascaded one-pole low-pass stages with normalized `TanhSaturator` after each stage. Feedback SHALL use the previous sample's **unsaturated** fourth-stage state. `SetCutoffAndResonance` SHALL use the individual-stage half-power corner, giving -12.0412 dB for the unit-gain, zero-feedback cascade, and map resonance to `feedback = resonance * 3.9`. The ladder cutoff SHALL be capped at engine Nyquist (0.5 cycles per engine sample), allowing it above host Nyquist. Alpha, detector center frequency and critical feedback SHALL be derived from shared cutoff intermediates, without recovering detector tuning from the rounded alpha.
 
-Parameter setters SHALL cache `kSafe = 0.9 / (Cpi + 1e-8)` and `baseFeedback = min(feedback, kSafe)`, where `Cpi` is the fourth power of the per-stage Nyquist gain including the saturator's small-signal gain. This preserves the existing Nyquist heuristic, not a general nonlinear stability guarantee. Each sample SHALL reduce base feedback using the previous input and feedback detector powers, then advance the ladder and detectors in that order. The output SHALL be scaled by `1 + m_kEff` to counter resonance-induced passband drop. The normalized saturator SHALL retain the clamped rational `Tanh` implementation. Setters SHALL preserve stage and detector histories, and saturation-gain changes SHALL refresh the parameter-only feedback terms.
+Parameter setters SHALL cache `kSafe = 0.9 / (Cpi + 1e-8)` and `baseFeedback = min(feedback, kSafe)`, where `Cpi` is the fourth power of the per-stage Nyquist gain including the saturator's small-signal gain. This preserves the existing Nyquist heuristic, not a general nonlinear stability guarantee. The detector centers SHALL follow the nominal oscillation frequency of the loop including its one-sample delay, capped at 0.499 by the bandpass SVFs. Envelope smoothing SHALL remain tied to the cascade half-power frequency for equivalent damping timing. Each sample SHALL reduce base feedback using the previous input and feedback detector powers, then advance the ladder and detectors in that order. The output SHALL be scaled by `1 + m_kEff` to counter resonance-induced passband drop. The normalized saturator SHALL retain the clamped rational `Tanh` implementation. Setters SHALL preserve stage and detector histories, and saturation-gain changes SHALL refresh the parameter-only feedback terms.
 
 #### Scenario: Feedback respects the cached guard and adaptive damping
 - **WHEN** resonance requests feedback above `kSafe`, or the feedback detector exceeds its input-referenced power
@@ -49,20 +49,20 @@ All three stages use one normalized `TanhSaturator`, `Tanh(gain * x) / Tanh(gain
 - **THEN** all three tanh stages run at input gain 5, producing markedly more harmonic saturation than the minimum gain of 0.25
 
 ### Requirement: Pitch-Tracking Cutoff Frequencies
-The filter section SHALL derive both cutoff frequencies from the voice base frequency in cycles per engine sample: `hpFreq = min(maxCutoff, vcoBaseFreq * hpCutoffFactor)` and `lpFreq = min(maxCutoff, pivot * (vcoBaseFreq / pivot)^0.707 * hpCutoffFactor * lpCutoffFactor)`, where `pivot = HzToCycPerSamp(261.6256)` and `maxCutoff = 0.5 / SampleTimer::x_oversample` keeps both cutoffs below the host Nyquist.
-`hpCutoffFactor` is an exponential parameter spanning 0.25 to 256 and `lpCutoffFactor` spans 0.25 to 1024. The low-pass tracks 0.707 octaves per VCO octave around middle C (261.6256 Hz), while the high-pass cutoff factor multiplies both cutoffs linearly. The original LP/HP relationship is preserved at a middle-C VCO frequency for every high-pass cutoff factor. When the voice's source machine is Thru, the tracking base frequency is fixed at 80 Hz (`HzToCycPerSamp(80)`) instead of the voice pitch. Cutoff factors, resonances, and saturation gain are read from the encoders every engine sample without per-parameter slew; the base frequency arrives through the track's portamento one-pole.
+The filter section SHALL derive both cutoff frequencies from the voice base frequency in cycles per engine sample: `hpFreq = min(maxCutoff, vcoBaseFreq * hpCutoffFactor)` and `lpFreq = min(lpMaxCutoff, pivot * (vcoBaseFreq / pivot)^0.707 * hpCutoffFactor * lpCutoffFactor)`, where `pivot = HzToCycPerSamp(261.6256)`, `maxCutoff = 0.5 / SampleTimer::x_oversample`, and `lpMaxCutoff` is 0.5 for the ladder and `maxCutoff` for the SVF. The ladder LP may open above host Nyquist; the high-pass and SVF low-pass retain their host-Nyquist caps.
+`hpCutoffFactor` is an exponential parameter spanning 0.25 to 256. The SVF `lpCutoffFactor` spans 0.25 to 1024. The ladder SHALL retain that 12-octave span with both endpoints multiplied by `1 / sqrt(2^(1/4)-1)`, approximately 0.574740 to 2354.134, to preserve low-frequency tuning approximately when changing from cascade half-power to stage-corner cutoff. The low-pass tracks 0.707 octaves per VCO octave around middle C (261.6256 Hz), while the high-pass cutoff factor multiplies both cutoffs linearly. The 0.707-octave LP pitch law and the common HP-factor multiplier SHALL be preserved; the LP cutoff is not redefined as a multiple of the clamped HP cutoff. When the voice's source machine is Thru, the tracking base frequency is fixed at 80 Hz (`HzToCycPerSamp(80)`) instead of the voice pitch. Cutoff factors, resonances, and saturation gain are read from the encoders every engine sample without per-parameter slew; the base frequency arrives through the track's portamento one-pole.
 
 #### Scenario: Cutoffs follow the played note
 - **WHEN** a voice's base frequency doubles (up one octave) with cutoff factors unchanged
-- **THEN** `hpFreq` doubles and `lpFreq` increases by a factor of `2^0.707`, each up to the clamp of `0.5 / x_oversample`
+- **THEN** `hpFreq` doubles and `lpFreq` increases by a factor of `2^0.707`, each up to its respective cutoff clamp
 
-#### Scenario: The low-pass retains its original ratio at the pivot
+#### Scenario: Low-pass pitch tracking is anchored at the pivot
 - **WHEN** the voice's base frequency is middle C (261.6256 Hz)
 - **THEN** the low-pass cutoff before clamping is `261.6256 Hz * hpCutoffFactor * lpCutoffFactor`
 
 #### Scenario: High-pass cutoff factor moves both cutoffs together
 - **WHEN** the high-pass cutoff factor doubles with voice base frequency and low-pass cutoff factor unchanged
-- **THEN** both cutoffs double, each up to the clamp of `0.5 / x_oversample`
+- **THEN** both cutoffs double, each up to its respective cutoff clamp
 
 #### Scenario: Thru mode anchors the filter at 80 Hz
 - **WHEN** the voice's source machine is Thru

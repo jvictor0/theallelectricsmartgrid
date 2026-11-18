@@ -12,50 +12,72 @@ The audio signal from the source machine passes through the low-pass ladder filt
 
 ## Features
 
-- **Cutoff Tracking**: The HP cutoff frequency tracks the base frequency of the voice's oscillator (`m_vcoBaseFreq`) multiplied by `m_hpCutoffFactor`. In Hz, the LP cutoff is `261.6256 * (vcoHz / 261.6256)^0.707 * hpCutoffFactor * lpCutoffFactor`. LP tracks 0.707 octaves per VCO octave around middle C (261.6256 Hz), while the HP cutoff factor multiplies both cutoffs linearly. At a middle-C VCO frequency, the original LP/HP relationship is preserved for every HP cutoff factor. The `lpCutoffFactor` remains an `ExpParam(0.25, 1024)`; both cutoffs are independently clamped at the base-rate Nyquist frequency.
-- **Resonance**: Both filters feature adjustable resonance (`m_lpResonance` and `m_hpResonance`). The generated HP cascade preserves the same natural cutoff and `Q = 0.5 * 11^resonance` in each section. At zero resonance its total cutoff gain is -12.04 dB. The ladder low-pass tuning is unchanged. Its two band-pass envelope followers now use generated SVF sections with Q = 1, retaining unity center gain.
+- **Cutoff Tracking**: The HP cutoff frequency tracks the base frequency of the voice's oscillator (`m_vcoBaseFreq`) multiplied by `m_hpCutoffFactor`. In Hz, the LP cutoff is `261.6256 * (vcoHz / 261.6256)^0.707 * hpCutoffFactor * lpCutoffFactor`. LP tracks 0.707 octaves per VCO octave around middle C (261.6256 Hz), while the HP cutoff factor multiplies both cutoffs linearly. The LP knob retains its 12-octave span with both endpoints multiplied by `1 / sqrt(2^(1/4)-1) = 2.298959`: approximately 0.574740 to 2354.134. This preserves low-frequency physical tuning approximately under the new cutoff convention. The 0.707 pitch-tracking law and shared HP factor are unchanged. HP is capped at host Nyquist; ladder LP is capped at engine Nyquist.
+- **Resonance**: Both filters feature adjustable resonance (`m_lpResonance` and `m_hpResonance`). The generated HP cascade preserves the same natural cutoff and `Q = 0.5 * 11^resonance` in each section. At zero resonance its total cutoff gain is -12.04 dB. The ladder low-pass uses the traditional individual-stage half-power corner, giving -12.04 dB for the unit-gain zero-feedback cascade. Its two band-pass envelope followers now use generated SVF sections with Q = 1, retaining unity center gain.
 - **Saturation**: The ladder filter includes an internal saturation stage, controlled by `m_saturationGain`, which drives the filter into non-linear distortion.
 - **Sample Rate Reduction**: Between the low-pass and high-pass stages, a sample rate reducer (`SampleRateReducer`) adds digital aliasing and grit. Aliases folded below the high-pass cutoff are attenuated by the high-pass.
 
 ## Ladder cutoff convention
 
 `SetCutoffAndResonance(cutoff, resonance)` takes cycles per **engine** sample.
-Cutoff retains the existing convention: the four-stage **unit-gain linear**
-cascade with feedback disabled has magnitude squared 1/2 at that frequency
-(-3.0103 dB). Saturation and adaptive feedback change the actual audio response.
-The cutoff is capped at 0.499; the owning shape applies its existing base-rate
-Nyquist clamp first. The LP knob range and pitch-tracking mapping above are
-unchanged.
+Cutoff is the traditional individual-stage half-power corner. Four unit-gain
+linear stages with feedback disabled therefore have magnitude 1/4 (-12.0412 dB)
+at this frequency. The API and ladder shape cap it at engine Nyquist (0.5),
+not host Nyquist. This permits the ladder to open above the audible band. The
+separate high-pass retains its host-Nyquist cap.
 
-A conventional analogue Moog ladder instead names the individual stage corner
-as cutoff: each stage is about -3 dB there, so the four-stage cascade is about
--12 dB with resonance off. The resonant peak depends on feedback; it is not
-generally the same frequency. Our explicit feedback delay further separates the
-loop's -180-degree crossing from the cascade's -12 dB point. See
+The cascade half-power frequency is
+`f3 = asin(sqrt(2^(1/4)-1) * sin(pi*cutoff)) / pi`, in engine cycles/sample.
+At low frequencies this is approximately `0.434979442 * cutoff`; at a 24 kHz
+stage corner with a 192 kHz engine it is 10.2208 kHz. The ratio changes only
+modestly below host Nyquist. With cutoff at engine Nyquist (96 kHz), it reaches
+27.5029 kHz, with zero-feedback attenuation of 1.708 dB at 20 kHz and 2.374 dB
+at 24 kHz. These are unit-gain linear values; normalized saturation changes
+absolute small-signal gain, while feedback changes the shape.
+
+The detector follows the delayed loop's nominal oscillation frequency, not the
+stage corner or the exact finite-resonance response peak. At a 24 kHz stage
+corner its center is 36.0459 kHz and the unit-gain critical feedback is 9.68696.
+The normalized saturators have positive small-signal gain, changing the critical
+feedback but not that phase-crossing frequency. At a stage corner of about 37.615 kHz the crossing reaches engine Nyquist;
+the generated bandpasses retain their existing 0.499 clamp to avoid the TPT
+singularity. At engine Nyquist itself a TPT bandpass has zero gain, so the
+Nyquist feedback guard remains important in that regime. The zero-feedback -12 dB convention and
+delayed-loop tuning distinction are discussed in
 [Huovilainen, DAFx 2004](https://dafx.de/paper-archive/2004/P_061.PDF).
 
-At low frequencies the stage corner is approximately
-`1 / sqrt(2^(1/4) - 1) = 2.29896` times our cutoff. That is not a constant
-conversion over the full digital range. At sufficiently high alpha the cascade
-does not even reach -12 dB before Nyquist, while the loop crossing reaches
-Nyquist at alpha = 2/3. Retaining the existing convention avoids losing the
-upper knob range or introducing a new pitch-dependent remapping in this refactor.
+`kSafe` does not necessarily reduce feedback when the detector moves above host
+Nyquist. At the 24 kHz example it is approximately 41.548 at drive 0.5 (no clamp
+on requested feedback up to 3.9), 3.234 at drive 2, and 0.08825 at drive 5.
+At the fully open engine-Nyquist corner, `kSafe` is approximately 2.712 at
+drive 0.5. Internal ultrasonic oscillation can still consume headroom and
+interact with nonlinearities, so both bandpass detectors and their damping
+remain active.
 
 ## Coefficients and sample recurrence
 
 The setter calculates alpha and detector tuning together. With
-`k = 2^(-1/4)`, `d = k * (1 - cos(2*pi*cutoff))`, and
-`root = sqrt(d * (d + 2*(1-k)))`:
+`s = sin(pi*cutoff)` and `root = sqrt(1+s*s)`:
 
-- `alpha = (root - d)/(1-k)` retains the old floating-point calculation.
-- `r = (root + d)/(1-k)` is algebraically `alpha/(1-alpha)`, calculated
-  directly from cutoff rather than by inverting the rounded alpha.
+- `alpha = 2*s*(root-s)` sets the individual-stage half-power corner.
+- `r = 2*s*(root+s)` is algebraically `alpha/(1-alpha)`, calculated directly
+  from cutoff rather than by inverting the rounded alpha.
 - For `r < 2`, the unit-gain loop crossing is `asin(r/2)/pi`, and its critical
   feedback is `(r+2)^2`. Otherwise the crossing is Nyquist and the critical
   feedback is `((r+2)/r)^4`.
 - Both Q=1 band-pass cascades use that crossing as their center; their generated
-  SVFs cap it at 0.499. Their power smoothing retains the original cutoff:
-  `powerAlpha = -expm1(-cutoff/2)`.
+  SVFs cap it at 0.499. Power smoothing stays tied to the cascade half-power
+  frequency: `powerAlpha = -expm1(-f3/2)`. This preserves the old envelope timing
+  for equivalent stage coefficients instead of speeding damping up with the new
+  cutoff parameter.
+
+The setter uses `std::sin` for this sine: the existing cosine-table phase shift
+loses relative accuracy at very small float arguments. The sine form also avoids
+low-frequency cancellation in `1-cos(2*pi*cutoff)`. The sample recurrence does
+not gain any transcendental calls; coefficient work remains cached.
+At engine Nyquist, alpha reaches `2*(sqrt(2)-1)`, approximately 0.828427, so
+all four standalone one-poles remain strictly stable. This cap does not replace
+the feedback guard or establish nonlinear closed-loop stability.
 
 The resonance mapping remains `requestedFeedback = 3.9 * resonance`.
 The setter caches the existing Nyquist guard `kSafe`, its minimum with requested
@@ -89,7 +111,30 @@ app ladder. A subsequent implementation-as-spec model needs the exact state
 ordering, feedback delay, rational saturation, detectors and adaptive damping
 above; a transcendental tanh model alone would not describe this implementation.
 
-## Refactor comparison
+## Stage-corner validation and cost
+
+The stage-corner change passes the full core suite, including the alternate
+sample-rate target, all eight performance tests, and unsigned macOS and iOS app
+builds. Regression tests cover the -12.0412 dB corner, the cascade half-power
+relation, detector phase crossing and Nyquist fallback, envelope timing, the
+engine-Nyquist cap, the 12-octave knob span and preserved 0.707 pitch tracking.
+Very small cutoffs are checked explicitly; the sine-table accuracy failure
+found there is avoided by the setter's `std::sin` calculation.
+
+A serial desktop comparison against `83d2685` used matched physical tunings,
+with the new stage-corner parameters prepared outside the timed loop. Six
+alternating runs of 1,048,576 trio samples measured median times of 61.431 ms
+before and 61.451 ms after for drive-only modulation (+0.03%), and 116.656 ms
+before and 125.004 ms after when cutoff, resonance and drive all changed every
+sample (+7.16%). The additional coefficient preparation preserves the envelope
+timing and small-cutoff accuracy; the sample recurrence is unchanged. These
+microbenchmarks are not iPad callback measurements.
+
+## Historical coefficient-cache refactor comparison
+
+The following results describe commit `83d2685` before the stage-corner tuning
+change. They are retained as evidence for that refactor, not measurements of
+the current cutoff convention.
 
 Comparison against revision `f9e0165` used 300,000 samples across three lanes,
 with cutoff modulated from 0.001 to 0.128, resonance from 0 to 1, and drive from
