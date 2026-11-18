@@ -361,7 +361,9 @@ The common-phase LR factorization gives a proved real magnitude-squared kernel.
 Stable-filter tracking and differentiable static-observation lemmas are reusable;
 tanh calculus and phase facts are shared with the conservative ladder. Native
 scalar/channel and measured-response tests complement the exact-real proofs.
-C++ response emission and app integration remain subsequent work.
+The shared generator emits the four-band core, packed coefficient preparation,
+mono-bass routing and power response. The app wrapper owns metering and sampled
+UI history around that generated core.
 
 `TPTLadder` is an idealized linear ladder, not the app's nonlinear `NaiveReuppingLadder`. Each
 TPT stage is affine in its input, y = S + G x, so the global loop e = x - k y₄ is

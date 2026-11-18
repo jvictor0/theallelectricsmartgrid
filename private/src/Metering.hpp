@@ -102,13 +102,15 @@ struct MeterGeneric
         m_reduction = m_reduction * (1 - x_smoothingAlphaReduction) + reduction * x_smoothingAlphaReduction;
     }
 
-    Vector ProcessAndSaturate(const Vector& input, Vector* reduction)
+    // Record saturation that was already computed by the audio processor.
+    // Advance exactly once per engine sample, matching ProcessAndSaturate.
+    //
+    Vector RecordSaturated(const Vector& before, const Vector& after)
     {
-        Vector output = TanhSaturatorGeneric<Number, Size, false>::Tanh(input);
         Vector floor = Vector::Splat(x_floor);
-        *reduction = Vector::Max(floor, output.Abs()) / Vector::Max(floor, input.Abs());
-        Accumulate(output);
-        m_frameReduction += *reduction;
+        Vector reduction = Vector::Max(floor, after.Abs()) / Vector::Max(floor, before.Abs());
+        Accumulate(after);
+        m_frameReduction += reduction;
         if (EndSample())
         {
             ProcessHostFrame();
@@ -116,6 +118,13 @@ struct MeterGeneric
             m_frameReduction = Vector::Splat(0);
         }
 
+        return reduction;
+    }
+
+    Vector ProcessAndSaturate(const Vector& input, Vector* reduction)
+    {
+        Vector output = TanhSaturatorGeneric<Number, Size, false>::Tanh(input);
+        *reduction = RecordSaturated(input, output);
         return output;
     }
 

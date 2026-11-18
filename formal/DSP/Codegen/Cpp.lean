@@ -3,6 +3,7 @@ import DSP.IfLess
 import DSP.FMA
 import DSP.Transcendental
 import DSP.Nonlinear
+import DSP.ChannelMean
 
 /-! A deliberately small backend for pure processor functions.
 It reads elaborated Lean definitions, resolves their arithmetic instances,
@@ -64,6 +65,22 @@ def temporary (type text : String) : GenM Value := do
   let name ← fresh
   emit s!"const {type} {name} = {text};"
   return .scalar type name
+
+/-- Remove unused pure expression temporaries after projecting compound results.
+Mutable branch joins and all observable assignments remain in place. -/
+def pruneTemporaries (lines : Array String) : Array String := Id.run do
+  let mut live : Std.HashSet String := {}
+  let mut kept := #[]
+  for line in lines.reverse do
+    let tokens := (line.splitToList fun c => !(c.isAlphanum || c == '_')).filter (· != "")
+    let temporary := match tokens with
+      | "const" :: _ :: name :: _ =>
+        if name.startsWith "v" && (name.drop 1).toString.toList.all Char.isDigit then some name else none
+      | _ => none
+    if temporary.any (fun name => !live.contains name) then continue
+    for token in tokens do live := live.insert token
+    kept := kept.push line
+  return kept.reverse
 
 def scalarType (type : Expr) (numberType : Option Expr) : MetaM String := do
   let type ← whnf type
@@ -183,6 +200,17 @@ partial def expose (expression : Expr) : MetaM Expr := withIncRecDepth do
           if let (.lit (.natVal left), .lit (.natVal right)) := (left, right) then
             let yes := left < right
             return ← expose args[if yes then 3 else 4]!
+      if name == ``Nat.decEq && e.getAppArgs.size == 2 then
+        let a ← expose e.getAppArgs[0]!
+        let b ← expose e.getAppArgs[1]!
+        if a.isLit && b.isLit then return ← whnf (mkApp2 (mkConst ``Nat.decEq) a b)
+        throwError "C++ codegen: natural equality must be statically known"
+      if name == ``Nat.beq && e.getAppArgs.size == 2 then
+        let a ← expose e.getAppArgs[0]!
+        let b ← expose e.getAppArgs[1]!
+        if let (.lit (.natVal a), .lit (.natVal b)) := (a,b) then
+          return mkConst (if a == b then ``Bool.true else ``Bool.false)
+        throwError "C++ codegen: natural equality must be statically known"
       if primitive name then return e
       let env ← getEnv
       if (getExternAttrData? env name).isSome || (Compiler.getImplementedBy? env name).isSome then
@@ -336,6 +364,8 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
         return ← emitTranscendental "ExpNegTwoPi" "Vector" values[0]!
       if name == ``DSP.SquareRoot && values.size == 1 && index == 0 then
         return ← temporary "Vector" s!"{values[0]!}.Sqrt()"
+      if name == ``DSP.ChannelMean && values.size == 1 && index == 0 then
+        return ← temporary "Vector" s!"{values[0]!}.MeanBroadcast()"
       if name == ``DSP.Tanh && values.size == 1 && index == 0 then
         -- Lower the executable interpretation, Tanh.rational, with exactly its
         -- multiplication/FMA order and ordered clamp. Native tests cover both.
@@ -407,6 +437,8 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
           pure (mkAppN (mkConst predicate) decisionArgs)
         else throwError "C++ codegen: unsupported conditional decision {decision}"
       let (_, condition) ← scalar (← evaluate conditionExpr locals)
+      if condition == "true" then return ← evaluate args[3]! locals
+      if condition == "false" then return ← evaluate args[4]! locals
       let before := (← get).lines
       modify fun s => { s with lines := #[] }
       let yes ← evaluate args[3]! locals
@@ -429,6 +461,8 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
     if name == ``Eq && args.size == 3 && args[0]!.isConstOf ``Bool then
       let (_, a) ← scalar (← evaluate args[1]! locals)
       let (_, b) ← scalar (← evaluate args[2]! locals)
+      if (a == "true" || a == "false") && (b == "true" || b == "false") then
+        return .scalar "bool" (if a == b then "true" else "false")
       return ← temporary "bool" s!"({a} == {b})"
     if name == ``Bool.true then return .scalar "bool" "true"
     if name == ``Bool.false then return .scalar "bool" "false"
@@ -485,6 +519,12 @@ partial def renderField (name : String) (shape : Shape) (indent : String) : Meta
     for (name, shape) in fields do
       lines := lines ++ (← renderField name shape (indent ++ "    "))
     return lines ++ #[indent ++ "} " ++ name ++ ";", ""]
+  | .vector n (.record fields) =>
+    let elementName := name ++ "_Element"
+    let mut lines := #[s!"{indent}struct {elementName}", indent ++ "{"]
+    for (field, shape) in fields do
+      lines := lines ++ (← renderField field shape (indent ++ "    "))
+    return lines ++ #[indent ++ "};", "", s!"{indent}std::array<{elementName}, {n}> {name};"]
   | _ => return #[s!"{indent}{← cppElementType shape} {name};"]
 
 def renderRecord (name : String) (shape : Shape) (indent : String := "    ") : MetaM (Array String) := do
@@ -608,7 +648,7 @@ def renderFunction (function : Name) (method : String) (parameters runtime : Arr
     let (type, result) ← scalar (← evaluate (mkAppN (mkConst function) parameters) locals)
     unless type == cppType do throwError "C++ codegen: function result type mismatch"
     emit s!"return {result};").run { numberType, arithmetic }
-  let mut body := emission.lines
+  let mut body := pruneTemporaries emission.lines
   for name in #["snapshot", "input"] do
     unless body.any (fun line =>
         (line.splitToList fun c => !(c.isAlphanum || c == '_')).contains name) do
@@ -648,14 +688,15 @@ def renderSnapshot (function : Name) (parameters runtime : Array Expr)
     then emission.lines else #["static_cast<void>(spec);"] ++ emission.lines
   return (mathIncludes emission.usesMath, (← renderRecord "Snapshot" outputFields) ++
     #["    static Snapshot MakeSnapshot(const LogicalSpec& spec)", "    {"] ++
-    body.map (fun line => if line.isEmpty then "" else "        " ++ line) ++ #["    }", ""])
+    (pruneTemporaries body).map (fun line => if line.isEmpty then "" else "        " ++ line) ++ #["    }", ""])
 
 def generateParts (function : Name) (cppName : String) (generic : Bool)
     (method : Option String) (inputName : String) (declareRecords : Bool := true)
     (tuningState : Option Expr := none) (captureSpec : Option Expr := none)
     (captureSnapshot : Option Expr := none)
     (tuningMethod : String := "ComputeCoefficients")
-    (resetState : Option Expr := none) : MetaM (Array String × Array String) := do
+    (resetState : Option Expr := none) (preparation : Bool := false)
+    (declareCache : Bool := true) : MetaM (Array String × Array String) := do
   unless validIdentifier cppName && cppName.toList.head!.isUpper do
     throwError "C++ codegen: processor name must be a simple uppercase C++ identifier"
   if #["State", "Input", "Output"].contains cppName ||
@@ -676,7 +717,7 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
     let mut numberType := none
     let mut arithmetic := #[]
     let mut runtime := parameters
-    let runtimeCount := if captureSpec.isSome || resetState.isSome then 1 else 2
+    let runtimeCount := if captureSpec.isSome || resetState.isSome || preparation then 1 else 2
     if generic then
       unless parameters.size ≥ runtimeCount + 1 do
         throwError "C++ codegen: generic export expects one arithmetic type parameter"
@@ -689,7 +730,7 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
         let name := type.getAppFn.constName?
         let args := type.getAppArgs
         unless args.size ≥ 1 && args[0]! == number &&
-            #[``Add, ``Sub, ``Mul, ``Div, ``Neg, ``OfNat, ``OfScientific, ``DSP.IfLess, ``DSP.FMA, ``DSP.Trig, ``DSP.ExpDecay, ``DSP.Tanh, ``DSP.SquareRoot].any
+            #[``Add, ``Sub, ``Mul, ``Div, ``Neg, ``OfNat, ``OfScientific, ``DSP.IfLess, ``DSP.FMA, ``DSP.Trig, ``DSP.ExpDecay, ``DSP.Tanh, ``DSP.SquareRoot, ``DSP.ChannelMean].any
               (fun supported => name == some supported) do
           throwError "C++ codegen: unsupported generic parameter {type}"
         if name == some ``OfNat then
@@ -699,6 +740,24 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
       runtime := parameters.extract (parameters.size - runtimeCount) parameters.size
     unless runtime.size == runtimeCount do
       throwError "C++ codegen: expected exactly {if runtimeCount == 2 then "two" else "one"} runtime arguments"
+    if preparation then
+      let inputType ← inferType runtime[0]!
+      let inputShape ← fieldShape inputType numberType
+      let outputShape ← fieldShape resultType numberType
+      let .record _ := outputShape | throwError "C++ codegen: preparation must return a record"
+      let (inputDeclaration, inputCppType) ← match inputShape with
+        | .scalar ty => pure (#[],ty)
+        | .record _ => pure (← renderRecord "Input" inputShape,"Input")
+        | _ => throwError "C++ codegen: preparation input must be numeric or a record"
+      let (_, emission) ← (do
+        let output ← evaluate (mkAppN (mkConst function) parameters)
+          [(runtime[0]!.fvarId!,readValue inputShape "input")]
+        emit "Prepared result{};"
+        commitValue outputShape output "result"
+        emit "return result;").run {numberType,arithmetic}
+      return (mathIncludes emission.usesMath, inputDeclaration ++ (← renderRecord "Prepared" outputShape) ++
+        #[s!"    static Prepared Prepare(const {inputCppType}& input)", "    {"] ++
+        (pruneTemporaries emission.lines).map ("        " ++ ·) ++ #["    }", ""])
     if let some expected := resetState then
       let stateType ← inferType runtime[0]!
       unless (← isDefEq (← recordSignature stateType numberType) expected) &&
@@ -711,7 +770,7 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
         let assignments ← changedAssignments fields next "m_state"
         for line in assignments do emit line).run {numberType, arithmetic}
       return (mathIncludes emission.usesMath,
-        #["    void Reset()", "    {"] ++ emission.lines.map ("        " ++ ·) ++ #["    }", ""])
+        #["    void Reset()", "    {"] ++ (pruneTemporaries emission.lines).map ("        " ++ ·) ++ #["    }", ""])
     if let some expected := captureSpec then
       return ← renderSnapshot function parameters runtime resultType numberType arithmetic expected
     if let some method := method then
@@ -772,14 +831,14 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
     let body := if emission.lines.any (fun line => (line.splitOn (inputVariable ++ ".")).length > 1)
       then emission.lines else #[s!"static_cast<void>({inputVariable});"] ++ emission.lines
     if tuningState.isSome then
-      let cache := if captureSnapshot.isSome && declareRecords then
+      let cache := if captureSnapshot.isSome && declareRecords && declareCache then
         #["    Snapshot m_responseSnapshot{};", "",
           "    Snapshot MakeSnapshot() const", "    {", "        return m_responseSnapshot;", "    }", ""]
         else #[]
       let specRecord ← if declareRecords then renderRecord inputName inputFields else pure #[]
       let lines := cache ++ specRecord ++
         #[s!"    void {tuningMethod}(const {inputName}& spec)", "    {"] ++
-        body.map (fun line => if line.isEmpty then "" else "        " ++ line) ++ #["    }", ""]
+        (pruneTemporaries body).map (fun line => if line.isEmpty then "" else "        " ++ line) ++ #["    }", ""]
       return (mathIncludes emission.usesMath, lines)
     let outputLines ← match outputFields with
       | none => pure #["    State m_state;", ""]
@@ -788,7 +847,7 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
         pure (record ++ #["    State m_state;", "    Output m_output;", ""])
     let lines := (← renderRecord "State" stateFields) ++ (← renderRecord "Input" inputFields) ++
       outputLines ++ #["    void Process(Input& input)", "    {"] ++
-      body.map (fun line => if line.isEmpty then "" else "        " ++ line) ++
+      (pruneTemporaries body).map (fun line => if line.isEmpty then "" else "        " ++ line) ++
       #["    }", ""]
     return (mathIncludes emission.usesMath, lines)
 
@@ -808,16 +867,21 @@ private partial def firstScalarField : Shape → String
 def generateFilterResponses (step : Name) (responses : Array (Name × String))
     (cppName : String) (generic : Bool) (tuning : Option Name := none)
     (capture : Bool := false) (preparedTuning : Option Name := none)
-    (reset : Option Name := none) : MetaM String := do
+    (reset : Option Name := none) (preparedBank : Option Name := none)
+    (preparation : Option Name := none) : MetaM String := do
+  if preparedBank.isSome && !(generic && capture && tuning.isSome) then
+    throwError "C++ codegen: prepared bank requires a generic sampled filter"
+  if preparation.isSome && preparedBank.isNone then
+    throwError "C++ codegen: preparation requires a prepared bank installer"
   if preparedTuning.isSome && !(capture && tuning.isSome) then
     throwError "C++ codegen: prepared updater requires a sampled filter"
-  if #["Snapshot", "Frequency", "LogicalSpec"].contains cppName then
+  if #["Snapshot", "Frequency", "LogicalSpec", "PreparedSpec", "Preparation"].contains cppName then
     throwError "C++ codegen: filter name conflicts with a response member"
   if responses.isEmpty then throwError "C++ codegen: filter needs at least one response"
   let (stepIncludes, stepBody) ← generateParts step cppName generic none "Input"
   let mut includes := stepIncludes
   let mut body := stepBody
-  let mut methods := #["Process", "Reset", "State", "Output", "LogicalSpec", "ComputeCoefficients", "ComputeCoefficientsFromSnapshot", "MakeSnapshot", "UIState"]
+  let mut methods := #["Process", "Reset", "State", "Output", "LogicalSpec", "ComputeCoefficients", "ComputeCoefficientsFromSnapshot", "MakeSnapshot", "UIState", "PreparedSpec", "InstallPrepared", "Preparation"]
   let mut tuningMembers := #[]
   if let some tuning := tuning then
     let info ← getConstInfo step
@@ -839,6 +903,18 @@ def generateFilterResponses (step : Name) (responses : Array (Name × String))
         (some expected) none snapshotSignature "ComputeCoefficientsFromSnapshot"
       includes := includes ++ extraIncludes
       tuningMembers := tuningMembers ++ #[s!"    // Prepared coefficients generated from {prepared}.", "    //", ""] ++ preparedBody
+    if let some prepared := preparedBank then
+      let (extraIncludes, preparedBody) ← generateParts prepared cppName generic none "PreparedSpec" true
+        (some expected) none snapshotSignature "InstallPrepared" (declareCache := false)
+      includes := includes ++ extraIncludes
+      tuningMembers := tuningMembers ++ preparedBody
+  if let some prepare := preparation then
+    let (extraIncludes, preparationBody) ← generateParts prepare cppName true none "Input" (preparation := true)
+    for line in extraIncludes do
+      unless includes.contains line do includes := includes.push line
+    body := body ++ #["    template<size_t Width>", "    struct Preparation", "    {",
+      "        using Vector = MultiChannelNumber<Number, Width>;", ""] ++
+      preparationBody.map (fun line => if line.isEmpty then "" else "    " ++ line) ++ #["    };", ""]
   let mut signature : Option Expr := none
   for (response, method) in responses do
     if methods.contains method then throwError "C++ codegen: duplicate or reserved response method {method}"
@@ -1066,6 +1142,7 @@ elab "#generate_cpp_function_generic " function:ident " as " cppName:ident " met
   logInfo m!"Generated {output} from {function.getId} as a pure function with MultiChannelNumber arithmetic"
 
 syntax cppReset := "resetWith " ident
+syntax cppBank := "preparedBank " ident " prepareWith " ident
 
 elab "#generate_cpp_sampled_filter " step:ident tuning:ident
     preparedSyntax:(cppPrepared)? resetSyntax:(cppReset)?
@@ -1083,7 +1160,7 @@ elab "#generate_cpp_sampled_filter " step:ident tuning:ident
   logInfo m!"Generated {output} with captured response and sampled UI"
 
 elab "#generate_cpp_sampled_filter_generic " step:ident tuning:ident
-    preparedSyntax:(cppPrepared)? resetSyntax:(cppReset)?
+    preparedSyntax:(cppPrepared)? resetSyntax:(cppReset)? bankSyntax:(cppBank)?
     "[" entries:cppResponse,* "]" " as " cppName:ident " to " path:str : command => do
   let pairs ← entries.getElems.mapM fun entry => do
     match entry with
@@ -1092,6 +1169,8 @@ elab "#generate_cpp_sampled_filter_generic " step:ident tuning:ident
   let code ← liftTermElabM <| generateFilterResponses step.getId pairs cppName.getId.toString true (some tuning.getId) true
     (preparedSyntax.map (fun p => p.raw[1].getId))
     (resetSyntax.map (fun p => p.raw[1].getId))
+    (bankSyntax.map (fun p => p.raw[1].getId))
+    (bankSyntax.map (fun p => p.raw[3].getId))
   let output : System.FilePath := path.getString
   if let some parent := output.parent then IO.FS.createDirAll parent
   IO.FS.writeFile output code

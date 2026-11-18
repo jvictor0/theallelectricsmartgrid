@@ -8,6 +8,7 @@ import struct
 import subprocess
 
 from test_dsp_tuning import test_tuning
+from test_dsp_multiband import test_multiband
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,7 +22,7 @@ HEADERS = (
     "ConservativeReuppingLadderCore.hpp",
 )
 HEADERS += tuple(name.replace(".hpp", "Generic.hpp") for name in HEADERS)
-HEADERS += ("LinkwitzRileySplitter4BandGeneric.hpp",)
+HEADERS += ("LinkwitzRileySplitter4BandGeneric.hpp", "MultibandSaturator4BandCoreGeneric.hpp")
 
 
 def test_response(cases, output):
@@ -202,6 +203,7 @@ def main():
     test_response(response_cases, output)
     test_all_responses(all_response_cases, compiler, output)
     test_tuning(tuning_cases, compiler, output, ROOT)
+    test_multiband(compiler, output, ROOT)
 
 
 if __name__ == "__main__":

@@ -99,7 +99,7 @@ def checkPrecision {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 8]
 /-- Materialize recurrence fields between samples, just as the generated target
 stores concrete vector fields. Keep the data wrappers until after mapping the
 whole tree: projecting inside the mapping lambda defers evaluation again. -/
-def freeze {n c : Nat} (state : MultibandSaturator.State n (Fin c → Float)) : MultibandSaturator.State n (Fin c → Float) :=
+def freeze {n c : Nat} {R : Type} (state : MultibandSaturator.State n (Fin c → R)) : MultibandSaturator.State n (Fin c → R) :=
   let tree := mapTree (StateSpace.snapshot c) _ state.splitter.tree
   {state with splitter := {state.splitter with tree := mapTree StateSpace.Snapshot.values _ tree}}
 

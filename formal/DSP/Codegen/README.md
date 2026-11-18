@@ -22,7 +22,7 @@ remain outside these linear response plots. The separate
 [CoupledProcessor.hpp](../generated/CoupledProcessor.hpp) exercises the
 `State × Output` form, nested coefficients and two interacting state variables.
 
-The splitter is exported only as a `Generic` header. The other filters also have a `Generic` header, such as
+The splitter and multiband saturator are exported only as `Generic` headers. The other filters also have a `Generic` header, such as
 [TPTSVFGeneric.hpp](../generated/TPTSVFGeneric.hpp), parameterized by
 `Number` (`float` or `double`) and `Size`. These include the app's
 `MultiChannelNumber.hpp`; add `private/src` to the compiler's include path.
@@ -495,3 +495,36 @@ comparisons used for static band selection are evaluated during specialization;
 external, unsafe, or dynamic topology definitions remain rejected. Recursive
 record types reduce to fixed nested records. No runtime vector of records is
 needed. Per-band transfers remain proof definitions for a later consumer.
+
+## Coupled channels and packed prepared banks
+
+The four-band multiband saturator uses the same sampled-filter backend. Its
+`State × Output` result includes a fixed array of saturation-observation records;
+record arrays are emitted as `std::array` with a named nested element struct.
+The shared `ChannelMean` arithmetic operation lowers to `MeanBroadcast`, with a
+function-channel Lean interpretation and native differential tests. All other
+arithmetic remains pointwise. Static natural equality and constant Boolean
+conditions are folded only through the known primitive definitions.
+
+A generic sampled filter may add:
+
+```lean
+preparedBank DSP.MultibandSaturator.install4Band
+prepareWith DSP.LinkwitzRileySplitter.prepareSection
+```
+
+This emits a `PreparedSpec` and `InstallPrepared` method that preserve histories
+and update the cached response snapshot. The installer is checked against the
+same state and snapshot types as normal tuning. `Preparation<Width>::Prepare`
+is a nested pure factory accepting a numeric or record input and returning a
+`Prepared` record. Its arithmetic width is independent of the audio width, so
+three cutoffs can share a Math4096 call before their fields are broadcast into
+the audio bank. The factory uses the existing expression evaluator, including
+external-operation checks and FMA/trig lowering.
+
+Unused pure expression temporaries are removed after result projection. This
+avoids computing or retaining the unused side of a compound result such as the
+pair of LR weights. Mutable branch joins, persistent stores and output stores
+are retained. The normal codegen suite also checks the multiband core against
+native Lean, including every stored field, all meter observations and the power
+response.

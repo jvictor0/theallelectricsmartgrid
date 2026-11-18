@@ -7,10 +7,12 @@ The splitter calls the shared TPTSVF recurrence. There is no second crossover
 implementation and no call into generated C++.
 
 The pure processor, time-first small-signal proofs and optimized power-response
-kernel are implemented. C++ emission and app integration are subsequent work. The current app continues to use its handwritten
-multiband processor. Its legacy crossover has fourth-order Butterworth
-branches; the Lean core uses the proved LR4 splitter with sibling phase
-compensation. The two are intentionally different filters.
+kernel are implemented and emitted through the shared C++ generator. The app's
+four-band stereo and quad mastering chains use the generated core through
+`private/src/MultibandSaturator.hpp`. The old crossover had fourth-order
+Butterworth branches; this core uses the proved LR4 splitter with sibling phase
+compensation. That response change is intentional. Knob mapping, cutoff clamps,
+mono-bass/sub routing and meter timing retain their app contracts.
 
 ## Interface and signal order
 
@@ -38,9 +40,9 @@ cubic rational approximation with explicit FMA for native `Float`/`Float32`.
 There is no division by `tanh(gain)`: this is the app's unnormalized mastering
 saturation, not the normalized ladder saturator.
 
-The observations contain the exact values computed for audio. A future C++
-adapter can feed them to the existing meters without evaluating saturation
-again. RMS/peak accumulation, reduction floors, host-frame timing and atomic
+The observations contain the exact values computed for audio. The C++
+wrapper feeds them to `MeterGeneric::RecordSaturated(before, after)` without
+evaluating saturation again. RMS/peak accumulation, reduction floors, host-frame timing and atomic
 publication remain outside the Lean audio state. The output record is not an
 input to the next step, so changing or discarding an observation cannot feed
 back into processing. The existing generator already supports `State × Output`.
@@ -79,10 +81,13 @@ adds a prepared coefficient bank without changing the existing splitter tuner:
    from the same prepared bank. The snapshot also retains band/master gains.
 
 `prepareSection` can itself use function-backed channels: each lane then holds
-an independent cutoff. The future backend can evaluate a packed three-cutoff
-bank with Math4096 and broadcast its records into stereo or quad audio sections.
+an independent cutoff. The generated `Preparation<3>::Prepare` evaluates a packed three-cutoff
+bank with Math4096. The wrapper broadcasts those records into stereo or quad
+audio sections and calls `InstallPrepared`. Cutoff preparation is cached while
+the clamped cutoffs remain unchanged; gain updates still capture a current snapshot.
 Those preparation lanes are distinct from the audio lanes used by mono bass.
-This step does not introduce a new code generator or export standalone wrappers.
+The preparer, installer, audio processor, reset, snapshot and power response
+live in `MultibandSaturator4BandCoreGeneric.hpp`, using the existing generator.
 
 ## Validation
 
@@ -193,5 +198,30 @@ The reusable pieces are deliberately separate from the multiband filter:
   private copies were removed; the ladder's feedback convergence proof remains.
 
 `DSP.Audit` checks these public results and all DSP dependencies for admissions
-or additional axioms. No new codegen entry point, generated C++ filter, UI adapter
-or app-side behavior is added in this phase.
+or additional axioms. The generated entry point is connected to the proved independent and mono-bass
+steps by `step4Band_independent` and `step4Band_mono`; `install4Band_prepare`
+connects prepared installation to the proved coefficient/snapshot pair.
+
+## C++ integration and validation
+
+`Core::Process` takes an input vector plus a scalar mono-bass flag and writes
+`m_output`, containing four before/after observations, the master observation,
+and the separate saturated bass. A shared `ChannelMean` operation interprets
+mean-and-broadcast as the original finite sum in Lean and `MeanBroadcast` in C++.
+The C++ implementation uses a fixed index pack, retains the zero-seeded left-to-right
+sum, and ignores the padding lane at width three. Processing has no lane loops.
+
+The app wrapper owns the meters, readers and sampled writer. It records every
+observation once per engine sample; `RecordSaturated` preserves the old floor,
+RMS/peak accumulation, reduction and host-frame smoothing. Existing
+`ProcessAndSaturate` callers delegate their bookkeeping to this same function.
+The single response curve captures the shared coefficients and uses the generated
+power kernel for common-channel input; meters retain their individual audio lanes.
+
+The differential codegen test checks every state and output field plus the power
+response against native Lean at widths 1–4, in float and double, with distinct channel coefficients,
+nonzero histories, muted bands and changes to the mono-bass flag. Core tests
+check packed tuning/routing against scalar LR processing, external metering
+against the existing API, and the UI power against measured small common-channel
+sinusoids. These tests validate the compiler boundary; the compiler is not itself
+formally verified.

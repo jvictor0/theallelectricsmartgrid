@@ -58,8 +58,8 @@ structure PreparedSpec (numBands : Nat) (R : Type) where
 a packed bank of cutoffs and broadcast each result to its audio channels. -/
 def prepareSection [OfNat R 0] [OfNat R 1] [OfNat R 8]
     [Add R] [Mul R] [Div R] [FMA R] [Trig R] (cutoff : R) : PreparedSection R :=
-  let (s, snapshot) := TPTSVF.prepareCoefficients (sectionSpec cutoff) zeroSection
-  ⟨snapshot, s.a1, s.a2, s.a3⟩
+  let prepared := TPTSVF.prepareCoefficients (sectionSpec cutoff) zeroSection
+  ⟨prepared.2, prepared.1.a1, prepared.1.a2, prepared.1.a3⟩
 
 def prepareTree [OfNat R 0] [OfNat R 1] [OfNat R 8]
     [Add R] [Mul R] [Div R] [FMA R] [Trig R] :

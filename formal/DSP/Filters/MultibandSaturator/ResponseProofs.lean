@@ -8,9 +8,10 @@ open scoped BigOperators
 
 theorem sum_eq_sum {n : Nat} {R : Type} [AddCommMonoid R] (f : Fin n → R) :
     sum f = ∑ i, f i := by
+  change ChannelMean.sum f = _
   induction n with
-  | zero => simp [sum]
-  | succ n ih => rw [sum,ih,Fin.sum_univ_castSucc]
+  | zero => simp [ChannelMean.sum]
+  | succ n ih => rw [ChannelMean.sum,ih,Fin.sum_univ_castSucc]
 
 /-- Candidate complex small-signal response, with the splitter's exact phase. -/
 def Snapshot.transfer {n : Nat} (s : Snapshot n ℝ) (frequency : ℝ) : ℂ :=

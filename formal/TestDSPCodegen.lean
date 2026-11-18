@@ -296,3 +296,27 @@ run_cmd liftTermElabM do
       rejected := true
     unless rejected do throwError "C++ codegen incorrectly accepted mismatched sampled reset"
   logInfo "Sampled filter reset signature rejection checks passed."
+
+namespace DSP.Tests
+
+def scalarPreparation {R : Type} (input : R) := input
+
+def invalidPreparation {R : Type} [Add R] (a b : R) : DSP.Sample R := ⟨a+b⟩
+
+end DSP.Tests
+
+open Lean Elab Command in
+run_cmd liftTermElabM do
+  for (name, expected) in #[
+      (``DSP.Tests.scalarPreparation, "preparation must return a record"),
+      (``DSP.Tests.invalidPreparation, "unsupported generic parameter")] do
+    let mut rejected := false
+    try
+      let _ ← DSP.Codegen.generateParts name "TestPreparation" true none "Input" (preparation := true)
+    catch error =>
+      let message ← error.toMessageData.toString
+      unless (message.splitOn expected).length > 1 do
+        throwError "unexpected preparation rejection: {message}"
+      rejected := true
+    unless rejected do throwError "C++ codegen accepted invalid preparation {name}"
+  logInfo "Prepared bank function boundary checks passed."

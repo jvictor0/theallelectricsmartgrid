@@ -573,3 +573,9 @@ The filter integration refreshed the `MultiChannelNumber.hpp`
 fingerprint after reviewing its new gather helpers and `<utility>` include.
 The modeled `Exp2` implementation and all 34 pinned shared C++ bodies are
 unchanged. This refresh changes no encoder contracts or proof claims.
+
+The multiband integration adds `SumFromZero` and `MeanBroadcast` helpers to
+`MultiChannelNumber.hpp`. Review confirmed that existing methods, including the
+modeled `Exp2` and all pinned shared bodies, are unchanged. The new helpers are
+used only by generated mono-bass routing; the current source fingerprint is
+refreshed without changing the pinned snapshot or encoder proof claims.

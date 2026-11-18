@@ -456,6 +456,20 @@ struct MultiChannelNumber
         return result;
     }
 
+    // The explicit zero and left fold match the Lean channel mean, including
+    // signed-zero rounding. The fixed index pack excludes padding lanes.
+    //
+    template<size_t... Indices>
+    Number SumFromZero(std::index_sequence<Indices...>) const
+    {
+        return (static_cast<Number>(0) + ... + m_values[Indices]);
+    }
+
+    MultiChannelNumber MeanBroadcast() const
+    {
+        return Splat(SumFromZero(std::make_index_sequence<Size>{}) / static_cast<Number>(Size));
+    }
+
     Number Average() const
     {
         return Sum() / static_cast<Number>(Size);

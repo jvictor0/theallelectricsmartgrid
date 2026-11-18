@@ -55,10 +55,10 @@ theorem stepMonoBass_output_eq [NeZero n] [NeZero c]
     (stepMonoBass s ⟨x⟩).2.master.after lane =
       SaturatingSum.apply (fun i => s.bandGain i lane) (s.masterGain lane)
         (bassRoute ℝ lane (LinkwitzRileySplitter.step s.splitter ⟨x⟩).bands) := by
-  simp only [stepMonoBass,stepWith,StateSpace.snapshot_values,Bool.true_and,
+  simp only [stepMonoBass,stepWith,StateSpace.snapshot_values,Bool.and_true,
     Tanh.tanh,Pi.add_apply,Pi.mul_apply,ite_true]
   rw [sum_channels]
-  simp only [meanChannels,sum_eq_sum,SaturatingSum.apply_eq,
+  simp only [meanChannels,ChannelMean.channels,sum_eq_sum,SaturatingSum.apply_eq,
     bassRoute,LinearMap.coe_mk,AddHom.coe_mk,beq_iff_eq,ite_apply,Pi.zero_apply,
     Fin.val_zero,ite_true]
   have hc : (OfNat.ofNat c : ℝ) = (c:ℝ) := by

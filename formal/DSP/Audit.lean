@@ -8,6 +8,9 @@ open Lean in
 run_cmd do
   let env ← getEnv
   let required := #[
+    ``DSP.MultibandSaturator.step4Band_independent,
+    ``DSP.MultibandSaturator.step4Band_mono,
+    ``DSP.MultibandSaturator.install4Band_prepare,
     ``DSP.MultibandSaturator.prepared_smallSignal,
     ``DSP.MultibandSaturator.prepared_monoSmallSignal,
     ``DSP.MultibandSaturator.prepared_magnitudeSquared,

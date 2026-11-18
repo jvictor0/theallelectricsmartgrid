@@ -1,6 +1,7 @@
 import DSP.Filters.LinkwitzRileySplitter.Prepared
 import DSP.Nonlinear
 import DSP.Channels.Arithmetic
+import DSP.ChannelMean
 
 /-! A pure multiband mastering core. Split with the shared compensated LR tree,
 apply unnormalized saturation after each band gain, sum, then apply master gain
@@ -79,9 +80,7 @@ def prepareCoefficients [OfNat R 0] [OfNat R 1] [OfNat R 8]
 
 /-- Ascending left-to-right sum, starting at zero like the app's band accumulator.
 The finite recursion specializes to straight-line arithmetic at a fixed width. -/
-def sum [OfNat R 0] [Add R] : {n : Nat} → (Fin n → R) → R
-  | 0, _ => 0
-  | n + 1, values => sum (fun i => values i.castSucc) + values (Fin.last n)
+abbrev sum [OfNat R 0] [Add R] : {n : Nat} → (Fin n → R) → R := ChannelMean.sum
 
 section Processing
 variable [NeZero numBands] [OfNat R 0] [OfNat R 2]
@@ -93,14 +92,14 @@ band gain, and adds its saturated value after the higher bands, as in the app. -
 def stepWith (monoBass : Bool) (mixBass saturate : R → R)
     (state : State numBands R) (input : Sample R) : State numBands R × Output numBands R :=
   let splitter := LinkwitzRileySplitter.step state.splitter input
-  let bands := (StateSpace.snapshot numBands fun i =>
-    let raw := if monoBass && i.val == 0 then mixBass (splitter.bands i) else splitter.bands i
+  let bands := StateSpace.snapshot numBands fun i =>
+    let raw := if i.val == 0 && monoBass then mixBass (splitter.bands i) else splitter.bands i
     let before := raw * state.bandGain i
-    (⟨before, saturate before⟩ : SaturationObservation R)).values
-  let combined := sum fun i => if monoBass && i.val == 0 then 0 else (bands i).after
-  let sub := if monoBass then (bands 0).after else 0
+    (⟨before, saturate before⟩ : SaturationObservation R)
+  let combined := sum fun i => if i.val == 0 && monoBass then 0 else (bands.values i).after
+  let sub := if monoBass then (bands.values 0).after else 0
   let beforeMaster := (combined + sub) * state.masterGain
-  ({state with splitter}, ⟨bands, ⟨beforeMaster, saturate beforeMaster⟩, sub⟩)
+  ({state with splitter}, ⟨bands.values, ⟨beforeMaster, saturate beforeMaster⟩, sub⟩)
 
 /-- Independent audio channels: pointwise arithmetic and no cross-channel mix. -/
 def step [Tanh R] : State numBands R → Sample R → State numBands R × Output numBands R :=
@@ -110,11 +109,9 @@ end Processing
 
 /-- Average all audio channels and broadcast. Coefficient preparation can use
 a different lane count; cutoff lanes never pass through this audio operation. -/
-def meanChannels {numChannels : Nat} [NeZero numChannels]
+abbrev meanChannels {numChannels : Nat} [NeZero numChannels]
     [OfNat R 0] [OfNat R numChannels] [Add R] [Div R]
-    (values : Fin numChannels → R) : Fin numChannels → R :=
-  let mean := sum values / (OfNat.ofNat numChannels : R)
-  fun _ => mean
+    (values : Fin numChannels → R) : Fin numChannels → R := ChannelMean.channels values
 
 /-- App mono-bass mode uses shared band gains across channels. With that
 contract the bass observation and sub are identical in every lane. The upper

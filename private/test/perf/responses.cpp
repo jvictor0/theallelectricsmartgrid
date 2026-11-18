@@ -7,6 +7,7 @@
 #include "SourceMixer.hpp"
 #include "TPTBaseWidthFilter.hpp"
 #include "MultibandSaturator.hpp"
+#include "LinkwitzRileyCrossover.hpp"
 #include <functional>
 #include <iomanip>
 #include <random>
@@ -268,19 +269,18 @@ std::vector<Case> Cases()
     });
     Add(cases, "master_four_band/mono", [](size_t i)
     {
-        MultibandSaturator<4, 2>::Snapshot s;
+        MultibandSaturator<4, 2> filter;
+        MultibandSaturator<4, 2>::Input input;
+        input.m_bassFreq.m_expParam = 0.0005f * std::exp2(Control(i));
+        input.m_crossoverFreqFactor[0].m_expParam = 4;
+        input.m_crossoverFreqFactor[1].m_expParam = 4;
         for (size_t band = 0; band < 4; ++band)
         {
-            s.m_gain[band] = 0.5f + 1.5f * Control(i + band * 7);
-            if (band < 3)
-            {
-                LinkwitzRileyCrossoverGeneric<float, 2> filter;
-                filter.SetCyclesPerSample(0.0005f * std::exp2(2 * band + Control(i)));
-                s.m_crossovers.m_tangent[band] = filter.MakeSnapshot().m_coefficients.m_tangent[0];
-            }
+            input.m_gain[band].m_expParam = 0.5f + 1.5f * Control(i + band * 7);
         }
 
-        return s;
+        filter.SetCoefficients(input);
+        return filter.MakeSnapshot();
     });
     Add(cases, "fir_31/mono", [](size_t i)
     {
