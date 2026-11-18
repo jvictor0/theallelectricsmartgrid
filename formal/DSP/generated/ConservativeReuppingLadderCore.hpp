@@ -52,6 +52,7 @@ struct ConservativeReuppingLadderCore
         const double v2 = (1.0 - m_state.m_alpha);
         const double v3 = (v2 * m_state.m_stage1);
         const double v4 = std::fma(m_state.m_alpha, v1, v3);
+        m_state.m_input = v1;
         const double v5 = (v4 * m_state.m_saturation.m_gain);
         const double v6 = (v4 * m_state.m_saturation.m_gain);
         const double v7 = (v5 * v6);
@@ -61,6 +62,7 @@ struct ConservativeReuppingLadderCore
         const double v11 = (v4 * m_state.m_saturation.m_gain);
         const double v12 = (v11 * 0x12000000000000p-49);
         const double v13 = (v4 * m_state.m_saturation.m_gain);
+        m_state.m_stage1 = v4;
         const double v14 = std::fma(v12, v13, 0x1b000000000000p-48);
         const double v15 = (v10 / v14);
         const double v16 = (-1.0);
@@ -113,6 +115,7 @@ struct ConservativeReuppingLadderCore
         const double v36 = (v29 * m_state.m_saturation.m_gain);
         const double v37 = (v36 * 0x12000000000000p-49);
         const double v38 = (v29 * m_state.m_saturation.m_gain);
+        m_state.m_stage2 = v29;
         const double v39 = std::fma(v37, v38, 0x1b000000000000p-48);
         const double v40 = (v35 / v39);
         const double v41 = (-1.0);
@@ -165,6 +168,7 @@ struct ConservativeReuppingLadderCore
         const double v61 = (v54 * m_state.m_saturation.m_gain);
         const double v62 = (v61 * 0x12000000000000p-49);
         const double v63 = (v54 * m_state.m_saturation.m_gain);
+        m_state.m_stage3 = v54;
         const double v64 = std::fma(v62, v63, 0x1b000000000000p-48);
         const double v65 = (v60 / v64);
         const double v66 = (-1.0);
@@ -217,6 +221,7 @@ struct ConservativeReuppingLadderCore
         const double v86 = (v79 * m_state.m_saturation.m_gain);
         const double v87 = (v86 * 0x12000000000000p-49);
         const double v88 = (v79 * m_state.m_saturation.m_gain);
+        m_state.m_stage4 = v79;
         const double v89 = std::fma(v87, v88, 0x1b000000000000p-48);
         const double v90 = (v85 / v89);
         const double v91 = (-1.0);
@@ -259,26 +264,7 @@ struct ConservativeReuppingLadderCore
         const double v101 = (v100 / m_state.m_saturation.m_tanhGain);
         const double v102 = (m_state.m_k + 1.0);
         const double v103 = (v101 * v102);
-        const double v104 = m_state.m_alpha;
-        const double v105 = m_state.m_saturation.m_gain;
-        const double v106 = m_state.m_saturation.m_tanhGain;
-        const double v107 = m_state.m_k;
-        const double v108 = v4;
-        const double v109 = v29;
-        const double v110 = v54;
-        const double v111 = v79;
-        const double v112 = v1;
-        const double v113 = v103;
-        m_state.m_alpha = v104;
-        m_state.m_saturation.m_gain = v105;
-        m_state.m_saturation.m_tanhGain = v106;
-        m_state.m_k = v107;
-        m_state.m_stage1 = v108;
-        m_state.m_stage2 = v109;
-        m_state.m_stage3 = v110;
-        m_state.m_stage4 = v111;
-        m_state.m_input = v112;
-        m_state.m_output = v113;
+        m_state.m_output = v103;
     }
 
     // Response generated from DSP.ConservativeReuppingLadder.Snapshot.magnitudeSquaredFloat.
@@ -458,20 +444,14 @@ struct ConservativeReuppingLadderCore
         const double v45 = (1.0 - v9);
         const double v46 = (v45 / v9);
         const double v47 = (spec.m_gain / v38);
-        const double v48 = v46;
-        const double v49 = v47;
-        const double v50 = v44;
-        const double v51 = v9;
-        const double v52 = spec.m_gain;
-        const double v53 = v38;
-        const double v54 = v44;
-        m_state.m_alpha = v51;
-        m_state.m_saturation.m_gain = v52;
-        m_state.m_saturation.m_tanhGain = v53;
-        m_state.m_k = v54;
-        m_responseSnapshot.m_memoryRatio = v48;
-        m_responseSnapshot.m_slope = v49;
-        m_responseSnapshot.m_k = v50;
+        const double v48 = spec.m_gain;
+        m_state.m_alpha = v9;
+        m_state.m_saturation.m_gain = v48;
+        m_state.m_saturation.m_tanhGain = v38;
+        m_state.m_k = v44;
+        m_responseSnapshot.m_memoryRatio = v46;
+        m_responseSnapshot.m_slope = v47;
+        m_responseSnapshot.m_k = v44;
     }
 
     // Reset generated from DSP.ConservativeReuppingLadder.resetFloat.

@@ -55,24 +55,15 @@ struct TPTBaseWidth
         const double v0 = (input.m_x - m_state.m_highPass.m_lowPass.m_s);
         const double v1 = std::fma(v0, m_state.m_highPass.m_lowPass.m_G, m_state.m_highPass.m_lowPass.m_s);
         const double v2 = std::fma(v0, m_state.m_highPass.m_lowPass.m_G, v1);
+        m_state.m_highPass.m_lowPass.m_s = v2;
         const double v3 = (input.m_x - v1);
+        m_state.m_highPass.m_lowPass.m_y = v1;
         const double v4 = (v3 - m_state.m_lowPass.m_s);
+        m_state.m_highPass.m_y = v3;
         const double v5 = std::fma(v4, m_state.m_lowPass.m_G, m_state.m_lowPass.m_s);
         const double v6 = std::fma(v4, m_state.m_lowPass.m_G, v5);
-        const double v7 = m_state.m_highPass.m_lowPass.m_G;
-        const double v8 = v2;
-        const double v9 = v1;
-        const double v10 = v3;
-        const double v11 = m_state.m_lowPass.m_G;
-        const double v12 = v6;
-        const double v13 = v5;
-        m_state.m_highPass.m_lowPass.m_G = v7;
-        m_state.m_highPass.m_lowPass.m_s = v8;
-        m_state.m_highPass.m_lowPass.m_y = v9;
-        m_state.m_highPass.m_y = v10;
-        m_state.m_lowPass.m_G = v11;
-        m_state.m_lowPass.m_s = v12;
-        m_state.m_lowPass.m_y = v13;
+        m_state.m_lowPass.m_s = v6;
+        m_state.m_lowPass.m_y = v5;
     }
 
     // Response generated from DSP.TPTBaseWidth.Snapshot.magnitudeSquaredFloat.
@@ -167,14 +158,10 @@ struct TPTBaseWidth
         const double v3 = Math4096::TanPi(MultiChannelNumber<double, 1>::Splat(spec.m_lowPass.m_cutoff))[0];
         const double v4 = (1.0 + v3);
         const double v5 = (v3 / v4);
-        const double v6 = v0;
-        const double v7 = v3;
-        const double v8 = v2;
-        const double v9 = v5;
-        m_state.m_highPass.m_lowPass.m_G = v8;
-        m_state.m_lowPass.m_G = v9;
-        m_responseSnapshot.m_highPass.m_g = v6;
-        m_responseSnapshot.m_lowPass.m_g = v7;
+        m_state.m_highPass.m_lowPass.m_G = v2;
+        m_state.m_lowPass.m_G = v5;
+        m_responseSnapshot.m_highPass.m_g = v0;
+        m_responseSnapshot.m_lowPass.m_g = v3;
     }
 
     using NumberType = decltype(State{}.m_highPass.m_lowPass.m_G);

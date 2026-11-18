@@ -50,15 +50,10 @@ struct OnePoleTPTHighPassGeneric
         const Vector v0 = (input.m_x - m_state.m_lowPass.m_s);
         const Vector v1 = Vector::FusedMultiplyAdd(v0, m_state.m_lowPass.m_G, m_state.m_lowPass.m_s);
         const Vector v2 = Vector::FusedMultiplyAdd(v0, m_state.m_lowPass.m_G, v1);
+        m_state.m_lowPass.m_s = v2;
         const Vector v3 = (input.m_x - v1);
-        const Vector v4 = m_state.m_lowPass.m_G;
-        const Vector v5 = v2;
-        const Vector v6 = v1;
-        const Vector v7 = v3;
-        m_state.m_lowPass.m_G = v4;
-        m_state.m_lowPass.m_s = v5;
-        m_state.m_lowPass.m_y = v6;
-        m_state.m_y = v7;
+        m_state.m_lowPass.m_y = v1;
+        m_state.m_y = v3;
     }
 
     // Response generated from DSP.OnePoleTPTHighPass.Snapshot.magnitudeSquared.
@@ -104,10 +99,8 @@ struct OnePoleTPTHighPassGeneric
         const Vector v0 = Math4096::TanPi(spec.m_cutoff);
         const Vector v1 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) + v0);
         const Vector v2 = (v0 / v1);
-        const Vector v3 = v0;
-        const Vector v4 = v2;
-        m_state.m_lowPass.m_G = v4;
-        m_responseSnapshot.m_g = v3;
+        m_state.m_lowPass.m_G = v2;
+        m_responseSnapshot.m_g = v0;
     }
 
     using NumberType = Number;

@@ -28,6 +28,22 @@ import DSP.Filters.ConservativeReuppingLadder.Response
 #generate_cpp_function_generic DSP.Tests.snapshotFunction
   as SnapshotFunctionGeneric method Evaluate to "build/lean/generated/SnapshotFunctionGeneric.hpp"
 
+-- The coupled processor needs its old q values for the output. Store q0 only
+-- after that read, but do not retain it across the independent output tail.
+-- The native differential suite checks swaps and conditional execution too.
+open Lean Elab Command in
+run_cmd liftTermElabM do
+  let code ← DSP.Codegen.generateGeneric ``DSP.Coupled.processor "ScheduledProcessor"
+  let [beforeStore, afterStore] := code.splitOn "m_state.m_q[0] = "
+    | throwError "coupled processor should store q0 once"
+  unless (beforeStore.splitOn "m_state.m_model.m_C[0] * m_state.m_q[0]").length == 2 do
+    throwError "coupled processor overwrites q0 before its old-state output read"
+  unless (afterStore.splitOn "m_state.m_model.m_D").length == 2 do
+    throwError "coupled processor delays state stores until after independent output work"
+  if (code.splitOn "m_state.m_model.m_A[0][0] = ").length > 1 then
+    throwError "processing should not rewrite unchanged coefficients"
+  logInfo "Processor store scheduling regression checks passed."
+
 open Lean Elab Command in
 run_cmd liftTermElabM do
   for (name, expected) in #[

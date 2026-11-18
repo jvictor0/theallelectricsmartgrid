@@ -57,32 +57,11 @@ struct CoupledProcessorGeneric
         const Vector v4 = Vector::FusedMultiplyAdd(m_state.m_model.m_A[1][1], m_state.m_q[1], v3);
         const Vector v5 = Vector::FusedMultiplyAdd(m_state.m_model.m_B[1], input.m_x, v4);
         const Vector v6 = (m_state.m_model.m_C[0] * m_state.m_q[0]);
+        m_state.m_q[0] = v2;
         const Vector v7 = Vector::FusedMultiplyAdd(m_state.m_model.m_C[1], m_state.m_q[1], v6);
+        m_state.m_q[1] = v5;
         const Vector v8 = Vector::FusedMultiplyAdd(m_state.m_model.m_D, input.m_x, v7);
-        const Vector v9 = m_state.m_model.m_A[0][0];
-        const Vector v10 = m_state.m_model.m_A[0][1];
-        const Vector v11 = m_state.m_model.m_A[1][0];
-        const Vector v12 = m_state.m_model.m_A[1][1];
-        const Vector v13 = m_state.m_model.m_B[0];
-        const Vector v14 = m_state.m_model.m_B[1];
-        const Vector v15 = m_state.m_model.m_C[0];
-        const Vector v16 = m_state.m_model.m_C[1];
-        const Vector v17 = m_state.m_model.m_D;
-        const Vector v18 = v2;
-        const Vector v19 = v5;
-        const Vector v20 = v8;
-        m_state.m_model.m_A[0][0] = v9;
-        m_state.m_model.m_A[0][1] = v10;
-        m_state.m_model.m_A[1][0] = v11;
-        m_state.m_model.m_A[1][1] = v12;
-        m_state.m_model.m_B[0] = v13;
-        m_state.m_model.m_B[1] = v14;
-        m_state.m_model.m_C[0] = v15;
-        m_state.m_model.m_C[1] = v16;
-        m_state.m_model.m_D = v17;
-        m_state.m_q[0] = v18;
-        m_state.m_q[1] = v19;
-        m_output.m_y = v20;
+        m_output.m_y = v8;
     }
 
 };

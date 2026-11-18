@@ -193,7 +193,7 @@ void CheckGeneratedMastering(bool mono)
         controls.m_gain[0].m_expParam = 3;
         controls.m_gain[1].m_expParam = 0;
         controls.m_gain[2].m_expParam = 0.5f;
-        controls.m_gain[3].m_expParam = 2;
+        controls.m_gain[3].m_expParam = sample % 257 == 0 ? 0 : 2;
         controls.m_masterGain.m_expParam = sample % 513 == 0 ? 0 : 1.4f;
         Vector input;
         float raw[4][Channels];

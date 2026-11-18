@@ -307,9 +307,16 @@ a1, a2 and a3 or a morph's cosine and sine, is now provided by the generated
 the tuner updates coefficients in place and preserves history.
 
 For each call, a state-only `step(state_n, input_n)` returns `state_{n+1}`, and
-`process(state_n, input_n)` returns `(state_{n+1}, output_n)`. All returned
-scalar fields are captured before any stored record is modified. This preserves
-state swaps and outputs that observe old values. In the `State × Output` form
+`process(state_n, input_n)` returns `(state_{n+1}, output_n)`. Projected old values
+are captured, and existing expression temporaries are reused. A processor stores
+each changed leaf after its last old-value read and the last computation using
+its saved result. Complete conditional branches are scheduling boundaries;
+stores cannot split an `if`/`else`. Unchanged fields are not rewritten. This
+preserves state swaps and outputs that observe old values without keeping an
+entire filter tree's results live until the end of the sample. Arithmetic order,
+FMA boundaries and all returned state/output fields are unchanged. Coefficient
+updaters retain their capture-before-commit order, including when a prepared
+snapshot argument aliases the cached snapshot. In the `State × Output` form
 the previous `m_output` is not an implicit input to subsequent calls; persistent
 history belongs in `State`.
 

@@ -66,6 +66,12 @@ def temporary (type text : String) : GenM Value := do
   emit s!"const {type} {name} = {text};"
   return .scalar type name
 
+/-- Expression temporaries and branch joins already hold a saved value. -/
+def savedScalar (type text : String) : GenM Value := do
+  if text.startsWith "v" && text.length > 1 && (text.drop 1).toString.toList.all Char.isDigit then
+    return .scalar type text
+  temporary type text
+
 /-- Remove unused pure expression temporaries after projecting compound results.
 Mutable branch joins and all observable assignments remain in place. -/
 def pruneTemporaries (lines : Array String) : Array String := Id.run do
@@ -81,6 +87,43 @@ def pruneTemporaries (lines : Array String) : Array String := Id.run do
     for token in tokens do live := live.insert token
     kept := kept.push line
   return kept.reverse
+
+/-- Commit a returned scalar after its last old-state read and last use of its
+saved value. This shortens SIMD live ranges without reordering arithmetic.
+Only the backend's final, independent scalar stores move; an entire conditional
+is one scheduling boundary, including its else branch. -/
+def scheduleStores (lines : Array String) : Array String := Id.run do
+  let mut body := #[]
+  let mut stores : Array (String × String × String) := #[]
+  for line in lines do
+    if #["m_state.", "m_output."].any (fun stem => line.startsWith stem) then
+      match line.splitOn " = " with
+      | [target, source] =>
+        stores := stores.push (target, (source.dropEnd 1).toString, line)
+      | _ => body := body.push line
+    else body := body.push line
+  let mut boundaries := #[true]
+  let mut depth : Nat := 0
+  for i in [:body.size] do
+    let line := body[i]!.trimAscii.toString
+    if line == "{" then depth := depth + 1
+    if line == "}" then depth := depth - 1
+    let next := (body.toList.drop (i+1)).find? (fun s => !s.trimAscii.isEmpty)
+    let continues := next.any (fun s => #["else", "{"].contains s.trimAscii.toString)
+    boundaries := boundaries.push (depth == 0 && !continues)
+  let mut pending : Array (Array String) := Array.replicate (body.size + 1) #[]
+  for (target, source, line) in stores do
+    let mut position := 0
+    for i in [:body.size] do
+      let tokens := body[i]!.splitToList fun c => !(c.isAlphanum || c == '_')
+      if (body[i]!.splitOn target).length > 1 || tokens.contains source then
+        position := i + 1
+    while !boundaries[position]! do position := position + 1
+    pending := pending.modify position (·.push line)
+  let mut result := pending[0]!
+  for i in [:body.size] do
+    result := result.push body[i]! ++ pending[i+1]!
+  return result
 
 def scalarType (type : Expr) (numberType : Option Expr) : MetaM String := do
   let type ← whnf type
@@ -566,14 +609,14 @@ partial def commitValue (shape : Shape) (value : Value) (target : String) : GenM
     for i in [:n] do commitValue element values[i]! s!"{target}[{i}]"
   | _, _ => throwError "C++ codegen: result shape mismatch"
 
-/-- Compute all changed leaves before writing any of them. A projected old
-field is omitted entirely, so coefficient updates do not store audio history. -/
+/-- Collect changed leaves, capturing projected reads before committing them.
+An identity projection is omitted, including unchanged process coefficients. -/
 partial def changedAssignments (shape : Shape) (value : Value) (target : String) : GenM (Array String) := do
   match shape, value with
   | .scalar type, .scalar type' text =>
     unless type == type' do throwError "C++ codegen: updated field type mismatch"
     if text == target then return #[]
-    let (_, saved) ← scalar (← temporary type text)
+    let (_, saved) ← scalar (← savedScalar type text)
     return #[s!"{target} = {saved};"]
   | .record fields, .record values =>
     unless fields.size == values.size do throwError "C++ codegen: updated record shape mismatch"
@@ -589,10 +632,10 @@ partial def changedAssignments (shape : Shape) (value : Value) (target : String)
     return lines
   | _, _ => throwError "C++ codegen: updated result shape mismatch"
 
-/-- Snapshot every returned leaf before assigning either persistent record. -/
+/-- Capture projected leaves while reusing existing saved expression values. -/
 partial def snapshot (value : Value) : GenM Value := do
   match value with
-  | .scalar type text => temporary type text
+  | .scalar type text => savedScalar type text
   | .record fields => return .record (← fields.mapM snapshot)
   | .vector fields => return .vector (← fields.mapM snapshot)
 
@@ -810,12 +853,8 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
       let result ← evaluate (mkAppN (mkConst function) parameters) locals
       match outputFields with
       | none =>
-        if tuningState.isSome then
-          let assignments ← changedAssignments stateFields result "m_state"
-          for line in assignments do emit line
-        else
-          let next ← snapshot result
-          commitValue stateFields next "m_state"
+        let assignments ← changedAssignments stateFields result "m_state"
+        for line in assignments do emit line
       | some outputFields =>
         if captureSnapshot.isSome then
           let next ← selectField result 0
@@ -824,9 +863,9 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
           for line in assignments do emit line
           commitValue outputFields output "m_responseSnapshot"
         else
-          let next ← snapshot (← selectField result 0)
           let output ← snapshot (← selectField result 1)
-          commitValue stateFields next "m_state"
+          let assignments ← changedAssignments stateFields (← selectField result 0) "m_state"
+          for line in assignments do emit line
           commitValue outputFields output "m_output").run { numberType, arithmetic }
     let body := if emission.lines.any (fun line => (line.splitOn (inputVariable ++ ".")).length > 1)
       then emission.lines else #[s!"static_cast<void>({inputVariable});"] ++ emission.lines
@@ -847,7 +886,7 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
         pure (record ++ #["    State m_state;", "    Output m_output;", ""])
     let lines := (← renderRecord "State" stateFields) ++ (← renderRecord "Input" inputFields) ++
       outputLines ++ #["    void Process(Input& input)", "    {"] ++
-      (pruneTemporaries body).map (fun line => if line.isEmpty then "" else "        " ++ line) ++
+      (scheduleStores (pruneTemporaries body)).map (fun line => if line.isEmpty then "" else "        " ++ line) ++
       #["    }", ""]
     return (mathIncludes emission.usesMath, lines)
 

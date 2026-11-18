@@ -125,6 +125,19 @@ struct MultibandSaturator
             BroadcastSection(m_prepared.m_splitter.m_tree.m_high.m_value, bank, 2);
             m_cutoffs = cutoffs;
         }
+        else
+        {
+            bool gainsChanged = input.m_masterGain.m_expParam != m_prepared.m_masterGain[0];
+            for (size_t band = 0; band < NumBands; ++band)
+            {
+                gainsChanged |= input.m_gain[band].m_expParam != m_prepared.m_bandGain[band][0];
+            }
+
+            if (!gainsChanged)
+            {
+                return;
+            }
+        }
 
         for (size_t band = 0; band < NumBands; ++band)
         {

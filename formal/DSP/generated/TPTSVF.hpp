@@ -54,34 +54,19 @@ struct TPTSVF
         const double v7 = (v6 - v4);
         const double v8 = (-m_state.m_ic1);
         const double v9 = std::fma(v2, 0x10000000000000p-51, v8);
+        m_state.m_ic1 = v9;
         const double v10 = (-m_state.m_ic2);
         const double v11 = std::fma(v4, 0x10000000000000p-51, v10);
+        m_state.m_ic2 = v11;
         const double v12 = (v4 + v7);
+        m_state.m_lowPass = v4;
+        m_state.m_highPass = v7;
+        m_state.m_notch = v12;
         const double v13 = (-m_state.m_k);
         const double v14 = (v13 * 0x10000000000000p-51);
         const double v15 = std::fma(v14, v2, input.m_x);
-        const double v16 = m_state.m_k;
-        const double v17 = m_state.m_a1;
-        const double v18 = m_state.m_a2;
-        const double v19 = m_state.m_a3;
-        const double v20 = v9;
-        const double v21 = v11;
-        const double v22 = v4;
-        const double v23 = v2;
-        const double v24 = v7;
-        const double v25 = v12;
-        const double v26 = v15;
-        m_state.m_k = v16;
-        m_state.m_a1 = v17;
-        m_state.m_a2 = v18;
-        m_state.m_a3 = v19;
-        m_state.m_ic1 = v20;
-        m_state.m_ic2 = v21;
-        m_state.m_lowPass = v22;
-        m_state.m_bandPass = v23;
-        m_state.m_highPass = v24;
-        m_state.m_notch = v25;
-        m_state.m_allPass = v26;
+        m_state.m_bandPass = v2;
+        m_state.m_allPass = v15;
     }
 
     // Response generated from DSP.TPTSVF.Snapshot.lowPassMagnitudeSquaredFloat.
@@ -298,18 +283,12 @@ struct TPTSVF
         const double v4 = (1.0 / v3);
         const double v5 = (v0 * v4);
         const double v6 = (v0 * v5);
-        const double v7 = v0;
-        const double v8 = v1;
-        const double v9 = v1;
-        const double v10 = v4;
-        const double v11 = v5;
-        const double v12 = v6;
-        m_state.m_k = v9;
-        m_state.m_a1 = v10;
-        m_state.m_a2 = v11;
-        m_state.m_a3 = v12;
-        m_responseSnapshot.m_g = v7;
-        m_responseSnapshot.m_k = v8;
+        m_state.m_k = v1;
+        m_state.m_a1 = v4;
+        m_state.m_a2 = v5;
+        m_state.m_a3 = v6;
+        m_responseSnapshot.m_g = v0;
+        m_responseSnapshot.m_k = v1;
     }
 
     // Prepared coefficients generated from DSP.TPTSVF.prepareFromSnapshotFloat.
@@ -325,13 +304,10 @@ struct TPTSVF
         const double v5 = spec.m_g;
         const double v6 = spec.m_k;
         const double v7 = spec.m_k;
-        const double v8 = v2;
-        const double v9 = v3;
-        const double v10 = v4;
         m_state.m_k = v7;
-        m_state.m_a1 = v8;
-        m_state.m_a2 = v9;
-        m_state.m_a3 = v10;
+        m_state.m_a1 = v2;
+        m_state.m_a2 = v3;
+        m_state.m_a3 = v4;
         m_responseSnapshot.m_g = v5;
         m_responseSnapshot.m_k = v6;
     }

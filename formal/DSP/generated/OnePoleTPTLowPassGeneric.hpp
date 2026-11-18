@@ -45,12 +45,8 @@ struct OnePoleTPTLowPassGeneric
         const Vector v0 = (input.m_x - m_state.m_s);
         const Vector v1 = Vector::FusedMultiplyAdd(v0, m_state.m_G, m_state.m_s);
         const Vector v2 = Vector::FusedMultiplyAdd(v0, m_state.m_G, v1);
-        const Vector v3 = m_state.m_G;
-        const Vector v4 = v2;
-        const Vector v5 = v1;
-        m_state.m_G = v3;
-        m_state.m_s = v4;
-        m_state.m_y = v5;
+        m_state.m_s = v2;
+        m_state.m_y = v1;
     }
 
     // Response generated from DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquared.
@@ -95,10 +91,8 @@ struct OnePoleTPTLowPassGeneric
         const Vector v0 = Math4096::TanPi(spec.m_cutoff);
         const Vector v1 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) + v0);
         const Vector v2 = (v0 / v1);
-        const Vector v3 = v0;
-        const Vector v4 = v2;
-        m_state.m_G = v4;
-        m_responseSnapshot.m_g = v3;
+        m_state.m_G = v2;
+        m_responseSnapshot.m_g = v0;
     }
 
     using NumberType = Number;

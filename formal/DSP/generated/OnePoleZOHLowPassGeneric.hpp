@@ -44,10 +44,7 @@ struct OnePoleZOHLowPassGeneric
         const Vector v0 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) - m_state.m_alpha);
         const Vector v1 = (v0 * m_state.m_y);
         const Vector v2 = Vector::FusedMultiplyAdd(m_state.m_alpha, input.m_x, v1);
-        const Vector v3 = m_state.m_alpha;
-        const Vector v4 = v2;
-        m_state.m_alpha = v3;
-        m_state.m_y = v4;
+        m_state.m_y = v2;
     }
 
     // Response generated from DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquared.
@@ -92,10 +89,8 @@ struct OnePoleZOHLowPassGeneric
         const Vector v0 = (-(Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0xC90FDBp-21f : 0x1921FB54442D18p-50)) * spec.m_cutoff));
         const Vector v1 = v0.Exp();
         const Vector v2 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) - v1);
-        const Vector v3 = v2;
-        const Vector v4 = v2;
-        m_state.m_alpha = v4;
-        m_responseSnapshot.m_alpha = v3;
+        m_state.m_alpha = v2;
+        m_responseSnapshot.m_alpha = v2;
     }
 
     using NumberType = Number;

@@ -61,24 +61,15 @@ struct TPTBaseWidthGeneric
         const Vector v0 = (input.m_x - m_state.m_highPass.m_lowPass.m_s);
         const Vector v1 = Vector::FusedMultiplyAdd(v0, m_state.m_highPass.m_lowPass.m_G, m_state.m_highPass.m_lowPass.m_s);
         const Vector v2 = Vector::FusedMultiplyAdd(v0, m_state.m_highPass.m_lowPass.m_G, v1);
+        m_state.m_highPass.m_lowPass.m_s = v2;
         const Vector v3 = (input.m_x - v1);
+        m_state.m_highPass.m_lowPass.m_y = v1;
         const Vector v4 = (v3 - m_state.m_lowPass.m_s);
+        m_state.m_highPass.m_y = v3;
         const Vector v5 = Vector::FusedMultiplyAdd(v4, m_state.m_lowPass.m_G, m_state.m_lowPass.m_s);
         const Vector v6 = Vector::FusedMultiplyAdd(v4, m_state.m_lowPass.m_G, v5);
-        const Vector v7 = m_state.m_highPass.m_lowPass.m_G;
-        const Vector v8 = v2;
-        const Vector v9 = v1;
-        const Vector v10 = v3;
-        const Vector v11 = m_state.m_lowPass.m_G;
-        const Vector v12 = v6;
-        const Vector v13 = v5;
-        m_state.m_highPass.m_lowPass.m_G = v7;
-        m_state.m_highPass.m_lowPass.m_s = v8;
-        m_state.m_highPass.m_lowPass.m_y = v9;
-        m_state.m_highPass.m_y = v10;
-        m_state.m_lowPass.m_G = v11;
-        m_state.m_lowPass.m_s = v12;
-        m_state.m_lowPass.m_y = v13;
+        m_state.m_lowPass.m_s = v6;
+        m_state.m_lowPass.m_y = v5;
     }
 
     // Response generated from DSP.TPTBaseWidth.Snapshot.magnitudeSquared.
@@ -153,14 +144,10 @@ struct TPTBaseWidthGeneric
         const Vector v3 = Math4096::TanPi(spec.m_lowPass.m_cutoff);
         const Vector v4 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) + v3);
         const Vector v5 = (v3 / v4);
-        const Vector v6 = v0;
-        const Vector v7 = v3;
-        const Vector v8 = v2;
-        const Vector v9 = v5;
-        m_state.m_highPass.m_lowPass.m_G = v8;
-        m_state.m_lowPass.m_G = v9;
-        m_responseSnapshot.m_highPass.m_g = v6;
-        m_responseSnapshot.m_lowPass.m_g = v7;
+        m_state.m_highPass.m_lowPass.m_G = v2;
+        m_state.m_lowPass.m_G = v5;
+        m_responseSnapshot.m_highPass.m_g = v0;
+        m_responseSnapshot.m_lowPass.m_g = v3;
     }
 
     using NumberType = Number;
