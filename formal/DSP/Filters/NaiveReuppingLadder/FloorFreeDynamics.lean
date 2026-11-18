@@ -29,17 +29,21 @@ theorem effectiveFeedback_zero_power (state : NaiveReuppingLadder ℝ)
 
 /-- The unchanged sample operations with an explicit feedback coefficient.
 The fourth-stage history and detector powers belong to the previous sample. -/
-def advance (state : NaiveReuppingLadder ℝ) (kEff : ℝ) (input : Sample ℝ) : NaiveReuppingLadder ℝ :=
+def advanceWith (saturate : ℝ → ℝ) (state : NaiveReuppingLadder ℝ) (kEff : ℝ)
+    (input : Sample ℝ) : NaiveReuppingLadder ℝ :=
   let drive := input.x - kEff * state.stage4
   let stage1 := OnePoleZOHLowPass.onePoleStep state.alpha drive state.stage1
-  let stage2 := OnePoleZOHLowPass.onePoleStep state.alpha (NormalizedTanh.apply state.saturation stage1) state.stage2
-  let stage3 := OnePoleZOHLowPass.onePoleStep state.alpha (NormalizedTanh.apply state.saturation stage2) state.stage3
-  let stage4 := OnePoleZOHLowPass.onePoleStep state.alpha (NormalizedTanh.apply state.saturation stage3) state.stage4
+  let stage2 := OnePoleZOHLowPass.onePoleStep state.alpha (saturate stage1) state.stage2
+  let stage3 := OnePoleZOHLowPass.onePoleStep state.alpha (saturate stage2) state.stage3
+  let stage4 := OnePoleZOHLowPass.onePoleStep state.alpha (saturate stage3) state.stage4
   {state with
     stage1, stage2, stage3, stage4, input := drive, kEff
     inputEnvelope := state.inputEnvelope.step input
     feedbackEnvelope := state.feedbackEnvelope.step ⟨stage4⟩
-    output := NormalizedTanh.apply state.saturation stage4 * (kEff + 1)}
+    output := saturate stage4 * (kEff + 1)}
+
+def advance (state : NaiveReuppingLadder ℝ) (kEff : ℝ) (input : Sample ℝ) : NaiveReuppingLadder ℝ :=
+  advanceWith (NormalizedTanh.apply state.saturation) state kEff input
 
 theorem runtime_step_eq_advance (state : NaiveReuppingLadder ℝ) (input : Sample ℝ) :
     NaiveReuppingLadder.step state input =

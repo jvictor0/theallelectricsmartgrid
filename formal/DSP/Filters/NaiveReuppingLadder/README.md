@@ -262,7 +262,8 @@ powerGain(eps,N) = 2/(eps^2*N) * sum[n < N] output_eps[n]^2
 
 The proposed response takes N to infinity first, then eps to zero from above.
 `HasSmallSignalResponse` and `HasSmallSignalPowerGain` make both existence
-requirements explicit. RMS gain is the square root of power gain. Asymptotic
+requirements explicit; inner limits are required for sufficiently small
+positive amplitudes, not arbitrarily large stimuli. RMS gain is the square root of power gain. Asymptotic
 RMS is a seminorm on signals with suitable averages (a norm only after
 identifying signals that differ by zero asymptotic energy). Coherent measurement
 is a complex Fourier projection, not a norm of the full signal.
@@ -272,8 +273,8 @@ measurement and that a sinusoid converges to its expected complex amplitude.
 Distinct unit-frequency modes average to zero, with a finite-window bound
 `2/(N*|z-1|)` after demodulation. The detector bandpasses provide a complete
 calibration: their nested coherent limit equals their existing transfer. The
-RMS/power measurements currently have definitions, not analogous calibration
-theorems.
+RMS/power measurements have exact finite-window scaling theorems, but no
+analogous sinusoidal calibration theorem yet.
 
 Projection can reject other output frequencies, but it cannot remove their
 effect inside the feedback loop or remove a contribution they generate at the
@@ -289,6 +290,88 @@ constant-power-ratio hypothesis or a frozen-k transfer calculation would assume
 away the difficult part.
 Scale invariance of the controller alone does not prove linearity, nor does
 convergence at each fixed amplitude prove the outer limit exists.
+
+## Exact amplitude normalization
+
+[FloorFreeScaling.lean](FloorFreeScaling.lean) proves scaling of the complete
+state: audio and SVF histories scale by a, detector powers by a^2, and the
+controller coefficient does not change. The proofs call the existing SVF and
+one-pole steps. `SlopeModel` replaces each normalized tanh by `slopeZero*x`
+while retaining the complete adaptive controller and both envelope detectors.
+From reset, this model's output obeys `output(a*u) = a*output(u)` at every
+sample for a != 0. Relative harmonics, modulation and oscillations therefore do
+not disappear merely by lowering the stimulus amplitude in this model.
+
+[FloorFreeNormalization.lean](FloorFreeNormalization.lean) connects this study
+to the actual real-tanh equations without assuming a small-signal transfer:
+
+```
+S_a(x) = tanh(g*a*x)/(a*tanh(g))           for a != 0
+S_0(x) = (g/tanh(g))*x
+output_tanh(a*u)[n]/a = output_with_S_a(u)[n]
+```
+
+The output equality is exact at every finite sample, including previous-power
+reads and the one-sample feedback delay. The normalized saturator converges to
+S_0 jointly when a -> 0 and its input x also approaches a finite value. This
+does not by itself establish convergence of the whole trajectory or exchange
+the time and amplitude limits. In particular, the limit retains the adaptive
+controller; it does not produce a constant-k LTI system.
+
+| Result | Proven scope |
+| --- | --- |
+| `svf_step_scale`, `envelope_step_scale` | Existing SVFs scale linearly; complete detector powers scale quadratically |
+| `effectiveFeedback_scale` | Exact invariance of floor-free feedback under nonzero amplitude scaling, including the zero-power convention |
+| `SlopeModel.output_scale_from_reset` | Exact homogeneity of the complete adaptive slope model |
+| `NormalizedTanh.hasDerivAt_zero` | The real normalized tanh has derivative `gain/tanhGain` at zero |
+| `NormalizedTanh.normalized_tendsto` | Joint convergence of the normalized saturator to that slope |
+| `NormalizedModel.actual_output_normalized` | Exact full-trajectory amplitude normalization from reset |
+| `not_continuousAt_silence` | For K,d > 0 and R >= 0, the power-ratio controller has different limits along different power ratios approaching silence |
+| `normalizedCoherent_scale`, `normalizedRms_scale` | Scaling an entire waveform leaves its normalized finite-window measurements unchanged |
+
+The discontinuity result concerns the controller itself; it does not rule out
+a directional sinusoidal response of the whole system. It prevents taking the
+controller value at silence as its unique small-amplitude coefficient.
+
+To complete the proposed response theorem, we still need long-time coherent
+and power averages for the unit-driven normalized model at sufficiently small
+a, and convergence of those averages as a -> 0. Waveform periodicity would be
+one sufficient route but is not required by the chosen measurements. A proof
+only about each finite sample, or about a frozen average coefficient, does not
+establish either long-time claim.
+
+## Floor-free numerical probe
+
+`make lean-dsp-floor-free-probe` runs
+[FloorFreeProbe.lean](../../Tests/FloorFreeProbe.lean) in Lean `Float`, which is
+IEEE binary64 (C++ double). It uses native `tanh`, matching the transcendental
+proof interpretation up to floating-point error, and separately uses its
+zero-input slope. Tuning and all sample operations reuse the existing Lean
+implementation; only the chosen feedback coefficient is replaced. The app's
+rational tanh and its fixed power floor are not the model in this probe.
+
+For cutoff 0.01 cycles/engine sample, resonance 0.8, gain 2 and stimulus period
+96 samples, one recorded window after 245,760 startup samples gave:
+
+| Input peak amplitude | Fundamental gain | Total RMS gain | Absolute output RMS |
+| --- | --- | --- | --- |
+| 1e-5 | 135.092 | 306.304 | 0.00216590 |
+| 1e-7 | 135.101 | 306.313 | 0.0000216596 |
+
+These are the same window index (5), each covering 49,152 samples. Decreasing
+the input by 100 decreases the absolute output by approximately 100; the
+normalized gain stays nearly unchanged. The 306-versus-135 comparison is total
+RMS versus fundamental gain **at the same amplitude**, not a gain increase
+caused by decreasing the input. The slope model closely matches the 1e-7 case.
+
+The late windows retain a large difference between output and its one-period
+delayed copy. This suggests substantial motion beyond a periodic sinusoidal
+response; it is not proof of the existence or failure of infinite-time
+averages. A low-drive control case (gain 0.1) has matching fundamental/RMS gain
+3.485118 and a period-repeat error below the printed resolution. Other probe
+frequencies use periods 384 and 32. These experiments neither prove convergence
+nor establish a floating-point error bound. Raw local output is retained under
+`build/results/naive-reupping-ladder-convergence/`.
 
 ## Validation boundaries
 

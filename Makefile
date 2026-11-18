@@ -106,6 +106,11 @@ lean-dsp-test: lean-dsp-codegen-test
 	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/DSP/Audit.lean"
 	"$(REPO_ROOT)/scripts/lean.sh" exe dsp_filter_smoke
 
+.PHONY: lean-dsp-floor-free-probe
+lean-dsp-floor-free-probe:
+	"$(REPO_ROOT)/scripts/lean.sh" build dsp_floor_free_probe
+	"$(REPO_ROOT)/scripts/lean.sh" exe dsp_floor_free_probe
+
 lean-test:
 	python3 "$(REPO_ROOT)/scripts/check_encoder_spec.py"
 	python3 "$(REPO_ROOT)/scripts/check_phase_spec.py"

@@ -34,6 +34,35 @@ divided by input RMS. Harmonics and other oscillations remain in this measure. -
 def normalizedRms (amplitude : ℝ) (signal : ℕ → ℝ) (count : ℕ) : ℝ :=
   Real.sqrt 2 / amplitude * rms signal count
 
+/-- Exact finite-window amplitude scaling; no convergence hypothesis. -/
+theorem coherent_scale (amplitude : ℝ) (z : ℂ) (signal : ℕ → ℝ) (count : ℕ) :
+    coherent z (fun n => amplitude * signal n) count = (amplitude : ℂ) * coherent z signal count := by
+  simp only [coherent, average, Complex.ofReal_mul, mul_assoc, ← Finset.mul_sum,
+    Complex.real_smul]
+  ring
+
+theorem normalizedCoherent_scale (amplitude : ℝ) (ha : amplitude ≠ 0) (z : ℂ)
+    (signal : ℕ → ℝ) (count : ℕ) :
+    normalizedCoherent amplitude z (fun n => amplitude * signal n) count = coherent z signal count := by
+  have hc : (amplitude : ℂ) ≠ 0 := by exact_mod_cast ha
+  rw [normalizedCoherent, coherent_scale]
+  field_simp
+
+theorem meanSquare_scale (amplitude : ℝ) (signal : ℕ → ℝ) (count : ℕ) :
+    meanSquare (fun n => amplitude * signal n) count = amplitude ^ 2 * meanSquare signal count := by
+  simp only [meanSquare, mul_pow, ← Finset.mul_sum]
+  ring
+
+theorem rms_scale (amplitude : ℝ) (signal : ℕ → ℝ) (count : ℕ) :
+    rms (fun n => amplitude * signal n) count = |amplitude| * rms signal count := by
+  rw [rms, meanSquare_scale, Real.sqrt_mul (sq_nonneg amplitude), Real.sqrt_sq_eq_abs]
+  rfl
+
+theorem normalizedRms_scale (amplitude : ℝ) (ha : 0 < amplitude) (signal : ℕ → ℝ) (count : ℕ) :
+    normalizedRms amplitude (fun n => amplitude * signal n) count = Real.sqrt 2 * rms signal count := by
+  rw [normalizedRms, rms_scale, abs_of_pos ha]
+  field_simp
+
 def HasMeanSquare (signal : ℕ → ℝ) (power : ℝ) : Prop :=
   Tendsto (meanSquare signal) atTop (𝓝 power)
 
@@ -42,17 +71,18 @@ def HasCoherentResponse (z : ℂ) (signal : ℕ → ℝ) (response : ℂ) : Prop
   Tendsto (coherent z signal) atTop (𝓝 response)
 
 /-- Time is taken to infinity FIRST. The second limit approaches zero
-amplitude from above. A waveform-convergence theorem alone does not supply it. -/
+amplitude from above. Inner limits are required for sufficiently small positive
+amplitudes. A waveform-convergence theorem alone does not supply the outer limit. -/
 def HasSmallSignalResponse (z : ℂ) (output : ℝ → ℕ → ℝ) (response : ℂ) : Prop :=
   ∃ settled : ℝ → ℂ,
-    (∀ amplitude, 0 < amplitude → HasCoherentResponse z (output amplitude) (settled amplitude)) ∧
+    (∀ᶠ amplitude in 𝓝[>] 0, HasCoherentResponse z (output amplitude) (settled amplitude)) ∧
     Tendsto (fun amplitude => settled amplitude / (amplitude : ℂ)) (𝓝[>] 0) (𝓝 response)
 
 /-- Companion energy measurement. A finite coherent response alone could hide
 an oscillation at a different frequency, so it is insufficient for a gain bound. -/
 def HasSmallSignalPowerGain (output : ℝ → ℕ → ℝ) (gainSquared : ℝ) : Prop :=
   ∃ settledPower : ℝ → ℝ,
-    (∀ amplitude, 0 < amplitude → HasMeanSquare (output amplitude) (settledPower amplitude)) ∧
+    (∀ᶠ amplitude in 𝓝[>] 0, HasMeanSquare (output amplitude) (settledPower amplitude)) ∧
     Tendsto (fun amplitude => 2 * settledPower amplitude / amplitude ^ 2)
       (𝓝[>] 0) (𝓝 gainSquared)
 
@@ -162,7 +192,7 @@ theorem smallSignal_of_tracking (z H : ℂ) (hz : ‖z‖ = 1)
       (fun n => output amplitude n - (H * (amplitude : ℂ) * z ^ n).re) atTop (𝓝 0)) :
     HasSmallSignalResponse z output H := by
   refine ⟨fun amplitude => H * (amplitude : ℂ), ?_, ?_⟩
-  · intro amplitude ha
+  · filter_upwards [self_mem_nhdsWithin] with amplitude ha
     exact coherent_of_sinusoid_tracking z _ hz hfrequency _ (h amplitude ha)
   · apply tendsto_const_nhds.congr'
     filter_upwards [self_mem_nhdsWithin] with amplitude ha

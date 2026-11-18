@@ -143,4 +143,29 @@ theorem feedback_tendsto (K d R : ℝ) (hd : 0 ≤ d) (ratio : ℕ → ℝ) (lim
     (tendsto_const_nhds.add (tendsto_const_nhds.mul
       (tendsto_const_nhds.max (h.sub_const R)))) hx
 
+/-- Different power ratios approaching silence give different controller
+limits. A conventional Jacobian of this controller at silence is unavailable;
+this does not by itself rule out a directional sinusoidal response. -/
+theorem not_continuousAt_silence (K d R : ℝ) (hK : 0 < K) (hd : 0 < d) (hR : 0 ≤ R) :
+    ¬ ContinuousAt (fun p : ℝ × ℝ => fromPowers K d R p.1 p.2) (0, 0) := by
+  intro hc
+  have ht : Tendsto (fun t : ℝ => t ^ 2) (𝓝[>] 0) (𝓝 0) := by
+    have h : ContinuousAt (fun t : ℝ => t ^ 2) 0 := continuousAt_id.pow 2
+    simpa using h.tendsto.mono_left (show 𝓝[>] (0 : ℝ) ≤ 𝓝 0 from nhdsWithin_le_nhds)
+  have hp := ht.prodMk_nhds (ht.mul_const (R + 1))
+  simp only [zero_mul] at hp
+  have hlimit := hc.tendsto.comp hp
+  have hz : fromPowers K d R 0 0 = K := by
+    simp [fromPowers, feedback, max_eq_left (neg_nonpos.mpr hR)]
+  rw [hz] at hlimit
+  have hconstant : Tendsto (fun t : ℝ => fromPowers K d R (t ^ 2) (t ^ 2 * (R + 1)))
+      (𝓝[>] 0) (𝓝 (K / (1 + d))) := by
+    apply tendsto_const_nhds.congr'
+    filter_upwards [self_mem_nhdsWithin] with t ht
+    have he := fromPowers_scaled K d R 1 (R + 1) t (ne_of_gt ht)
+    simpa [fromPowers, feedback] using he.symm
+  have he := tendsto_nhds_unique hlimit hconstant
+  have hlt : K / (1 + d) < K := div_lt_self hK (by linarith)
+  linarith
+
 end DSP.NaiveReuppingLadder.FloorFree

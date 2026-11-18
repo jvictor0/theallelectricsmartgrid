@@ -120,6 +120,9 @@ and [formal/PhaseTime/README.md](../formal/PhaseTime/README.md).
 smoke test of the generic one-pole, SVF, morph and ladder filters with
 `Float` (and `Float32` for the one-poles). The full `lean-test` target also
 includes this executable check.
+`make lean-dsp-floor-free-probe` separately runs the proof-side ladder response
+experiment in binary64, with native tanh and with its zero-input slope. It keeps
+the runtime unchanged; its finite-window measurements are not convergence proofs.
 The filter arithmetic and state updates are shared by the executable cores and
 the real-number proofs;
 the smoke test does not establish floating-point error bounds.

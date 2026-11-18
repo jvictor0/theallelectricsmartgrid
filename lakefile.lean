@@ -22,6 +22,10 @@ lean_exe dsp_codegen_reference where
   root := `DSP.Tests.CodegenReference
   leanOptions := #[⟨`autoImplicit, false⟩, ⟨`warningAsError, true⟩]
 
+lean_exe dsp_floor_free_probe where
+  root := `DSP.Tests.FloorFreeProbe
+  leanOptions := #[⟨`autoImplicit, false⟩, ⟨`warningAsError, true⟩]
+
 @[default_target]
 lean_lib Encoder where
   globs := #[.submodules `Encoder]
