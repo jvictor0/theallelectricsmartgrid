@@ -32,3 +32,4 @@ import DSP.Filters.Tuning.Digital
 import DSP.Filters.LinkwitzRileySplitter.Channels
 import DSP.Filters.Capture.Proofs
 import DSP.Filters.NaiveReuppingLadder.Contracts
+import DSP.Filters.BandPassedEnvelopeFollower.Ripple

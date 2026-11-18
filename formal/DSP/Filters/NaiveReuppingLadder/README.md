@@ -103,6 +103,70 @@ oscillation theorems, and stability-region theorems remain the next work. The
 existing Nyquist feedback guard is retained as implementation behavior; it is
 not a proved stability condition for the nonlinear adaptive system.
 
+## Envelope ripple: first analytic contracts
+
+[OnePoleZOHLowPass/Ripple.lean](../OnePoleZOHLowPass/Ripple.lean) proves the
+response of the existing `relax` recurrence to a squared sinusoid in exact real
+arithmetic. For bandpass output `v[n] = a cos(omega*n + phase)`, smoother
+coefficient `0 < alpha <= 1`, and power observed **after** sample n:
+
+```
+p[n] = pSteady[n] + (1-alpha)^n * (p[0] - pSteady[0])
+pSteady[n] = a^2/2 + ripple[n]
+|ripple[n]| <= (a^2/2) * rho(alpha, omega)
+rho(alpha, omega)^2 = alpha^2 / (alpha^2 + 4*(1-alpha)*sin(omega)^2)
+```
+
+The ripple is a sine/cosine combination at twice the input frequency. The
+startup error converges to zero; the ripple persists. For frequencies strictly
+between DC and Nyquist, the constant term is the sinusoid's mean power. At the
+endpoints, the double-frequency term aliases to DC; the algebraic decomposition
+still holds, but those terms cannot separately be interpreted as time means.
+
+[BandPassedEnvelopeFollower/Ripple.lean](../BandPassedEnvelopeFollower/Ripple.lean)
+connects this recurrence to `step` and retains both existing SVF bandpasses. If
+`B(f)` is their combined transfer and the external sinusoid has amplitude `eps`,
+the ideal mean and absolute ripple bound are
+
+```
+mean = eps^2/2 * |B(f)|^2
+absoluteRippleBound = mean * rho(alpha, 2*pi*f)
+```
+
+`prepared_bandPass_realizes` projects the actual tuned detector onto the existing
+SVF cascade realization theorem; `bandPassPowerGain_eq_normSq` reuses its
+magnitude proof. Both bandpass power gain and absolute ripple bound are proved
+zero at DC and Nyquist. A large relative ripple on a heavily attenuated signal
+does not by itself imply a large absolute error.
+
+| Result | Proven scope |
+| --- | --- |
+| `harmonic_step`, `error_eq`, `tendsto_error_zero` | Exact particular solution, geometric startup error, convergence to the rippling response for a sinusoid at the squarer input |
+| `steadyPower_deviation_le` | Frequency-dependent ripple bound, including both bandpasses in the detector-level theorem |
+| `tracking_bound`, `tendsto_tracking` | Uniform forcing errors are not amplified by the smoother; vanishing forcing errors give vanishing state errors |
+| `powerOutput_error_eq`, `powerOutput_tendsto_ripple` | Apply those results to the actual detector; the latter assumes its squared bandpass waveform approaches the specified squared sinusoid |
+| `prepared_bandPass_realizes` | Actual tuned bandpasses realize the existing two-SVF transfer from rest |
+| `modulation_components` | Multiplying a sinusoidal signal by a sinusoidal coefficient modulation produces sum/difference frequencies |
+
+The SVF transfer realization and the conditional time-domain convergence theorem
+are separate: convergence of arbitrary initial SVF histories to the sinusoidal
+response, with amplitude and phase identified by that transfer, remains to be
+connected. The amplitude identification is an explicit hypothesis of the
+detector-level ripple bound. No nonlinear ladder settling or sideband bound is
+claimed by these results.
+
+The next ladder estimate must weight detector error by the modulation's effect
+through the feedback loop. Tight bounds matter near the resonant peak; away from
+it, lower amplification can help. Generated frequencies must also be checked:
+a 2*f coefficient modulation on an f signal produces f and 3*f (modulo digital
+aliasing), and the latter could approach resonance. The reciprocal feedback law
+can generate additional harmonics. Consequently a small power ripple alone is
+not a proved small output sideband. Normalizing feedback power by input power
+can also cancel their common bandpass attenuation for a single tone.
+
+This work changes proofs only. The fixed detector power floor and all runtime
+processing, tuning, generated code, and app behavior remain unchanged.
+
 ## Validation boundaries
 
 Native Lean processing trajectories are compared bit for bit with scalar and
