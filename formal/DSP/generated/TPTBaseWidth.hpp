@@ -1,6 +1,6 @@
 #pragma once
 
-// Generated from DSP.TPTBaseWidth.stepFloat. Do not edit.
+// Generated from DSP.TPTBaseWidth.Runtime.processFloat. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
 // Compile with strict floating-point arithmetic and implicit contraction disabled.
@@ -28,17 +28,14 @@ struct TPTBaseWidth
             {
                 double m_G;
                 double m_s;
-                double m_y;
             } m_lowPass;
 
-            double m_y;
         } m_highPass;
 
         struct
         {
             double m_G;
             double m_s;
-            double m_y;
         } m_lowPass;
 
     };
@@ -48,7 +45,13 @@ struct TPTBaseWidth
         double m_x;
     };
 
+    struct Output
+    {
+        double m_x;
+    };
+
     State m_state;
+    Output m_output;
 
     void Process(Input& input)
     {
@@ -57,13 +60,11 @@ struct TPTBaseWidth
         const double v2 = std::fma(v0, m_state.m_highPass.m_lowPass.m_G, v1);
         m_state.m_highPass.m_lowPass.m_s = v2;
         const double v3 = (input.m_x - v1);
-        m_state.m_highPass.m_lowPass.m_y = v1;
         const double v4 = (v3 - m_state.m_lowPass.m_s);
-        m_state.m_highPass.m_y = v3;
         const double v5 = std::fma(v4, m_state.m_lowPass.m_G, m_state.m_lowPass.m_s);
         const double v6 = std::fma(v4, m_state.m_lowPass.m_G, v5);
         m_state.m_lowPass.m_s = v6;
-        m_state.m_lowPass.m_y = v5;
+        m_output.m_x = v5;
     }
 
     // Response generated from DSP.TPTBaseWidth.Snapshot.magnitudeSquaredFloat.
@@ -126,7 +127,7 @@ struct TPTBaseWidth
         return v17;
     }
 
-    // Coefficients generated from DSP.TPTBaseWidth.prepareCoefficientsFloat.
+    // Coefficients generated from DSP.TPTBaseWidth.Runtime.prepareCoefficientsFloat.
     //
 
     Snapshot m_responseSnapshot{};

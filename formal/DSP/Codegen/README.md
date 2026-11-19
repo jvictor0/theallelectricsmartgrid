@@ -4,9 +4,10 @@ The generated filters are under [generated](../generated): the ZOH and TPT
 one-poles, TPT highpass and base-width band, `TPTSVF`, `MorphingTPTSVF`, the
 three `TPTSVF4Pole` variants, `TPTLadder` and `LinkwitzRileySplitter4BandGeneric`. Each is a
 standalone C++17 header with nested `State` and `Input` records, stored
-`m_state`, and `void Process(Input& input)`. Their processing steps are state-only:
-every audio output they expose is a field of `m_state`. Headers have no Lean runtime
-dependency. Delay and reverb now use `TPTBaseWidthGeneric<float, 4>` through
+`m_state`, and `void Process(Input& input)`. Compact processors expose current
+observations in a separate `Output m_output`; coefficients and recurrence
+memories stay in `m_state`. The ZOH one-pole retains `m_state.m_y` because its
+output is itself the recurrence memory. Headers have no Lean runtime dependency. Delay and reverb now use `TPTBaseWidthGeneric<float, 4>` through
 the app wrapper [TPTBaseWidthFilter.hpp](../../../private/src/TPTBaseWidthFilter.hpp);
 the app also uses generated SVFs in the source mixer, both shape machines,
 the Naive Reupping Ladder's band-pass envelope followers, and the physical-modeling source.
@@ -73,29 +74,33 @@ filter.PopulateUIStateSample(writer);
 ```
 
 Call the writer at the normal audio cadence; it preserves the existing host-frame
-and random sampling policy. SVFs expose `LowPassUIState`, `HighPassUIState`,
-`BandPassUIState`, `NotchUIState`, and `AllPassUIState`, plus thin `TPTSVFLowPassGeneric`,
-`TPTSVFHighPassGeneric`, `TPTSVFBandPassGeneric`, `TPTSVFNotchGeneric`, and
-`TPTSVFAllPassGeneric` views
-(and scalar counterparts). Each view has its own `UIState` and a composable
-`Snapshot`; its audio processor still computes all SVF outputs.
+and random sampling policy. The all-tap SVF exposes `LowPassUIState`,
+`HighPassUIState`, `BandPassUIState`, `NotchUIState`, and `AllPassUIState`.
+`TPTSVFLowPassGeneric`, `TPTSVFHighPassGeneric`, `TPTSVFBandPassGeneric`,
+`TPTSVFNotchGeneric`, and `TPTSVFAllPassGeneric` are separate generated audio
+specializations (with scalar counterparts), one header per export. Each saves
+only its selected tap and exposes `MagnitudeSquared` and `UIState`. They use
+the shared Lean `Processor.mapOutput`, with a simulation proof for each selection;
+there is no tap-selection logic in the backend.
 
-A handwritten composite can store the views' `Snapshot`s, capture the children
-in one callback, and multiply their `MagnitudeSquaredResponses` for a cascade.
+`GeneratedFilterView<Filter, &Filter::MagnitudeSquared>` adapts a selected
+processor to a composable response `Snapshot`. The app wrappers do this for
+their LP/HP/BP filters. A handwritten composite can store these snapshots,
+capture children in one callback, and multiply their power responses for a cascade.
 Lean nested filters continue composing their own snapshots and kernels directly.
 Parallel sums and feedback still need phase during algebraic derivation; their
 final generated kernel is squared magnitude, not a product of branch powers.
 
 The sampled UI now carries powers throughout, including order statistics, and
 plots `10*log10(power)`. Legacy handwritten complex helpers remain for internal
-phase-sensitive composition and reference tests. The handwritten Linkwitz
-implementation is unchanged and uses the shared complex-norm compatibility
-path. The old generated `LinkwitzRileyCrossover` has been retired.
+phase-sensitive composition and reference tests. The app's mastering crossover
+uses the generated LR splitter. The old
+handwritten crossover and generated `LinkwitzRileyCrossover` have been retired.
 
 `LinkwitzRileySplitter4BandGeneric` uses the separate processing/tuning/snapshot
 export. It has static `MakeSnapshot(spec)`, with no `UIState`, sampled publisher,
-or emitted response kernel. A future consumer will own the UI and compose the
-splitter snapshot into its own response. The splitter's Lean response and
+or emitted response kernel. Consumers such as the multiband saturator own the UI
+and compose the splitter snapshot into their response. The splitter's Lean response and
 reconstruction proofs remain available for that composition.
 
 ## Authoring and generation
@@ -132,19 +137,25 @@ before/after saturation values consumed by C++ meters. Differential tests
 continue running the original model and compare every retained memory and
 exposed observation against generated execution.
 
-Filters use the first, state-only form, so proofs are statements about stored
-fields. Each generic filter `step` has a `stepFloat` specialization that chooses
-executable binary64 arithmetic. [GenerateDSP.lean](../../GenerateDSP.lean)
+The original proof models use the first form, with observations stored as fields.
+Production filters export their compact `Runtime.process` adapters. The TPT
+one-poles, base-width filter, morph, four-pole cascades and both Lean ladders use
+the same pattern in [Filters/Runtime.lean](../Filters/Runtime.lean). Their
+`simulation` theorems transfer complete executions through `run_simulation`;
+`prepare_save` identifies both tuned memory and the captured response snapshot.
+The conservative ladder additionally proves `reset_save`, retaining all four
+stage memories and its one-sample feedback semantics. ZOH's output remains
+stored once as true history. Float-specialized wrappers choose executable binary64 arithmetic. [GenerateDSP.lean](../../GenerateDSP.lean)
 exports them, for example:
 
 ```lean
-#generate_cpp DSP.TPTSVF.stepFloat as TPTSVF to "build/lean/generated/TPTSVF.hpp"
+#generate_cpp DSP.TPTSVF.Runtime.processFloat as TPTSVF to "build/lean/generated/TPTSVF.hpp"
 ```
 
 For multichannel output, export the same generic step directly:
 
 ```lean
-#generate_cpp_generic DSP.TPTSVF.step as TPTSVFGeneric to "build/lean/generated/TPTSVFGeneric.hpp"
+#generate_cpp_generic DSP.TPTSVF.Runtime.process as TPTSVFGeneric to "build/lean/generated/TPTSVFGeneric.hpp"
 ```
 
 This interprets the step's arithmetic parameter `R` as
@@ -181,7 +192,7 @@ Filters with several outputs name each method explicitly. They share a single
 snapshot and frequency type, which the exporter checks by Lean type identity:
 
 ```lean
-#generate_cpp_filter_responses_generic DSP.TPTSVF.step
+#generate_cpp_filter_responses_generic DSP.TPTSVF.Runtime.process
   [DSP.TPTSVF.Snapshot.lowPassMagnitudeSquared as LowPassMagnitudeSquared,
    DSP.TPTSVF.Snapshot.bandPassMagnitudeSquared as BandPassMagnitudeSquared,
    DSP.TPTSVF.Snapshot.highPassMagnitudeSquared as HighPassMagnitudeSquared,
@@ -343,7 +354,9 @@ FMA boundaries and all returned state/output fields are unchanged. Coefficient
 updaters retain their capture-before-commit order, including when a prepared
 snapshot argument aliases the cached snapshot. In the `State × Output` form
 the previous `m_output` is not an implicit input to subsequent calls; persistent
-history belongs in `State`.
+history belongs in `State`. A `resetWith` function may return `State × Output`
+to clear exposed observations together with histories; the backend checks both
+record identities. A state-only reset retains the previous output record.
 
 The ZOH one-pole stores the output at the end of the current held-input
 interval. The TPT filters store the current-sample responses of their solved

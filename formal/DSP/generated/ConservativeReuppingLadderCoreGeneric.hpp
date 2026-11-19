@@ -1,6 +1,6 @@
 #pragma once
 
-// Generated from DSP.ConservativeReuppingLadder.step. Do not edit.
+// Generated from DSP.ConservativeReuppingLadder.Runtime.process. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
 // Compile with strict floating-point arithmetic and implicit contraction disabled.
@@ -40,8 +40,6 @@ struct ConservativeReuppingLadderCoreGeneric
         Vector m_stage2;
         Vector m_stage3;
         Vector m_stage4;
-        Vector m_input;
-        Vector m_output;
     };
 
     struct Input
@@ -49,7 +47,13 @@ struct ConservativeReuppingLadderCoreGeneric
         Vector m_x;
     };
 
+    struct Output
+    {
+        Vector m_x;
+    };
+
     State m_state;
+    Output m_output;
 
     void Process(Input& input)
     {
@@ -58,7 +62,6 @@ struct ConservativeReuppingLadderCoreGeneric
         const Vector v2 = (Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)) - m_state.m_alpha);
         const Vector v3 = (v2 * m_state.m_stage1);
         const Vector v4 = Vector::FusedMultiplyAdd(m_state.m_alpha, v1, v3);
-        m_state.m_input = v1;
         const Vector v5 = (v4 * m_state.m_saturation.m_gain);
         m_state.m_stage1 = v4;
         const Vector v6 = (v5 * v5);
@@ -102,7 +105,7 @@ struct ConservativeReuppingLadderCoreGeneric
         const Vector v41 = (v40 / m_state.m_saturation.m_tanhGain);
         const Vector v42 = (m_state.m_k + Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
         const Vector v43 = (v41 * v42);
-        m_state.m_output = v43;
+        m_output.m_x = v43;
     }
 
     // Response generated from DSP.ConservativeReuppingLadder.Snapshot.magnitudeSquared.
@@ -151,7 +154,7 @@ struct ConservativeReuppingLadderCoreGeneric
         return v28;
     }
 
-    // Coefficients generated from DSP.ConservativeReuppingLadder.prepareCoefficients.
+    // Coefficients generated from DSP.ConservativeReuppingLadder.Runtime.prepareCoefficients.
     //
 
     Snapshot m_responseSnapshot{};
@@ -214,7 +217,7 @@ struct ConservativeReuppingLadderCoreGeneric
         m_responseSnapshot.m_k = v30;
     }
 
-    // Reset generated from DSP.ConservativeReuppingLadder.reset.
+    // Reset generated from DSP.ConservativeReuppingLadder.Runtime.reset.
     //
 
     void Reset()
@@ -224,13 +227,11 @@ struct ConservativeReuppingLadderCoreGeneric
         const Vector v2 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
         const Vector v3 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
         const Vector v4 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v5 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        m_state.m_stage1 = v0;
-        m_state.m_stage2 = v1;
-        m_state.m_stage3 = v2;
-        m_state.m_stage4 = v3;
-        m_state.m_input = v4;
-        m_state.m_output = v5;
+        m_state.m_stage1 = v1;
+        m_state.m_stage2 = v2;
+        m_state.m_stage3 = v3;
+        m_state.m_stage4 = v4;
+        m_output.m_x = v0;
     }
 
     using NumberType = Number;

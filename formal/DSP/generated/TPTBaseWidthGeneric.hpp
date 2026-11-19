@@ -1,6 +1,6 @@
 #pragma once
 
-// Generated from DSP.TPTBaseWidth.step. Do not edit.
+// Generated from DSP.TPTBaseWidth.Runtime.process. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
 // Compile with strict floating-point arithmetic and implicit contraction disabled.
@@ -34,17 +34,14 @@ struct TPTBaseWidthGeneric
             {
                 Vector m_G;
                 Vector m_s;
-                Vector m_y;
             } m_lowPass;
 
-            Vector m_y;
         } m_highPass;
 
         struct
         {
             Vector m_G;
             Vector m_s;
-            Vector m_y;
         } m_lowPass;
 
     };
@@ -54,7 +51,13 @@ struct TPTBaseWidthGeneric
         Vector m_x;
     };
 
+    struct Output
+    {
+        Vector m_x;
+    };
+
     State m_state;
+    Output m_output;
 
     void Process(Input& input)
     {
@@ -63,13 +66,11 @@ struct TPTBaseWidthGeneric
         const Vector v2 = Vector::FusedMultiplyAdd(v0, m_state.m_highPass.m_lowPass.m_G, v1);
         m_state.m_highPass.m_lowPass.m_s = v2;
         const Vector v3 = (input.m_x - v1);
-        m_state.m_highPass.m_lowPass.m_y = v1;
         const Vector v4 = (v3 - m_state.m_lowPass.m_s);
-        m_state.m_highPass.m_y = v3;
         const Vector v5 = Vector::FusedMultiplyAdd(v4, m_state.m_lowPass.m_G, m_state.m_lowPass.m_s);
         const Vector v6 = Vector::FusedMultiplyAdd(v4, m_state.m_lowPass.m_G, v5);
         m_state.m_lowPass.m_s = v6;
-        m_state.m_lowPass.m_y = v5;
+        m_output.m_x = v5;
     }
 
     // Response generated from DSP.TPTBaseWidth.Snapshot.magnitudeSquared.
@@ -112,7 +113,7 @@ struct TPTBaseWidthGeneric
         return v15;
     }
 
-    // Coefficients generated from DSP.TPTBaseWidth.prepareCoefficients.
+    // Coefficients generated from DSP.TPTBaseWidth.Runtime.prepareCoefficients.
     //
 
     Snapshot m_responseSnapshot{};

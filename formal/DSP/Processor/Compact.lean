@@ -18,4 +18,14 @@ theorem compact_simulation (p : Processor S I O) (save : S → M) (restore : M �
   subst m
   simp [compact, h]
 
+/-- Selecting observations does not change persistent state or advance twice. -/
+def mapOutput {P : Type} (f : O → P) (p : Processor S I O) : Processor S I P :=
+  fun state input => let result := p state input; (result.1, f result.2)
+
+theorem Simulation.mapOutput {P : Type} {p : Processor S I O} {q : Processor M I O}
+    {rel : S → M → Prop} (h : Simulation p q rel) (f : O → P) :
+    Simulation (mapOutput f p) (mapOutput f q) rel := by
+  intro s m hm x
+  exact ⟨(h s m hm x).1, congrArg f (h s m hm x).2⟩
+
 end DSP.Processor

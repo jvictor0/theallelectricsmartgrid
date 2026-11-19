@@ -1,6 +1,6 @@
 #pragma once
 
-// Generated from DSP.MorphingTPTSVF.stepFloat. Do not edit.
+// Generated from DSP.MorphingTPTSVF.Runtime.processFloat. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
 // Compile with strict floating-point arithmetic and implicit contraction disabled.
@@ -30,17 +30,11 @@ struct MorphingTPTSVF
             double m_a3;
             double m_ic1;
             double m_ic2;
-            double m_lowPass;
-            double m_bandPass;
-            double m_highPass;
-            double m_notch;
-            double m_allPass;
         } m_svf;
 
         double m_cosine;
         double m_sine;
         double m_blend;
-        double m_output;
     };
 
     struct Input
@@ -48,7 +42,13 @@ struct MorphingTPTSVF
         double m_x;
     };
 
+    struct Output
+    {
+        double m_x;
+    };
+
     State m_state;
+    Output m_output;
 
     void Process(Input& input)
     {
@@ -66,19 +66,10 @@ struct MorphingTPTSVF
         const double v10 = (-m_state.m_svf.m_ic2);
         const double v11 = std::fma(v4, 0x10000000000000p-51, v10);
         m_state.m_svf.m_ic2 = v11;
-        const double v12 = (v4 + v7);
-        m_state.m_svf.m_notch = v12;
-        const double v13 = (-m_state.m_svf.m_k);
-        const double v14 = (v13 * 0x10000000000000p-51);
-        const double v15 = std::fma(v14, v2, input.m_x);
-        m_state.m_svf.m_allPass = v15;
         const double v16 = (v4 * m_state.m_cosine);
-        m_state.m_svf.m_lowPass = v4;
         const double v17 = std::fma(v2, m_state.m_sine, v16);
         const double v18 = (v2 * m_state.m_cosine);
-        m_state.m_svf.m_bandPass = v2;
         const double v19 = std::fma(v7, m_state.m_sine, v18);
-        m_state.m_svf.m_highPass = v7;
         const bool v20 = (0x10000000000000p-53 < m_state.m_blend);
         double v21;
         if (v20)
@@ -89,7 +80,7 @@ struct MorphingTPTSVF
         {
             v21 = v17;
         }
-        m_state.m_output = v21;
+        m_output.m_x = v21;
 
     }
 
@@ -144,7 +135,7 @@ struct MorphingTPTSVF
         return v18;
     }
 
-    // Coefficients generated from DSP.MorphingTPTSVF.prepareCoefficientsFloat.
+    // Coefficients generated from DSP.MorphingTPTSVF.Runtime.prepareCoefficientsFloat.
     //
 
     Snapshot m_responseSnapshot{};

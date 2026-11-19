@@ -1,6 +1,6 @@
 #pragma once
 
-// Generated from DSP.TPTSVF.stepFloat. Do not edit.
+// Generated from DSP.TPTSVF.Runtime.processFloat. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
 // Compile with strict floating-point arithmetic and implicit contraction disabled.
@@ -28,11 +28,6 @@ struct TPTSVF
         double m_a3;
         double m_ic1;
         double m_ic2;
-        double m_lowPass;
-        double m_bandPass;
-        double m_highPass;
-        double m_notch;
-        double m_allPass;
     };
 
     struct Input
@@ -40,7 +35,17 @@ struct TPTSVF
         double m_x;
     };
 
+    struct Output
+    {
+        double m_lowPass;
+        double m_bandPass;
+        double m_highPass;
+        double m_notch;
+        double m_allPass;
+    };
+
     State m_state;
+    Output m_output;
 
     void Process(Input& input)
     {
@@ -59,14 +64,14 @@ struct TPTSVF
         const double v11 = std::fma(v4, 0x10000000000000p-51, v10);
         m_state.m_ic2 = v11;
         const double v12 = (v4 + v7);
-        m_state.m_lowPass = v4;
-        m_state.m_highPass = v7;
-        m_state.m_notch = v12;
+        m_output.m_lowPass = v4;
+        m_output.m_highPass = v7;
+        m_output.m_notch = v12;
         const double v13 = (-m_state.m_k);
         const double v14 = (v13 * 0x10000000000000p-51);
         const double v15 = std::fma(v14, v2, input.m_x);
-        m_state.m_bandPass = v2;
-        m_state.m_allPass = v15;
+        m_output.m_bandPass = v2;
+        m_output.m_allPass = v15;
     }
 
     // Response generated from DSP.TPTSVF.Snapshot.lowPassMagnitudeSquaredFloat.
@@ -258,7 +263,7 @@ struct TPTSVF
         return v19;
     }
 
-    // Coefficients generated from DSP.TPTSVF.prepareCoefficientsFloat.
+    // Coefficients generated from DSP.TPTSVF.Runtime.prepareCoefficientsFloat.
     //
 
     Snapshot m_responseSnapshot{};
@@ -291,7 +296,7 @@ struct TPTSVF
         m_responseSnapshot.m_k = v1;
     }
 
-    // Prepared coefficients generated from DSP.TPTSVF.prepareFromSnapshotFloat.
+    // Prepared coefficients generated from DSP.TPTSVF.Runtime.prepareFromSnapshotFloat.
     //
 
     void ComputeCoefficientsFromSnapshot(const Snapshot& spec)
@@ -325,24 +330,4 @@ struct TPTSVF
 
     using AllPassUIState = TransferFunctionGeneric<GeneratedResponseSnapshot<TPTSVF, &TPTSVF::AllPassMagnitudeSquared>>;
 
-};
-
-struct TPTSVFLowPass : GeneratedFilterView<TPTSVF, &TPTSVF::LowPassMagnitudeSquared>
-{
-};
-
-struct TPTSVFBandPass : GeneratedFilterView<TPTSVF, &TPTSVF::BandPassMagnitudeSquared>
-{
-};
-
-struct TPTSVFHighPass : GeneratedFilterView<TPTSVF, &TPTSVF::HighPassMagnitudeSquared>
-{
-};
-
-struct TPTSVFNotch : GeneratedFilterView<TPTSVF, &TPTSVF::NotchMagnitudeSquared>
-{
-};
-
-struct TPTSVFAllPass : GeneratedFilterView<TPTSVF, &TPTSVF::AllPassMagnitudeSquared>
-{
 };

@@ -20,6 +20,7 @@ HEADERS = (
     "TPTSVF4PoleLowPass.hpp", "TPTSVF4PoleBandPass.hpp", "TPTLadder.hpp",
     "CoupledProcessor.hpp",
     "ConservativeReuppingLadderCore.hpp",
+    "TPTSVFLowPass.hpp", "TPTSVFHighPass.hpp", "TPTSVFBandPass.hpp", "TPTSVFNotch.hpp", "TPTSVFAllPass.hpp",
 )
 HEADERS += tuple(name.replace(".hpp", "Generic.hpp") for name in HEADERS)
 HEADERS += ("LinkwitzRileySplitter4BandGeneric.hpp", "MultibandSaturator4BandCoreGeneric.hpp")
@@ -158,6 +159,44 @@ def main():
         "swap": 4, "gain": 2, "coupled": 3, "arithmetic": 3, "fma": 3, "fma32": 3,
         "conservative": 11,
     }
+    # Selected exports use the same full-SVF model as their independent oracle.
+    selected_cases = []
+    for case in cases:
+        columns = case.split()
+        if columns[0] in ("svf", "svf32"):
+            suffix = "32" if columns[0].endswith("32") else ""
+            for label in ("LowPass", "HighPass", "BandPass", "Notch", "AllPass"):
+                selected_cases.append(" ".join(["svf" + label + suffix] + columns[1:]))
+    cases += selected_cases
+    for label in ("LowPass", "HighPass", "BandPass", "Notch", "AllPass"):
+        input_counts["svf" + label] = 12
+    # Project the unchanged rich-model oracle onto retained memories and outputs.
+    # This does not execute the compact implementation to obtain expected values.
+    projections = {
+        "tptHigh": [0, 1, 3], "baseWidth": [0, 1, 4, 5, 6],
+        "morph": list(range(6)) + [11, 12, 13, 14],
+        "svf4High": list(range(6)) + list(range(11, 17)) + [19],
+        "svf4Low": list(range(6)) + list(range(11, 17)) + [17],
+        "svf4Band": list(range(6)) + list(range(11, 17)) + [18],
+        "ladder": [0, 2, 3, 5, 6, 8, 9, 11, 12, 13],
+        "conservative": list(range(8)) + [9],
+    }
+    for label, index in zip(("LowPass", "HighPass", "BandPass", "Notch", "AllPass"), (6, 8, 7, 9, 10)):
+        projections["svf" + label] = list(range(6)) + [index]
+    projected = []
+    for case in cases:
+        columns = case.split()
+        kind = columns[0].removesuffix("32")
+        if kind in projections:
+            count = input_counts[kind] - 1
+            before, sample, after = columns[1:count+1], columns[count+1], columns[count+2:]
+            assert len(before) == len(after) == count
+            indices = projections[kind]
+            columns = [columns[0]] + [before[i] for i in indices] + [sample] + [after[i] for i in indices]
+        projected.append(" ".join(columns))
+    cases = projected
+    for kind, indices in projections.items():
+        input_counts[kind] = len(indices) + 1
     inputs, expected = [], []
     scalar_cases = [case for case in cases
                     if (not case.split()[0].endswith("32") or case.split()[0] == "fma32")

@@ -1,6 +1,6 @@
 #pragma once
 
-// Generated from DSP.TPTLadder.step. Do not edit.
+// Generated from DSP.TPTLadder.Runtime.process. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
 // Compile with strict floating-point arithmetic and implicit contraction disabled.
@@ -29,33 +29,28 @@ struct TPTLadderGeneric
     struct State
     {
         Vector m_k;
-        Vector m_drive;
         struct
         {
             Vector m_G;
             Vector m_s;
-            Vector m_y;
         } m_stage1;
 
         struct
         {
             Vector m_G;
             Vector m_s;
-            Vector m_y;
         } m_stage2;
 
         struct
         {
             Vector m_G;
             Vector m_s;
-            Vector m_y;
         } m_stage3;
 
         struct
         {
             Vector m_G;
             Vector m_s;
-            Vector m_y;
         } m_stage4;
 
     };
@@ -65,7 +60,13 @@ struct TPTLadderGeneric
         Vector m_x;
     };
 
+    struct Output
+    {
+        Vector m_x;
+    };
+
     State m_state;
+    Output m_output;
 
     void Process(Input& input)
     {
@@ -85,26 +86,22 @@ struct TPTLadderGeneric
         const Vector v13 = Vector::FusedMultiplyAdd(m_state.m_k, v10, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 1.0f : 1.0)));
         const Vector v14 = (v12 / v13);
         const Vector v15 = (v14 - m_state.m_stage1.m_s);
-        m_state.m_drive = v14;
         const Vector v16 = Vector::FusedMultiplyAdd(v15, m_state.m_stage1.m_G, m_state.m_stage1.m_s);
         const Vector v17 = Vector::FusedMultiplyAdd(v15, m_state.m_stage1.m_G, v16);
         m_state.m_stage1.m_s = v17;
         const Vector v18 = (v16 - m_state.m_stage2.m_s);
-        m_state.m_stage1.m_y = v16;
         const Vector v19 = Vector::FusedMultiplyAdd(v18, m_state.m_stage2.m_G, m_state.m_stage2.m_s);
         const Vector v20 = Vector::FusedMultiplyAdd(v18, m_state.m_stage2.m_G, v19);
         m_state.m_stage2.m_s = v20;
         const Vector v21 = (v19 - m_state.m_stage3.m_s);
-        m_state.m_stage2.m_y = v19;
         const Vector v22 = Vector::FusedMultiplyAdd(v21, m_state.m_stage3.m_G, m_state.m_stage3.m_s);
         const Vector v23 = Vector::FusedMultiplyAdd(v21, m_state.m_stage3.m_G, v22);
         m_state.m_stage3.m_s = v23;
         const Vector v24 = (v22 - m_state.m_stage4.m_s);
-        m_state.m_stage3.m_y = v22;
         const Vector v25 = Vector::FusedMultiplyAdd(v24, m_state.m_stage4.m_G, m_state.m_stage4.m_s);
         const Vector v26 = Vector::FusedMultiplyAdd(v24, m_state.m_stage4.m_G, v25);
         m_state.m_stage4.m_s = v26;
-        m_state.m_stage4.m_y = v25;
+        m_output.m_x = v25;
     }
 
     // Response generated from DSP.TPTLadder.Snapshot.magnitudeSquared.
@@ -155,7 +152,7 @@ struct TPTLadderGeneric
         return v28;
     }
 
-    // Coefficients generated from DSP.TPTLadder.prepareCoefficients.
+    // Coefficients generated from DSP.TPTLadder.Runtime.prepareCoefficients.
     //
 
     Snapshot m_responseSnapshot{};

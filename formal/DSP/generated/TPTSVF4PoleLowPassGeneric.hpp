@@ -1,6 +1,6 @@
 #pragma once
 
-// Generated from DSP.TPTSVF4Pole.stepLowPass. Do not edit.
+// Generated from DSP.TPTSVF4Pole.Runtime.processLowPass. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
 // Compile with strict floating-point arithmetic and implicit contraction disabled.
@@ -36,11 +36,6 @@ struct TPTSVF4PoleLowPassGeneric
             Vector m_a3;
             Vector m_ic1;
             Vector m_ic2;
-            Vector m_lowPass;
-            Vector m_bandPass;
-            Vector m_highPass;
-            Vector m_notch;
-            Vector m_allPass;
         } m_stage1;
 
         struct
@@ -51,11 +46,6 @@ struct TPTSVF4PoleLowPassGeneric
             Vector m_a3;
             Vector m_ic1;
             Vector m_ic2;
-            Vector m_lowPass;
-            Vector m_bandPass;
-            Vector m_highPass;
-            Vector m_notch;
-            Vector m_allPass;
         } m_stage2;
 
     };
@@ -65,7 +55,13 @@ struct TPTSVF4PoleLowPassGeneric
         Vector m_x;
     };
 
+    struct Output
+    {
+        Vector m_x;
+    };
+
     State m_state;
+    Output m_output;
 
     void Process(Input& input)
     {
@@ -74,47 +70,24 @@ struct TPTSVF4PoleLowPassGeneric
         const Vector v2 = Vector::FusedMultiplyAdd(m_state.m_stage1.m_a2, v0, v1);
         const Vector v3 = Vector::FusedMultiplyAdd(m_state.m_stage1.m_a2, m_state.m_stage1.m_ic1, m_state.m_stage1.m_ic2);
         const Vector v4 = Vector::FusedMultiplyAdd(m_state.m_stage1.m_a3, v0, v3);
-        const Vector v5 = (-m_state.m_stage1.m_k);
-        const Vector v6 = Vector::FusedMultiplyAdd(v5, v2, input.m_x);
-        const Vector v7 = (v6 - v4);
         const Vector v8 = (-m_state.m_stage1.m_ic1);
         const Vector v9 = Vector::FusedMultiplyAdd(v2, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v8);
         m_state.m_stage1.m_ic1 = v9;
         const Vector v10 = (-m_state.m_stage1.m_ic2);
         const Vector v11 = Vector::FusedMultiplyAdd(v4, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v10);
         m_state.m_stage1.m_ic2 = v11;
-        const Vector v12 = (v4 + v7);
-        m_state.m_stage1.m_highPass = v7;
-        m_state.m_stage1.m_notch = v12;
-        const Vector v13 = (-m_state.m_stage1.m_k);
-        const Vector v14 = (v13 * Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
-        const Vector v15 = Vector::FusedMultiplyAdd(v14, v2, input.m_x);
-        m_state.m_stage1.m_bandPass = v2;
-        m_state.m_stage1.m_allPass = v15;
         const Vector v16 = (v4 - m_state.m_stage2.m_ic2);
         const Vector v17 = (m_state.m_stage2.m_a1 * m_state.m_stage2.m_ic1);
         const Vector v18 = Vector::FusedMultiplyAdd(m_state.m_stage2.m_a2, v16, v17);
         const Vector v19 = Vector::FusedMultiplyAdd(m_state.m_stage2.m_a2, m_state.m_stage2.m_ic1, m_state.m_stage2.m_ic2);
         const Vector v20 = Vector::FusedMultiplyAdd(m_state.m_stage2.m_a3, v16, v19);
-        const Vector v21 = (-m_state.m_stage2.m_k);
-        const Vector v22 = Vector::FusedMultiplyAdd(v21, v18, v4);
-        const Vector v23 = (v22 - v20);
         const Vector v24 = (-m_state.m_stage2.m_ic1);
         const Vector v25 = Vector::FusedMultiplyAdd(v18, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v24);
         m_state.m_stage2.m_ic1 = v25;
         const Vector v26 = (-m_state.m_stage2.m_ic2);
         const Vector v27 = Vector::FusedMultiplyAdd(v20, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v26);
         m_state.m_stage2.m_ic2 = v27;
-        const Vector v28 = (v20 + v23);
-        m_state.m_stage2.m_lowPass = v20;
-        m_state.m_stage2.m_highPass = v23;
-        m_state.m_stage2.m_notch = v28;
-        const Vector v29 = (-m_state.m_stage2.m_k);
-        const Vector v30 = (v29 * Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
-        const Vector v31 = Vector::FusedMultiplyAdd(v30, v18, v4);
-        m_state.m_stage1.m_lowPass = v4;
-        m_state.m_stage2.m_bandPass = v18;
-        m_state.m_stage2.m_allPass = v31;
+        m_output.m_x = v20;
     }
 
     // Response generated from DSP.TPTSVF4Pole.Snapshot.lowPassMagnitudeSquared.
@@ -180,7 +153,7 @@ struct TPTSVF4PoleLowPassGeneric
         return v36;
     }
 
-    // Coefficients generated from DSP.TPTSVF4Pole.prepareCoefficients.
+    // Coefficients generated from DSP.TPTSVF4Pole.Runtime.prepareCoefficients.
     //
 
     Snapshot m_responseSnapshot{};

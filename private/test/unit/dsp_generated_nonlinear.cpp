@@ -32,10 +32,10 @@ DOCTEST_TEST_CASE("Conservative ladder: scalar and vector processing agree and r
         ConservativeReuppingLadderCoreGeneric<double, 1>::Input b{MonoDouble::Splat(x)};
         scalarLadder.Process(a);
         vectorLadder.Process(b);
-        DOCTEST_CHECK(Bits(scalarLadder.m_state.m_output) == Bits(vectorLadder.m_state.m_output[0]));
+        DOCTEST_CHECK(Bits(scalarLadder.m_output.m_x) == Bits(vectorLadder.m_output.m_x[0]));
     }
 
     scalarLadder.Reset();
-    DOCTEST_CHECK(scalarLadder.m_state.m_output == 0);
+    DOCTEST_CHECK(scalarLadder.m_output.m_x == 0);
     DOCTEST_CHECK(scalarLadder.m_state.m_saturation.m_gain == 2);
 }

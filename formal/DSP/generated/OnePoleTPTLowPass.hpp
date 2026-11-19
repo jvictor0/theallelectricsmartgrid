@@ -1,6 +1,6 @@
 #pragma once
 
-// Generated from DSP.OnePoleTPTLowPass.stepFloat. Do not edit.
+// Generated from DSP.OnePoleTPTLowPass.Runtime.processFloat. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
 // Compile with strict floating-point arithmetic and implicit contraction disabled.
@@ -24,7 +24,6 @@ struct OnePoleTPTLowPass
     {
         double m_G;
         double m_s;
-        double m_y;
     };
 
     struct Input
@@ -32,7 +31,13 @@ struct OnePoleTPTLowPass
         double m_x;
     };
 
+    struct Output
+    {
+        double m_x;
+    };
+
     State m_state;
+    Output m_output;
 
     void Process(Input& input)
     {
@@ -40,7 +45,7 @@ struct OnePoleTPTLowPass
         const double v1 = std::fma(v0, m_state.m_G, m_state.m_s);
         const double v2 = std::fma(v0, m_state.m_G, v1);
         m_state.m_s = v2;
-        m_state.m_y = v1;
+        m_output.m_x = v1;
     }
 
     // Response generated from DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquaredFloat.
@@ -75,7 +80,7 @@ struct OnePoleTPTLowPass
         return v7;
     }
 
-    // Coefficients generated from DSP.OnePoleTPTLowPass.prepareCoefficientsFloat.
+    // Coefficients generated from DSP.OnePoleTPTLowPass.Runtime.prepareCoefficientsFloat.
     //
 
     Snapshot m_responseSnapshot{};

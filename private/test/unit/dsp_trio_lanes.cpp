@@ -199,7 +199,7 @@ DOCTEST_TEST_CASE("Trio: SVF channels match mono filters")
     MorphingTPTSVFFilterGeneric<float, 3> trio;
     MorphingTPTSVFFilterGeneric<float, 1> mono[3];
     ChannelDifference morphed;
-    ChannelDifference lowPass;
+    ChannelDifference integratorMemory;
     const float morph[3] = {0.1f, 0.5f, 0.85f};
     for (size_t n = 0; n < 4000; ++n)
     {
@@ -221,12 +221,12 @@ DOCTEST_TEST_CASE("Trio: SVF channels match mono filters")
             mono[i].SetCutoffResonanceAndMorph(cutoff[i], resonance[i], morph[i]);
             mono[i].Process(input[i]);
             morphed.Add(i, trioMorphed[i], mono[i].GetOutput()[0]);
-            lowPass.Add(i, trio.m_state.m_svf.m_lowPass[i], mono[i].m_state.m_svf.m_lowPass[0]);
+            integratorMemory.Add(i, trio.m_state.m_svf.m_ic2[i], mono[i].m_state.m_svf.m_ic2[0]);
         }
     }
 
     morphed.Check(1e-6);
-    lowPass.Check(1e-6);
+    integratorMemory.Check(1e-6);
 }
 
 DOCTEST_TEST_CASE("Trio: Naive Reupping Ladder channels match mono filters")

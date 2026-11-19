@@ -1,6 +1,6 @@
 #pragma once
 
-// Generated from DSP.MorphingTPTSVF.step. Do not edit.
+// Generated from DSP.MorphingTPTSVF.Runtime.process. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
 // Compile with strict floating-point arithmetic and implicit contraction disabled.
@@ -36,17 +36,11 @@ struct MorphingTPTSVFGeneric
             Vector m_a3;
             Vector m_ic1;
             Vector m_ic2;
-            Vector m_lowPass;
-            Vector m_bandPass;
-            Vector m_highPass;
-            Vector m_notch;
-            Vector m_allPass;
         } m_svf;
 
         Vector m_cosine;
         Vector m_sine;
         Vector m_blend;
-        Vector m_output;
     };
 
     struct Input
@@ -54,7 +48,13 @@ struct MorphingTPTSVFGeneric
         Vector m_x;
     };
 
+    struct Output
+    {
+        Vector m_x;
+    };
+
     State m_state;
+    Output m_output;
 
     void Process(Input& input)
     {
@@ -72,21 +72,12 @@ struct MorphingTPTSVFGeneric
         const Vector v10 = (-m_state.m_svf.m_ic2);
         const Vector v11 = Vector::FusedMultiplyAdd(v4, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v10);
         m_state.m_svf.m_ic2 = v11;
-        const Vector v12 = (v4 + v7);
-        m_state.m_svf.m_notch = v12;
-        const Vector v13 = (-m_state.m_svf.m_k);
-        const Vector v14 = (v13 * Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
-        const Vector v15 = Vector::FusedMultiplyAdd(v14, v2, input.m_x);
-        m_state.m_svf.m_allPass = v15;
         const Vector v16 = (v4 * m_state.m_cosine);
-        m_state.m_svf.m_lowPass = v4;
         const Vector v17 = Vector::FusedMultiplyAdd(v2, m_state.m_sine, v16);
         const Vector v18 = (v2 * m_state.m_cosine);
-        m_state.m_svf.m_bandPass = v2;
         const Vector v19 = Vector::FusedMultiplyAdd(v7, m_state.m_sine, v18);
-        m_state.m_svf.m_highPass = v7;
         const Vector v20 = Vector::IfLess(Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-24f : 0x10000000000000p-53)), m_state.m_blend, v19, v17);
-        m_state.m_output = v20;
+        m_output.m_x = v20;
     }
 
     // Response generated from DSP.MorphingTPTSVF.Snapshot.magnitudeSquared.
@@ -130,7 +121,7 @@ struct MorphingTPTSVFGeneric
         return v17;
     }
 
-    // Coefficients generated from DSP.MorphingTPTSVF.prepareCoefficients.
+    // Coefficients generated from DSP.MorphingTPTSVF.Runtime.prepareCoefficients.
     //
 
     Snapshot m_responseSnapshot{};

@@ -38,6 +38,22 @@ SCHEMAS[SPLITTER] = (['tree.value', 'tree.low.value', 'tree.high.value'],
     nest('tree.first', SVF_MEMORY) + nest('tree.second', SVF_MEMORY) + phase_fields('tree.lowPhase') +
     phase_fields('tree.highPhase') + two_band_fields('tree.low') + two_band_fields('tree.high'))
 
+MODEL_SCHEMAS = dict(SCHEMAS)
+for name, (spec, fields) in MODEL_SCHEMAS.items():
+    keep = [f for f in fields if f.rsplit('.', 1)[-1] not in
+            {'y', 'lowPass', 'bandPass', 'highPass', 'notch', 'allPass', 'output', 'input', 'drive'}]
+    if name == 'OnePoleZOHLowPass':
+        keep = fields
+    SCHEMAS[name] = (spec, keep)
+
+SELECTED_SVFS = ['TPTSVF'+tap for tap in ('LowPass', 'HighPass', 'BandPass', 'Notch', 'AllPass')]
+for name in SELECTED_SVFS:
+    MODEL_SCHEMAS[name] = MODEL_SCHEMAS['TPTSVF']
+    SCHEMAS[name] = SCHEMAS['TPTSVF']
+
+def is_svf(name):
+    return name == 'TPTSVF' or name in SELECTED_SVFS
+
 def member(path):
     return '.'.join('m_'+p for p in path.split('.'))
 
@@ -58,7 +74,7 @@ def coefficient_oracle(name):
     elif name == 'TPTBaseWidth':
         lp('highPass.lowPass.', 0)
         lp('lowPass.', 1)
-    elif name == 'TPTSVF': svf('', 0, 'p[1]')
+    elif is_svf(name): svf('', 0, 'p[1]')
     elif name == 'MorphingTPTSVF':
         svf('svf.', 0, 'p[1]')
         result.update(cosine='Cos(Phase(p[2]))', sine='Sin(Phase(p[2]))', blend='p[2]')
@@ -85,7 +101,7 @@ def snapshot_oracle(name):
     if name == 'OnePoleZOHLowPass': return {'alpha': coefficient_oracle(name)['alpha']}
     if name in ('OnePoleTPTLowPass', 'OnePoleTPTHighPass'): return {'g': g(0)}
     if name == 'TPTBaseWidth': return {'highPass.g': g(0), 'lowPass.g': g(1)}
-    if name == 'TPTSVF': return {'g': g(0), 'k': 'Number(1)/p[1]'}
+    if is_svf(name): return {'g': g(0), 'k': 'Number(1)/p[1]'}
     if name == 'MorphingTPTSVF':
         return {'svf.g': g(0), 'svf.k': 'Number(1)/p[1]',
                 'low': 'p[2] > Number(0.5) ? Number(0) : Cos(Phase(p[2]))',
@@ -223,14 +239,14 @@ void Test{name}()
         for i, f in enumerate(fields):
             code += f'        before[lane][{i}] = Read<Number>();\n        filter.m_state.{member(f)}[lane] = before[lane][{i}];\n'
         code += '    }\n\n'
-        if name == 'TPTSVF':
+        if is_svf(name):
             code += '    auto fromSnapshot = filter;\n'
         code += '''    filter.ComputeCoefficients(spec);
     const auto first = filter.m_state;
 '''
         if name != SPLITTER:
             code += '    const auto captured = filter.MakeSnapshot();\n'
-        if name == 'TPTSVF':
+        if is_svf(name):
             code += '''    fromSnapshot.ComputeCoefficientsFromSnapshot(captured);
     fromSnapshot.ComputeCoefficientsFromSnapshot(captured);
 '''
@@ -245,7 +261,7 @@ void Test{name}()
         assert(Raw(filter.m_state.{member(f)}[lane]) == Raw(first.{member(f)}[lane]));
         std::cout << Raw(filter.m_state.{member(f)}[lane]) << ' ';
 '''
-            if name == 'TPTSVF':
+            if is_svf(name):
                 code += f'        assert(Raw(fromSnapshot.m_state.{member(f)}[lane]) == Raw(first.{member(f)}[lane]));\n'
         if name != SPLITTER:
             for f, expr in snapshot_oracle(name).items():
@@ -253,7 +269,7 @@ void Test{name}()
         assert(Raw(filter.MakeSnapshot().{member(f)}[lane]) == Raw(captured.{member(f)}[lane]));
         std::cout << Raw(captured.{member(f)}[lane]) << ' ';
 '''
-                if name == 'TPTSVF':
+                if is_svf(name):
                     code += f'        assert(Raw(fromSnapshot.MakeSnapshot().{member(f)}[lane]) == Raw(captured.{member(f)}[lane]));\n'
         if name == SPLITTER:
             code += '        const auto snapshot = decltype(filter)::MakeSnapshot(spec);\n'
@@ -270,14 +286,14 @@ void Test{name}()
                 code += f'            scalarSpec.{member(f)} = p[{i}];\n'
             for i, f in enumerate(fields):
                 code += f'            scalar.m_state.{member(f)} = before[lane][{i}];\n'
-            if name == 'TPTSVF':
+            if is_svf(name):
                 code += '            auto scalarFromSnapshot = scalar;\n'
             code += '            scalar.ComputeCoefficients(scalarSpec);\n'
-            if name == 'TPTSVF':
+            if is_svf(name):
                 code += '            scalarFromSnapshot.ComputeCoefficientsFromSnapshot(scalar.MakeSnapshot());\n'
             for f in fields:
                 code += f'            assert(Raw(scalar.m_state.{member(f)}) == Raw(filter.m_state.{member(f)}[lane]));\n'
-                if name == 'TPTSVF':
+                if is_svf(name):
                     code += f'            assert(Raw(scalarFromSnapshot.m_state.{member(f)}) == Raw(scalar.m_state.{member(f)}));\n'
             for f in snapshot_oracle(name):
                 code += f'            assert(Raw(scalar.MakeSnapshot().{member(f)}) == Raw(captured.{member(f)}[lane]));\n'
@@ -321,16 +337,23 @@ def test_tuning(cases, compiler, output, root):
         #
         header = (root/'build/lean/generated'/f'{name}Generic.hpp').read_text()
         method = header.split('void ComputeCoefficients(',1)[1].split('\n    }',1)[0]
+        assert 'm_output.' not in method, name
         stores = set(re.findall(r'm_state\.(\w+(?:\.\w+)*) =', method))
         assert stores == {member(f) for f in coefficient_oracle(name)}, (name, stores)
-        if name == 'TPTSVF':
+        if is_svf(name):
             prepared_method = header.split('void ComputeCoefficientsFromSnapshot(',1)[1].split('\n    }',1)[0]
             prepared_stores = set(re.findall(r'm_state\.(\w+(?:\.\w+)*) =', prepared_method))
             assert prepared_stores == stores
             assert 'Math4096' not in prepared_method
         for precision in (32,64):
-            rows = [c.split()[2:] for c in cases if c.startswith(f'tuning{precision} {name} ')]
+            source_name = 'TPTSVF' if name in SELECTED_SVFS else name
+            rows = [c.split()[2:] for c in cases if c.startswith(f'tuning{precision} {source_name} ')]
             assert rows
+            model_fields = MODEL_SCHEMAS[name][1]
+            indices = [model_fields.index(f) for f in fields]
+            old_count = len(spec) + len(model_fields)
+            rows = [row[:len(spec)] + [row[len(spec)+i] for i in indices] +
+                    [row[old_count+i] for i in indices] + row[old_count+len(model_fields):] for row in rows]
             for width in (1,2,3,4):
                 for start in range(0,len(rows),width):
                     lanes = rows[start:start+width]

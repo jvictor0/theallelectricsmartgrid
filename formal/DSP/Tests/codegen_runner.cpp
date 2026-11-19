@@ -1,3 +1,8 @@
+#include "TPTSVFLowPass.hpp"
+#include "TPTSVFHighPass.hpp"
+#include "TPTSVFBandPass.hpp"
+#include "TPTSVFNotch.hpp"
+#include "TPTSVFAllPass.hpp"
 #include "OnePoleZOHLowPass.hpp"
 #include "OnePoleTPTLowPass.hpp"
 #include "OnePoleTPTHighPass.hpp"
@@ -14,8 +19,10 @@
 #include "FMAProcessor.hpp"
 #include "FMAProcessor32.hpp"
 #include "CoupledProcessor.hpp"
+#include "CompactResetProbe.hpp"
 
 #include <array>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -40,13 +47,13 @@ Bits ToBits(Value value)
     return bits;
 }
 
-// State-only processors whose states are Count doubles in declaration order:
-// read the state and input, process once, and print the next state.
+// Read compact memory followed by exposed observations, process once, and
+// compare the retained values with the original Lean model.
 //
-template<typename Processor, size_t Count>
+template<typename Processor, size_t Count, size_t Outputs>
 bool RunFlat()
 {
-    static_assert(sizeof(typename Processor::State) == Count * sizeof(double));
+    static_assert(sizeof(typename Processor::State) == (Count - Outputs) * sizeof(double));
     std::array<double, Count> values;
     for (double& value : values)
     {
@@ -66,10 +73,21 @@ bool RunFlat()
     }
 
     Processor processor{};
-    std::memcpy(&processor.m_state, values.data(), sizeof(values));
+    std::memcpy(&processor.m_state, values.data(), sizeof(processor.m_state));
+    if constexpr (Outputs != 0)
+    {
+        static_assert(sizeof(processor.m_output) == Outputs * sizeof(double));
+        std::memcpy(&processor.m_output, values.data() + Count - Outputs, sizeof(processor.m_output));
+    }
+
     typename Processor::Input input{FromBits<double>(x)};
     processor.Process(input);
-    std::memcpy(values.data(), &processor.m_state, sizeof(values));
+    std::memcpy(values.data(), &processor.m_state, sizeof(processor.m_state));
+    if constexpr (Outputs != 0)
+    {
+        std::memcpy(values.data() + Count - Outputs, &processor.m_output, sizeof(processor.m_output));
+    }
+
     for (size_t i = 0; i < Count; ++i)
     {
         std::cout << (i == 0 ? "" : " ") << ToBits<uint64_t>(values[i]);
@@ -84,57 +102,82 @@ bool RunFlatKind(const std::string& kind, bool& known)
     known = true;
     if (kind == "zoh")
     {
-        return RunFlat<OnePoleZOHLowPass, 2>();
+        return RunFlat<OnePoleZOHLowPass, 2, 0>();
     }
 
     if (kind == "tpt")
     {
-        return RunFlat<OnePoleTPTLowPass, 3>();
+        return RunFlat<OnePoleTPTLowPass, 3, 1>();
     }
 
     if (kind == "tptHigh")
     {
-        return RunFlat<OnePoleTPTHighPass, 4>();
+        return RunFlat<OnePoleTPTHighPass, 3, 1>();
     }
 
     if (kind == "baseWidth")
     {
-        return RunFlat<TPTBaseWidth, 7>();
+        return RunFlat<TPTBaseWidth, 5, 1>();
+    }
+
+    if (kind == "svfLowPass")
+    {
+        return RunFlat<TPTSVFLowPass, 7, 1>();
+    }
+
+    if (kind == "svfHighPass")
+    {
+        return RunFlat<TPTSVFHighPass, 7, 1>();
+    }
+
+    if (kind == "svfBandPass")
+    {
+        return RunFlat<TPTSVFBandPass, 7, 1>();
+    }
+
+    if (kind == "svfNotch")
+    {
+        return RunFlat<TPTSVFNotch, 7, 1>();
+    }
+
+    if (kind == "svfAllPass")
+    {
+        return RunFlat<TPTSVFAllPass, 7, 1>();
     }
 
     if (kind == "svf")
     {
-        return RunFlat<TPTSVF, 11>();
+        return RunFlat<TPTSVF, 11, 5>();
     }
 
     if (kind == "morph")
     {
-        return RunFlat<MorphingTPTSVF, 15>();
+        return RunFlat<MorphingTPTSVF, 10, 1>();
     }
 
     if (kind == "svf4High")
     {
-        return RunFlat<TPTSVF4PoleHighPass, 22>();
+        return RunFlat<TPTSVF4PoleHighPass, 13, 1>();
     }
 
     if (kind == "svf4Low")
     {
-        return RunFlat<TPTSVF4PoleLowPass, 22>();
+        return RunFlat<TPTSVF4PoleLowPass, 13, 1>();
     }
 
     if (kind == "svf4Band")
     {
-        return RunFlat<TPTSVF4PoleBandPass, 22>();
+        return RunFlat<TPTSVF4PoleBandPass, 13, 1>();
     }
 
     if (kind == "ladder")
     {
-        return RunFlat<TPTLadder, 14>();
+        return RunFlat<TPTLadder, 10, 1>();
     }
 
     if (kind == "conservative")
     {
-        return RunFlat<ConservativeReuppingLadderCore, 10>();
+        return RunFlat<ConservativeReuppingLadderCore, 9, 1>();
     }
 
     known = false;
@@ -162,6 +205,14 @@ bool RunFMA()
 
 int main()
 {
+    CompactResetProbe resetProbe{};
+    resetProbe.m_state = {0.25, 3.75};
+    resetProbe.m_output.m_x = -7;
+    resetProbe.Reset();
+    assert(resetProbe.m_state.m_G == 0.25);
+    assert(resetProbe.m_state.m_s == 0);
+    assert(resetProbe.m_output.m_x == 3.75);
+
     std::string kind;
     while (std::cin >> kind)
     {

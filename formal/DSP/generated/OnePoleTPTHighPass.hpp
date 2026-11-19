@@ -1,6 +1,6 @@
 #pragma once
 
-// Generated from DSP.OnePoleTPTHighPass.stepFloat. Do not edit.
+// Generated from DSP.OnePoleTPTHighPass.Runtime.processFloat. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
 // Compile with strict floating-point arithmetic and implicit contraction disabled.
@@ -26,10 +26,8 @@ struct OnePoleTPTHighPass
         {
             double m_G;
             double m_s;
-            double m_y;
         } m_lowPass;
 
-        double m_y;
     };
 
     struct Input
@@ -37,7 +35,13 @@ struct OnePoleTPTHighPass
         double m_x;
     };
 
+    struct Output
+    {
+        double m_x;
+    };
+
     State m_state;
+    Output m_output;
 
     void Process(Input& input)
     {
@@ -46,8 +50,7 @@ struct OnePoleTPTHighPass
         const double v2 = std::fma(v0, m_state.m_lowPass.m_G, v1);
         m_state.m_lowPass.m_s = v2;
         const double v3 = (input.m_x - v1);
-        m_state.m_lowPass.m_y = v1;
-        m_state.m_y = v3;
+        m_output.m_x = v3;
     }
 
     // Response generated from DSP.OnePoleTPTHighPass.Snapshot.magnitudeSquaredFloat.
@@ -83,7 +86,7 @@ struct OnePoleTPTHighPass
         return v8;
     }
 
-    // Coefficients generated from DSP.OnePoleTPTHighPass.prepareCoefficientsFloat.
+    // Coefficients generated from DSP.OnePoleTPTHighPass.Runtime.prepareCoefficientsFloat.
     //
 
     Snapshot m_responseSnapshot{};

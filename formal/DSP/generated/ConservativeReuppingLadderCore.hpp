@@ -1,6 +1,6 @@
 #pragma once
 
-// Generated from DSP.ConservativeReuppingLadder.stepFloat. Do not edit.
+// Generated from DSP.ConservativeReuppingLadder.Runtime.processFloat. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
 // Compile with strict floating-point arithmetic and implicit contraction disabled.
@@ -34,8 +34,6 @@ struct ConservativeReuppingLadderCore
         double m_stage2;
         double m_stage3;
         double m_stage4;
-        double m_input;
-        double m_output;
     };
 
     struct Input
@@ -43,7 +41,13 @@ struct ConservativeReuppingLadderCore
         double m_x;
     };
 
+    struct Output
+    {
+        double m_x;
+    };
+
     State m_state;
+    Output m_output;
 
     void Process(Input& input)
     {
@@ -52,7 +56,6 @@ struct ConservativeReuppingLadderCore
         const double v2 = (1.0 - m_state.m_alpha);
         const double v3 = (v2 * m_state.m_stage1);
         const double v4 = std::fma(m_state.m_alpha, v1, v3);
-        m_state.m_input = v1;
         const double v5 = (v4 * m_state.m_saturation.m_gain);
         const double v6 = (v4 * m_state.m_saturation.m_gain);
         const double v7 = (v5 * v6);
@@ -264,7 +267,7 @@ struct ConservativeReuppingLadderCore
         const double v101 = (v100 / m_state.m_saturation.m_tanhGain);
         const double v102 = (m_state.m_k + 1.0);
         const double v103 = (v101 * v102);
-        m_state.m_output = v103;
+        m_output.m_x = v103;
     }
 
     // Response generated from DSP.ConservativeReuppingLadder.Snapshot.magnitudeSquaredFloat.
@@ -323,7 +326,7 @@ struct ConservativeReuppingLadderCore
         return v29;
     }
 
-    // Coefficients generated from DSP.ConservativeReuppingLadder.prepareCoefficientsFloat.
+    // Coefficients generated from DSP.ConservativeReuppingLadder.Runtime.prepareCoefficientsFloat.
     //
 
     Snapshot m_responseSnapshot{};
@@ -454,7 +457,7 @@ struct ConservativeReuppingLadderCore
         m_responseSnapshot.m_k = v44;
     }
 
-    // Reset generated from DSP.ConservativeReuppingLadder.resetFloat.
+    // Reset generated from DSP.ConservativeReuppingLadder.Runtime.resetFloat.
     //
 
     void Reset()
@@ -464,13 +467,11 @@ struct ConservativeReuppingLadderCore
         const double v2 = 0.0;
         const double v3 = 0.0;
         const double v4 = 0.0;
-        const double v5 = 0.0;
-        m_state.m_stage1 = v0;
-        m_state.m_stage2 = v1;
-        m_state.m_stage3 = v2;
-        m_state.m_stage4 = v3;
-        m_state.m_input = v4;
-        m_state.m_output = v5;
+        m_state.m_stage1 = v1;
+        m_state.m_stage2 = v2;
+        m_state.m_stage3 = v3;
+        m_state.m_stage4 = v4;
+        m_output.m_x = v0;
     }
 
     using NumberType = decltype(State{}.m_alpha);

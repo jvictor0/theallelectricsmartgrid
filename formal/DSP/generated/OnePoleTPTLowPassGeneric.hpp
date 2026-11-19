@@ -1,6 +1,6 @@
 #pragma once
 
-// Generated from DSP.OnePoleTPTLowPass.step. Do not edit.
+// Generated from DSP.OnePoleTPTLowPass.Runtime.process. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
 // Compile with strict floating-point arithmetic and implicit contraction disabled.
@@ -30,7 +30,6 @@ struct OnePoleTPTLowPassGeneric
     {
         Vector m_G;
         Vector m_s;
-        Vector m_y;
     };
 
     struct Input
@@ -38,7 +37,13 @@ struct OnePoleTPTLowPassGeneric
         Vector m_x;
     };
 
+    struct Output
+    {
+        Vector m_x;
+    };
+
     State m_state;
+    Output m_output;
 
     void Process(Input& input)
     {
@@ -46,7 +51,7 @@ struct OnePoleTPTLowPassGeneric
         const Vector v1 = Vector::FusedMultiplyAdd(v0, m_state.m_G, m_state.m_s);
         const Vector v2 = Vector::FusedMultiplyAdd(v0, m_state.m_G, v1);
         m_state.m_s = v2;
-        m_state.m_y = v1;
+        m_output.m_x = v1;
     }
 
     // Response generated from DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquared.
@@ -71,7 +76,7 @@ struct OnePoleTPTLowPassGeneric
         return v6;
     }
 
-    // Coefficients generated from DSP.OnePoleTPTLowPass.prepareCoefficients.
+    // Coefficients generated from DSP.OnePoleTPTLowPass.Runtime.prepareCoefficients.
     //
 
     Snapshot m_responseSnapshot{};

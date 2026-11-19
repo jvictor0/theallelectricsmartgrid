@@ -72,8 +72,12 @@ static SVFOutputs measureSVFTF(float cutoffCps, float resonance,
     const std::size_t N = kN;
     const std::size_t half = N / 2;
 
-    TPTSVFLowPassFilterGeneric<float, 1> svf;
-    svf.SetCutoffAndResonance(cutoffCps, resonance);
+    TPTSVFLowPassFilterGeneric<float, 1> low;
+    TPTSVFHighPassFilterGeneric<float, 1> high;
+    TPTSVFBandPassFilterGeneric<float, 1> band;
+    low.SetCutoffAndResonance(cutoffCps, resonance);
+    high.SetCutoffAndResonance(cutoffCps, resonance);
+    band.SetCutoffAndResonance(cutoffCps, resonance);
 
     std::vector<float> in(N), outLP(N), outHP(N), outBP(N);
     TestSignal::WhiteNoise noise(seed);
@@ -85,7 +89,10 @@ static SVFOutputs measureSVFTF(float cutoffCps, float resonance,
     //
     for (std::size_t i = 0; i < N; ++i)
     {
-        svf.Process(noise.Next());
+        const auto x = noise.Next();
+        low.Process(x);
+        high.Process(x);
+        band.Process(x);
     }
 
     for (int f = 0; f < frames; ++f)
@@ -94,10 +101,12 @@ static SVFOutputs measureSVFTF(float cutoffCps, float resonance,
         {
             float x = noise.Next();
             in[i] = x;
-            svf.Process(x);
-            outLP[i] = svf.GetLowPass();
-            outHP[i] = svf.GetHighPass();
-            outBP[i] = svf.GetBandPass();
+            low.Process(x);
+            high.Process(x);
+            band.Process(x);
+            outLP[i] = low.GetLowPass();
+            outHP[i] = high.GetHighPass();
+            outBP[i] = band.GetBandPass();
         }
         auto mIn = MagnitudeSpectrum(in.data(),   N, kN);
         auto mLP = MagnitudeSpectrum(outLP.data(), N, kN);
@@ -367,6 +376,6 @@ DOCTEST_TEST_CASE("Generated SVF: retuning preserves memories and reset preserve
     DOCTEST_CHECK(filter.MakeSnapshot().m_g == snapshot.m_g);
     filter.Process(TrioFloat());
     DOCTEST_CHECK(filter.GetBandPass() == TrioFloat());
-    DOCTEST_CHECK(filter.GetLowPass() == TrioFloat());
-    DOCTEST_CHECK(filter.GetHighPass() == TrioFloat());
+    DOCTEST_CHECK(filter.m_state.m_ic1 == TrioFloat());
+    DOCTEST_CHECK(filter.m_state.m_ic2 == TrioFloat());
 }

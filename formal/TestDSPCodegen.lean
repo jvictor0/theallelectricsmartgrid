@@ -1,3 +1,4 @@
+import DSP.Filters.Runtime
 import DSP.Codegen.Cpp
 import DSP.Tests.CodegenFixtures
 import DSP.Filters.Responses
@@ -356,3 +357,46 @@ run_cmd liftTermElabM do
       rejected := true
     unless rejected do throwError "C++ codegen accepted invalid preparation {name}"
   logInfo "Prepared bank function boundary checks passed."
+
+namespace DSP.Tests
+
+def wrongCompactReset {R : Type} [OfNat R 0] (s : ConservativeReuppingLadder.Runtime.State R) :
+    ConservativeReuppingLadder.Runtime.State R × TPTSVF.Runtime.Output R :=
+  (s, ⟨0,0,0,0,0⟩)
+
+def unexpectedResetOutput {R : Type} [OfNat R 0] (s : OnePoleZOHLowPass R) :
+    OnePoleZOHLowPass R × Sample R := (s, ⟨0⟩)
+
+-- The returned observation must read the old memory before Reset clears it.
+def resetWithOldMemory {R : Type} [OfNat R 0] (s : OnePoleTPTLowPass.Runtime.State R) :
+    OnePoleTPTLowPass.Runtime.State R × Sample R := (⟨s.G, 0⟩, ⟨s.s⟩)
+
+def resetWithOldMemoryFloat := resetWithOldMemory (R := Float)
+
+end DSP.Tests
+
+#generate_cpp_sampled_filter DSP.OnePoleTPTLowPass.Runtime.processFloat DSP.OnePoleTPTLowPass.Runtime.prepareCoefficientsFloat
+  resetWith DSP.Tests.resetWithOldMemoryFloat
+  [DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquaredFloat as MagnitudeSquared]
+  as CompactResetProbe to "build/lean/generated/CompactResetProbe.hpp"
+
+open Lean Elab Command in
+run_cmd liftTermElabM do
+  for (stepName, tuningName, responseName, resetName, expected) in #[
+      (``DSP.ConservativeReuppingLadder.Runtime.process, ``DSP.ConservativeReuppingLadder.Runtime.prepareCoefficients,
+        ``DSP.ConservativeReuppingLadder.Snapshot.magnitudeSquared, ``DSP.Tests.wrongCompactReset,
+        "reset output differs"),
+      (``DSP.OnePoleZOHLowPass.step, ``DSP.OnePoleZOHLowPass.prepareCoefficients,
+        ``DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquared, ``DSP.Tests.unexpectedResetOutput,
+        "reset returns Output for a state-only processor")] do
+    let mut rejected := false
+    try
+      let _ ← DSP.Codegen.generateFilterResponses stepName #[(responseName, "MagnitudeSquared")]
+        "ResetOutput" true (some tuningName) true (reset := some resetName)
+    catch error =>
+      let message ← error.toMessageData.toString
+      unless (message.splitOn expected).length > 1 do
+        throwError "unexpected compact reset rejection: {message}"
+      rejected := true
+    unless rejected do throwError "C++ codegen accepted an unrelated reset output"
+  logInfo "Compact reset output identity checks passed."

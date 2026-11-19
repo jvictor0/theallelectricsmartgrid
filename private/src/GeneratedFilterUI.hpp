@@ -62,9 +62,9 @@ struct GeneratedResponseSnapshot : Filter::Snapshot
     }
 };
 
-// A response selection changes only the UI view. The underlying SVF still
-// computes all its audio outputs. MakeSnapshot returns a composable snapshot,
-// so handwritten machines can own LP/HP child snapshots exactly as before.
+// Adapt a generated processor to a composable response snapshot. Its audio
+// outputs are determined by its Lean export; choosing a response here changes
+// only the UI view. Handwritten machines can own child snapshots.
 //
 template<typename Filter, auto MagnitudeSquared>
 struct GeneratedFilterView : Filter

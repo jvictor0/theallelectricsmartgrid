@@ -215,12 +215,19 @@ filter.ComputeCoefficients({Vector::Splat(0.125f),
     Vector::Splat(0.7f), Vector::Splat(2.0f)});
 Core::Input input{Vector::Splat(0.1f)};
 filter.Process(input);
-auto output = filter.m_state.m_output;
+auto output = filter.m_output.m_x;
 filter.Reset();
 ```
 
+The exported `Runtime.process` projects the existing proved step onto persistent
+coefficients and the four Euler stage memories. Its output is separate; the
+recorded drive is a local intermediate. `Runtime.simulation` preserves the
+complete output stream, including the previous-fourth-stage feedback delay.
+`Runtime.prepare_save` and `Runtime.reset_save` connect tuning and reset to the
+same original model.
+
 `ComputeCoefficients` updates only coefficients; `Reset` clears histories and
-keeps tuning. The same generated struct contains `Snapshot`, static `MagnitudeSquared`,
+the exposed output while keeping tuning. The same generated struct contains `Snapshot`, static `MagnitudeSquared`,
 `MakeSnapshot`, `UIState`, and `PopulateUIStateSample`. Coefficients and the UI
 snapshot are prepared together; `Reset` leaves the response snapshot intact.
 

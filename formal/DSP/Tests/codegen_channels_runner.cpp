@@ -1,3 +1,8 @@
+#include "TPTSVFLowPassGeneric.hpp"
+#include "TPTSVFHighPassGeneric.hpp"
+#include "TPTSVFBandPassGeneric.hpp"
+#include "TPTSVFNotchGeneric.hpp"
+#include "TPTSVFAllPassGeneric.hpp"
 #include "OnePoleZOHLowPassGeneric.hpp"
 #include "OnePoleZOHLowPass.hpp"
 #include "OnePoleZOHLowPass32.hpp"
@@ -51,15 +56,14 @@ Bits ToBits(Value value)
 template<typename State>
 auto LowPassFields(State& state)
 {
-    return std::tie(state.m_G, state.m_s, state.m_y);
+    return std::tie(state.m_G, state.m_s);
 }
 
 template<typename State>
 auto SVFFields(State& state)
 {
     return std::tie(state.m_k, state.m_a1, state.m_a2, state.m_a3,
-        state.m_ic1, state.m_ic2, state.m_lowPass, state.m_bandPass,
-        state.m_highPass, state.m_notch, state.m_allPass);
+        state.m_ic1, state.m_ic2);
 }
 
 template<typename Number, size_t Size>
@@ -71,13 +75,13 @@ auto StateFields(OnePoleZOHLowPassGeneric<Number, Size>& processor)
 template<typename Number, size_t Size>
 auto StateFields(OnePoleTPTLowPassGeneric<Number, Size>& processor)
 {
-    return LowPassFields(processor.m_state);
+    return std::tuple_cat(LowPassFields(processor.m_state), std::tie(processor.m_output.m_x));
 }
 
 template<typename Number, size_t Size>
 auto StateFields(OnePoleTPTHighPassGeneric<Number, Size>& processor)
 {
-    return std::tuple_cat(LowPassFields(processor.m_state.m_lowPass), std::tie(processor.m_state.m_y));
+    return std::tuple_cat(LowPassFields(processor.m_state.m_lowPass), std::tie(processor.m_output.m_x));
 }
 
 template<typename Number, size_t Size>
@@ -85,13 +89,44 @@ auto StateFields(TPTBaseWidthGeneric<Number, Size>& processor)
 {
     auto& state = processor.m_state;
     return std::tuple_cat(LowPassFields(state.m_highPass.m_lowPass),
-        std::tie(state.m_highPass.m_y), LowPassFields(state.m_lowPass));
+        LowPassFields(state.m_lowPass), std::tie(processor.m_output.m_x));
 }
 
 template<typename Number, size_t Size>
 auto StateFields(TPTSVFGeneric<Number, Size>& processor)
 {
-    return SVFFields(processor.m_state);
+    return std::tuple_cat(SVFFields(processor.m_state), std::tie(processor.m_output.m_lowPass,
+        processor.m_output.m_bandPass, processor.m_output.m_highPass, processor.m_output.m_notch, processor.m_output.m_allPass));
+}
+
+template<typename Number, size_t Size>
+auto StateFields(TPTSVFLowPassGeneric<Number, Size>& processor)
+{
+    return std::tuple_cat(SVFFields(processor.m_state), std::tie(processor.m_output.m_lowPass));
+}
+
+template<typename Number, size_t Size>
+auto StateFields(TPTSVFHighPassGeneric<Number, Size>& processor)
+{
+    return std::tuple_cat(SVFFields(processor.m_state), std::tie(processor.m_output.m_highPass));
+}
+
+template<typename Number, size_t Size>
+auto StateFields(TPTSVFBandPassGeneric<Number, Size>& processor)
+{
+    return std::tuple_cat(SVFFields(processor.m_state), std::tie(processor.m_output.m_bandPass));
+}
+
+template<typename Number, size_t Size>
+auto StateFields(TPTSVFNotchGeneric<Number, Size>& processor)
+{
+    return std::tuple_cat(SVFFields(processor.m_state), std::tie(processor.m_output.m_notch));
+}
+
+template<typename Number, size_t Size>
+auto StateFields(TPTSVFAllPassGeneric<Number, Size>& processor)
+{
+    return std::tuple_cat(SVFFields(processor.m_state), std::tie(processor.m_output.m_allPass));
 }
 
 template<typename Number, size_t Size>
@@ -99,33 +134,33 @@ auto StateFields(MorphingTPTSVFGeneric<Number, Size>& processor)
 {
     auto& state = processor.m_state;
     return std::tuple_cat(SVFFields(state.m_svf),
-        std::tie(state.m_cosine, state.m_sine, state.m_blend, state.m_output));
+        std::tie(state.m_cosine, state.m_sine, state.m_blend, processor.m_output.m_x));
 }
 
 template<typename Number, size_t Size>
 auto StateFields(TPTSVF4PoleHighPassGeneric<Number, Size>& processor)
 {
-    return std::tuple_cat(SVFFields(processor.m_state.m_stage1), SVFFields(processor.m_state.m_stage2));
+    return std::tuple_cat(SVFFields(processor.m_state.m_stage1), SVFFields(processor.m_state.m_stage2), std::tie(processor.m_output.m_x));
 }
 
 template<typename Number, size_t Size>
 auto StateFields(TPTSVF4PoleLowPassGeneric<Number, Size>& processor)
 {
-    return std::tuple_cat(SVFFields(processor.m_state.m_stage1), SVFFields(processor.m_state.m_stage2));
+    return std::tuple_cat(SVFFields(processor.m_state.m_stage1), SVFFields(processor.m_state.m_stage2), std::tie(processor.m_output.m_x));
 }
 
 template<typename Number, size_t Size>
 auto StateFields(TPTSVF4PoleBandPassGeneric<Number, Size>& processor)
 {
-    return std::tuple_cat(SVFFields(processor.m_state.m_stage1), SVFFields(processor.m_state.m_stage2));
+    return std::tuple_cat(SVFFields(processor.m_state.m_stage1), SVFFields(processor.m_state.m_stage2), std::tie(processor.m_output.m_x));
 }
 
 template<typename Number, size_t Size>
 auto StateFields(TPTLadderGeneric<Number, Size>& processor)
 {
     auto& state = processor.m_state;
-    return std::tuple_cat(std::tie(state.m_k, state.m_drive), LowPassFields(state.m_stage1),
-        LowPassFields(state.m_stage2), LowPassFields(state.m_stage3), LowPassFields(state.m_stage4));
+    return std::tuple_cat(std::tie(state.m_k), LowPassFields(state.m_stage1),
+        LowPassFields(state.m_stage2), LowPassFields(state.m_stage3), LowPassFields(state.m_stage4), std::tie(processor.m_output.m_x));
 }
 
 template<typename Number, size_t Size>
@@ -133,7 +168,7 @@ auto StateFields(ConservativeReuppingLadderCoreGeneric<Number, Size>& processor)
 {
     auto& s = processor.m_state;
     return std::tie(s.m_alpha, s.m_saturation.m_gain, s.m_saturation.m_tanhGain,
-        s.m_k, s.m_stage1, s.m_stage2, s.m_stage3, s.m_stage4, s.m_input, s.m_output);
+        s.m_k, s.m_stage1, s.m_stage2, s.m_stage3, s.m_stage4, processor.m_output.m_x);
 }
 
 template<typename State>
@@ -400,6 +435,31 @@ bool RunKind(const std::string& kind, size_t steps)
     if (kind == "baseWidth")
     {
         return Run<TPTBaseWidthGeneric<Number, Size>, Number, Size>(steps);
+    }
+
+    if (kind == "svfLowPass")
+    {
+        return Run<TPTSVFLowPassGeneric<Number, Size>, Number, Size>(steps);
+    }
+
+    if (kind == "svfHighPass")
+    {
+        return Run<TPTSVFHighPassGeneric<Number, Size>, Number, Size>(steps);
+    }
+
+    if (kind == "svfBandPass")
+    {
+        return Run<TPTSVFBandPassGeneric<Number, Size>, Number, Size>(steps);
+    }
+
+    if (kind == "svfNotch")
+    {
+        return Run<TPTSVFNotchGeneric<Number, Size>, Number, Size>(steps);
+    }
+
+    if (kind == "svfAllPass")
+    {
+        return Run<TPTSVFAllPassGeneric<Number, Size>, Number, Size>(steps);
     }
 
     if (kind == "svf")

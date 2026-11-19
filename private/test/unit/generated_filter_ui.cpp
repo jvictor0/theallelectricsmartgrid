@@ -1,5 +1,11 @@
 #include "doctest.h"
 #include "../../../formal/DSP/generated/TPTSVFGeneric.hpp"
+#include "TPTSVFLowPassGeneric.hpp"
+#include "TPTSVFHighPassGeneric.hpp"
+#include "TPTSVFBandPassGeneric.hpp"
+#include "TPTSVFNotchGeneric.hpp"
+#include "TPTSVFAllPassGeneric.hpp"
+
 #include "../../../formal/DSP/generated/OnePoleZOHLowPass.hpp"
 #include "../../../formal/DSP/generated/OnePoleTPTLowPassGeneric.hpp"
 #include "../support/GlobalEnv.hpp"
@@ -7,16 +13,19 @@
 
 namespace
 {
+template<typename Filter>
+using SingleOutputView = GeneratedFilterView<Filter, &Filter::MagnitudeSquared>;
+
 template<typename Number, size_t Size>
 void CheckGeneratedViews()
 {
     using Filter = TPTSVFGeneric<Number, Size>;
     using Vector = typename Filter::Vector;
-    using Low = TPTSVFLowPassGeneric<Number, Size>;
-    using High = TPTSVFHighPassGeneric<Number, Size>;
-    using Band = TPTSVFBandPassGeneric<Number, Size>;
-    using Notch = TPTSVFNotchGeneric<Number, Size>;
-    using AllPass = TPTSVFAllPassGeneric<Number, Size>;
+    using Low = SingleOutputView<TPTSVFLowPassGeneric<Number, Size>>;
+    using High = SingleOutputView<TPTSVFHighPassGeneric<Number, Size>>;
+    using Band = SingleOutputView<TPTSVFBandPassGeneric<Number, Size>>;
+    using Notch = SingleOutputView<TPTSVFNotchGeneric<Number, Size>>;
+    using AllPass = SingleOutputView<TPTSVFAllPassGeneric<Number, Size>>;
     Low low{};
     High high{};
     typename Filter::LogicalSpec spec{};
@@ -26,13 +35,13 @@ void CheckGeneratedViews()
         spec.m_q[lane] = static_cast<Number>(0.6 + lane);
     }
 
-    low.ComputeCoefficients(spec);
-    high.ComputeCoefficients(spec);
+    low.ComputeCoefficients({spec.m_cutoff, spec.m_q});
+    high.ComputeCoefficients({spec.m_cutoff, spec.m_q});
     auto saved = low.MakeSnapshot();
     typename High::Snapshot hp = high.MakeSnapshot();
-    typename Band::Snapshot bp = saved;
-    typename Notch::Snapshot notch = saved;
-    typename AllPass::Snapshot allPass = saved;
+    typename Band::Snapshot bp(typename Band::Snapshot::Coefficients{saved.m_g, saved.m_k});
+    typename Notch::Snapshot notch(typename Notch::Snapshot::Coefficients{saved.m_g, saved.m_k});
+    typename AllPass::Snapshot allPass(typename AllPass::Snapshot::Coefficients{saved.m_g, saved.m_k});
     static_assert(std::is_trivially_copyable_v<typename Low::Snapshot>);
     SampledTransferFunction::Config config;
     config.m_capacity = 8;
@@ -78,8 +87,8 @@ void CheckGeneratedViews()
     }
 
     spec.m_cutoff = Vector::Splat(static_cast<Number>(0.3));
-    low.ComputeCoefficients(spec);
-    typename Filter::Input input{Vector::Splat(static_cast<Number>(1))};
+    low.ComputeCoefficients({spec.m_cutoff, spec.m_q});
+    typename Low::Input input{Vector::Splat(static_cast<Number>(1))};
     auto tuned = low.MakeSnapshot();
     low.Process(input);
     for (size_t lane = 0; lane < Size; ++lane)
@@ -96,8 +105,8 @@ void CheckGeneratedViews()
 //
 struct ShapeSnapshot
 {
-    using Low = TPTSVFLowPassGeneric<double, 3>;
-    using High = TPTSVFHighPassGeneric<double, 3>;
+    using Low = SingleOutputView<TPTSVFLowPassGeneric<double, 3>>;
+    using High = SingleOutputView<TPTSVFHighPassGeneric<double, 3>>;
     using Frequency = Low::Snapshot::Frequency;
     using ResponseVector = Low::Snapshot::ResponseVector;
     static constexpr size_t x_numLanes = 3;

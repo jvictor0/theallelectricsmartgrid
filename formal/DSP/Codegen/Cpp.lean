@@ -787,7 +787,8 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
     (captureSnapshot : Option Expr := none)
     (tuningMethod : String := "ComputeCoefficients")
     (resetState : Option Expr := none) (preparation : Bool := false)
-    (declareCache : Bool := true) (copySpec : Bool := false) : MetaM (Array String × Array String) := do
+    (declareCache : Bool := true) (copySpec : Bool := false)
+    (resetOutput : Option Expr := none) : MetaM (Array String × Array String) := do
   unless validIdentifier cppName && cppName.toList.head!.isUpper do
     throwError "C++ codegen: processor name must be a simple uppercase C++ identifier"
   if #["State", "Input", "Output"].contains cppName ||
@@ -851,15 +852,30 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
         (pruneTemporaries emission.lines).map ("        " ++ ·) ++ #["    }", ""])
     if let some expected := resetState then
       let stateType ← inferType runtime[0]!
+      let resultType ← whnf resultType
+      let paired := resultType.isAppOfArity ``Prod 2
+      let stateResult := if paired then resultType.getAppArgs[0]! else resultType
       unless (← isDefEq (← recordSignature stateType numberType) expected) &&
-          (← isDefEq stateType resultType) do
+          (← isDefEq stateType stateResult) do
         throwError "C++ codegen: reset must take and return the processor's State"
+      let outputFields ← if paired then do
+        let some expectedOutput := resetOutput
+          | throwError "C++ codegen: reset returns Output for a state-only processor"
+        let outputType := resultType.getAppArgs[1]!
+        unless ← isDefEq (← recordSignature outputType numberType) expectedOutput do
+          throwError "C++ codegen: reset output differs from the processor's Output"
+        pure (some (← fieldShape outputType numberType))
+        else pure none
       let fields ← fieldShape stateType numberType
       let (_, emission) ← (do
-        let next ← evaluate (mkAppN (mkConst function) parameters)
+        let result ← evaluate (mkAppN (mkConst function) parameters)
           [(runtime[0]!.fvarId!, readValue fields "m_state")]
+        let next ← if paired then selectField result 0 else pure result
+        let output ← if paired then some <$> snapshot (← selectField result 1) else pure none
         let assignments ← changedAssignments fields next "m_state"
-        for line in assignments do emit line).run {numberType, arithmetic}
+        for line in assignments do emit line
+        if let some outputFields := outputFields then
+          commitValue outputFields output.get! "m_output").run {numberType, arithmetic}
       return (mathIncludes emission.usesMath,
         #["    void Reset()", "    {"] ++ (pruneTemporaries emission.lines).map ("        " ++ ·) ++ #["    }", ""])
     if let some expected := captureSpec then
@@ -1029,11 +1045,15 @@ def generateFilterResponses (step : Name) (responses : Array (Name × String))
     let expected ← forallTelescopeReducing info.type fun parameters _ => do
       let type ← inferType parameters[parameters.size - 2]!
       recordSignature type (if generic then some parameters[0]! else none)
+    let expectedOutput ← forallTelescopeReducing info.type fun parameters result => do
+      let result ← whnf result
+      if result.isAppOfArity ``Prod 2 then
+        return some (← recordSignature result.getAppArgs[1]! (if generic then some parameters[0]! else none))
+      return none
     let (resetIncludes, resetBody) ← generateParts reset cppName generic none "Input"
-      (resetState := some expected)
+      (resetState := some expected) (resetOutput := expectedOutput)
     includes := includes ++ resetIncludes
     body := body ++ #[s!"    // Reset generated from {reset}.", "    //", ""] ++ resetBody
-  let mut views := #[]
   if capture then
     unless tuning.isSome do throwError "C++ codegen: sampled filters require coefficient preparation"
     includes := includes.push "#include \"GeneratedFilterUI.hpp\""
@@ -1055,13 +1075,7 @@ def generateFilterResponses (step : Name) (responses : Array (Name × String))
         body := body ++ #["    void PopulateUIStateSample(SampledSnapshotWriter<UIState>& writer) const",
           "    {", "        writer.PopulateUIStateSample([&]", "        {",
           "            return MakeSnapshot();", "        });", "    }", ""]
-      else
-        let stem := if generic && cppName.endsWith "Generic" then
-          (cppName.dropEnd "Generic".length).toString else cppName
-        let viewName := stem ++ label ++ (if generic then "Generic" else "")
-        if generic then views := views.push "template<typename Number, size_t Size>"
-        views := views ++ #[s!"struct {viewName} : GeneratedFilterView<{self}, &{self}::{method}>", "{", "};", ""]
-  return String.intercalate "\n" (renderHeader step cppName generic includes ++ body ++ #["};", ""] ++ views).toList
+  return String.intercalate "\n" (renderHeader step cppName generic includes ++ body ++ #["};", ""]).toList
 
 /-- A processor with coefficient preparation and a snapshot, without imposing
 any scalar response method on a multi-output processor. -/

@@ -31,6 +31,6 @@ struct QuadTPTBaseWidthFilter : TPTBaseWidthGeneric<float, 4>
     {
         Input input{sample};
         Filter::Process(input);
-        return m_state.m_lowPass.m_y;
+        return m_output.m_x;
     }
 };

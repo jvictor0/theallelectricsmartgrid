@@ -1,6 +1,6 @@
 #pragma once
 
-// Generated from DSP.TPTSVF.step. Do not edit.
+// Generated from DSP.TPTSVF.Runtime.process. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
 // Compile with strict floating-point arithmetic and implicit contraction disabled.
@@ -34,11 +34,6 @@ struct TPTSVFGeneric
         Vector m_a3;
         Vector m_ic1;
         Vector m_ic2;
-        Vector m_lowPass;
-        Vector m_bandPass;
-        Vector m_highPass;
-        Vector m_notch;
-        Vector m_allPass;
     };
 
     struct Input
@@ -46,7 +41,17 @@ struct TPTSVFGeneric
         Vector m_x;
     };
 
+    struct Output
+    {
+        Vector m_lowPass;
+        Vector m_bandPass;
+        Vector m_highPass;
+        Vector m_notch;
+        Vector m_allPass;
+    };
+
     State m_state;
+    Output m_output;
 
     void Process(Input& input)
     {
@@ -65,14 +70,14 @@ struct TPTSVFGeneric
         const Vector v11 = Vector::FusedMultiplyAdd(v4, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v10);
         m_state.m_ic2 = v11;
         const Vector v12 = (v4 + v7);
-        m_state.m_lowPass = v4;
-        m_state.m_highPass = v7;
-        m_state.m_notch = v12;
+        m_output.m_lowPass = v4;
+        m_output.m_highPass = v7;
+        m_output.m_notch = v12;
         const Vector v13 = (-m_state.m_k);
         const Vector v14 = (v13 * Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
         const Vector v15 = Vector::FusedMultiplyAdd(v14, v2, input.m_x);
-        m_state.m_bandPass = v2;
-        m_state.m_allPass = v15;
+        m_output.m_bandPass = v2;
+        m_output.m_allPass = v15;
     }
 
     // Response generated from DSP.TPTSVF.Snapshot.lowPassMagnitudeSquared.
@@ -214,7 +219,7 @@ struct TPTSVFGeneric
         return v18;
     }
 
-    // Coefficients generated from DSP.TPTSVF.prepareCoefficients.
+    // Coefficients generated from DSP.TPTSVF.Runtime.prepareCoefficients.
     //
 
     Snapshot m_responseSnapshot{};
@@ -247,7 +252,7 @@ struct TPTSVFGeneric
         m_responseSnapshot.m_k = v1;
     }
 
-    // Prepared coefficients generated from DSP.TPTSVF.prepareFromSnapshot.
+    // Prepared coefficients generated from DSP.TPTSVF.Runtime.prepareFromSnapshot.
     //
 
     void ComputeCoefficientsFromSnapshot(const Snapshot& spec)
@@ -281,29 +286,4 @@ struct TPTSVFGeneric
 
     using AllPassUIState = TransferFunctionGeneric<GeneratedResponseSnapshot<TPTSVFGeneric<Number, Size>, &TPTSVFGeneric<Number, Size>::AllPassMagnitudeSquared>>;
 
-};
-
-template<typename Number, size_t Size>
-struct TPTSVFLowPassGeneric : GeneratedFilterView<TPTSVFGeneric<Number, Size>, &TPTSVFGeneric<Number, Size>::LowPassMagnitudeSquared>
-{
-};
-
-template<typename Number, size_t Size>
-struct TPTSVFBandPassGeneric : GeneratedFilterView<TPTSVFGeneric<Number, Size>, &TPTSVFGeneric<Number, Size>::BandPassMagnitudeSquared>
-{
-};
-
-template<typename Number, size_t Size>
-struct TPTSVFHighPassGeneric : GeneratedFilterView<TPTSVFGeneric<Number, Size>, &TPTSVFGeneric<Number, Size>::HighPassMagnitudeSquared>
-{
-};
-
-template<typename Number, size_t Size>
-struct TPTSVFNotchGeneric : GeneratedFilterView<TPTSVFGeneric<Number, Size>, &TPTSVFGeneric<Number, Size>::NotchMagnitudeSquared>
-{
-};
-
-template<typename Number, size_t Size>
-struct TPTSVFAllPassGeneric : GeneratedFilterView<TPTSVFGeneric<Number, Size>, &TPTSVFGeneric<Number, Size>::AllPassMagnitudeSquared>
-{
 };

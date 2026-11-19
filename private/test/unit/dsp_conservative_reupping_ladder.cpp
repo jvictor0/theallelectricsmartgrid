@@ -68,7 +68,7 @@ void CheckResponse()
         DOCTEST_CHECK(retuned.m_slope != snapshot.m_slope);
         filter.Reset();
         DOCTEST_CHECK(filter.m_state.m_stage4 == Vector());
-        DOCTEST_CHECK(filter.m_state.m_output == Vector());
+        DOCTEST_CHECK(filter.m_output.m_x == Vector());
         DOCTEST_CHECK(filter.MakeSnapshot().m_k == retuned.m_k);
         DOCTEST_CHECK(filter.MakeSnapshot().m_slope == retuned.m_slope);
     }

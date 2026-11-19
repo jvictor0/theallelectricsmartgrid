@@ -1,6 +1,8 @@
 #pragma once
 
-#include "TPTSVFGeneric.hpp"
+#include "TPTSVFLowPassGeneric.hpp"
+#include "TPTSVFHighPassGeneric.hpp"
+#include "TPTSVFBandPassGeneric.hpp"
 #include "TPTSVF4PoleHighPassGeneric.hpp"
 #include "MorphingTPTSVFGeneric.hpp"
 #include "PhaseUtils.hpp"
@@ -28,13 +30,14 @@ struct TPTSVFControlsGeneric
 // Processing and coefficient preparation stay in the generated filter.
 //
 template<typename Generated>
-struct TPTSVFAppFilter : Generated
+struct TPTSVFAppFilter : GeneratedFilterView<Generated, &Generated::MagnitudeSquared>
 {
+    using Base = GeneratedFilterView<Generated, &Generated::MagnitudeSquared>;
     using Vector = typename Generated::Vector;
     TPTSVFControlsGeneric<typename Generated::NumberType, Generated::x_numChannels> m_controls;
 
     TPTSVFAppFilter()
-        : Generated{}
+        : Base{}
     {
         SetCutoffAndResonance(Vector::Splat(0.1), Vector());
     }
@@ -58,28 +61,24 @@ struct TPTSVFAppFilter : Generated
 
     Vector GetLowPass() const
     {
-        return this->m_state.m_lowPass;
+        return this->m_output.m_lowPass;
     }
 
     Vector GetHighPass() const
     {
-        return this->m_state.m_highPass;
+        return this->m_output.m_highPass;
     }
 
     Vector GetBandPass() const
     {
-        return this->m_state.m_bandPass;
+        return this->m_output.m_bandPass;
     }
 
     void Reset()
     {
         this->m_state.m_ic1 = Vector();
         this->m_state.m_ic2 = Vector();
-        this->m_state.m_lowPass = Vector();
-        this->m_state.m_bandPass = Vector();
-        this->m_state.m_highPass = Vector();
-        this->m_state.m_notch = Vector();
-        this->m_state.m_allPass = Vector();
+        this->m_output = {};
     }
 };
 
@@ -120,7 +119,7 @@ struct TPTSVF4PoleHighPassFilterGeneric : GeneratedFilterView<TPTSVF4PoleHighPas
 
     Vector GetOutput() const
     {
-        return this->m_state.m_stage2.m_highPass;
+        return this->m_output.m_x;
     }
 };
 
@@ -151,6 +150,6 @@ struct MorphingTPTSVFFilterGeneric : GeneratedFilterView<MorphingTPTSVFGeneric<N
 
     Vector GetOutput() const
     {
-        return this->m_state.m_output;
+        return this->m_output.m_x;
     }
 };

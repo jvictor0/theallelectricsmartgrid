@@ -50,7 +50,7 @@ struct ConservativeReuppingLadderGeneric : GeneratedFilterView<ConservativeReupp
     {
         typename Core::Input input{sample};
         Core::Process(input);
-        return this->m_state.m_output;
+        return this->m_output.m_x;
     }
 };
 

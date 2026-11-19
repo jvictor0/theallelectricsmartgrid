@@ -1,6 +1,6 @@
 #pragma once
 
-// Generated from DSP.TPTSVF4Pole.stepHighPassFloat. Do not edit.
+// Generated from DSP.TPTSVF4Pole.Runtime.processHighPassFloat. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
 // Compile with strict floating-point arithmetic and implicit contraction disabled.
@@ -30,11 +30,6 @@ struct TPTSVF4PoleHighPass
             double m_a3;
             double m_ic1;
             double m_ic2;
-            double m_lowPass;
-            double m_bandPass;
-            double m_highPass;
-            double m_notch;
-            double m_allPass;
         } m_stage1;
 
         struct
@@ -45,11 +40,6 @@ struct TPTSVF4PoleHighPass
             double m_a3;
             double m_ic1;
             double m_ic2;
-            double m_lowPass;
-            double m_bandPass;
-            double m_highPass;
-            double m_notch;
-            double m_allPass;
         } m_stage2;
 
     };
@@ -59,7 +49,13 @@ struct TPTSVF4PoleHighPass
         double m_x;
     };
 
+    struct Output
+    {
+        double m_x;
+    };
+
     State m_state;
+    Output m_output;
 
     void Process(Input& input)
     {
@@ -77,14 +73,6 @@ struct TPTSVF4PoleHighPass
         const double v10 = (-m_state.m_stage1.m_ic2);
         const double v11 = std::fma(v4, 0x10000000000000p-51, v10);
         m_state.m_stage1.m_ic2 = v11;
-        const double v12 = (v4 + v7);
-        m_state.m_stage1.m_lowPass = v4;
-        m_state.m_stage1.m_notch = v12;
-        const double v13 = (-m_state.m_stage1.m_k);
-        const double v14 = (v13 * 0x10000000000000p-51);
-        const double v15 = std::fma(v14, v2, input.m_x);
-        m_state.m_stage1.m_bandPass = v2;
-        m_state.m_stage1.m_allPass = v15;
         const double v16 = (v7 - m_state.m_stage2.m_ic2);
         const double v17 = (m_state.m_stage2.m_a1 * m_state.m_stage2.m_ic1);
         const double v18 = std::fma(m_state.m_stage2.m_a2, v16, v17);
@@ -93,22 +81,13 @@ struct TPTSVF4PoleHighPass
         const double v21 = (-m_state.m_stage2.m_k);
         const double v22 = std::fma(v21, v18, v7);
         const double v23 = (v22 - v20);
+        m_output.m_x = v23;
         const double v24 = (-m_state.m_stage2.m_ic1);
         const double v25 = std::fma(v18, 0x10000000000000p-51, v24);
         m_state.m_stage2.m_ic1 = v25;
         const double v26 = (-m_state.m_stage2.m_ic2);
         const double v27 = std::fma(v20, 0x10000000000000p-51, v26);
         m_state.m_stage2.m_ic2 = v27;
-        const double v28 = (v20 + v23);
-        m_state.m_stage2.m_lowPass = v20;
-        m_state.m_stage2.m_highPass = v23;
-        m_state.m_stage2.m_notch = v28;
-        const double v29 = (-m_state.m_stage2.m_k);
-        const double v30 = (v29 * 0x10000000000000p-51);
-        const double v31 = std::fma(v30, v18, v7);
-        m_state.m_stage1.m_highPass = v7;
-        m_state.m_stage2.m_bandPass = v18;
-        m_state.m_stage2.m_allPass = v31;
     }
 
     // Response generated from DSP.TPTSVF4Pole.Snapshot.highPassMagnitudeSquaredFloat.
@@ -194,7 +173,7 @@ struct TPTSVF4PoleHighPass
         return v38;
     }
 
-    // Coefficients generated from DSP.TPTSVF4Pole.prepareCoefficientsFloat.
+    // Coefficients generated from DSP.TPTSVF4Pole.Runtime.prepareCoefficientsFloat.
     //
 
     Snapshot m_responseSnapshot{};
