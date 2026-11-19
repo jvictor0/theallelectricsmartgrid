@@ -49,6 +49,24 @@ run_cmd liftTermElabM do
       throwError "incorrect constant cosine phase recognition"
   logInfo "Constant Math4096 preparation regression checks passed."
 
+open Lean Elab Command in
+run_cmd liftTermElabM do
+  for (function, cppName, expected) in #[
+      (``DSP.Tests.scalarPreparationResult, "ScalarPreparation", "preparation must return a record"),
+      (``DSP.Tests.arrayPreparation, "ArrayPreparation", "preparation input must be numeric or a record"),
+      (``DSP.LinkwitzRileySplitter.prepareSection, "Prepared", "preparation name conflicts"),
+      (``DSP.LinkwitzRileySplitter.prepareSection, "Prepare", "preparation name conflicts")] do
+    let mut rejected := false
+    try
+      let _ ← DSP.Codegen.generatePreparationGeneric function cppName
+    catch error =>
+      let message ← error.toMessageData.toString
+      unless (message.splitOn expected).length > 1 do
+        throwError "unexpected preparation rejection for {function}: {message}"
+      rejected := true
+    unless rejected do throwError "C++ codegen incorrectly accepted preparation {function}"
+  logInfo "Standalone preparation rejection checks passed."
+
 -- The coupled processor needs its old q values for the output. Store q0 only
 -- after that read, but do not retain it across the independent output tail.
 -- The native differential suite checks swaps and conditional execution too.

@@ -2,11 +2,14 @@
 
 #include "MultiChannelNumber.hpp"
 #include "SampledTransferFunction.hpp"
+#include "CircularBufferGeneric.hpp"
+#include "TunedDecayCombCoreGeneric.hpp"
+#include "TunedDecayCombTuningGeneric.hpp"
+#include "TunedDecayCombResponseGeneric.hpp"
 #include <algorithm>
-#include <array>
 #include <atomic>
-#include <cmath>
-#include <complex>
+#include <cstddef>
+#include <cassert>
 
 // H0(z) = L(z) / (1 - s z^-N A(z) L(z)).
 // L is a two-pole low-pass with a unity peak at the played fundamental.
@@ -19,7 +22,6 @@ struct TunedDecayCombBase
     static_assert(std::atomic<double>::is_always_lock_free, "Audio/UI snapshots require lock-free doubles");
 
     static constexpr size_t x_maxDelaySamples = 1 << 14;
-    static constexpr double x_pi = 3.14159265358979323846;
     static constexpr double x_sqrt2 = 1.41421356237309504880;
 
     struct Coefficients
@@ -35,33 +37,6 @@ struct TunedDecayCombBase
         double m_delayGain = 0.0;
         bool m_bypass = true;
         double m_sign = 0.0;
-
-        std::complex<double> Numerator(const std::complex<double>& z) const
-        {
-            if (m_bypass)
-            {
-                return 1.0;
-            }
-
-            auto q = m_r * z;
-            double g = m_g;
-            double k = m_k;
-            double gain = m_gain;
-            return gain * g * g * (1.0 + q) * (1.0 + q) /
-                ((1.0 + k * g + g * g) + 2.0 * (g * g - 1.0) * q +
-                 (1.0 - k * g + g * g) * q * q);
-        }
-
-        std::complex<double> Loop(const ResponseFrequency& frequency, const std::complex<double>& numerator) const
-        {
-            auto z = frequency.m_zInverse[0];
-            auto q = m_r * z;
-            double a = m_a;
-            auto allpass = (a + q) / (1.0 + a * q);
-            return m_sign * m_delayGain *
-                static_cast<std::complex<double>>(Math::Polar2pi(1, -frequency.m_cyclesPerSample[0] * m_delay))
-                * allpass * numerator;
-        }
     };
 
     // DECAY maps u = |2 * knob - 1| to T60 = 0.001 * 5000^u seconds, kept as
@@ -79,31 +54,24 @@ struct TunedDecayCombBase
     //
     static Coefficients ComputeCoefficients(double normalizedFrequency, double feedbackSign, double log2DecaySeconds, double dampOctaves, double sampleRate)
     {
-        double cycles = feedbackSign < 0.0 ? 0.5 : 1.0;
-        double duration = std::exp2(log2DecaySeconds);
-        double omega = 2.0 * x_pi * normalizedFrequency;
+        using Tuning = TunedDecayCombTuningGeneric<double, 1>;
+        using Vector = Tuning::Vector;
+        Tuning::Input input{Vector::Splat(normalizedFrequency), Vector::Splat(feedbackSign),
+            Vector::Splat(log2DecaySeconds), Vector::Splat(dampOctaves), Vector::Splat(sampleRate)};
+        const auto prepared = Tuning::Prepare(input);
+        assert(prepared.m_delay[0] >= 1 && prepared.m_delay[0] <= x_maxDelaySamples);
         Coefficients c;
-        c.m_bypass = feedbackSign == 0.0;
-        double cutoff = std::min(0.49, normalizedFrequency * std::exp2(dampOctaves));
-        double t = std::tan(x_pi * normalizedFrequency);
-        double v = std::tan(x_pi * cutoff) / t;
-        double shape = std::hypot(1.0, v * v - 1.0);
-        double u2 = 1.0 / shape;
-        c.m_g = t * std::sqrt(shape);
-        c.m_k = std::sqrt(2.0 * (1.0 - u2));
-        c.m_gain = std::sqrt((1.0 - u2) * (1.0 + u2));
-        c.m_h = 1.0 / (1.0 + c.m_k * c.m_g + c.m_g * c.m_g);
-        double filterPhase = c.m_bypass ? 0.0 : -std::atan2(c.m_k * std::sqrt(u2), 1.0 - u2);
-
-        double delay = (2.0 * x_pi * cycles + filterPhase) / omega;
-        c.m_delay = static_cast<size_t>(std::max(1.0, std::floor(delay) - 1.0));
-        double delta = delay - c.m_delay;
-        double td = std::tan(omega * delta * 0.5);
-        c.m_a = (t - td) / (t + td);
-        c.m_b = std::sqrt(std::max(0.0, 1.0 - c.m_a * c.m_a));
-        c.m_r = std::exp(-std::log(1000.0) / (sampleRate * duration));
-        c.m_delayGain = std::pow(c.m_r, static_cast<double>(c.m_delay));
-        c.m_sign = feedbackSign;
+        c.m_delay = static_cast<size_t>(prepared.m_delay[0]);
+        c.m_a = prepared.m_a[0];
+        c.m_b = prepared.m_b[0];
+        c.m_g = prepared.m_g[0];
+        c.m_k = prepared.m_k[0];
+        c.m_gain = prepared.m_gain[0];
+        c.m_h = prepared.m_h[0];
+        c.m_r = prepared.m_r[0];
+        c.m_delayGain = prepared.m_delayGain[0];
+        c.m_bypass = prepared.m_bypass[0] != 0;
+        c.m_sign = prepared.m_sign[0];
         return c;
     }
 };
@@ -174,6 +142,22 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
             c.m_sign = m_sign[channel];
             return c;
         }
+
+        template<typename Generated>
+        void CopyTo(Generated& destination) const
+        {
+            destination.m_delay = m_delay.template Convert<double>();
+            destination.m_a = m_a;
+            destination.m_b = m_b;
+            destination.m_r = m_r;
+            destination.m_delayGain = m_delayGain;
+            destination.m_g = m_g;
+            destination.m_k = m_k;
+            destination.m_h = m_h;
+            destination.m_gain = m_gain;
+            destination.m_sign = m_sign;
+            destination.m_bypass = m_bypass;
+        }
     };
 
     struct Snapshot : VectorResponseSnapshot<Size>
@@ -191,52 +175,19 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
             ComplexVector m_denominator;
         };
 
-        static ComplexVector Numerator(const ChannelCoefficients& c, const Frequency& frequency)
-        {
-            if (c.m_bypass == DoubleVector::Splat(1))
-            {
-                return 1.0;
-            }
-
-            auto q = frequency.m_zInverse * c.m_r;
-            auto onePlus = ComplexVector(1.0) + q;
-            auto g2 = c.m_g * c.m_g;
-            auto kg = c.m_k * c.m_g;
-            auto numerator = onePlus * onePlus * (c.m_gain * g2);
-            auto denominator = ComplexVector(DoubleVector::Splat(1) + kg + g2, DoubleVector()) + q * ((g2 - 1) * 2)
-                + q * q * (DoubleVector::Splat(1) - kg + g2);
-            auto response = numerator / denominator;
-            return {DoubleVector::IfLess(c.m_bypass, DoubleVector::Splat(0.5), response.m_real, DoubleVector::Splat(1)),
-                DoubleVector::IfLess(c.m_bypass, DoubleVector::Splat(0.5), response.m_imag, DoubleVector())};
-        }
-
-        static ComplexVector Loop(const ChannelCoefficients& c, const Frequency& frequency,
-            const ComplexVector& numerator)
-        {
-            if (c.m_sign == DoubleVector())
-            {
-                return {};
-            }
-
-            auto q = frequency.m_zInverse * c.m_r;
-            auto allpass = (ComplexVector(c.m_a, DoubleVector()) + q) / (ComplexVector(1.0) + q * c.m_a);
-            auto delay = Math::Polar2pi(ResponseVector::Splat(1),
-                c.m_delay.template Convert<double>() * -frequency.m_cyclesPerSample).template Convert<double>();
-            return delay * allpass * numerator * (c.m_sign * c.m_delayGain);
-        }
-
         Fraction Evaluate(const Frequency& frequency) const
         {
-            auto first = Numerator(m_branch[0], frequency);
-            auto loop = Loop(m_branch[0], frequency, first);
-            if (m_mix == 0)
-            {
-                return {first, ComplexVector(1.0) - loop};
-            }
-
-            auto second = Numerator(m_branch[1], frequency);
-            loop = loop * (1 - m_mix) + Loop(m_branch[1], frequency, second) * m_mix;
-            return {first * (1 - m_mix) + second * m_mix, ComplexVector(1.0) - loop};
+            using Response = TunedDecayCombResponseGeneric<double, Size>;
+            Response response{};
+            m_branch[0].CopyTo(response.m_state.m_first);
+            m_branch[1].CopyTo(response.m_state.m_second);
+            response.m_state.m_mix = DoubleVector::Splat(m_mix);
+            typename Response::Input input{frequency.m_cyclesPerSample, frequency.m_sinHalf, frequency.m_cosHalf,
+                {frequency.m_zInverse.m_real, frequency.m_zInverse.m_imag}};
+            response.Process(input);
+            const auto& result = response.m_output;
+            return {{result.m_numerator.m_real, result.m_numerator.m_imag},
+                {result.m_denominator.m_real, result.m_denominator.m_imag}};
         }
 
         ComplexVector ComplexResponses(const Frequency& frequency) const override
@@ -256,34 +207,48 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
 
     struct Branch
     {
-        ChannelCoefficients m_coeff;
-        DoubleVector m_allpass;
-        DoubleVector m_ic1;
-        DoubleVector m_ic2;
+        using Core = TunedDecayCombCoreGeneric<double, Size>;
+
+        Core m_core{};
+        MultiChannelNumber<size_t, Size> m_delay;
+
+        Branch()
+        {
+            SetCoefficients(ChannelCoefficients{});
+        }
+
+        // Install arithmetic coefficients and native delay taps together,
+        // preserving the core's live filter memories during a retune.
+        //
+        void SetCoefficients(const ChannelCoefficients& coefficients)
+        {
+            coefficients.CopyTo(m_core.m_state.m_coefficients);
+            m_delay = coefficients.m_delay;
+        }
+
+        ChannelCoefficients GetCoefficients() const
+        {
+            const auto& source = m_core.m_state.m_coefficients;
+            ChannelCoefficients c;
+            c.m_delay = m_delay;
+            c.m_a = source.m_a;
+            c.m_b = source.m_b;
+            c.m_r = source.m_r;
+            c.m_delayGain = source.m_delayGain;
+            c.m_g = source.m_g;
+            c.m_k = source.m_k;
+            c.m_h = source.m_h;
+            c.m_gain = source.m_gain;
+            c.m_sign = source.m_sign;
+            c.m_bypass = source.m_bypass;
+            return c;
+        }
 
         DoubleVector Process(const DoubleVector& input, const DoubleVector& delayed)
         {
-            const ChannelCoefficients& c = m_coeff;
-            DoubleVector x = delayed * c.m_delayGain;
-            DoubleVector memory = c.m_r * m_allpass;
-            DoubleVector allpass = c.m_a * x + c.m_b * memory;
-            m_allpass = c.m_b * x - c.m_a * memory;
-            DoubleVector excitation = input + c.m_sign * allpass;
-
-            DoubleVector ic1 = c.m_r * m_ic1;
-            DoubleVector ic2 = c.m_r * m_ic2;
-            DoubleVector v1 = c.m_h * (ic1 + c.m_g * (excitation - ic2));
-            DoubleVector v2 = ic2 + c.m_g * v1;
-
-            // Bypassed channels clear dormant integrators so bypass cannot
-            // accumulate energy that resurfaces when a later branch re-enables
-            // the low-pass.
-            //
-            DoubleVector half = DoubleVector::Splat(0.5);
-            DoubleVector zero = DoubleVector::Splat(0);
-            m_ic1 = DoubleVector::IfLess(c.m_bypass, half, v1 * 2 - ic1, zero);
-            m_ic2 = DoubleVector::IfLess(c.m_bypass, half, v2 * 2 - ic2, zero);
-            return DoubleVector::IfLess(c.m_bypass, half, c.m_gain * v2, excitation);
+            typename Core::Input sample{input, delayed};
+            m_core.Process(sample);
+            return m_core.m_output.m_y;
         }
     };
 
@@ -318,8 +283,7 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
         }
     };
 
-    std::array<DoubleVector, x_maxDelaySamples> m_delay{};
-    size_t m_index = 0;
+    CircularBufferGeneric<double, Size, x_maxDelaySamples> m_buffer;
     Branch m_branch[2];
     ChannelCoefficients m_target;
     Params m_params;
@@ -357,8 +321,8 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
         if (!m_initialized)
         {
             UpdateTarget();
-            m_branch[0].m_coeff = m_target;
-            m_branch[1].m_coeff = m_target;
+            m_branch[0].SetCoefficients(m_target);
+            m_branch[1].SetCoefficients(m_target);
             m_initialized = true;
         }
         else
@@ -391,15 +355,9 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
         return changed;
     }
 
-    DoubleVector ReadDelay(const ChannelCoefficients& c) const
+    DoubleVector ReadDelay(const Branch& branch) const
     {
-        DoubleVector result;
-        for (size_t i = 0; i < Size; ++i)
-        {
-            result[i] = m_delay[(m_index + x_maxDelaySamples - c.m_delay[i]) % x_maxDelaySamples][i];
-        }
-
-        return result;
+        return m_buffer.ReadDelays(branch.m_delay);
     }
 
     Vector Process(const Vector& input)
@@ -410,17 +368,17 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
             if (UpdateTarget())
             {
                 m_branch[1] = m_branch[0];
-                m_branch[1].m_coeff = m_target;
+                m_branch[1].SetCoefficients(m_target);
                 m_mix = 0.0;
                 m_transition = true;
             }
         }
 
         DoubleVector in = input.template Convert<double>();
-        DoubleVector output = m_branch[0].Process(in, ReadDelay(m_branch[0].m_coeff));
+        DoubleVector output = m_branch[0].Process(in, ReadDelay(m_branch[0]));
         if (m_transition)
         {
-            DoubleVector next = m_branch[1].Process(in, ReadDelay(m_branch[1].m_coeff));
+            DoubleVector next = m_branch[1].Process(in, ReadDelay(m_branch[1]));
             output += (next - output) * m_mix;
             m_mix = std::min(1.0, m_mix + m_step);
             if (m_mix >= 1.0)
@@ -431,20 +389,18 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
             }
         }
 
-        m_delay[m_index] = output;
-        m_index = (m_index + 1) % x_maxDelaySamples;
+        m_buffer.Push(output);
         return output.template Convert<float>();
     }
 
     void Reset()
     {
-        m_delay.fill(DoubleVector());
-        m_index = 0;
+        m_buffer.Clear();
         UpdateTarget();
         for (auto& branch : m_branch)
         {
             branch = Branch{};
-            branch.m_coeff = m_target;
+            branch.SetCoefficients(m_target);
         }
 
         m_mix = 0.0;
@@ -455,8 +411,8 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
     Snapshot MakeSnapshot() const
     {
         Snapshot snapshot;
-        snapshot.m_branch[0] = m_branch[0].m_coeff;
-        snapshot.m_branch[1] = m_branch[1].m_coeff;
+        snapshot.m_branch[0] = m_branch[0].GetCoefficients();
+        snapshot.m_branch[1] = m_branch[1].GetCoefficients();
         snapshot.m_mix = m_mix;
         return snapshot;
     }
@@ -482,4 +438,6 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
 };
 
 using TunedDecayComb = TunedDecayCombGeneric<1>;
+using StereoTunedDecayComb = TunedDecayCombGeneric<2>;
 using TrioTunedDecayComb = TunedDecayCombGeneric<3>;
+using QuadTunedDecayComb = TunedDecayCombGeneric<4>;

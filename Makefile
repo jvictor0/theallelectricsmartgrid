@@ -80,12 +80,15 @@ DSP_RUNTIME_MODULES := DSP.Filters.Capture DSP.Filters.OnePoleZOHLowPass.Respons
 	DSP.Filters.OnePoleTPTHighPass DSP.Filters.TPTBaseWidth DSP.Filters.TPTSVF \
 	DSP.Filters.MorphingTPTSVF DSP.Filters.TPTSVF4Pole DSP.Filters.TPTLadder \
 	DSP.Filters.LinkwitzRileySplitter DSP.Filters.Coupled \
-	DSP.Filters.ConservativeReuppingLadder.Response DSP.Filters.MultibandSaturator.Runtime DSP.Filters.Runtime
+	DSP.Filters.ConservativeReuppingLadder.Response DSP.Filters.MultibandSaturator.Runtime DSP.Filters.Runtime \
+	DSP.Filters.DelayKernels.Runtime DSP.Codegen.DelayBuffer
 DSP_HEADERS := OnePoleZOHLowPass OnePoleTPTLowPass OnePoleTPTHighPass TPTBaseWidth TPTSVF \
 	MorphingTPTSVF TPTSVF4PoleHighPass TPTSVF4PoleLowPass TPTSVF4PoleBandPass TPTLadder \
 	CoupledProcessor ConservativeReuppingLadderCore TPTSVFLowPass TPTSVFHighPass TPTSVFBandPass TPTSVFNotch TPTSVFAllPass
 
-DSP_GENERIC_HEADERS := $(addsuffix Generic,$(DSP_HEADERS)) LinkwitzRileySplitter4BandGeneric MultibandSaturator4BandCoreGeneric
+DSP_GENERIC_HEADERS := $(addsuffix Generic,$(DSP_HEADERS)) LinkwitzRileySplitter4BandGeneric MultibandSaturator4BandCoreGeneric \
+	CircularBufferGeneric SchroederAllPassCoreGeneric TunedDecayCombCoreGeneric \
+	TunedDecayCombTuningGeneric TunedDecayCombResponseGeneric
 
 lean-dsp-codegen:
 	"$(REPO_ROOT)/scripts/lean.sh" build DSP.Codegen.Cpp $(DSP_RUNTIME_MODULES)
@@ -98,9 +101,10 @@ lean-dsp-generate: lean-dsp-codegen
 	done
 
 lean-dsp-codegen-test: lean-dsp-codegen
-	"$(REPO_ROOT)/scripts/lean.sh" build DSP.Tests.CodegenFixtures dsp_codegen_reference dsp_multiband_reference
+	"$(REPO_ROOT)/scripts/lean.sh" build DSP.Tests.CodegenFixtures dsp_codegen_reference dsp_multiband_reference dsp_delay_codegen_reference
 	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/TestDSPCodegen.lean"
 	python3 "$(REPO_ROOT)/scripts/test_dsp_codegen.py"
+	python3 "$(REPO_ROOT)/scripts/test_dsp_delay_codegen.py"
 
 lean-dsp-test: lean-dsp-codegen-test
 	"$(REPO_ROOT)/scripts/lean.sh" build DSP dsp_filter_smoke
@@ -138,6 +142,13 @@ perf-ladder-build: perf-configure
 
 perf-ladder: perf-ladder-build
 	"$(PERF_DIR)/perf_ladder" $(PERF_ARGS)
+
+.PHONY: perf-comb-build perf-comb
+perf-comb-build: perf-configure
+	cmake --build "$(PERF_DIR)" --config Release --target perf_comb --parallel "$(JOBS)"
+
+perf-comb: perf-comb-build
+	"$(PERF_DIR)/perf_comb" $(PERF_ARGS)
 
 perf-test: perf-build
 	ctest --test-dir "$(PERF_DIR)" --build-config Release --output-on-failure

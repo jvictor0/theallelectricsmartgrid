@@ -1,4 +1,6 @@
 import DSP.Codegen.Cpp
+import DSP.Codegen.DelayBuffer
+import DSP.Filters.DelayKernels.Runtime
 import DSP.Filters.OnePoleZOHLowPass
 import DSP.Filters.OnePoleZOHLowPass.Response
 import DSP.Filters.OnePoleTPTLowPass
@@ -17,6 +19,12 @@ import DSP.Filters.MultibandSaturator.Runtime
 import DSP.Filters.Runtime
 
 #use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
+
+#generate_cpp_delay_buffer CircularBufferGeneric to "build/lean/generated/CircularBufferGeneric.hpp"
+#generate_cpp_generic DSP.DelayKernels.Runtime.AllPass.process as SchroederAllPassCoreGeneric to "build/lean/generated/SchroederAllPassCoreGeneric.hpp"
+#generate_cpp_generic DSP.DelayKernels.Runtime.Comb.process as TunedDecayCombCoreGeneric to "build/lean/generated/TunedDecayCombCoreGeneric.hpp"
+#generate_cpp_preparation_generic DSP.DelayKernels.Runtime.prepareCoefficients as TunedDecayCombTuningGeneric to "build/lean/generated/TunedDecayCombTuningGeneric.hpp"
+#generate_cpp_generic DSP.DelayKernels.response as TunedDecayCombResponseGeneric to "build/lean/generated/TunedDecayCombResponseGeneric.hpp"
 
 #generate_cpp_sampled_filter DSP.ConservativeReuppingLadder.Runtime.processFloat DSP.ConservativeReuppingLadder.Runtime.prepareCoefficientsFloat
   resetWith DSP.ConservativeReuppingLadder.Runtime.resetFloat

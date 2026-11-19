@@ -88,6 +88,10 @@ structure ArithmeticState (R : Type) where
   left : R
   right : R
 
+def scalarPreparationResult {R : Type} (input : R) : R := input
+
+def arrayPreparation {R : Type} (input : Fin 2 → R) : Sample R := ⟨input 0⟩
+
 /-- A standalone FMA keeps its three operands independent in rounding tests. -/
 def fmaProcessor {R : Type} [FMA R] (state : ArithmeticState R) (input : Sample R) :
     ArithmeticState R × Sample R :=

@@ -4,6 +4,7 @@
 #include <complex>
 #include <iostream>
 #include <vector>
+#include <memory>
 
 namespace
 {
@@ -72,7 +73,9 @@ DOCTEST_TEST_CASE("TunedDecayComb: prototype has requested cutoff and unity fund
         for (double hz : probes)
         {
             auto branch = comb.m_branch[0];
-            branch.m_coeff.m_r = 1.0;
+            auto coefficients = branch.GetCoefficients();
+            coefficients.m_r = 1.0;
+            branch.SetCoefficients(coefficients);
             std::vector<float> out(static_cast<size_t>(0.15 * x_rate));
             for (int i = 0; i < static_cast<int>(out.size()); ++i)
             {
@@ -97,7 +100,9 @@ DOCTEST_TEST_CASE("TunedDecayComb: prototype has requested cutoff and unity fund
         }
 
         auto dc = comb.m_branch[0];
-        dc.m_coeff.m_r = 1.0;
+        auto coefficients = dc.GetCoefficients();
+        coefficients.m_r = 1.0;
+        dc.SetCoefficients(coefficients);
         double dcGain = 0.0;
         for (int i = 0; i < 28800; ++i)
         {
@@ -121,8 +126,8 @@ DOCTEST_TEST_CASE("TunedDecayComb: prototype has requested cutoff and unity fund
         {
             auto real = comb.m_branch[0];
             auto imag = real;
-            real.m_coeff.m_r = 1.0;
-            imag.m_coeff.m_r = 1.0;
+            real.SetCoefficients(coefficients);
+            imag.SetCoefficients(coefficients);
             std::complex<double> measured{};
             for (int i = 0; i < 28800; ++i)
             {
@@ -500,11 +505,11 @@ DOCTEST_TEST_CASE("TunedDecayComb: per-sample parameters coalesce at crossfade s
         if (comb.m_transition && !wasTransition)
         {
             ++starts;
-            incoming = comb.m_branch[1].m_coeff.Get(0);
+            incoming = comb.m_branch[1].GetCoefficients().Get(0);
         }
         else if (comb.m_transition)
         {
-            DOCTEST_REQUIRE(comb.m_branch[1].m_coeff.Get(0).m_a == incoming.m_a);
+            DOCTEST_REQUIRE(comb.m_branch[1].GetCoefficients().Get(0).m_a == incoming.m_a);
         }
 
         wasTransition = comb.m_transition;
@@ -523,8 +528,8 @@ DOCTEST_TEST_CASE("TunedDecayComb: per-sample parameters coalesce at crossfade s
     reference.SetParams(500.0 / x_rate, 0.9, 0.5, x_rate);
     DOCTEST_CHECK_FALSE(comb.m_transition);
     DOCTEST_CHECK_FALSE(comb.m_pending);
-    DOCTEST_CHECK(comb.m_branch[0].m_coeff.Get(0).m_delay == reference.m_branch[0].m_coeff.Get(0).m_delay);
-    DOCTEST_CHECK(comb.m_branch[0].m_coeff.Get(0).m_a == reference.m_branch[0].m_coeff.Get(0).m_a);
+    DOCTEST_CHECK(comb.m_branch[0].GetCoefficients().Get(0).m_delay == reference.m_branch[0].GetCoefficients().Get(0).m_delay);
+    DOCTEST_CHECK(comb.m_branch[0].GetCoefficients().Get(0).m_a == reference.m_branch[0].GetCoefficients().Get(0).m_a);
 }
 
 // Every impulse sample must scale by the same radial time factor, even the
@@ -577,4 +582,67 @@ DOCTEST_TEST_CASE("TunedDecayComb: pitch clamps to representable bounds")
             }
         }
     }
+}
+
+template<size_t Size>
+void CheckGeneratedCombChannels()
+{
+    using Comb = TunedDecayCombGeneric<Size>;
+    using Vector = typename Comb::Vector;
+    using DoubleVector = typename Comb::DoubleVector;
+    auto packed = std::make_unique<Comb>();
+    auto mono = std::make_unique<std::array<TunedDecayComb, Size>>();
+    for (size_t sample = 0; sample < 35000; ++sample)
+    {
+        size_t phase = sample % 1536;
+        if (phase == 0 || phase == 17 || phase == 61)
+        {
+            DoubleVector frequency, decay, damp;
+            for (size_t lane = 0; lane < Size; ++lane)
+            {
+                frequency[lane] = (73.0 + 91.0 * lane + (sample % 293)) / 48000.0;
+                decay[lane] = lane % 3 == 0 ? 0.5 : (lane % 3 == 1 ? 0.9 : 0.1);
+                damp[lane] = 0.15 + 0.2 * lane;
+                (*mono)[lane].SetParams(frequency[lane], decay[lane], damp[lane], 48000.0);
+            }
+
+            packed->SetParams(frequency, decay, damp, 48000.0);
+        }
+
+        Vector input;
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            input[lane] = static_cast<float>(0.1 * std::sin(0.13 * sample + lane));
+        }
+
+        auto output = packed->Process(input);
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            DOCTEST_CHECK(output[lane] == (*mono)[lane].Process(input[lane])[0]);
+        }
+
+        if (sample % 877 == 0)
+        {
+            const auto frequency = Comb::Snapshot::Frequency::Hz(1234, 48000);
+            auto response = packed->MakeSnapshot().ComplexResponses(frequency);
+            for (size_t lane = 0; lane < Size; ++lane)
+            {
+                auto scalar = (*mono)[lane].MakeSnapshot().ComplexResponses(ResponseFrequency::Hz(1234, 48000));
+                DOCTEST_CHECK(response.m_real[lane] == scalar.m_real[0]);
+                DOCTEST_CHECK(response.m_imag[lane] == scalar.m_imag[0]);
+            }
+        }
+    }
+
+    packed->Reset();
+    for (size_t sample = 0; sample < Comb::x_maxDelaySamples + 1; ++sample)
+    {
+        DOCTEST_CHECK(packed->Process(Vector::Splat(0)) == Vector::Splat(0));
+    }
+}
+
+DOCTEST_TEST_CASE("TunedDecayComb: generated stereo and quad preserve controller and response lanes")
+{
+    CheckGeneratedCombChannels<2>();
+    CheckGeneratedCombChannels<4>();
 }

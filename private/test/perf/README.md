@@ -140,6 +140,30 @@ runner and SQLite report schema. Preserve JSONL output when comparing revisions.
 
 ## Units and measurement boundaries
 
+`make perf-comb PERF_ARGS="9 8388608"` measures the generated tuned-decay comb
+app wrapper, which is the baseline for future revisions. It runs stereo and
+quad at a 192 kHz engine rate, with precomputed independent lane inputs and
+controls. Modes are processing alone, unchanged setters every sample, one lane
+retuning every sample, and all lanes retuning every sample. Retuning goes through
+the production request coalescing and crossfade schedule. The control corpus
+keeps alternating lanes on positive and negative feedback. Each case warms up
+for 32,768 frames before timing. Construction, allocation, input preparation,
+output hashing and validation are outside timing; input loads, output-ring
+writes, parameter mapping and setters are included.
+
+Width order alternates between rounds, and workload order rotates. JSONL output
+identifies the generated implementation and build commit, and reports
+calling-thread CPU and wall time, nanoseconds per multichannel frame,
+milliseconds per second of audio, and an output hash. Compare medians across
+rounds and revisions using the same host, build configuration and corpus.
+Hashes must repeat within each case. Preserve the JSONL and `build.json` when
+recording a baseline, and measure from a clean checkout so the build commit
+identifies the source. This is a host throughput benchmark, not an iPad callback
+deadline measurement. `make perf-comb-build` builds only this benchmark target;
+`perf_comb_smoke` runs its cases briefly without timing thresholds. The old
+handwritten comb implementation has been removed; native Lean/C++ differential
+checks remain the correctness oracle.
+
 `make perf-ladder PERF_ARGS="9 4194304"` compares the handwritten adaptive
 Naive Reupping Ladder with the generated Conservative Reupping Ladder app
 adapter in one Release/LTO executable. It runs one float trio, alternates

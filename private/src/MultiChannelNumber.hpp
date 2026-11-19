@@ -301,8 +301,9 @@ struct MultiChannelNumber
     // Fast per-channel 2^x for float. Splits x into the nearest integer n and
     // f in [-0.5, 0.5], evaluates the degree-6 Taylor polynomial of 2^f (relative
     // error below 2e-7, exactly 1 at f = 0), then adds n to the exponent bits.
-    // Valid while n stays a normal exponent, roughly x in [-126, 127].
-    // Other channel types fall back to std::exp2 per channel.
+    // The normal-range approximation uses x in [-126, 127]. Outside this
+    // range, std::exp2 handles subnormals, underflow, overflow and non-finite
+    // values. Other channel types use std::exp2 per channel.
     //
     MultiChannelNumber Exp2() const
     {
@@ -310,7 +311,9 @@ struct MultiChannelNumber
         {
             using IntVector = int32_t __attribute__((vector_size(sizeof(int32_t) * x_numLanes)));
 
-            Vector x = Load();
+            Vector original = Load();
+            auto normal = (original >= -126.0f) & (original <= 127.0f);
+            Vector x = normal ? original : Vector{};
             Vector n = __builtin_elementwise_floor(x + 0.5f);
             Vector f = x - n;
 
@@ -323,7 +326,16 @@ struct MultiChannelNumber
 
             IntVector exponent = __builtin_convertvector(n, IntVector) << 23;
             IntVector bits = __builtin_bit_cast(IntVector, p) + exponent;
-            return FromVector(__builtin_bit_cast(Vector, bits));
+            auto result = FromVector(__builtin_bit_cast(Vector, bits));
+            for (size_t i = 0; i < Size; ++i)
+            {
+                if (!(m_values[i] >= -126.0f && m_values[i] <= 127.0f))
+                {
+                    result.m_values[i] = std::exp2(m_values[i]);
+                }
+            }
+
+            return result;
         }
         else
         {

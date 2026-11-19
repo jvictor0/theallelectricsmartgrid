@@ -74,6 +74,97 @@ DOCTEST_TEST_CASE("All-pass: equal and unequal delay reads survive changes and r
     }
 }
 
+template<typename Number, size_t Size>
+void CheckGeneratedAllPassChannels()
+{
+    auto packed = std::make_unique<AllPassFilterGeneric<Number, Size>>();
+    auto mono = std::make_unique<std::array<AllPassFilterGeneric<Number, 1>, Size>>();
+    using Vector = MultiChannelNumber<Number, Size>;
+    for (size_t sample = 0; sample < 13000; ++sample)
+    {
+        if (sample % 1300 == 0)
+        {
+            Number gain = sample % 2600 == 0 ? Number(0.6) : Number(-0.7);
+            packed->SetGain(gain);
+            for (size_t lane = 0; lane < Size; ++lane)
+            {
+                const int delays[]{0, 1, 4095, 4096, 17, 333};
+                int delay = delays[(sample / 1300 + lane) % 6];
+                packed->SetDelaySamples(static_cast<int>(lane), delay);
+                (*mono)[lane].SetDelaySamples(0, delay);
+                (*mono)[lane].SetGain(gain);
+            }
+        }
+
+        Vector input;
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            input[lane] = static_cast<Number>(std::sin(0.13 * sample + lane));
+        }
+
+        auto output = packed->Process(input);
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            DOCTEST_CHECK(output[lane] == (*mono)[lane].Process(input[lane])[0]);
+        }
+    }
+
+    packed->Clear();
+    for (size_t sample = 0; sample < 4097; ++sample)
+    {
+        DOCTEST_CHECK(packed->Process(Vector::Splat(0)) == Vector::Splat(0));
+    }
+}
+
+DOCTEST_TEST_CASE("All-pass: generated stereo and quad preserve lane history at delay endpoints")
+{
+    CheckGeneratedAllPassChannels<float, 2>();
+    CheckGeneratedAllPassChannels<float, 4>();
+    CheckGeneratedAllPassChannels<double, 2>();
+    CheckGeneratedAllPassChannels<double, 4>();
+}
+
+template<size_t Size>
+void CheckExponentialRange()
+{
+    using Vector = MultiChannelNumber<float, Size>;
+    const float values[]{-2000, -150, -149, -126.25f, -126, -1, 0, 1, 127, 127.5f, 128,
+        std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity(),
+        std::numeric_limits<float>::quiet_NaN()};
+    for (size_t offset = 0; offset < std::size(values); ++offset)
+    {
+        Vector x;
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            x[lane] = values[(offset + lane) % std::size(values)];
+        }
+
+        const auto result = x.Exp2();
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            const auto expected = std::exp2(x[lane]);
+            if (std::isnan(expected))
+            {
+                DOCTEST_CHECK(std::isnan(result[lane]));
+            }
+            else if (!(x[lane] >= -126 && x[lane] <= 127))
+            {
+                DOCTEST_CHECK(result[lane] == expected);
+            }
+            else
+            {
+                DOCTEST_CHECK(result[lane] == doctest::Approx(expected).epsilon(2e-7));
+            }
+        }
+    }
+}
+
+DOCTEST_TEST_CASE("SIMD exponentials: stereo and quad handle subnormal and extreme decay")
+{
+    CheckExponentialRange<2>();
+    CheckExponentialRange<4>();
+}
+
 DOCTEST_TEST_CASE("Delay interpolation: packed cubic matches scalar and linear reads wrap and reflect")
 {
     DelayLineGeneric<float, 4, 64> delay;

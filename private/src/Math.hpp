@@ -26,6 +26,26 @@ struct MathGeneric
     static constexpr size_t x_hannKernelTableSize = x_tableSize;
     static constexpr float x_hannKernelMinOffset = -static_cast<float>(x_hannKernelRadius);
     static constexpr float x_hannKernelWidth = 2.0f * static_cast<float>(x_hannKernelRadius) + 1.0f;
+
+    template<typename Number>
+    static Number ATan2(Number y, Number x)
+    {
+        return std::atan2(y, x);
+    }
+
+    template<typename Number, size_t Size>
+    static MultiChannelNumber<Number, Size> ATan2(const MultiChannelNumber<Number, Size>& y,
+        const MultiChannelNumber<Number, Size>& x)
+    {
+        MultiChannelNumber<Number, Size> result;
+        for (size_t i = 0; i < Size; ++i)
+        {
+            result[i] = ATan2(y[i], x[i]);
+        }
+
+        return result;
+    }
+
     float m_cosTable[x_tableSize];
     std::complex<float> m_rootOfUnity[x_tableSize];
     std::complex<float> m_hannKernel[x_hannKernelTableSize + 1];

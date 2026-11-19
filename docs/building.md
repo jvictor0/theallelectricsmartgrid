@@ -43,6 +43,7 @@ the same command; if it fails, the build stops before compiling or deploying.
 | `make lean-dsp-codegen` / `make lean-dsp-codegen-test` | `build/lean/generated/`, `build/lean/codegen-test/` |
 | `make lean-dsp-generate` | Updates the headers in `formal/DSP/generated/` from build-tree generation |
 | `make perf-ladder-build` / `make perf-ladder PERF_ARGS="9 4194304"` | Builds/runs the ladder comparison in `build/tools/perf/Release/` |
+| `make perf-comb-build` / `make perf-comb PERF_ARGS="9 8388608"` | Builds/runs only the generated stereo/quad comb benchmark in `build/tools/perf/Release/` |
 
 The CMake families also expose `core-configure` / `core-build`,
 `visualizers-configure` / `visualizers-build`, and `midi-configure` / `midi-build`.

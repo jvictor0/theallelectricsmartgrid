@@ -4,6 +4,8 @@ import DSP.FMA
 import DSP.Transcendental
 import DSP.Nonlinear
 import DSP.ChannelMean
+import DSP.DelayMath
+import DSP.DelayBuffer.Basic
 
 /-! A deliberately small backend for pure processor functions.
 It reads elaborated Lean definitions, resolves their arithmetic instances,
@@ -34,6 +36,8 @@ structure Emission where
   arithmetic : Array FVarId := #[]
   usesMath : Bool := false
   constants : Std.HashMap String (Float32 × Float) := {}
+  /-- Only the fixed-capacity storage backend binds bounded indices to size_t. -/
+  boundedIndices : Bool := false
 
 abbrev GenM := StateT Emission MetaM
 abbrev Locals := List (FVarId × Value)
@@ -216,7 +220,10 @@ def primitive (name : Name) : Bool :=
     ``Float.ofNat, ``Float32.ofNat, ``Float.ofScientific, ``Float32.ofScientific,
     ``Float.sqrt, ``Float32.sqrt, ``Float.lt, ``Float.le, ``Float32.lt, ``Float32.le,
     ``Float.beq, ``Float32.beq, ``ite, ``Bool.true, ``Bool.false, ``Eq,
-    ``Bool.decEq, ``Float.decLt, ``Float.decLe, ``Float32.decLt, ``Float32.decLe].contains name
+    ``Bool.decEq, ``Float.decLt, ``Float.decLe, ``Float32.decLt, ``Float32.decLe,
+    ``dite, ``Fin.mk, ``Fin.val, ``Nat.lt, ``Nat.le, ``Nat.decLt, ``Nat.decLe,
+    ``DelayMath.exp2Float, ``DelayMath.floorFloat, ``DelayMath.phaseFloat, ``DelayMath.decayFloat,
+    ``DelayMath.exp2Float32, ``DelayMath.floorFloat32, ``DelayMath.phaseFloat32, ``DelayMath.decayFloat32].contains name
 
 /-- Unfold one pure definition at a time, so unknown external implementations
 cannot silently be replaced with their logical bodies. Value bindings stay
@@ -240,6 +247,9 @@ partial def expose (expression : Expr) : MetaM Expr := withIncRecDepth do
   | _ =>
     match e.getAppFn with
     | .const name levels =>
+      if name == ``Fin.val && e.getAppArgs.size == 2 then
+        let value ← expose e.getAppArgs[1]!
+        if value.getAppFn.isConstOf ``Fin.mk then return ← expose value.getAppArgs[1]!
       if name == ``Nat.zero then return .lit (.natVal 0)
       if name == ``Nat.succ && e.getAppArgs.size == 1 then
         if let .lit (.natVal n) ← expose e.getAppArgs[0]! then return .lit (.natVal (n + 1))
@@ -253,6 +263,7 @@ partial def expose (expression : Expr) : MetaM Expr := withIncRecDepth do
           let b ← expose args[1]!
           if let (.lit (.natVal a), .lit (.natVal b)) := (a, b) then
             return .lit (.natVal (op a b))
+        if name == ``Nat.add || name == ``Nat.sub then return e
         throwError "C++ codegen: natural arithmetic must be statically known: {e}"
       -- Topology selection is compile-time natural arithmetic. Reduce only
       -- these known predicates; runtime arithmetic still uses the checked
@@ -435,6 +446,26 @@ def emitTranscendental (operation type value : String) : GenM Value := do
   return ← temporary type (if type == "Vector" then s!"Math4096::{operation}({value})"
     else s!"Math4096::{operation}(MultiChannelNumber<{type}, 1>::Splat({value}))[0]")
 
+def emitDelayMath (index : Nat) (type : String) (values : Array String) : GenM Value := do
+  modify fun s => { s with usesMath := true }
+  let vector := type == "Vector"
+  let literal (single double : String) := if vector then
+    s!"Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? {single} : {double}))"
+    else if type == "float" then single else double
+  let x := values[0]!
+  if index == 0 then
+    return ← temporary type (if vector then s!"{x}.Exp2()" else s!"MultiChannelNumber<{type}, 1>::Splat({x}).Exp2()[0]")
+  if index == 1 then
+    return ← temporary type (if vector then s!"{x}.Floor()" else s!"std::floor({x})")
+  if index == 2 then
+    return ← temporary type s!"(Math::ATan2({x}, {values[1]!}) / {literal "0xC90FDBp-21f" "0x1921FB54442D18p-50"})"
+  if index == 3 then
+    let ln1000f ← hexLiteral (6.907755278982137052053974364053 : Float32).toBits.toNat 23 8 127 "f"
+    let ln1000 ← hexLiteral (6.907755278982137052053974364053 : Float).toBits.toNat 52 11 1023 ""
+    let (_, arg) ← scalar (← temporary type s!"(-({literal ln1000f ln1000} * {x}))")
+    return ← temporary type (if vector then s!"{arg}.Exp()" else s!"MultiChannelNumber<{type}, 1>::Splat({arg}).Exp()[0]")
+  throwError "C++ codegen: unsupported delay preparation operation"
+
 partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
   let e ← expose expression
   if let .proj name index (.fvar instanceId) := e.getAppFn then
@@ -457,6 +488,8 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
         return ← temporary "Vector" s!"{values[0]!}.Sqrt()"
       if name == ``DSP.ChannelMean && values.size == 1 && index == 0 then
         return ← temporary "Vector" s!"{values[0]!}.MeanBroadcast()"
+      if name == ``DSP.DelayMath then
+        return ← emitDelayMath index "Vector" values
       if name == ``DSP.Tanh && values.size == 1 && index == 0 then
         -- Lower the executable interpretation, Tanh.rational, with exactly its
         -- multiplication/FMA order and ordered clamp. Native tests cover both.
@@ -481,6 +514,10 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
         return ← binaryTemporary "Vector" op values[0]! values[1]!
       throwError "C++ codegen: unsupported generic arithmetic {e}"
   match e with
+  | .lit (.natVal n) =>
+    unless (← get).boundedIndices do
+      throwError "C++ codegen: runtime natural values require the bounded buffer backend"
+    return .scalar "size_t" s!"{n}"
   | .fvar id =>
     let some (_, value) := locals.find? (fun item => item.1 == id)
       | throwError "C++ codegen: unbound variable {e}"
@@ -513,10 +550,12 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
     let .const name _ := e.getAppFn
       | throwError "C++ codegen: unsupported expression {e}"
     let args := e.getAppArgs
-    if name == ``ite && args.size == 5 then
+    if (name == ``ite || name == ``dite) && args.size == 5 then
       let decision ← expose args[2]!
       let .const decisionName _ := decision.getAppFn
         | throwError "C++ codegen: unsupported conditional decision {decision}"
+      if #[``Nat.decLt, ``Nat.decLe].contains decisionName && !(← get).boundedIndices then
+        throwError "C++ codegen: unsupported external implementation {decisionName}"
       let decisionArgs := decision.getAppArgs
       unless decisionArgs.size == 2 do
         throwError "C++ codegen: unsupported conditional decision {decision}"
@@ -524,18 +563,23 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
           pure (mkApp3 (mkConst ``Eq [1]) (mkConst ``Bool) decisionArgs[0]! decisionArgs[1]!)
         else if let some (_, predicate) := #[(``Float.decLt, ``Float.lt),
             (``Float.decLe, ``Float.le), (``Float32.decLt, ``Float32.lt),
-            (``Float32.decLe, ``Float32.le)].find? (fun entry => entry.1 == decisionName) then
+            (``Float32.decLe, ``Float32.le), (``Nat.decLt, ``Nat.lt),
+            (``Nat.decLe, ``Nat.le)].find? (fun entry => entry.1 == decisionName) then
           pure (mkAppN (mkConst predicate) decisionArgs)
         else throwError "C++ codegen: unsupported conditional decision {decision}"
       let (_, condition) ← scalar (← evaluate conditionExpr locals)
-      if condition == "true" then return ← evaluate args[3]! locals
-      if condition == "false" then return ← evaluate args[4]! locals
+      if name == ``ite && condition == "true" then return ← evaluate args[3]! locals
+      if name == ``ite && condition == "false" then return ← evaluate args[4]! locals
       let before := (← get).lines
       modify fun s => { s with lines := #[] }
-      let yes ← evaluate args[3]! locals
+      let yes ← if name == ``dite then
+          withLocal `proof args[1]! fun proof => evaluate (mkApp args[3]! proof) locals
+        else evaluate args[3]! locals
       let yesLines := (← get).lines
       modify fun s => { s with lines := #[] }
-      let no ← evaluate args[4]! locals
+      let no ← if name == ``dite then
+          withLocal `proof (mkApp (mkConst ``Not) args[1]!) fun proof => evaluate (mkApp args[4]! proof) locals
+        else evaluate args[4]! locals
       let noLines := (← get).lines
       modify fun s => { s with lines := before }
       let (result, yesAssign, noAssign) ← joinValues yes no
@@ -557,6 +601,27 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
       return ← temporary "bool" s!"({a} == {b})"
     if name == ``Bool.true then return .scalar "bool" "true"
     if name == ``Bool.false then return .scalar "bool" "false"
+    if name == ``Fin.mk || name == ``Fin.val then
+      unless (← get).boundedIndices do
+        throwError "C++ codegen: runtime Fin values require the bounded buffer backend"
+      return ← evaluate args[1]! locals
+    if #[``Nat.add, ``Nat.sub, ``Nat.lt, ``Nat.le].contains name then
+      unless (← get).boundedIndices do
+        throwError "C++ codegen: runtime natural arithmetic requires the bounded buffer backend"
+      let (_, a) ← scalar (← evaluate args[0]! locals)
+      let (_, b) ← scalar (← evaluate args[1]! locals)
+      if name == ``Nat.lt then return ← temporary "bool" s!"({a} < {b})"
+      if name == ``Nat.le then return ← temporary "bool" s!"({a} <= {b})"
+      if name == ``Nat.sub then return ← temporary "size_t" s!"({a} < {b} ? 0 : {a} - {b})"
+      return ← temporary "size_t" s!"({a} + {b})"
+    if let some index := #[``DelayMath.exp2Float, ``DelayMath.floorFloat,
+        ``DelayMath.phaseFloat, ``DelayMath.decayFloat].idxOf? name then
+      let pairs ← args.mapM fun arg => do scalar (← evaluate arg locals)
+      return ← emitDelayMath index pairs[0]!.1 (pairs.map Prod.snd)
+    if let some index := #[``DelayMath.exp2Float32, ``DelayMath.floorFloat32,
+        ``DelayMath.phaseFloat32, ``DelayMath.decayFloat32].idxOf? name then
+      let pairs ← args.mapM fun arg => do scalar (← evaluate arg locals)
+      return ← emitDelayMath index pairs[0]!.1 (pairs.map Prod.snd)
     if #[``Float.ofNat, ``Float32.ofNat, ``Float.ofScientific, ``Float32.ofScientific].contains name then
       return ← floatLiteral name args
     if let some op := (#[(``Float.add, "+"), (``Float.sub, "-"), (``Float.mul, "*"),
@@ -822,7 +887,7 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
         let name := type.getAppFn.constName?
         let args := type.getAppArgs
         unless args.size ≥ 1 && args[0]! == number &&
-            #[``Add, ``Sub, ``Mul, ``Div, ``Neg, ``OfNat, ``OfScientific, ``DSP.IfLess, ``DSP.FMA, ``DSP.Trig, ``DSP.ExpDecay, ``DSP.Tanh, ``DSP.SquareRoot, ``DSP.ChannelMean].any
+            #[``Add, ``Sub, ``Mul, ``Div, ``Neg, ``OfNat, ``OfScientific, ``DSP.IfLess, ``DSP.FMA, ``DSP.Trig, ``DSP.ExpDecay, ``DSP.Tanh, ``DSP.SquareRoot, ``DSP.ChannelMean, ``DSP.DelayMath].any
               (fun supported => name == some supported) do
           throwError "C++ codegen: unsupported generic parameter {type}"
         if name == some ``OfNat then
@@ -1103,6 +1168,13 @@ def generate (function : Name) (cppName : String) : MetaM String :=
 def generateGeneric (function : Name) (cppName : String) : MetaM String :=
   generateWithTarget function cppName true none
 
+/-- Export the same pure preparation used by filter banks as a standalone API. -/
+def generatePreparationGeneric (function : Name) (cppName : String) : MetaM String := do
+  if #["Prepared", "Prepare"].contains cppName then
+    throwError "C++ codegen: preparation name conflicts with a nested member"
+  let (includes, body) ← generateParts function cppName true none "Input" (preparation := true)
+  return String.intercalate "\n" (renderHeader function cppName true includes ++ body ++ #["};", ""]).toList
+
 def generateFunction (function : Name) (cppName method : String) (generic : Bool) : MetaM String :=
   generateWithTarget function cppName generic (some method)
 
@@ -1236,6 +1308,14 @@ elab "#generate_cpp_function " function:ident " as " cppName:ident " method " me
   if let some parent := output.parent then IO.FS.createDirAll parent
   IO.FS.writeFile output code
   logInfo m!"Generated {output} from {function.getId} as a pure function"
+
+elab "#generate_cpp_preparation_generic " function:ident " as " cppName:ident
+    " to " path:str : command => do
+  let code ← liftTermElabM <| generatePreparationGeneric function.getId cppName.getId.toString
+  let output : System.FilePath := path.getString
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  logInfo m!"Generated {output} from {function.getId} as pure coefficient preparation"
 
 elab "#generate_cpp_function_generic " function:ident " as " cppName:ident " method " methodName:ident
     " to " path:str : command => do

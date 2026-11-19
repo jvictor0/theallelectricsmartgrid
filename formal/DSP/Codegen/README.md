@@ -1,5 +1,13 @@
 # Lean processors to C++ structs
 
+The delay filters also use generated cores: `SchroederAllPassCoreGeneric`,
+`TunedDecayCombCoreGeneric`, `TunedDecayCombTuningGeneric` and
+`TunedDecayCombResponseGeneric`. Their existing app wrappers retain control
+scheduling and UI interfaces and share `CircularBufferGeneric` storage.
+Stereo and quad processing, tuning, response and ring wraparound are covered
+by native Lean/C++ comparisons. See the [delay proof and integration
+overview](../README.md#delay-filter-codegen-and-app-integration).
+
 The generated filters are under [generated](../generated): the ZOH and TPT
 one-poles, TPT highpass and base-width band, `TPTSVF`, `MorphingTPTSVF`, the
 three `TPTSVF4Pole` variants, `TPTLadder` and `LinkwitzRileySplitter4BandGeneric`. Each is a
@@ -264,7 +272,7 @@ Use `CXX=clang++` (or another C++17 compiler) to select the native test compiler
 
 ## Coefficient updates
 
-All production filter exports use a tuned form that assembles three source
+The sampled filter exports use a tuned form that assembles three source
 functions: processing, coefficient preparation, and one or more responses.
 
 ```lean
@@ -501,6 +509,66 @@ mixed number types, external operations, invalid shared records and conflicting 
 
 Passing these checks is implementation evidence, not a universal compiler proof
 or a floating-point error bound.
+
+## Circular storage and delay preparation
+
+```lean
+#generate_cpp_delay_buffer CircularBufferGeneric to "build/lean/generated/CircularBufferGeneric.hpp"
+#generate_cpp_generic DSP.DelayKernels.Runtime.Comb.process as TunedDecayCombCoreGeneric
+  to "build/lean/generated/TunedDecayCombCoreGeneric.hpp"
+#generate_cpp_preparation_generic DSP.DelayKernels.Runtime.prepareCoefficients
+  as TunedDecayCombTuningGeneric to "build/lean/generated/TunedDecayCombTuningGeneric.hpp"
+```
+
+The comb and Schroeder cores use the compact `State × Output` convention.
+Their runtime simulations preserve the original rich model's output streams;
+native differential checks still execute that original model as the oracle.
+The standalone preparation command reuses the filter-bank preparation emitter:
+it takes one scalar or record input, returns a record, and exports a stateless
+`static Prepared Prepare(const Input&)` (a vector argument for arithmetic scalar inputs).
+The comb wrapper calls this API when it accepts new parameters.
+
+The buffer command exports a fixed-capacity storage component. It specializes
+the actual `DelayBuffer.address` and `advance` definitions with a template
+capacity, erases their `Fin` proofs and emits checked native indices. Reads
+leave the head unchanged; `Push` performs one array write and advances once.
+For power-of-two capacities no greater than half the native unsigned maximum,
+the buffer-specific renderer emits the modular forms proved by `address_mod`
+and `advance_mod`. `modulo_intermediates_bounded` establishes that their sums
+fit the native index and their subtractions do not saturate. Constant modulo
+then compiles to masking. All other capacities retain the conditional lowering.
+The array-read/write/clear lowering is an explicit tested compiler boundary.
+It does not unroll or copy the whole delay line for each sample. Capacity must
+be positive; `ReadAge` accepts `[0,Capacity)` and `ReadDelay` accepts
+`[1,Capacity]`. `ReadDelays` gathers independent channel taps.
+
+The general processor exporter still rejects runtime-sized arrays and
+unbounded Nat fields. Its fixed topology vectors retain their 256-element
+limit. The buffer-specific renderer binds the bounded cursor values and
+capacity explicitly, allowing natural addition, saturating subtraction and
+proof-dependent comparisons in those definitions.
+
+`DelayMath` adds `exp2`, `floor`, `phaseTurns` and `decay` to preparation.
+`phaseTurns(y,x)` lowers to `Math::ATan2(y,x)/(2*pi)`; `Math::ATan2` delegates to
+`std::atan2` for each lane. `decay(x)` means `exp(-log(1000)*x)` and uses the
+existing vector exponential. Float `Exp2` now falls back to libm for exponents
+outside its normal approximation range, avoiding invalid exponent-bit
+arithmetic for very short decay times. Native real instances keep exact pi,
+complex argument, floor and logarithms; Float/Float32 instances are libm
+references. They are not claimed equal to the generated approximations.
+
+The delay tests retain their native corpus at
+`build/lean/codegen-test/delay-reference.txt`. Processing and ring state match
+bit for bit at stereo/quad widths. Tuning validates normalization and bounded
+delays as well as reconstructed peak gain and loop phase. This distinguishes
+the sensitivity of fractional-delay coefficients from the accuracy of the
+assembled response.
+
+The comb adapter stores its generated core persistently inside each branch.
+Coefficient installation also updates the native delay taps and preserves the
+live memory. Processing calls that core directly; snapshot capture reads its
+coefficients. This adapter change and the buffer-specific modular lowering do
+not extend the general processor exporter.
 
 ## Fixed topology processors with snapshot capture
 

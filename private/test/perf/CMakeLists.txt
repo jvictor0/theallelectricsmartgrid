@@ -29,7 +29,7 @@ add_custom_target(perf_build_info
 add_library(perf_codec STATIC "${REPO_ROOT}/private/src/RecordingFlacCodec.cpp")
 target_compile_definitions(perf_codec PRIVATE SMARTGRID_RECORDING_SYSTEM_FLAC=1)
 target_link_libraries(perf_codec PUBLIC PkgConfig::FLAC)
-foreach(kind voices effects extra auxiliary encoders sgrec density audio_diagnostics responses ladder)
+foreach(kind voices effects extra auxiliary encoders sgrec density audio_diagnostics responses ladder comb)
     add_executable(perf_${kind} ${kind}.cpp)
     add_dependencies(perf_${kind} perf_build_info)
     target_include_directories(perf_${kind} PRIVATE
@@ -61,3 +61,6 @@ set_tests_properties(perf_density_reference PROPERTIES RUN_SERIAL TRUE TIMEOUT 6
 
 add_test(NAME perf_responses_smoke COMMAND "$<TARGET_FILE:perf_responses>" 1 0.001)
 set_tests_properties(perf_responses_smoke PROPERTIES RUN_SERIAL TRUE TIMEOUT 60)
+
+add_test(NAME perf_comb_smoke COMMAND "$<TARGET_FILE:perf_comb>" 2 32768)
+set_tests_properties(perf_comb_smoke PROPERTIES RUN_SERIAL TRUE TIMEOUT 60)
