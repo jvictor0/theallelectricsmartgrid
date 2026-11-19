@@ -57,8 +57,36 @@ void PrintCoefficients(const Coefficients& c, size_t lane)
 }
 
 template<typename Number, size_t Size>
-void Run(const std::string& kind)
+void RunAllPass()
 {
+    using Core = SchroederAllPassCoreGeneric<Number, Size>;
+    static_assert(sizeof(typename Core::State) == sizeof(typename Core::Vector));
+    Core core{};
+    typename Core::Input input{};
+    for (size_t lane = 0; lane < Size; ++lane)
+    {
+        core.m_state.m_gain[lane] = Read<Number>();
+        // Old observations remain in the oracle input but are absent from runtime state.
+        //
+        static_cast<void>(Read<Number>());
+        static_cast<void>(Read<Number>());
+        input.m_x[lane] = Read<Number>();
+        input.m_delayed[lane] = Read<Number>();
+    }
+
+    core.Process(input);
+    for (size_t lane = 0; lane < Size; ++lane)
+    {
+        Print(core.m_state.m_gain[lane]);
+        Print(core.m_output.m_y[lane]);
+        Print(core.m_output.m_written[lane]);
+    }
+}
+
+template<size_t Size>
+void RunComb(const std::string& kind)
+{
+    using Number = double;
     if (kind == "comb")
     {
         using Core = TunedDecayCombCoreGeneric<Number, Size>;
@@ -87,31 +115,6 @@ void Run(const std::string& kind)
             {
                 Print(value);
             }
-        }
-    }
-    else if (kind == "allpass")
-    {
-        using Core = SchroederAllPassCoreGeneric<Number, Size>;
-        static_assert(sizeof(typename Core::State) == sizeof(typename Core::Vector));
-        Core core{};
-        typename Core::Input input{};
-        for (size_t lane = 0; lane < Size; ++lane)
-        {
-            core.m_state.m_gain[lane] = Read<Number>();
-            // Old observations remain in the oracle input but are absent from runtime state.
-            //
-            static_cast<void>(Read<Number>());
-            static_cast<void>(Read<Number>());
-            input.m_x[lane] = Read<Number>();
-            input.m_delayed[lane] = Read<Number>();
-        }
-
-        core.Process(input);
-        for (size_t lane = 0; lane < Size; ++lane)
-        {
-            Print(core.m_state.m_gain[lane]);
-            Print(core.m_output.m_y[lane]);
-            Print(core.m_output.m_written[lane]);
         }
     }
     else if (kind == "tuning")
@@ -163,6 +166,23 @@ void Run(const std::string& kind)
     else
     {
         throw std::runtime_error("Unknown delay kernel");
+    }
+}
+
+template<typename Number, size_t Size>
+void Run(const std::string& kind)
+{
+    if (kind == "allpass")
+    {
+        RunAllPass<Number, Size>();
+    }
+    else if constexpr (std::is_same_v<Number, double>)
+    {
+        RunComb<Size>(kind);
+    }
+    else
+    {
+        throw std::runtime_error("Comb tests require double precision");
     }
 
     std::cout << '\n';

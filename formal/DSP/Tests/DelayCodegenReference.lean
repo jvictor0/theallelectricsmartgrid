@@ -8,20 +8,22 @@ def fields {R : Type} (c : Coefficients R) : List R :=
   [c.delay,c.a,c.b,c.r,c.delayGain,c.g,c.k,c.h,c.gain,c.sign,c.bypass]
 def memory {R : Type} (s : TunedDecayComb.Branch R) : List R := [s.allpass,s.ic1,s.ic2,s.y]
 
-def rows {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3] [OfNat R 7] [OfScientific R]
-    [Add R] [Sub R] [Mul R] [Div R] [Neg R] [FMA R] [IfLess R] [Trig R] [SquareRoot R] [DelayMath R]
-    (f sign duration damp rate x delayed seed bypass : R) : List (String × List R × List R) :=
-  let c : Coefficients R := ⟨7,0.6,0.8,0.97,0.8,0.3,1.2,1 / (1 + 1.2 * 0.3 + 0.3 * 0.3),0.8,sign,bypass⟩
-  let s : CombState R := ⟨c, ⟨seed,seed+0.2,seed-0.3,seed+0.7⟩⟩
-  let next := combStep s ⟨x,delayed⟩
+def allPassRow {R : Type} [OfScientific R] [Mul R] [Sub R] [Neg R] [FMA R]
+    (sign x delayed seed : R) : List R × List R :=
   let ap : AllPassState R := ⟨sign * 0.7,seed,seed-0.3⟩
   let apn := allPassStep ap ⟨x,delayed⟩
+  ([ap.gain,ap.y,ap.written,x,delayed], [apn.gain,apn.y,apn.written])
+
+def combRows (f sign duration damp rate x delayed seed bypass : Float) :
+    List (String × List Float × List Float) :=
+  let c : Coefficients Float := ⟨7,0.6,0.8,0.97,0.8,0.3,1.2,1 / (1 + 1.2 * 0.3 + 0.3 * 0.3),0.8,sign,bypass⟩
+  let s : CombState Float := ⟨c, ⟨seed,seed+0.2,seed-0.3,seed+0.7⟩⟩
+  let next := combStep s ⟨x,delayed⟩
   let tuned := prepare c ⟨f,sign,duration,damp,rate⟩
   let q := ResponseFrequency.fromHalfAngle f (Trig.sin2pi (f / 2)) (Trig.cos2pi (f / 2))
   let c1 := {c with a := -0.2, b := SquareRoot.sqrt 0.96, delay := 3, sign := -sign, bypass := 0}
   let response := (DelayKernels.response ⟨c,c1,0.3⟩ q).2
   [("comb", fields c ++ memory s.memory ++ [x,delayed], memory next.memory),
-    ("allpass", [ap.gain,ap.y,ap.written,x,delayed], [apn.gain,apn.y,apn.written]),
     ("tuning", [f,sign,duration,damp,rate], fields tuned),
     ("response", fields c ++ fields c1 ++ [0.3,f,q.sinHalf,q.cosHalf,q.zInverse.real,q.zInverse.imag],
       [response.numerator.real,response.numerator.imag,response.denominator.real,response.denominator.imag])]
@@ -58,11 +60,12 @@ def main : IO Unit := do
     let delayed : Float := (n.toFloat * 0.31).cos
     let seed : Float := (n % 13).toFloat * 0.1 - 0.6
     let bypass : Float := if n % 4 == 0 then 1 else 0
-    for (tag, input, expected) in rows f sign duration damp rate x delayed seed bypass do
+    for (tag, input, expected) in combRows f sign duration damp rate x delayed seed bypass do
       out.putStrLn s!"{tag} 64 {String.intercalate " " ((input ++ expected).map (fun v => toString v.toBits))}"
-    for (tag, input, expected) in rows f.toFloat32 sign.toFloat32 duration.toFloat32 damp.toFloat32
-        rate.toFloat32 x.toFloat32 delayed.toFloat32 seed.toFloat32 bypass.toFloat32 do
-      out.putStrLn s!"{tag} 32 {String.intercalate " " ((input ++ expected).map (fun v => toString v.toBits))}"
+    let (input, expected) := allPassRow sign x delayed seed
+    out.putStrLn s!"allpass 64 {String.intercalate " " ((input ++ expected).map (fun v => toString v.toBits))}"
+    let (input32, expected32) := allPassRow sign.toFloat32 x.toFloat32 delayed.toFloat32 seed.toFloat32
+    out.putStrLn s!"allpass 32 {String.intercalate " " ((input32 ++ expected32).map (fun v => toString v.toBits))}"
   ring out 1 (by decide)
   ring out 3 (by decide)
   ring out 8 (by decide)

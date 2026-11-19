@@ -579,3 +579,8 @@ The multiband integration adds `SumFromZero` and `MeanBroadcast` helpers to
 modeled `Exp2` and all pinned shared bodies, are unchanged. The new helpers are
 used only by generated mono-bass routing; the current source fingerprint is
 refreshed without changing the pinned snapshot or encoder proof claims.
+
+Current float `Exp2` uses the pinned normal-range arithmetic and adds a
+debug assertion for inputs outside `[-126, 127]`. The encoder depth curve
+passes exponents in `[0, log₂(9)]`. Its arithmetic retains reviewed source
+correspondence with the pinned body.

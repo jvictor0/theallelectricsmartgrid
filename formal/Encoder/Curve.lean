@@ -67,8 +67,9 @@ theorem ideal_saturates (v : ℝ) (h : 1 ≤ v) : ideal v = 1 ∧ ideal (-v) = -
 -- @cpp exp_polynomial: MultiChannelNumber<float,4>::Exp2, nearest integer range
 -- reduction and sixth-degree Horner polynomial. Constants are exact binary32
 -- rationals (not their decimal source spellings).
--- @head exp_polynomial: unchanged in HEAD. Exponent-bit scaling is modeled as
--- multiplication by 2^n, under the normal-number condition stated by the C++.
+-- @head exp_polynomial: same normal-range arithmetic as the current C++ body,
+-- which adds a debug input assertion. Exponent-bit scaling models multiplication
+-- by 2^n under that normal-number condition.
 def polynomial (f : Rat) : Rat :=
   let p := f * (10585225/68719476736) + 11453439/8589934592
   let p := p*f + 10327387/1073741824

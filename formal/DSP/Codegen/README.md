@@ -551,16 +551,16 @@ proof-dependent comparisons in those definitions.
 `DelayMath` adds `exp2`, `floor`, `phaseTurns` and `decay` to preparation.
 `phaseTurns(y,x)` lowers to `Math::ATan2(y,x)/(2*pi)`; `Math::ATan2` delegates to
 `std::atan2` for each lane. `decay(x)` means `exp(-log(1000)*x)` and uses the
-existing vector exponential. Float `Exp2` now falls back to libm for exponents
-outside its normal approximation range, avoiding invalid exponent-bit
-arithmetic for very short decay times. Native real instances keep exact pi,
-complex argument, floor and logarithms; Float/Float32 instances are libm
-references. They are not claimed equal to the generated approximations.
+existing vector exponential. The app tunes the comb in double precision,
+which uses libm for exponentiation. Float `Exp2` requires inputs in
+`[-126, 127]`. Native real instances keep exact pi, complex argument, floor
+and logarithms. The double-precision reference uses libm.
 
 The delay tests retain their native corpus at
 `build/lean/codegen-test/delay-reference.txt`. Processing and ring state match
-bit for bit at stereo/quad widths. Tuning validates normalization and bounded
-delays as well as reconstructed peak gain and loop phase. This distinguishes
+bit for bit at stereo/quad widths. The tests use double precision for the comb
+and both precisions for Schroeder all-pass. Tuning validates normalization and
+bounded delays as well as reconstructed peak gain and loop phase. This distinguishes
 the sensitivity of fractional-delay coefficients from the accuracy of the
 assembled response.
 

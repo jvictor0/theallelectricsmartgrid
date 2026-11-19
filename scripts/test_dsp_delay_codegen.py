@@ -40,6 +40,8 @@ def main():
     for precision in (32, 64):
         for width in (2, 4):
             for kind, count in counts.items():
+                if precision == 32 and kind != "allpass":
+                    continue
                 cases = [r[2:] for r in rows if r[:2] == [kind, str(precision)]]
                 assert cases
                 for start in range(0, len(cases), width):

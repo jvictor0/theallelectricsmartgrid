@@ -446,10 +446,6 @@
       "symbol": "static QuadFloat ModulationDepthFromValue(const QuadFloat& value)"
     },
     {
-      "path": "private/src/MultiChannelNumber.hpp",
-      "symbol": "MultiChannelNumber Exp2() const"
-    },
-    {
       "path": "private/src/EncoderBank.hpp",
       "symbol": "void RecursivelyIncrementModulatorsTowardsZero(float delta)"
     },
@@ -1018,7 +1014,7 @@
         "curve",
         "exp_polynomial"
       ],
-      "reason": "Shared contract proved over policy-parameterized leaf operations. The historical runtime selects the original linear policy; the current runtime selects the settling one-pole. Source correspondence is reviewed separately for the differing operations."
+      "reason": "Both implementations use the modeled normal-range Exp2 arithmetic. Current C++ also asserts the input range in debug builds, so Exp2 uses reviewed source correspondence."
     },
     {
       "id": "E46",

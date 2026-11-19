@@ -682,11 +682,11 @@ proofs use exact real/complex functions, and generated trig lowers to
 vector overloads for scalar exports. Exponentials, floor and square root use
 `MultiChannelNumber` operations. `Math::ATan2(y,x)` wraps `std::atan2(y,x)`,
 with a vector overload applying it per lane. `DelayMath` keeps phase in turns
-and the exact log(1000) decay law in its mathematical interpretation. The
-generated float exponential uses a libm fallback outside its normal
-approximation range, including subnormal and underflow cases.
+and the exact log(1000) decay law in its mathematical interpretation. The app's
+double-precision tuner uses libm for exponentiation, including tiny delay gains.
 
-`test_dsp_delay_codegen.py` compares stereo and quad at both numeric precisions.
+`test_dsp_delay_codegen.py` checks the stereo and quad comb in double precision
+and the Schroeder all-pass at both precisions.
 Buffer reads/head updates and processing results match native Lean bit for
 bit. The storage checks include every head/age pair for small power-of-two
 and non-power-of-two capacities, plus repeated wraps at production capacities.
