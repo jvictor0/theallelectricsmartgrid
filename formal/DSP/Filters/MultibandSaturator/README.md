@@ -47,6 +47,21 @@ publication remain outside the Lean audio state. The output record is not an
 input to the next step, so changing or discarding an observation cannot feed
 back into processing. The existing generator already supports `State × Output`.
 
+The generated entry point is [Runtime.process4Band](Runtime.lean), a compact
+representation of that same step. Its state stores the splitter's coefficients
+and integrator memories plus gains. Child SVF taps, leaf outputs and duplicate
+band observations remain local expressions, so unused taps are not computed or
+saved. The original model remains the arithmetic source and differential-test
+oracle; no crossover or saturation equations are duplicated.
+
+`Runtime.simulation` and `Runtime.output_stream` prove equality of every output
+sample, including all meter observations, using the shared processor simulation
+theorem. [RuntimeProofs.lean](RuntimeProofs.lean) proves that coefficient
+preparation, prepared installation and reset commute with the compact-state
+projection. Thus the existing small-signal result applies to the generated
+processor's output stream, with the same coefficient and initialization
+assumptions. No change to the transfer function or controller is involved.
+
 ## Channels and mono bass
 
 Pointwise processing uses `R = Fin channels → Number`, with independent

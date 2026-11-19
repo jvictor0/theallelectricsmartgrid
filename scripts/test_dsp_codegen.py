@@ -154,7 +154,7 @@ def main():
     assert cases, "Lean produced no reference cases"
     input_counts = {
         "zoh": 3, "tpt": 4, "tptHigh": 5, "baseWidth": 8, "svf": 12, "morph": 16,
-        "svf4High": 23, "svf4Low": 23, "svf4Band": 23, "ladder": 15, "splitter": 105,
+        "svf4High": 23, "svf4Low": 23, "svf4Band": 23, "ladder": 15, "splitter": 53,
         "swap": 4, "gain": 2, "coupled": 3, "arithmetic": 3, "fma": 3, "fma32": 3,
         "conservative": 11,
     }

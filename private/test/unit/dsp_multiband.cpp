@@ -41,7 +41,7 @@ void CheckGeneratedMastering(bool mono)
             reference[lane].Process(x);
             for (size_t band = 0; band < 4; ++band)
             {
-                raw[band][lane] = reference[lane].m_state.m_bands[band][0];
+                raw[band][lane] = reference[lane].m_output.m_bands[band][0];
             }
 
             mean += raw[0][lane];

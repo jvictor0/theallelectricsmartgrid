@@ -1,6 +1,6 @@
 #pragma once
 
-// Generated from DSP.MultibandSaturator.step4Band. Do not edit.
+// Generated from DSP.MultibandSaturator.Runtime.process4Band. Do not edit.
 // This backend is validated by tests; it is not a verified compiler.
 //
 // Compile with strict floating-point arithmetic and implicit contraction disabled.
@@ -40,11 +40,6 @@ struct MultibandSaturator4BandCoreGeneric
                     Vector m_a3;
                     Vector m_ic1;
                     Vector m_ic2;
-                    Vector m_lowPass;
-                    Vector m_bandPass;
-                    Vector m_highPass;
-                    Vector m_notch;
-                    Vector m_allPass;
                 } m_first;
 
                 struct
@@ -55,11 +50,6 @@ struct MultibandSaturator4BandCoreGeneric
                     Vector m_a3;
                     Vector m_ic1;
                     Vector m_ic2;
-                    Vector m_lowPass;
-                    Vector m_bandPass;
-                    Vector m_highPass;
-                    Vector m_notch;
-                    Vector m_allPass;
                 } m_second;
 
                 struct
@@ -72,21 +62,14 @@ struct MultibandSaturator4BandCoreGeneric
                         Vector m_a3;
                         Vector m_ic1;
                         Vector m_ic2;
-                        Vector m_lowPass;
-                        Vector m_bandPass;
-                        Vector m_highPass;
-                        Vector m_notch;
-                        Vector m_allPass;
                     } m_svf;
 
                     struct
                     {
-                        Vector m_x;
                     } m_low;
 
                     struct
                     {
-                        Vector m_x;
                     } m_high;
 
                 } m_lowPhase;
@@ -101,21 +84,14 @@ struct MultibandSaturator4BandCoreGeneric
                         Vector m_a3;
                         Vector m_ic1;
                         Vector m_ic2;
-                        Vector m_lowPass;
-                        Vector m_bandPass;
-                        Vector m_highPass;
-                        Vector m_notch;
-                        Vector m_allPass;
                     } m_svf;
 
                     struct
                     {
-                        Vector m_x;
                     } m_low;
 
                     struct
                     {
-                        Vector m_x;
                     } m_high;
 
                 } m_highPhase;
@@ -130,11 +106,6 @@ struct MultibandSaturator4BandCoreGeneric
                         Vector m_a3;
                         Vector m_ic1;
                         Vector m_ic2;
-                        Vector m_lowPass;
-                        Vector m_bandPass;
-                        Vector m_highPass;
-                        Vector m_notch;
-                        Vector m_allPass;
                     } m_first;
 
                     struct
@@ -145,31 +116,22 @@ struct MultibandSaturator4BandCoreGeneric
                         Vector m_a3;
                         Vector m_ic1;
                         Vector m_ic2;
-                        Vector m_lowPass;
-                        Vector m_bandPass;
-                        Vector m_highPass;
-                        Vector m_notch;
-                        Vector m_allPass;
                     } m_second;
 
                     struct
                     {
-                        Vector m_x;
                     } m_lowPhase;
 
                     struct
                     {
-                        Vector m_x;
                     } m_highPhase;
 
                     struct
                     {
-                        Vector m_x;
                     } m_low;
 
                     struct
                     {
-                        Vector m_x;
                     } m_high;
 
                 } m_low;
@@ -184,11 +146,6 @@ struct MultibandSaturator4BandCoreGeneric
                         Vector m_a3;
                         Vector m_ic1;
                         Vector m_ic2;
-                        Vector m_lowPass;
-                        Vector m_bandPass;
-                        Vector m_highPass;
-                        Vector m_notch;
-                        Vector m_allPass;
                     } m_first;
 
                     struct
@@ -199,38 +156,28 @@ struct MultibandSaturator4BandCoreGeneric
                         Vector m_a3;
                         Vector m_ic1;
                         Vector m_ic2;
-                        Vector m_lowPass;
-                        Vector m_bandPass;
-                        Vector m_highPass;
-                        Vector m_notch;
-                        Vector m_allPass;
                     } m_second;
 
                     struct
                     {
-                        Vector m_x;
                     } m_lowPhase;
 
                     struct
                     {
-                        Vector m_x;
                     } m_highPhase;
 
                     struct
                     {
-                        Vector m_x;
                     } m_low;
 
                     struct
                     {
-                        Vector m_x;
                     } m_high;
 
                 } m_high;
 
             } m_tree;
 
-            std::array<Vector, 4> m_bands;
         } m_splitter;
 
         std::array<Vector, 4> m_bandGain;
@@ -271,192 +218,108 @@ struct MultibandSaturator4BandCoreGeneric
         const Vector v2 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_first.m_a2, v0, v1);
         const Vector v3 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_first.m_a2, m_state.m_splitter.m_tree.m_first.m_ic1, m_state.m_splitter.m_tree.m_first.m_ic2);
         const Vector v4 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_first.m_a3, v0, v3);
-        const Vector v5 = (-m_state.m_splitter.m_tree.m_first.m_k);
-        const Vector v6 = Vector::FusedMultiplyAdd(v5, v2, input.m_x);
-        const Vector v7 = (v6 - v4);
         const Vector v8 = (-m_state.m_splitter.m_tree.m_first.m_ic1);
         const Vector v9 = Vector::FusedMultiplyAdd(v2, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v8);
         m_state.m_splitter.m_tree.m_first.m_ic1 = v9;
         const Vector v10 = (-m_state.m_splitter.m_tree.m_first.m_ic2);
         const Vector v11 = Vector::FusedMultiplyAdd(v4, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v10);
         m_state.m_splitter.m_tree.m_first.m_ic2 = v11;
-        const Vector v12 = (v4 + v7);
-        m_state.m_splitter.m_tree.m_first.m_highPass = v7;
-        m_state.m_splitter.m_tree.m_first.m_notch = v12;
         const Vector v13 = (-m_state.m_splitter.m_tree.m_first.m_k);
         const Vector v14 = (v13 * Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
         const Vector v15 = Vector::FusedMultiplyAdd(v14, v2, input.m_x);
-        m_state.m_splitter.m_tree.m_first.m_bandPass = v2;
         const Vector v16 = (v4 - m_state.m_splitter.m_tree.m_second.m_ic2);
         const Vector v17 = (m_state.m_splitter.m_tree.m_second.m_a1 * m_state.m_splitter.m_tree.m_second.m_ic1);
         const Vector v18 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_second.m_a2, v16, v17);
         const Vector v19 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_second.m_a2, m_state.m_splitter.m_tree.m_second.m_ic1, m_state.m_splitter.m_tree.m_second.m_ic2);
         const Vector v20 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_second.m_a3, v16, v19);
-        const Vector v21 = (-m_state.m_splitter.m_tree.m_second.m_k);
-        const Vector v22 = Vector::FusedMultiplyAdd(v21, v18, v4);
-        const Vector v23 = (v22 - v20);
         const Vector v24 = (-m_state.m_splitter.m_tree.m_second.m_ic1);
         const Vector v25 = Vector::FusedMultiplyAdd(v18, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v24);
         m_state.m_splitter.m_tree.m_second.m_ic1 = v25;
         const Vector v26 = (-m_state.m_splitter.m_tree.m_second.m_ic2);
         const Vector v27 = Vector::FusedMultiplyAdd(v20, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v26);
         m_state.m_splitter.m_tree.m_second.m_ic2 = v27;
-        const Vector v28 = (v20 + v23);
-        m_state.m_splitter.m_tree.m_second.m_highPass = v23;
-        m_state.m_splitter.m_tree.m_second.m_notch = v28;
-        const Vector v29 = (-m_state.m_splitter.m_tree.m_second.m_k);
-        const Vector v30 = (v29 * Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
-        const Vector v31 = Vector::FusedMultiplyAdd(v30, v18, v4);
-        m_state.m_splitter.m_tree.m_first.m_lowPass = v4;
-        m_state.m_splitter.m_tree.m_second.m_bandPass = v18;
-        m_state.m_splitter.m_tree.m_second.m_allPass = v31;
         const Vector v32 = (v20 - m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_ic2);
         const Vector v33 = (m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_a1 * m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_ic1);
         const Vector v34 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_a2, v32, v33);
         const Vector v35 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_a2, m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_ic1, m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_ic2);
         const Vector v36 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_a3, v32, v35);
-        const Vector v37 = (-m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_k);
-        const Vector v38 = Vector::FusedMultiplyAdd(v37, v34, v20);
-        const Vector v39 = (v38 - v36);
         const Vector v40 = (-m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_ic1);
         const Vector v41 = Vector::FusedMultiplyAdd(v34, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v40);
         m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_ic1 = v41;
         const Vector v42 = (-m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_ic2);
         const Vector v43 = Vector::FusedMultiplyAdd(v36, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v42);
         m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_ic2 = v43;
-        const Vector v44 = (v36 + v39);
-        m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_lowPass = v36;
-        m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_highPass = v39;
-        m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_notch = v44;
         const Vector v45 = (-m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_k);
         const Vector v46 = (v45 * Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
         const Vector v47 = Vector::FusedMultiplyAdd(v46, v34, v20);
-        m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_bandPass = v34;
         const Vector v48 = (v15 - v20);
         const Vector v49 = (v48 - m_state.m_splitter.m_tree.m_highPhase.m_svf.m_ic2);
         const Vector v50 = (m_state.m_splitter.m_tree.m_highPhase.m_svf.m_a1 * m_state.m_splitter.m_tree.m_highPhase.m_svf.m_ic1);
         const Vector v51 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_highPhase.m_svf.m_a2, v49, v50);
         const Vector v52 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_highPhase.m_svf.m_a2, m_state.m_splitter.m_tree.m_highPhase.m_svf.m_ic1, m_state.m_splitter.m_tree.m_highPhase.m_svf.m_ic2);
         const Vector v53 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_highPhase.m_svf.m_a3, v49, v52);
-        const Vector v54 = (-m_state.m_splitter.m_tree.m_highPhase.m_svf.m_k);
-        const Vector v55 = (v15 - v20);
-        const Vector v56 = Vector::FusedMultiplyAdd(v54, v51, v55);
-        const Vector v57 = (v56 - v53);
         const Vector v58 = (-m_state.m_splitter.m_tree.m_highPhase.m_svf.m_ic1);
         const Vector v59 = Vector::FusedMultiplyAdd(v51, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v58);
         m_state.m_splitter.m_tree.m_highPhase.m_svf.m_ic1 = v59;
         const Vector v60 = (-m_state.m_splitter.m_tree.m_highPhase.m_svf.m_ic2);
         const Vector v61 = Vector::FusedMultiplyAdd(v53, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v60);
         m_state.m_splitter.m_tree.m_highPhase.m_svf.m_ic2 = v61;
-        const Vector v62 = (v53 + v57);
-        m_state.m_splitter.m_tree.m_highPhase.m_svf.m_lowPass = v53;
-        m_state.m_splitter.m_tree.m_highPhase.m_svf.m_highPass = v57;
-        m_state.m_splitter.m_tree.m_highPhase.m_svf.m_notch = v62;
         const Vector v63 = (-m_state.m_splitter.m_tree.m_highPhase.m_svf.m_k);
         const Vector v64 = (v63 * Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
         const Vector v65 = (v15 - v20);
-        m_state.m_splitter.m_tree.m_first.m_allPass = v15;
-        m_state.m_splitter.m_tree.m_second.m_lowPass = v20;
         const Vector v66 = Vector::FusedMultiplyAdd(v64, v51, v65);
-        m_state.m_splitter.m_tree.m_highPhase.m_svf.m_bandPass = v51;
         const Vector v67 = (v47 - m_state.m_splitter.m_tree.m_low.m_first.m_ic2);
         const Vector v68 = (m_state.m_splitter.m_tree.m_low.m_first.m_a1 * m_state.m_splitter.m_tree.m_low.m_first.m_ic1);
         const Vector v69 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_low.m_first.m_a2, v67, v68);
         const Vector v70 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_low.m_first.m_a2, m_state.m_splitter.m_tree.m_low.m_first.m_ic1, m_state.m_splitter.m_tree.m_low.m_first.m_ic2);
         const Vector v71 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_low.m_first.m_a3, v67, v70);
-        const Vector v72 = (-m_state.m_splitter.m_tree.m_low.m_first.m_k);
-        const Vector v73 = Vector::FusedMultiplyAdd(v72, v69, v47);
-        const Vector v74 = (v73 - v71);
         const Vector v75 = (-m_state.m_splitter.m_tree.m_low.m_first.m_ic1);
         const Vector v76 = Vector::FusedMultiplyAdd(v69, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v75);
         m_state.m_splitter.m_tree.m_low.m_first.m_ic1 = v76;
         const Vector v77 = (-m_state.m_splitter.m_tree.m_low.m_first.m_ic2);
         const Vector v78 = Vector::FusedMultiplyAdd(v71, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v77);
         m_state.m_splitter.m_tree.m_low.m_first.m_ic2 = v78;
-        const Vector v79 = (v71 + v74);
-        m_state.m_splitter.m_tree.m_low.m_first.m_highPass = v74;
-        m_state.m_splitter.m_tree.m_low.m_first.m_notch = v79;
         const Vector v80 = (-m_state.m_splitter.m_tree.m_low.m_first.m_k);
         const Vector v81 = (v80 * Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
         const Vector v82 = Vector::FusedMultiplyAdd(v81, v69, v47);
-        m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_allPass = v47;
-        m_state.m_splitter.m_tree.m_lowPhase.m_low.m_x = v47;
-        m_state.m_splitter.m_tree.m_lowPhase.m_high.m_x = v47;
-        m_state.m_splitter.m_tree.m_low.m_first.m_bandPass = v69;
         const Vector v83 = (v71 - m_state.m_splitter.m_tree.m_low.m_second.m_ic2);
         const Vector v84 = (m_state.m_splitter.m_tree.m_low.m_second.m_a1 * m_state.m_splitter.m_tree.m_low.m_second.m_ic1);
         const Vector v85 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_low.m_second.m_a2, v83, v84);
         const Vector v86 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_low.m_second.m_a2, m_state.m_splitter.m_tree.m_low.m_second.m_ic1, m_state.m_splitter.m_tree.m_low.m_second.m_ic2);
         const Vector v87 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_low.m_second.m_a3, v83, v86);
-        const Vector v88 = (-m_state.m_splitter.m_tree.m_low.m_second.m_k);
-        const Vector v89 = Vector::FusedMultiplyAdd(v88, v85, v71);
-        const Vector v90 = (v89 - v87);
         const Vector v91 = (-m_state.m_splitter.m_tree.m_low.m_second.m_ic1);
         const Vector v92 = Vector::FusedMultiplyAdd(v85, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v91);
         m_state.m_splitter.m_tree.m_low.m_second.m_ic1 = v92;
         const Vector v93 = (-m_state.m_splitter.m_tree.m_low.m_second.m_ic2);
         const Vector v94 = Vector::FusedMultiplyAdd(v87, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v93);
         m_state.m_splitter.m_tree.m_low.m_second.m_ic2 = v94;
-        const Vector v95 = (v87 + v90);
-        m_state.m_splitter.m_tree.m_low.m_second.m_highPass = v90;
-        m_state.m_splitter.m_tree.m_low.m_second.m_notch = v95;
-        const Vector v96 = (-m_state.m_splitter.m_tree.m_low.m_second.m_k);
-        const Vector v97 = (v96 * Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
-        const Vector v98 = Vector::FusedMultiplyAdd(v97, v85, v71);
-        m_state.m_splitter.m_tree.m_low.m_first.m_lowPass = v71;
-        m_state.m_splitter.m_tree.m_low.m_second.m_bandPass = v85;
-        m_state.m_splitter.m_tree.m_low.m_second.m_allPass = v98;
         const Vector v99 = (v82 - v87);
-        m_state.m_splitter.m_tree.m_low.m_first.m_allPass = v82;
         const Vector v100 = (v66 - m_state.m_splitter.m_tree.m_high.m_first.m_ic2);
         const Vector v101 = (m_state.m_splitter.m_tree.m_high.m_first.m_a1 * m_state.m_splitter.m_tree.m_high.m_first.m_ic1);
         const Vector v102 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_high.m_first.m_a2, v100, v101);
         const Vector v103 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_high.m_first.m_a2, m_state.m_splitter.m_tree.m_high.m_first.m_ic1, m_state.m_splitter.m_tree.m_high.m_first.m_ic2);
         const Vector v104 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_high.m_first.m_a3, v100, v103);
-        const Vector v105 = (-m_state.m_splitter.m_tree.m_high.m_first.m_k);
-        const Vector v106 = Vector::FusedMultiplyAdd(v105, v102, v66);
-        const Vector v107 = (v106 - v104);
         const Vector v108 = (-m_state.m_splitter.m_tree.m_high.m_first.m_ic1);
         const Vector v109 = Vector::FusedMultiplyAdd(v102, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v108);
         m_state.m_splitter.m_tree.m_high.m_first.m_ic1 = v109;
         const Vector v110 = (-m_state.m_splitter.m_tree.m_high.m_first.m_ic2);
         const Vector v111 = Vector::FusedMultiplyAdd(v104, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v110);
         m_state.m_splitter.m_tree.m_high.m_first.m_ic2 = v111;
-        const Vector v112 = (v104 + v107);
-        m_state.m_splitter.m_tree.m_high.m_first.m_highPass = v107;
-        m_state.m_splitter.m_tree.m_high.m_first.m_notch = v112;
         const Vector v113 = (-m_state.m_splitter.m_tree.m_high.m_first.m_k);
         const Vector v114 = (v113 * Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
         const Vector v115 = Vector::FusedMultiplyAdd(v114, v102, v66);
-        m_state.m_splitter.m_tree.m_highPhase.m_svf.m_allPass = v66;
-        m_state.m_splitter.m_tree.m_highPhase.m_low.m_x = v66;
-        m_state.m_splitter.m_tree.m_highPhase.m_high.m_x = v66;
-        m_state.m_splitter.m_tree.m_high.m_first.m_bandPass = v102;
         const Vector v116 = (v104 - m_state.m_splitter.m_tree.m_high.m_second.m_ic2);
         const Vector v117 = (m_state.m_splitter.m_tree.m_high.m_second.m_a1 * m_state.m_splitter.m_tree.m_high.m_second.m_ic1);
         const Vector v118 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_high.m_second.m_a2, v116, v117);
         const Vector v119 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_high.m_second.m_a2, m_state.m_splitter.m_tree.m_high.m_second.m_ic1, m_state.m_splitter.m_tree.m_high.m_second.m_ic2);
         const Vector v120 = Vector::FusedMultiplyAdd(m_state.m_splitter.m_tree.m_high.m_second.m_a3, v116, v119);
-        const Vector v121 = (-m_state.m_splitter.m_tree.m_high.m_second.m_k);
-        const Vector v122 = Vector::FusedMultiplyAdd(v121, v118, v104);
-        const Vector v123 = (v122 - v120);
         const Vector v124 = (-m_state.m_splitter.m_tree.m_high.m_second.m_ic1);
         const Vector v125 = Vector::FusedMultiplyAdd(v118, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v124);
         m_state.m_splitter.m_tree.m_high.m_second.m_ic1 = v125;
         const Vector v126 = (-m_state.m_splitter.m_tree.m_high.m_second.m_ic2);
         const Vector v127 = Vector::FusedMultiplyAdd(v120, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)), v126);
         m_state.m_splitter.m_tree.m_high.m_second.m_ic2 = v127;
-        const Vector v128 = (v120 + v123);
-        m_state.m_splitter.m_tree.m_high.m_second.m_highPass = v123;
-        m_state.m_splitter.m_tree.m_high.m_second.m_notch = v128;
-        const Vector v129 = (-m_state.m_splitter.m_tree.m_high.m_second.m_k);
-        const Vector v130 = (v129 * Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
-        const Vector v131 = Vector::FusedMultiplyAdd(v130, v118, v104);
-        m_state.m_splitter.m_tree.m_high.m_first.m_lowPass = v104;
-        m_state.m_splitter.m_tree.m_high.m_second.m_bandPass = v118;
-        m_state.m_splitter.m_tree.m_high.m_second.m_allPass = v131;
         const Vector v132 = (v115 - v120);
-        m_state.m_splitter.m_tree.m_high.m_first.m_allPass = v115;
         const bool v133 = (input.m_monoBass == true);
         Vector v135;
         if (v133)
@@ -468,10 +331,6 @@ struct MultibandSaturator4BandCoreGeneric
         {
             v135 = v87;
         }
-        m_state.m_splitter.m_tree.m_low.m_second.m_lowPass = v87;
-        m_state.m_splitter.m_tree.m_low.m_lowPhase.m_x = v87;
-        m_state.m_splitter.m_tree.m_low.m_low.m_x = v87;
-        m_state.m_splitter.m_bands[0] = v87;
 
         const Vector v136 = (v135 * m_state.m_bandGain[0]);
         const Vector v137 = (v136 * v136);
@@ -481,9 +340,6 @@ struct MultibandSaturator4BandCoreGeneric
         const Vector v140 = (v138 / v139);
         const Vector v141 = Vector::Min(Vector::Splat(1), Vector::Max(Vector::Splat(-1), v140));
         const Vector v142 = (v99 * m_state.m_bandGain[1]);
-        m_state.m_splitter.m_tree.m_low.m_highPhase.m_x = v99;
-        m_state.m_splitter.m_tree.m_low.m_high.m_x = v99;
-        m_state.m_splitter.m_bands[1] = v99;
         const Vector v143 = (v142 * v142);
         const Vector v144 = (v142 * (v143 + Vector::Splat(27)));
         const Vector v145 = Vector::FusedMultiplyAdd(v142 * Vector::Splat(9), v142, Vector::Splat(27));
@@ -491,10 +347,6 @@ struct MultibandSaturator4BandCoreGeneric
         const Vector v146 = (v144 / v145);
         const Vector v147 = Vector::Min(Vector::Splat(1), Vector::Max(Vector::Splat(-1), v146));
         const Vector v148 = (v120 * m_state.m_bandGain[2]);
-        m_state.m_splitter.m_tree.m_high.m_second.m_lowPass = v120;
-        m_state.m_splitter.m_tree.m_high.m_lowPhase.m_x = v120;
-        m_state.m_splitter.m_tree.m_high.m_low.m_x = v120;
-        m_state.m_splitter.m_bands[2] = v120;
         const Vector v149 = (v148 * v148);
         const Vector v150 = (v148 * (v149 + Vector::Splat(27)));
         const Vector v151 = Vector::FusedMultiplyAdd(v148 * Vector::Splat(9), v148, Vector::Splat(27));
@@ -502,9 +354,6 @@ struct MultibandSaturator4BandCoreGeneric
         const Vector v152 = (v150 / v151);
         const Vector v153 = Vector::Min(Vector::Splat(1), Vector::Max(Vector::Splat(-1), v152));
         const Vector v154 = (v132 * m_state.m_bandGain[3]);
-        m_state.m_splitter.m_tree.m_high.m_highPhase.m_x = v132;
-        m_state.m_splitter.m_tree.m_high.m_high.m_x = v132;
-        m_state.m_splitter.m_bands[3] = v132;
         const Vector v155 = (v154 * v154);
         const Vector v156 = (v154 * (v155 + Vector::Splat(27)));
         const Vector v157 = Vector::FusedMultiplyAdd(v154 * Vector::Splat(9), v154, Vector::Splat(27));
@@ -732,7 +581,7 @@ struct MultibandSaturator4BandCoreGeneric
         return v89;
     }
 
-    // Coefficients generated from DSP.MultibandSaturator.prepare4Band.
+    // Coefficients generated from DSP.MultibandSaturator.Runtime.prepare4Band.
     //
 
     Snapshot m_responseSnapshot{};
@@ -1047,7 +896,7 @@ struct MultibandSaturator4BandCoreGeneric
         m_responseSnapshot.m_masterGain = v10;
     }
 
-    // Reset generated from DSP.MultibandSaturator.reset4Band.
+    // Reset generated from DSP.MultibandSaturator.Runtime.reset4Band.
     //
 
     void Reset()
@@ -1068,134 +917,22 @@ struct MultibandSaturator4BandCoreGeneric
         const Vector v13 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
         const Vector v14 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
         const Vector v15 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v16 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v17 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v18 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v19 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v20 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v21 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v22 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v23 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v24 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v25 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v26 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v27 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v28 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v29 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v30 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v31 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v32 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v33 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v34 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v35 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v36 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v37 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v38 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v39 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v40 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v41 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v42 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v43 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v44 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v45 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v46 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v47 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v48 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v49 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v50 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v51 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v52 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v53 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v54 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v55 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v56 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v57 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v58 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v59 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v60 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v61 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v62 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v63 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v64 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v65 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v66 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v67 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v68 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v69 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v70 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
-        const Vector v71 = Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0.0f : 0.0));
         m_state.m_splitter.m_tree.m_first.m_ic1 = v0;
         m_state.m_splitter.m_tree.m_first.m_ic2 = v1;
-        m_state.m_splitter.m_tree.m_first.m_lowPass = v2;
-        m_state.m_splitter.m_tree.m_first.m_bandPass = v3;
-        m_state.m_splitter.m_tree.m_first.m_highPass = v4;
-        m_state.m_splitter.m_tree.m_first.m_notch = v5;
-        m_state.m_splitter.m_tree.m_first.m_allPass = v6;
-        m_state.m_splitter.m_tree.m_second.m_ic1 = v7;
-        m_state.m_splitter.m_tree.m_second.m_ic2 = v8;
-        m_state.m_splitter.m_tree.m_second.m_lowPass = v9;
-        m_state.m_splitter.m_tree.m_second.m_bandPass = v10;
-        m_state.m_splitter.m_tree.m_second.m_highPass = v11;
-        m_state.m_splitter.m_tree.m_second.m_notch = v12;
-        m_state.m_splitter.m_tree.m_second.m_allPass = v13;
-        m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_ic1 = v14;
-        m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_ic2 = v15;
-        m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_lowPass = v16;
-        m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_bandPass = v17;
-        m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_highPass = v18;
-        m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_notch = v19;
-        m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_allPass = v20;
-        m_state.m_splitter.m_tree.m_lowPhase.m_low.m_x = v21;
-        m_state.m_splitter.m_tree.m_lowPhase.m_high.m_x = v22;
-        m_state.m_splitter.m_tree.m_highPhase.m_svf.m_ic1 = v23;
-        m_state.m_splitter.m_tree.m_highPhase.m_svf.m_ic2 = v24;
-        m_state.m_splitter.m_tree.m_highPhase.m_svf.m_lowPass = v25;
-        m_state.m_splitter.m_tree.m_highPhase.m_svf.m_bandPass = v26;
-        m_state.m_splitter.m_tree.m_highPhase.m_svf.m_highPass = v27;
-        m_state.m_splitter.m_tree.m_highPhase.m_svf.m_notch = v28;
-        m_state.m_splitter.m_tree.m_highPhase.m_svf.m_allPass = v29;
-        m_state.m_splitter.m_tree.m_highPhase.m_low.m_x = v30;
-        m_state.m_splitter.m_tree.m_highPhase.m_high.m_x = v31;
-        m_state.m_splitter.m_tree.m_low.m_first.m_ic1 = v32;
-        m_state.m_splitter.m_tree.m_low.m_first.m_ic2 = v33;
-        m_state.m_splitter.m_tree.m_low.m_first.m_lowPass = v34;
-        m_state.m_splitter.m_tree.m_low.m_first.m_bandPass = v35;
-        m_state.m_splitter.m_tree.m_low.m_first.m_highPass = v36;
-        m_state.m_splitter.m_tree.m_low.m_first.m_notch = v37;
-        m_state.m_splitter.m_tree.m_low.m_first.m_allPass = v38;
-        m_state.m_splitter.m_tree.m_low.m_second.m_ic1 = v39;
-        m_state.m_splitter.m_tree.m_low.m_second.m_ic2 = v40;
-        m_state.m_splitter.m_tree.m_low.m_second.m_lowPass = v41;
-        m_state.m_splitter.m_tree.m_low.m_second.m_bandPass = v42;
-        m_state.m_splitter.m_tree.m_low.m_second.m_highPass = v43;
-        m_state.m_splitter.m_tree.m_low.m_second.m_notch = v44;
-        m_state.m_splitter.m_tree.m_low.m_second.m_allPass = v45;
-        m_state.m_splitter.m_tree.m_low.m_lowPhase.m_x = v46;
-        m_state.m_splitter.m_tree.m_low.m_highPhase.m_x = v47;
-        m_state.m_splitter.m_tree.m_low.m_low.m_x = v48;
-        m_state.m_splitter.m_tree.m_low.m_high.m_x = v49;
-        m_state.m_splitter.m_tree.m_high.m_first.m_ic1 = v50;
-        m_state.m_splitter.m_tree.m_high.m_first.m_ic2 = v51;
-        m_state.m_splitter.m_tree.m_high.m_first.m_lowPass = v52;
-        m_state.m_splitter.m_tree.m_high.m_first.m_bandPass = v53;
-        m_state.m_splitter.m_tree.m_high.m_first.m_highPass = v54;
-        m_state.m_splitter.m_tree.m_high.m_first.m_notch = v55;
-        m_state.m_splitter.m_tree.m_high.m_first.m_allPass = v56;
-        m_state.m_splitter.m_tree.m_high.m_second.m_ic1 = v57;
-        m_state.m_splitter.m_tree.m_high.m_second.m_ic2 = v58;
-        m_state.m_splitter.m_tree.m_high.m_second.m_lowPass = v59;
-        m_state.m_splitter.m_tree.m_high.m_second.m_bandPass = v60;
-        m_state.m_splitter.m_tree.m_high.m_second.m_highPass = v61;
-        m_state.m_splitter.m_tree.m_high.m_second.m_notch = v62;
-        m_state.m_splitter.m_tree.m_high.m_second.m_allPass = v63;
-        m_state.m_splitter.m_tree.m_high.m_lowPhase.m_x = v64;
-        m_state.m_splitter.m_tree.m_high.m_highPhase.m_x = v65;
-        m_state.m_splitter.m_tree.m_high.m_low.m_x = v66;
-        m_state.m_splitter.m_tree.m_high.m_high.m_x = v67;
-        m_state.m_splitter.m_bands[0] = v68;
-        m_state.m_splitter.m_bands[1] = v69;
-        m_state.m_splitter.m_bands[2] = v70;
-        m_state.m_splitter.m_bands[3] = v71;
+        m_state.m_splitter.m_tree.m_second.m_ic1 = v2;
+        m_state.m_splitter.m_tree.m_second.m_ic2 = v3;
+        m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_ic1 = v4;
+        m_state.m_splitter.m_tree.m_lowPhase.m_svf.m_ic2 = v5;
+        m_state.m_splitter.m_tree.m_highPhase.m_svf.m_ic1 = v6;
+        m_state.m_splitter.m_tree.m_highPhase.m_svf.m_ic2 = v7;
+        m_state.m_splitter.m_tree.m_low.m_first.m_ic1 = v8;
+        m_state.m_splitter.m_tree.m_low.m_first.m_ic2 = v9;
+        m_state.m_splitter.m_tree.m_low.m_second.m_ic1 = v10;
+        m_state.m_splitter.m_tree.m_low.m_second.m_ic2 = v11;
+        m_state.m_splitter.m_tree.m_high.m_first.m_ic1 = v12;
+        m_state.m_splitter.m_tree.m_high.m_first.m_ic2 = v13;
+        m_state.m_splitter.m_tree.m_high.m_second.m_ic1 = v14;
+        m_state.m_splitter.m_tree.m_high.m_second.m_ic2 = v15;
     }
 
     using NumberType = Number;

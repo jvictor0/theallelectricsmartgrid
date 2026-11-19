@@ -18,6 +18,23 @@ def treeFields (svf : TPTSVF R → List R) : (t : Topology) → TreeState R t �
 def fields {n : Nat} (svf : TPTSVF R → List R) (f : State n R) : List R :=
   treeFields svf _ f.tree ++ List.ofFn f.bands
 
+/-- Serialize only recurrence memories and coefficients from the original model. -/
+def sectionMemory {R : Type} (s : TPTSVF R) : List R :=
+  [s.k,s.a1,s.a2,s.a3,s.ic1,s.ic2]
+
+def phaseMemory : (t : Topology) → PhaseState R t → List R
+  | .leaf, _ => []
+  | .branch low high, s => sectionMemory s.svf ++ phaseMemory low s.low ++ phaseMemory high s.high
+
+def treeMemory : (t : Topology) → TreeState R t → List R
+  | .leaf, _ => []
+  | .branch low high, s => sectionMemory s.first ++ sectionMemory s.second ++
+      phaseMemory high s.lowPhase ++ phaseMemory low s.highPhase ++ treeMemory low s.low ++ treeMemory high s.high
+
+def memoryFields {n : Nat} (s : State n R) : List R := treeMemory _ s.tree
+
+def compactFields {n : Nat} (s : State n R) : List R := memoryFields s ++ List.ofFn s.bands
+
 section Seed
 variable [OfNat R 0] [OfNat R 1] [Add R] [Neg R]
 

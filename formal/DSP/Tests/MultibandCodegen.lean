@@ -5,7 +5,7 @@ open DSP
 namespace DSP.Tests.MultibandCodegen
 
 def stateFields {R : Type} (s : MultibandSaturator.State 4 R) : List R :=
-  Splitter.fields Multiband.sectionFields s.splitter ++ List.ofFn s.bandGain ++ [s.masterGain]
+  Splitter.memoryFields s.splitter ++ List.ofFn s.bandGain ++ [s.masterGain]
 
 def outputFields {R : Type} (o : MultibandSaturator.Output 4 R) : List R :=
   (List.ofFn fun i => [(o.bands i).before,(o.bands i).after]).flatten ++ [o.master.before,o.master.after,o.sub]

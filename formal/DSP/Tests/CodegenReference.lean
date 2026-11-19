@@ -220,8 +220,8 @@ def tuningRows {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 8]
       ladderFields (TPTLadder.computeCoefficients ⟨fc1,feedback⟩ ladder) ++
         (let s := (TPTLadder.prepareCoefficients ⟨fc1,feedback⟩ ladder).2; [s.g1,s.g2,s.g3,s.g4,s.k])),
     ("LinkwitzRileySplitter4Band", [fc1,fc2,fc1],
-      DSP.Tests.Splitter.fields svfFields (DSP.Tests.Splitter.seeded 4 seed),
-      DSP.Tests.Splitter.fields svfFields (LinkwitzRileySplitter.computeCoefficients
+      DSP.Tests.Splitter.memoryFields (DSP.Tests.Splitter.seeded 4 seed),
+      DSP.Tests.Splitter.memoryFields (LinkwitzRileySplitter.computeCoefficients
         (DSP.Tests.Splitter.spec4 fc1 fc2 fc1) (DSP.Tests.Splitter.seeded 4 seed)))]
   rows ++ ["TPTSVF4PoleLowPass", "TPTSVF4PoleBandPass", "TPTSVF4PoleHighPass"].map (fun name =>
     (name, [fc1,q1,fc2,q2], svf4Fields four,
@@ -334,13 +334,13 @@ def main : IO Unit := do
     let seed := Float.ofNat j / 8 - 1
     let spec := DSP.Tests.Splitter.spec4 (0.12 + Float.ofNat j / 200) 0.023 0.37
     let initial := LinkwitzRileySplitter.computeCoefficients spec (DSP.Tests.Splitter.seeded 4 seed)
-    random ← emit out "splitter" (fun f => bits (DSP.Tests.Splitter.fields svfFields f))
+    random ← emit out "splitter" (fun f => bits (DSP.Tests.Splitter.compactFields f))
       LinkwitzRileySplitter.step4Band initial random 64
     let spec32 := DSP.Tests.Splitter.spec4 spec.tree.value.toFloat32
       spec.tree.low.value.toFloat32 spec.tree.high.value.toFloat32
     let initial32 := LinkwitzRileySplitter.computeCoefficients spec32
       (DSP.Tests.Splitter.seeded 4 seed.toFloat32)
-    emit32 out "splitter" (DSP.Tests.Splitter.fields svfFields) LinkwitzRileySplitter.step4Band initial32 random
+    emit32 out "splitter" (DSP.Tests.Splitter.compactFields) LinkwitzRileySplitter.step4Band initial32 random
   for i in [:1024] do
     random := nextRandom random
     let left := Float.ofNat (random.toNat % 100001) / 100.0 - 500.0

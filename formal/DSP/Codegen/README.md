@@ -107,6 +107,31 @@ def step (state : State) (input : Input) : State := ...
 def process (state : State) (input : Input) : State × Output := ...
 ```
 
+For composition, prefer `State × Output`: persistent coefficients and recurrence
+memories belong in `State`; current-sample observations belong in `Output`.
+The parent keeps child memories, consumes child outputs locally, and returns
+only the observations it exposes. The backend unfolds this Lean composition
+and removes unused pure temporaries. There is no runtime tap mask or separate
+C++ implementation of a child filter. Returning all child taps inside the
+parent's state would make their stores observable again.
+
+Existing proved models can retain their richer state representation.
+[Processor/Compact.lean](../Processor/Compact.lean) supplies `compact`, which
+saves the persistent fields and restores an equivalent model state before its
+next step. A simulation proof must show that the omitted observations cannot
+affect that step. The existing `Processor.run_simulation` then identifies the
+entire output stream, including for arbitrary initial histories and inputs.
+This is a Lean representation change, not a backend permission to ignore
+returned fields. Arithmetic and FMA order still come from the original step.
+
+The SVF/LR/multiband `Runtime` modules establish this pattern. Restored SVF taps
+and splitter leaf observations are dummy zeros that disappear during export;
+the recurrence never reads them. Tuning, prepared installation and reset
+commute with the state projection. The multiband output retains the exact
+before/after saturation values consumed by C++ meters. Differential tests
+continue running the original model and compare every retained memory and
+exposed observation against generated execution.
+
 Filters use the first, state-only form, so proofs are statements about stored
 fields. Each generic filter `step` has a `stepFloat` specialization that chooses
 executable binary64 arithmetic. [GenerateDSP.lean](../../GenerateDSP.lean)

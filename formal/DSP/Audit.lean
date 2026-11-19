@@ -8,6 +8,16 @@ open Lean in
 run_cmd do
   let env ← getEnv
   let required := #[
+    ``DSP.Processor.compact_simulation,
+    ``DSP.TPTSVF.Runtime.simulation,
+    ``DSP.LinkwitzRileySplitter.Runtime.simulation,
+    ``DSP.LinkwitzRileySplitter.Runtime.computeCoefficients_save,
+    ``DSP.LinkwitzRileySplitter.Runtime.install_save,
+    ``DSP.LinkwitzRileySplitter.Runtime.reset_save,
+    ``DSP.MultibandSaturator.Runtime.output_stream,
+    ``DSP.MultibandSaturator.Runtime.prepare_save,
+    ``DSP.MultibandSaturator.Runtime.install_save,
+    ``DSP.MultibandSaturator.Runtime.reset_save,
     ``DSP.MultibandSaturator.step4Band_independent,
     ``DSP.MultibandSaturator.step4Band_mono,
     ``DSP.MultibandSaturator.install4Band_prepare,

@@ -137,16 +137,21 @@ auto StateFields(ConservativeReuppingLadderCoreGeneric<Number, Size>& processor)
 }
 
 template<typename State>
+auto SVFMemory(State& state)
+{
+    return std::tie(state.m_k, state.m_a1, state.m_a2, state.m_a3, state.m_ic1, state.m_ic2);
+}
+
+template<typename State>
 auto PhaseFields(State& state)
 {
-    return std::tuple_cat(SVFFields(state.m_svf), std::tie(state.m_low.m_x, state.m_high.m_x));
+    return SVFMemory(state.m_svf);
 }
 
 template<typename State>
 auto TwoBandFields(State& state)
 {
-    return std::tuple_cat(SVFFields(state.m_first), SVFFields(state.m_second),
-        std::tie(state.m_lowPhase.m_x, state.m_highPhase.m_x, state.m_low.m_x, state.m_high.m_x));
+    return std::tuple_cat(SVFMemory(state.m_first), SVFMemory(state.m_second));
 }
 
 template<typename Number, size_t Size>
@@ -154,10 +159,10 @@ auto StateFields(LinkwitzRileySplitter4BandGeneric<Number, Size>& processor)
 {
     auto& state = processor.m_state;
     auto& tree = state.m_tree;
-    return std::tuple_cat(SVFFields(tree.m_first), SVFFields(tree.m_second),
+    return std::tuple_cat(SVFMemory(tree.m_first), SVFMemory(tree.m_second),
         PhaseFields(tree.m_lowPhase), PhaseFields(tree.m_highPhase),
         TwoBandFields(tree.m_low), TwoBandFields(tree.m_high),
-        std::tie(state.m_bands[0], state.m_bands[1], state.m_bands[2], state.m_bands[3]));
+        std::tie(processor.m_output.m_bands[0], processor.m_output.m_bands[1], processor.m_output.m_bands[2], processor.m_output.m_bands[3]));
 }
 
 template<typename Number, size_t Size>

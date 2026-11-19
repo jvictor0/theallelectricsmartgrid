@@ -29,21 +29,19 @@ template<typename State>
 auto SVFFields(State& state)
 {
     return std::tie(state.m_k, state.m_a1, state.m_a2, state.m_a3,
-        state.m_ic1, state.m_ic2, state.m_lowPass, state.m_bandPass,
-        state.m_highPass, state.m_notch, state.m_allPass);
+        state.m_ic1, state.m_ic2);
 }
 
 template<typename State>
 auto PhaseFields(State& state)
 {
-    return std::tuple_cat(SVFFields(state.m_svf), std::tie(state.m_low.m_x, state.m_high.m_x));
+    return SVFFields(state.m_svf);
 }
 
 template<typename State>
 auto TwoBandFields(State& state)
 {
-    return std::tuple_cat(SVFFields(state.m_first), SVFFields(state.m_second),
-        std::tie(state.m_lowPhase.m_x, state.m_highPhase.m_x, state.m_low.m_x, state.m_high.m_x));
+    return std::tuple_cat(SVFFields(state.m_first), SVFFields(state.m_second));
 }
 
 template<typename Core>
@@ -55,8 +53,7 @@ auto StateFields(Core& core)
     return std::tuple_cat(SVFFields(tree.m_first), SVFFields(tree.m_second),
         PhaseFields(tree.m_lowPhase), PhaseFields(tree.m_highPhase),
         TwoBandFields(tree.m_low), TwoBandFields(tree.m_high),
-        std::tie(split.m_bands[0], split.m_bands[1], split.m_bands[2], split.m_bands[3],
-            state.m_bandGain[0], state.m_bandGain[1], state.m_bandGain[2], state.m_bandGain[3], state.m_masterGain));
+        std::tie(state.m_bandGain[0], state.m_bandGain[1], state.m_bandGain[2], state.m_bandGain[3], state.m_masterGain));
 }
 
 template<typename Core>

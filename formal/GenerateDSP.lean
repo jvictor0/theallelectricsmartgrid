@@ -13,7 +13,7 @@ import DSP.Filters.Responses
 import DSP.Filters.LinkwitzRileySplitter
 import DSP.Filters.Capture
 import DSP.Filters.ConservativeReuppingLadder.Response
-import DSP.Filters.MultibandSaturator.Exports
+import DSP.Filters.MultibandSaturator.Runtime
 
 #use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
 
@@ -120,12 +120,12 @@ import DSP.Filters.MultibandSaturator.Exports
 
 #generate_cpp_generic DSP.Coupled.processor as CoupledProcessorGeneric to "build/lean/generated/CoupledProcessorGeneric.hpp"
 
-#generate_cpp_tuned_snapshot_generic DSP.LinkwitzRileySplitter.step4Band
-  DSP.LinkwitzRileySplitter.computeCoefficients4Band DSP.LinkwitzRileySplitter.makeSnapshot4Band
+#generate_cpp_tuned_snapshot_generic DSP.LinkwitzRileySplitter.Runtime.process4Band
+  DSP.LinkwitzRileySplitter.Runtime.computeCoefficients4Band DSP.LinkwitzRileySplitter.makeSnapshot4Band
   as LinkwitzRileySplitter4BandGeneric to "build/lean/generated/LinkwitzRileySplitter4BandGeneric.hpp"
 
-#generate_cpp_sampled_filter_generic DSP.MultibandSaturator.step4Band DSP.MultibandSaturator.prepare4Band
-  resetWith DSP.MultibandSaturator.reset4Band
-  preparedBank DSP.MultibandSaturator.install4Band prepareWith DSP.LinkwitzRileySplitter.prepareSection
+#generate_cpp_sampled_filter_generic DSP.MultibandSaturator.Runtime.process4Band DSP.MultibandSaturator.Runtime.prepare4Band
+  resetWith DSP.MultibandSaturator.Runtime.reset4Band
+  preparedBank DSP.MultibandSaturator.Runtime.install4Band prepareWith DSP.LinkwitzRileySplitter.prepareSection
   [DSP.MultibandSaturator.magnitudeSquared4Band as MagnitudeSquared]
   as MultibandSaturator4BandCoreGeneric to "build/lean/generated/MultibandSaturator4BandCoreGeneric.hpp"

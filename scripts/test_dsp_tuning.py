@@ -29,15 +29,14 @@ for mode in ['LowPass', 'BandPass', 'HighPass']:
 
 SPLITTER = 'LinkwitzRileySplitter4Band'
 CONSERVATIVE = 'ConservativeReuppingLadderCore'
+SVF_MEMORY = SVF[:6]
 def phase_fields(prefix):
-    return nest(prefix+'.svf', SVF) + nest(prefix, ['low.x', 'high.x'])
+    return nest(prefix+'.svf', SVF_MEMORY)
 def two_band_fields(prefix):
-    return nest(prefix+'.first', SVF) + nest(prefix+'.second', SVF) + nest(prefix,
-        ['lowPhase.x', 'highPhase.x', 'low.x', 'high.x'])
+    return nest(prefix+'.first', SVF_MEMORY) + nest(prefix+'.second', SVF_MEMORY)
 SCHEMAS[SPLITTER] = (['tree.value', 'tree.low.value', 'tree.high.value'],
-    nest('tree.first', SVF) + nest('tree.second', SVF) + phase_fields('tree.lowPhase') +
-    phase_fields('tree.highPhase') + two_band_fields('tree.low') + two_band_fields('tree.high') +
-    [f'bands[{i}]' for i in range(4)])
+    nest('tree.first', SVF_MEMORY) + nest('tree.second', SVF_MEMORY) + phase_fields('tree.lowPhase') +
+    phase_fields('tree.highPhase') + two_band_fields('tree.low') + two_band_fields('tree.high'))
 
 def member(path):
     return '.'.join('m_'+p for p in path.split('.'))
