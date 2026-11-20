@@ -5,6 +5,13 @@
 #include "TransferFunction.hpp"
 #include "SampledTransferFunction.hpp"
 
+// Temporarily skip the percentile ribbons on iOS to reduce the drawing load
+// implicated in audio dropouts (Apple feedback FB25575610).
+//
+#ifndef TEMPORARY_REDUCE_GPU
+#define TEMPORARY_REDUCE_GPU JUCE_IOS
+#endif
+
 struct PathDrawer
 {
     static constexpr size_t x_numPoints = 1024;
@@ -250,6 +257,7 @@ struct PathDrawer
                 screenY(values.m_lower), screenY(values.m_median), screenY(values.m_upper)});
         }
 
+#if !TEMPORARY_REDUCE_GPU
         // Nested ribbons feather the percentile interval towards the median.
         // A stationary response has no ribbon area and retains its sharp line.
         //
@@ -281,6 +289,7 @@ struct PathDrawer
             g.setColour(colour.withMultipliedAlpha(0.09f));
             g.fillPath(ribbon);
         }
+#endif
 
         juce::Path median;
         median.startNewSubPath(points.front().m_x, points.front().m_median);

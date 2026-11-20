@@ -525,7 +525,7 @@ DOCTEST_TEST_CASE("Scope gaps: missing history draws neither zero nor the time-w
     }
 }
 
-DOCTEST_TEST_CASE("Sampled response rendering: percentile motion creates a feathered band around the median")
+DOCTEST_TEST_CASE("Sampled response rendering: percentile motion respects the GPU mitigation")
 {
     SampledTransferFunction::Config config;
     config.m_capacity = 64;
@@ -554,10 +554,18 @@ DOCTEST_TEST_CASE("Sampled response rendering: percentile motion creates a feath
     {
         stillRows += still.getPixelAt(160, y).getAlpha() > 0 ? 1 : 0;
         blurRows += blur.getPixelAt(160, y).getAlpha() > 0 ? 1 : 0;
+#if TEMPORARY_REDUCE_GPU
+        DOCTEST_CHECK(blur.getPixelAt(160, y) == still.getPixelAt(160, y));
+#endif
     }
 
+    DOCTEST_CHECK(stillRows > 0);
     DOCTEST_CHECK(stillRows <= 3);
+#if TEMPORARY_REDUCE_GPU
+    DOCTEST_CHECK(blurRows == stillRows);
+#else
     DOCTEST_CHECK(blurRows >= 30);
+#endif
     DOCTEST_CHECK(FindPeakX(still, [](juce::Colour colour) { return colour.getAlpha() > 128; })
         == doctest::Approx(FindPeakX(blur, [](juce::Colour colour) { return colour.getAlpha() > 128; })).epsilon(0.01));
 

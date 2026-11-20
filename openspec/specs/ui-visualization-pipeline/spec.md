@@ -125,8 +125,10 @@ Response overlays SHALL use a width-independent 1024-column frequency grid. Resi
 
 #### Scenario: Analyzer draws percentile motion
 - **WHEN** captured response magnitudes vary at a frequency
-- **THEN** the analyzer draws a feathered band between the lower and upper statistics with a median trace
-- **AND** each statistic is separately converted to display dB
+- **THEN** the analyzer computes all three order statistics and converts each to display dB
+- **AND** the analyzer draws a median trace and, when `TEMPORARY_REDUCE_GPU` is disabled, a feathered band between the lower and upper statistics
+
+The temporary flag defaults to enabled on iOS for Apple feedback FB25575610. A build can explicitly set it to `0` or `1` to compare rendering modes.
 
 #### Scenario: Partial machine retains its specialized interface
 - **WHEN** a partial-machine overlay is drawn
