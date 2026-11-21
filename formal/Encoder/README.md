@@ -17,12 +17,11 @@ make lean-cache  # optional: download the pinned Mathlib proof cache
 make lean-test
 ```
 
-Setup installs Elan and the pinned Lean toolchain under `build/lean/elan`, without
-changing shell profiles or a global Lean installation. Verification uses the
-committed `lake-manifest.json`; it builds incrementally under `build/lean/`.
-The first build downloads dependencies. `lean-cache` avoids compiling the
-Mathlib dependencies used for real exponentiation and arithmetic tactics; its
-cache stays under `build/lean/mathlib-cache`. Veil is built locally. It needs Git, curl,
+Setup installs Elan and the pinned Lean toolchain in the
+[shared build cache](../../docs/building.md#shared-build-cache). Verification uses
+the committed `lake-manifest.json`, checks out dependencies in `build/lean/`, and
+reuses compiled Lake artifacts when the inputs match. `lean-cache` downloads
+precompiled Mathlib archives into the shared cache. Verification needs Git, curl,
 Python 3, a C/C++ toolchain, and Node/npm (upstream recommends Node 24+).
 Lean verification is independent of app/audio builds. Do not run concurrent Lake
 builds against this worktree's output directory.

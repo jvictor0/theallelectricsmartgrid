@@ -26,17 +26,17 @@ juce-setup:
 	git -C "$(REPO_ROOT)" submodule update --init --recursive -- third_party/JUCE
 
 juce-deps:
-	@test -f "$(REPO_ROOT)/third_party/JUCE/modules/juce_core/juce_core.h" || $(MAKE) -C "$(APP_DIR)" juce-setup
-
-build build-sanitized clang-tidy ios-build: juce-deps
+	@python3 "$(REPO_ROOT)/scripts/build_cache.py" juce
 
 define xcode_build
+	juce_root=$$(python3 "$(REPO_ROOT)/scripts/build_cache.py" juce) && \
 	$(XCODEBUILD) -project "$(1)" -scheme "$(SCHEME)" -configuration "$(3)" \
 		-destination "generic/platform=$(4)" -allowProvisioningUpdates \
 		-derivedDataPath "$(2)/$(3)/DerivedData" \
 		"SYMROOT=$(2)/$(3)/Products" "OBJROOT=$(2)/$(3)/Intermediates" \
 		"CONFIGURATION_BUILD_DIR=$(2)/$(3)/Products" \
 		"SHARED_PRECOMPS_DIR=$(2)/$(3)/Intermediates/PrecompiledHeaders" \
+		"SMARTGRID_JUCE_MODULES=$$juce_root/modules" \
 		$(XCODE_FLAGS) build
 endef
 
@@ -57,6 +57,7 @@ build-sanitized:
 
 clang-tidy:
 	mkdir -p "$(REPO_ROOT)/build/clang-tidy"
+	juce_root=$$(python3 "$(REPO_ROOT)/scripts/build_cache.py" juce) && \
 	cd "$(APP_DIR)" && clang-tidy Source/MainComponent.cpp Source/IOUtils.cpp \
 		--checks='-*,cppcoreguidelines-pro-type-member-init' \
 		--header-filter='private/src/.*' \
@@ -64,7 +65,7 @@ clang-tidy:
 		-I"$(APP_DIR)/JuceLibraryCode" \
 		-I"$(REPO_ROOT)/private/src" \
 		-I"$(REPO_ROOT)/formal/DSP/generated" \
-		-I"$(REPO_ROOT)/third_party/JUCE/modules" \
+		-I"$$juce_root/modules" \
 		-I/opt/homebrew/include \
 		-isysroot $$(xcrun --sdk macosx --show-sdk-path) \
 		-arch arm64 \

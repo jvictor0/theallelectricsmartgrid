@@ -7,6 +7,17 @@ CORE_CONFIG ?= RelWithDebInfo
 VISUALIZERS_CONFIG ?= Release
 MIDI_CONFIG ?= Release
 CMAKE_ARGS ?=
+CCACHE ?= $(shell command -v ccache 2>/dev/null)
+CMAKE_CACHE_ARGS := $(foreach language,C CXX OBJC OBJCXX,-DCMAKE_$(language)_COMPILER_LAUNCHER="$(CCACHE)")
+
+ifneq ($(strip $(CCACHE)),)
+CMAKE_BUILD_ENV = cache_dir=$$(python3 "$(REPO_ROOT)/scripts/build_cache.py" root) && \
+	CCACHE_BASEDIR="$${CCACHE_BASEDIR:-$(REPO_ROOT)}" CCACHE_DIR="$${CCACHE_DIR:-$$cache_dir/ccache}"
+endif
+
+define cmake_build
+$(CMAKE_BUILD_ENV) cmake --build "$(1)" --config "$(2)" --parallel "$(JOBS)" $(3)
+endef
 
 .PHONY: all $(JUCE_TARGETS)
 
@@ -15,25 +26,23 @@ all: build
 $(JUCE_TARGETS):
 	$(MAKE) -C "$(JUCE_DIR)" $@
 
-# Complete setup once before starting recursive builds, including parallel goals.
-build run build-sanitized run-sanitized clang-tidy ios-build ios-deploy deploy-ios \
-	visualizers-configure midi-configure: juce-deps
-
 define cmake_targets
 .PHONY: $(1)-configure $(1)-build $(1)-test
 $(1)-configure:
-	cmake -S "$(REPO_ROOT)/$(2)" -B "$(REPO_ROOT)/build/$(1)/$$($(3))" -DCMAKE_BUILD_TYPE="$$($(3))" $$(CMAKE_ARGS)
+	$(if $(4),juce_root=$$$$(python3 "$(REPO_ROOT)/scripts/build_cache.py" juce) && )cmake \
+		-S "$(REPO_ROOT)/$(2)" -B "$(REPO_ROOT)/build/$(1)/$$($(3))" -DCMAKE_BUILD_TYPE="$$($(3))" \
+		$(if $(4),-DSMARTGRID_JUCE_ROOT="$$$$juce_root") $$(CMAKE_CACHE_ARGS) $$(CMAKE_ARGS)
 
 $(1)-build: $(1)-configure
-	cmake --build "$(REPO_ROOT)/build/$(1)/$$($(3))" --config "$$($(3))" --parallel "$$(JOBS)"
+	$$(call cmake_build,$(REPO_ROOT)/build/$(1)/$$($(3)),$$($(3)))
 
 $(1)-test: $(1)-build
 	ctest --test-dir "$(REPO_ROOT)/build/$(1)/$$($(3))" --build-config "$$($(3))" --output-on-failure
 endef
 
 $(eval $(call cmake_targets,core,private/test,CORE_CONFIG))
-$(eval $(call cmake_targets,visualizers,private/test/juce-visualizers,VISUALIZERS_CONFIG))
-$(eval $(call cmake_targets,midi,private/test/juce-midi,MIDI_CONFIG))
+$(eval $(call cmake_targets,visualizers,private/test/juce-visualizers,VISUALIZERS_CONFIG,juce))
+$(eval $(call cmake_targets,midi,private/test/juce-midi,MIDI_CONFIG,juce))
 
 .PHONY: lean-setup lean-cache lean-test lean-dsp-test lean-dsp-codegen lean-dsp-generate lean-dsp-codegen-test
 lean-setup:
@@ -124,28 +133,28 @@ lean-test:
 PERF_DIR := $(REPO_ROOT)/build/tools/perf/Release
 .PHONY: perf-configure perf-build perf-test perf-run perf-sgrec
 perf-configure:
-	cmake -S "$(REPO_ROOT)/private/test/perf" -B "$(PERF_DIR)" -DCMAKE_BUILD_TYPE=Release $(CMAKE_ARGS)
+	cmake -S "$(REPO_ROOT)/private/test/perf" -B "$(PERF_DIR)" -DCMAKE_BUILD_TYPE=Release $(CMAKE_CACHE_ARGS) $(CMAKE_ARGS)
 
 perf-build: perf-configure
-	cmake --build "$(PERF_DIR)" --config Release --parallel "$(JOBS)"
+	$(call cmake_build,$(PERF_DIR),Release)
 
 .PHONY: perf-responses-build perf-responses
 perf-responses-build: perf-configure
-	cmake --build "$(PERF_DIR)" --config Release --target perf_responses --parallel "$(JOBS)"
+	$(call cmake_build,$(PERF_DIR),Release,--target perf_responses)
 
 perf-responses: perf-responses-build
 	"$(PERF_DIR)/perf_responses" $(PERF_ARGS)
 
 .PHONY: perf-ladder-build perf-ladder
 perf-ladder-build: perf-configure
-	cmake --build "$(PERF_DIR)" --config Release --target perf_ladder --parallel "$(JOBS)"
+	$(call cmake_build,$(PERF_DIR),Release,--target perf_ladder)
 
 perf-ladder: perf-ladder-build
 	"$(PERF_DIR)/perf_ladder" $(PERF_ARGS)
 
 .PHONY: perf-comb-build perf-comb
 perf-comb-build: perf-configure
-	cmake --build "$(PERF_DIR)" --config Release --target perf_comb --parallel "$(JOBS)"
+	$(call cmake_build,$(PERF_DIR),Release,--target perf_comb)
 
 perf-comb: perf-comb-build
 	"$(PERF_DIR)/perf_comb" $(PERF_ARGS)

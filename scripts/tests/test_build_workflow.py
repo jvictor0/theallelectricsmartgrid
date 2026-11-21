@@ -22,31 +22,39 @@ class BuildWorkflowTests(unittest.TestCase):
         self.root = Path(self.temp.name) / "checkout"
         self.caller = Path(self.temp.name) / "caller"
         self.caller.mkdir()
-        for name in ("Makefile", "JUCE/SmartGridOne/Makefile", "scripts/clean_builds.py"):
+        for name in ("Makefile", "JUCE/SmartGridOne/Makefile", "scripts/clean_builds.py",
+                     "scripts/build_cache.py"):
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(REPO_ROOT / name, target)
         self.log = self.caller / "commands.jsonl"
         self.juce_header = self.root / "third_party/JUCE/modules/juce_core/juce_core.h"
+        self.upstream = Path(self.temp.name) / "JUCE upstream"
+        self.git(self.upstream, "init", "--quiet")
+        self.source_header = self.upstream / "modules/juce_core/juce_core.h"
+        self.source_header.parent.mkdir(parents=True)
+        self.revision = self.commit_juce("first revision")
+        self.git(self.root, "init", "--quiet")
+        self.gitmodules = self.root / ".gitmodules"
+        self.gitmodules.write_text(f'[submodule "JUCE8"]\n\tpath = third_party/JUCE\n\turl = {self.upstream}\n')
+        self.git(self.root, "add", ".")
+        self.pin_juce(self.revision)
+        self.git(self.root, "commit", "-qm", "SmartGrid fixture")
+        self.cache = Path(self.temp.name) / "shared cache"
         self.tool = self.caller / "record-command"
         self.tool.write_text(
             f"#!{sys.executable}\n"
             "import json, os, pathlib, sys\n"
             "with open(os.environ['COMMAND_LOG'], 'a') as log:\n"
             "    log.write(json.dumps(sys.argv[1:]) + '\\n')\n"
-            "header = pathlib.Path(os.environ['JUCE_HEADER'])\n"
-            "if 'submodule' in sys.argv:\n"
-            "    if os.environ.get('FAIL_JUCE_SETUP'):\n"
-            "        sys.exit(8)\n"
-            "    checkout = pathlib.Path(sys.argv[sys.argv.index('-C') + 1])\n"
-            "    assert header.is_relative_to(checkout)\n"
-            "    header.parent.mkdir(parents=True, exist_ok=True)\n"
-            "    header.write_text('initialized')\n"
-            "needs_juce = '-project' in sys.argv or any(\n"
-            "    part in arg for arg in sys.argv\n"
-            "    for part in ('juce-midi', 'juce-visualizers', 'build/midi/', 'build/visualizers/'))\n"
-            "if needs_juce and not header.is_file():\n"
-            "    sys.exit('JUCE must be initialized before building')\n"
+            "if '--build' in sys.argv and 'CCACHE_ENV_LOG' in os.environ:\n"
+            "    path = pathlib.Path(os.environ['CCACHE_ENV_LOG'])\n"
+            "    path.write_text(json.dumps([os.environ['CCACHE_DIR'], os.environ['CCACHE_BASEDIR']]))\n"
+            "for arg in sys.argv:\n"
+            "    if arg.startswith(('SMARTGRID_JUCE_MODULES=', '-DSMARTGRID_JUCE_ROOT=')):\n"
+            "        path = pathlib.Path(arg.split('=', 1)[1])\n"
+            "        modules = path if path.name == 'modules' else path / 'modules'\n"
+            "        assert (modules / 'juce_core/juce_core.h').is_file()\n"
             "if '-project' in sys.argv:\n"
             "    if os.environ.get('FAIL_BUILD'):\n"
             "        sys.exit(7)\n"
@@ -58,15 +66,31 @@ class BuildWorkflowTests(unittest.TestCase):
             "    exe.chmod(0o755)\n"
         )
         self.tool.chmod(0o755)
-        for name in ("git", "cmake", "ctest"):
+        for name in ("cmake", "ctest"):
             (self.caller / name).symlink_to(self.tool)
         self.env = dict(os.environ, COMMAND_LOG=str(self.log),
-                        JUCE_HEADER=str(self.juce_header),
+                        SMARTGRID_BUILD_CACHE_DIR=str(self.cache),
                         PATH=str(self.caller) + os.pathsep + os.environ["PATH"],
                         RUN_MARKER=str(self.caller / "ran"))
 
-    def make(self, *args, app=False, success=True):
-        makefile = self.root / ("JUCE/SmartGridOne/Makefile" if app else "Makefile")
+    def git(self, root, *args):
+        root.mkdir(parents=True, exist_ok=True)
+        return subprocess.check_output(
+            ["git", "-C", str(root), "-c", "user.name=Build Tests", "-c", "user.email=build@example.invalid",
+             "-c", "commit.gpgsign=false", *args], text=True,
+        ).strip()
+
+    def commit_juce(self, content):
+        self.source_header.write_text(content)
+        self.git(self.upstream, "add", ".")
+        self.git(self.upstream, "commit", "-qm", content)
+        return self.git(self.upstream, "rev-parse", "HEAD")
+
+    def pin_juce(self, revision):
+        self.git(self.root, "update-index", "--add", "--cacheinfo", f"160000,{revision},third_party/JUCE")
+
+    def make(self, *args, app=False, success=True, root=None):
+        makefile = (root or self.root) / ("JUCE/SmartGridOne/Makefile" if app else "Makefile")
         result = subprocess.run(
             ["make", "-f", str(makefile), f"XCODEBUILD={self.tool}",
              f"IOS_PYTHON={self.tool}", *args],
@@ -81,37 +105,50 @@ class BuildWorkflowTests(unittest.TestCase):
     def commands(self):
         return [json.loads(line) for line in self.log.read_text().splitlines()]
 
-    def test_missing_juce_is_initialized_once_before_parallel_builds(self):
+    def test_parallel_builds_and_fresh_worktree_reuse_pinned_juce(self):
         self.make("-j4", "build", "visualizers-test", "midi-test")
         commands = self.commands()
-        self.assertEqual(commands[0], ["-C", str(self.root), "submodule", "update",
-                                       "--init", "--recursive", "--", "third_party/JUCE"])
-        self.assertEqual(sum("submodule" in args for args in commands), 1)
-        self.assertEqual(len(commands), 8)
-        self.assertTrue(self.juce_header.is_file())
-        before = len(commands)
+        self.assertEqual(len(commands), 7)
+        source = self.cache / "juce" / self.revision
+        self.assertEqual((source / "modules/juce_core/juce_core.h").read_text(), "first revision")
+        self.assertFalse(self.juce_header.exists())
+        self.assertIn(f"-DSMARTGRID_JUCE_ROOT={source}", [arg for args in commands for arg in args])
+        other = self.root.with_name("other-worktree")
+        self.git(self.root, "worktree", "add", "--quiet", "--detach", str(other))
+        self.upstream.rename(self.upstream.with_name("offline"))
+        self.make("build", app=True, root=other)
+        self.assertIn(f"SMARTGRID_JUCE_MODULES={source}/modules", self.commands()[-1])
+        self.assertFalse((other / "third_party/JUCE/modules").exists())
+
+    def test_pin_changes_and_local_checkout_takes_precedence(self):
+        first = Path(self.make("-s", "juce-deps").strip())
+        next_revision = self.commit_juce("next revision")
+        self.pin_juce(next_revision)
+        second = Path(self.make("-s", "juce-deps").strip())
+        self.assertEqual((first / "modules/juce_core/juce_core.h").read_text(), "first revision")
+        self.assertEqual((second / "modules/juce_core/juce_core.h").read_text(), "next revision")
+        self.juce_header.parent.mkdir(parents=True)
+        self.juce_header.write_text("local edits")
         self.make("build", app=True)
-        self.assertEqual(len(self.commands()), before + 1)
-        self.assertIn("-project", self.commands()[-1])
+        self.assertIn(f"SMARTGRID_JUCE_MODULES={self.root}/third_party/JUCE/modules", self.commands()[-1])
 
     def test_failed_juce_setup_prevents_build_and_deploy(self):
-        self.env["FAIL_JUCE_SETUP"] = "1"
+        self.upstream.rename(self.upstream.with_name("offline"))
         for app, target in ((False, "build"), (True, "build-sanitized"),
                             (False, "ios-deploy"), (True, "deploy-ios"),
                             (False, "midi-test"), (False, "visualizers-test"),
                             (True, "clang-tidy")):
             with self.subTest(app=app, target=target):
-                self.make("-j4", target, app=app, success=False)
-                commands = self.commands()
-                self.assertEqual(len(commands), 1)
-                self.assertIn("submodule", commands[0])
+                output = self.make("-j4", target, app=app, success=False)
+                self.assertIn("Build cache:", output)
+                self.assertFalse(self.log.exists())
                 self.assertFalse(self.juce_header.exists())
-                self.log.unlink()
+                self.assertFalse((self.cache / "juce" / self.revision).exists())
 
     def test_core_tests_do_not_initialize_juce(self):
         self.make("core-test")
         self.assertEqual(len(self.commands()), 3)
-        self.assertFalse(any("submodule" in args for args in self.commands()))
+        self.assertFalse(self.cache.exists())
         self.assertFalse(self.juce_header.exists())
 
     def test_native_run_and_sanitizer_use_the_built_product_from_any_cwd(self):
@@ -162,6 +199,15 @@ class BuildWorkflowTests(unittest.TestCase):
             self.assertIn(f'-DCMAKE_BUILD_TYPE="{config}"', output)
             output = self.make("-n", f"{family}-test", f"{family.upper()}_CONFIG=Debug")
             self.assertEqual(output.count(str(self.root / "build" / family / "Debug")), 3)
+
+    def test_ccache_launcher_uses_shared_store_and_worktree_base(self):
+        env_log = self.caller / "ccache-env.json"
+        self.env["CCACHE_ENV_LOG"] = str(env_log)
+        self.env.pop("CCACHE_DIR", None)
+        self.env.pop("CCACHE_BASEDIR", None)
+        self.make("core-build", "CCACHE=/example/ccache")
+        self.assertIn("-DCMAKE_CXX_COMPILER_LAUNCHER=/example/ccache", self.commands()[0])
+        self.assertEqual(json.loads(env_log.read_text()), [str(self.cache / "ccache"), str(self.root)])
 
     def test_clean_is_scoped_and_idempotent(self):
         disposable = ("core", "visualizers", "midi", "xcode/macos", "xcode/ios", "clang-tidy", "tools")

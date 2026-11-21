@@ -2,8 +2,9 @@
 
 This is the Lean/Veil model for the delay and scope coordinate change. Run
 `make lean-test` to check both this model and the encoder models. Setup uses the
-existing `make lean-setup` and `make lean-cache` workflow; all dependencies and
-incremental artifacts stay under `build/lean/`.
+existing `make lean-setup` and `make lean-cache` workflow. Dependency checkouts
+and restored artifacts live under `build/lean/`. See the
+[shared build cache](../../docs/building.md#shared-build-cache) for reuse across worktrees.
 
 The checked contract catalogue is [requirements.json](requirements.json).
 `make lean-test` generates source links in `build/lean/phase-contracts.md` and

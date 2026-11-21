@@ -6,12 +6,13 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 get_filename_component(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUTE)
-set(MODULES "${REPO_ROOT}/third_party/JUCE/modules")
+set(SMARTGRID_JUCE_ROOT "${REPO_ROOT}/third_party/JUCE" CACHE PATH "JUCE source directory")
+set(MODULES "${SMARTGRID_JUCE_ROOT}/modules")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${REPO_ROOT}/scripts/generate_build_info.py"
     "${REPO_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}/SmartGridBuildInfo.hpp"
     COMMAND_ERROR_IS_FATAL ANY)
-include("${REPO_ROOT}/third_party/JUCE/extras/Build/CMake/JUCEModuleSupport.cmake")
+include("${SMARTGRID_JUCE_ROOT}/extras/Build/CMake/JUCEModuleSupport.cmake")
 juce_add_modules("${MODULES}/juce_core" "${MODULES}/juce_events"
     "${MODULES}/juce_graphics" "${MODULES}/juce_data_structures"
     "${MODULES}/juce_gui_basics" "${MODULES}/juce_audio_basics")

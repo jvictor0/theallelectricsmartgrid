@@ -7,23 +7,36 @@ Commands below run from the checkout root. From elsewhere, use
 the Makefile, not the caller's working directory. The app Makefile also supports
 `make -C JUCE/SmartGridOne <app-target>` and an absolute `-f` path.
 
-## Set up JUCE in a new checkout or worktree
+## Shared build cache
+
+Make builds use `~/.cache/theallelectricsmartgrid` by default, or
+`$XDG_CACHE_HOME/theallelectricsmartgrid` when `XDG_CACHE_HOME` is set. Set
+`SMARTGRID_BUILD_CACHE_DIR` to an absolute directory to choose another location.
+Use the same writable directory in every worktree. Add that directory to the
+active [Codex permission profile](https://learn.chatgpt.com/docs/permissions)
+for sandboxed builds. To use a cache local to one worktree, set
+`SMARTGRID_BUILD_CACHE_DIR="$PWD/build/cache"`.
+
+The cache holds Lean toolchains, compiled Lake artifacts, downloaded Mathlib
+archives, and JUCE source snapshots. CMake, Xcode, and Lake keep their build
+directories under each worktree's `build/`, so branches can build independently.
+
+### JUCE
 
 App builds, `ios-deploy` (and `deploy-ios`), `clang-tidy`, and the MIDI and
-visualizer test targets automatically initialize JUCE when it is missing from
-the checkout or worktree. Setup finishes before compilation starts, including
-with parallel Make goals. An initialized JUCE checkout is left untouched.
+visualizer test targets use a shared JUCE source snapshot keyed by the pinned
+submodule commit. The first build uses the main checkout's Git objects when
+available, or fetches that commit from the submodule URL. `make juce-deps`
+prepares the snapshot and prints the source path. Treat the snapshot as read-only.
 
-To explicitly initialize or update JUCE to the repository's pinned revision, run:
+For JUCE development, Projucer, or opening the Xcode projects directly, run:
 
 ```sh
 make juce-setup
 ```
 
-This runs `git submodule update --init --recursive -- third_party/JUCE` from
-the checkout root, checking out the JUCE revision pinned by this repository.
-It is safe to rerun and may download missing Git objects. Automatic setup uses
-the same command; if it fails, the build stops before compiling or deploying.
+This checks out the pinned submodule in the current worktree. Make builds prefer
+an existing local JUCE checkout, including any local JUCE edits.
 
 ## Build and test
 
@@ -51,8 +64,11 @@ Each build reconfigures the same cache and builds incrementally; test targets
 build first and run CTest with failure output. Use `JOBS=6` to change CMake build
 parallelism (default 4), and `CMAKE_ARGS='...'` for additional configure options.
 The core requires CMake, a C++17 compiler, Python 3, pkg-config, and libFLAC.
-JUCE tests require macOS; their Make targets initialize the pinned
-`third_party/JUCE` submodule automatically when it is missing.
+JUCE tests require macOS. When `ccache` is on `PATH`, the core, MIDI,
+visualizer, and desktop performance builds use it automatically. Its default
+store is `ccache/` under the shared cache directory, and `CCACHE_DIR` overrides
+it. Use `CCACHE=` to disable the launcher. Hits depend on the compiler flags
+and paths in the compile command, including the debug-info configuration.
 
 Use `CORE_CONFIG=Debug`, `VISUALIZERS_CONFIG=Debug`, or `MIDI_CONFIG=Debug` for
 separate debug test builds. Core tests default to RelWithDebInfo with assertions
@@ -72,7 +88,8 @@ Make explicitly supplies these paths, including the product directory that the
 generated Xcode projects otherwise override. Use these Make targets for the
 contained command-line workflow; opening a project directly in Xcode uses the
 IDE's own DerivedData preferences. `XCODE_FLAGS='...'` passes additional Xcode
-options. Keep the path settings intact.
+options. Keep the path settings intact. Xcode app and iPad performance builds
+compile into their worktree's own build directories.
 
 `ios-install` uses the selected configuration's existing app and fails if it is
 missing. `ios-deploy` builds successfully before installing and launching;
@@ -106,14 +123,16 @@ for duration limits, serial repeats, output files and interpretation limits.
 
 ## Lean specifications
 
-Run `make lean-setup` once, optionally `make lean-cache` to download the pinned
-Mathlib proof cache, then `make lean-test` to check the reusable DSP filter proofs,
-encoder and phase-time Lean/Veil state machines, contract proofs, proof axioms and
-C++ source references.
-Toolchains, dependencies and incremental proof artifacts stay in `build/lean/`;
-the small Lake configuration cache is ignored at `.lake/`. This target does not
-build or launch the audio app. Setup requirements, model coverage and proof
-boundaries are documented in [formal/DSP/README.md](../formal/DSP/README.md),
+Run `make lean-setup` once per cache and pinned toolchain version. You can run
+`make lean-cache` to prefetch the pinned Mathlib proof cache. `make lean-test`
+checks the reusable DSP filter proofs, encoder and phase-time Lean/Veil state
+machines, contract proofs, proof axioms, and C++ source references.
+Elan installs the pinned toolchain under `elan/` in the shared cache. Lake's
+artifact cache reuses compiled modules across worktrees when their inputs
+match. Mathlib downloads go into the shared `mathlib/` directory. Dependency
+checkouts and restored outputs live under `build/lean/` in each worktree, and the
+small Lake configuration cache lives at `.lake/`. Setup requirements, model
+coverage and proof boundaries are documented in [formal/DSP/README.md](../formal/DSP/README.md),
 [formal/Encoder/README.md](../formal/Encoder/README.md)
 and [formal/PhaseTime/README.md](../formal/PhaseTime/README.md).
 
