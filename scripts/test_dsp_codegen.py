@@ -24,6 +24,7 @@ HEADERS = (
 )
 HEADERS += tuple(name.replace(".hpp", "Generic.hpp") for name in HEADERS)
 HEADERS += ("LinkwitzRileySplitter4BandGeneric.hpp", "MultibandSaturator4BandCoreGeneric.hpp")
+HEADERS += ("SmoothRandomLFOPrepareGeneric.hpp", "SmoothRandomLFOCubicGeneric.hpp")
 
 
 def test_response(cases, output):
@@ -142,6 +143,17 @@ def test_all_responses(cases, compiler, output):
           "bit for bit in float/double at widths 1, 2, 3, 4; scalar double and independent complex checks pass.")
 
 
+def test_smooth_random_lfo(compiler, output):
+    runner = output / "smooth-random-lfo"
+    subprocess.run(compiler + [
+        "-std=c++17", "-O2", "-fno-fast-math", "-ffp-contract=off",
+        "-Wall", "-Wextra", "-Werror", "-I", str(GENERATED), "-I", str(ROOT / "private/src"),
+        str(ROOT / "formal/DSP/Tests/codegen_smooth_random_lfo.cpp"), "-o", str(runner),
+    ], check=True)
+    subprocess.run([str(runner)], check=True, timeout=30)
+    print("Smooth random LFO codegen: de Boor agreement, deterministic draws, and per-lane wraps.")
+
+
 def main():
     reference = subprocess.run(
         [str(BUILD / "artifacts/bin/dsp_codegen_reference")],
@@ -241,6 +253,7 @@ def main():
     test_channels(cases, compiler, output, input_counts)
     test_response(response_cases, output)
     test_all_responses(all_response_cases, compiler, output)
+    test_smooth_random_lfo(compiler, output)
     test_tuning(tuning_cases, compiler, output, ROOT)
     test_multiband(compiler, output, ROOT)
 

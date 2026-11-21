@@ -17,8 +17,12 @@ import DSP.Filters.Capture
 import DSP.Filters.ConservativeReuppingLadder.Response
 import DSP.Filters.MultibandSaturator.Runtime
 import DSP.Filters.Runtime
+import DSP.SmoothRandomLFO
 
 #use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
+
+#generate_cpp_preparation_generic DSP.SmoothRandomLFO.prepare as SmoothRandomLFOPrepareGeneric to "build/lean/generated/SmoothRandomLFOPrepareGeneric.hpp"
+#generate_cpp_function_generic DSP.SmoothRandomLFO.evaluate as SmoothRandomLFOCubicGeneric method Evaluate to "build/lean/generated/SmoothRandomLFOCubicGeneric.hpp"
 
 #generate_cpp_delay_buffer CircularBufferGeneric to "build/lean/generated/CircularBufferGeneric.hpp"
 #generate_cpp_generic DSP.DelayKernels.Runtime.AllPass.process as SchroederAllPassCoreGeneric to "build/lean/generated/SchroederAllPassCoreGeneric.hpp"

@@ -8,6 +8,7 @@ open Lean in
 run_cmd do
   let env ← getEnv
   let required := #[
+    ``DSP.SmoothRandomLFO.contDiff_join,
     ``DSP.OnePoleTPTLowPass.Runtime.simulation,
     ``DSP.OnePoleTPTLowPass.Runtime.prepare_save,
     ``DSP.OnePoleTPTHighPass.Runtime.simulation,

@@ -56,3 +56,4 @@ import DSP.Filters.DelayChannelsProofs
 import DSP.Filters.TunedDecayComb.ResponseProofs
 import DSP.Filters.DelayKernelsProofs
 import DSP.Filters.DelayKernels.Runtime
+import DSP.SmoothRandomLFO.Proofs

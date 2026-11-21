@@ -743,6 +743,24 @@ and temporaries are vectors, literals are splats, and the morph uses
 proofs and code; the exporter is tested rather than verified. See the
 [codegen guide](Codegen/README.md) for the interface and supported operations.
 
+## Smooth random LFO
+
+`SmoothRandomLFOGeneric<float, 4> lfo(48000.0, 20.0, seed)` creates four
+independently timed lanes with a mean drawn phase velocity of 0.05 Hz. `Process()`
+returns one vector of samples. `SetExponentialRate(sampleRateHz, lambda)` takes
+the exponential rate for velocity in cycles per second, so the mean of a draw
+is `1 / lambda`. Segment lengths are the reciprocals of the per-sample draws.
+Their bounds are one sample and `2^48` samples. Rate changes apply when the LFO
+draws a new span for its two-span lookahead.
+
+Uniform `[0, 1)` draws are control values of a nonuniform cubic B-spline.
+The generated evaluator uses three vector FMAs per sample. The generated
+coefficient preparation runs only when a lane installs a span. `contDiff_join`
+proves that adjacent cubics join with continuous value, velocity and acceleration
+in sample time for positive spans of different lengths. The runtime preserves
+fractional-sample overshoot across each knot. See the [Lean kernel](SmoothRandomLFO.lean),
+[C² proof](SmoothRandomLFO/Proofs.lean), and [runtime](../../private/src/SmoothRandomLFO.hpp).
+
 ## Build and evidence
 
 ```
