@@ -40,10 +40,21 @@ struct PhysicalModelingSourceGeneric
         using typename Base::ResponseVector;
         typename MorphingTPTSVFFilterGeneric<float, Size>::Snapshot m_mainSVF;
         typename TunedDecayCombGeneric<Size>::Snapshot m_combFilter;
+        Vector m_srrRate = Vector::Splat(1);
+
+        ResponseVector PreSrrPower(const Frequency& frequency) const
+        {
+            return m_mainSVF.MagnitudeSquaredResponses(frequency);
+        }
+
+        ResponseVector PostSrrPower(const Frequency& frequency) const
+        {
+            return m_combFilter.MagnitudeSquaredResponses(frequency);
+        }
 
         ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
-            return m_mainSVF.MagnitudeSquaredResponses(frequency) * m_combFilter.MagnitudeSquaredResponses(frequency);
+            return PreSrrPower(frequency) * PostSrrPower(frequency);
         }
     };
 
@@ -54,6 +65,7 @@ struct PhysicalModelingSourceGeneric
         Snapshot snapshot;
         snapshot.m_mainSVF = m_mainSVF.MakeSnapshot();
         snapshot.m_combFilter = m_combFilter.MakeSnapshot();
+        snapshot.m_srrRate = m_sampleRateReducer.m_freq;
         return snapshot;
     }
 
@@ -234,7 +246,7 @@ struct PhysicalModelingSourceGeneric
         input.m_mainSVFResonance = m_mainSVFResonanceParam.Update(encoders.GetValue<Size>(Param::PMMainSVFResonance, track));
         input.m_mainSVFMorph = encoders.GetValue<Size>(Param::PMMainSVFMorph, track);
         input.m_sampleRateReducerFreq = m_sampleRateReducerFreqParam.Update(
-            Vector::Splat(1) - encoders.GetValue<Size>(Param::PMSampleRateReduction, track)) / SampleTimer::x_oversample;
+            encoders.GetValue<Size>(Param::PMSampleRateReduction, track)) / SampleTimer::x_oversample;
 
         // Row 1: AHD envelope params (inverted like amp section)
         //

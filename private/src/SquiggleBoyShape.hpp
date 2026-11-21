@@ -37,18 +37,39 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
         typename ConservativeReuppingLadderShape::Snapshot m_conservativeReuppingLadder;
         typename SVF2PoleShape::Snapshot m_svf;
 
-        ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
+        Vector m_srrRate = Vector::Splat(1);
+
+        ResponseVector PreSrrPower(const Frequency& frequency) const
         {
             switch (m_filterMachine)
             {
                 case FilterMachine::NaiveReuppingLadder:
-                    return m_naiveReuppingLadder.MagnitudeSquaredResponses(frequency);
+                    return m_naiveReuppingLadder.m_lp.MagnitudeSquaredResponses(frequency);
                 case FilterMachine::ConservativeReuppingLadder:
-                    return m_conservativeReuppingLadder.MagnitudeSquaredResponses(frequency);
+                    return m_conservativeReuppingLadder.m_lp.MagnitudeSquaredResponses(frequency);
                 case FilterMachine::SVF2Pole:
                 default:
-                    return m_svf.MagnitudeSquaredResponses(frequency);
+                    return m_svf.m_lp.MagnitudeSquaredResponses(frequency);
             }
+        }
+
+        ResponseVector PostSrrPower(const Frequency& frequency) const
+        {
+            switch (m_filterMachine)
+            {
+                case FilterMachine::NaiveReuppingLadder:
+                    return m_naiveReuppingLadder.m_hp.MagnitudeSquaredResponses(frequency);
+                case FilterMachine::ConservativeReuppingLadder:
+                    return m_conservativeReuppingLadder.m_hp.MagnitudeSquaredResponses(frequency);
+                case FilterMachine::SVF2Pole:
+                default:
+                    return m_svf.m_hp.MagnitudeSquaredResponses(frequency);
+            }
+        }
+
+        ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
+        {
+            return PreSrrPower(frequency) * PostSrrPower(frequency);
         }
     };
 
@@ -61,14 +82,17 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
         if (machine == FilterMachine::NaiveReuppingLadder)
         {
             snapshot.m_naiveReuppingLadder = m_naiveReuppingLadder.MakeSnapshot();
+            snapshot.m_srrRate = m_naiveReuppingLadder.m_sampleRateReducer.m_freq;
         }
         else if (machine == FilterMachine::ConservativeReuppingLadder)
         {
             snapshot.m_conservativeReuppingLadder = m_conservativeReuppingLadder.MakeSnapshot();
+            snapshot.m_srrRate = m_conservativeReuppingLadder.m_sampleRateReducer.m_freq;
         }
         else
         {
             snapshot.m_svf = m_svf2Pole.MakeSnapshot();
+            snapshot.m_srrRate = m_svf2Pole.m_sampleRateReducer.m_freq;
         }
 
         return snapshot;

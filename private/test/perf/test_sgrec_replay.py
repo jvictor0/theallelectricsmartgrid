@@ -77,6 +77,33 @@ def main():
         assert saved == run(fixture, 'buffer-flush', True, callback_frames=8)
         complete = run(fixture, 'whole-recording', True, seconds='all')
         assert abs(complete['squiggleBoy']['DelaySendWater']['values']['values'][0] - 0.8) < 1e-6
+
+        srr_fixture = {
+            **fixture,
+            'initial_patch': {'version': 1},
+            'events': [
+                fixture['events'][0],
+                [100, 4, 'SampleRateReductionWater', 0, 0, [], 0.25, 0],
+                [101, 4, 'SampleRateReductionWater', 0, 0, [2], -0.5, 0],
+                [102, 4, 'SampleRateReductionWater', 0, 0, [128], 0.875, 0],
+                [102, 5, 'SampleRateReductionWater', 0, 0, [128], True, 1],
+                [103, 4, 'PMSampleRateReductionWater', 0, 0, [], 0.25, 0],
+            ],
+        }
+        for version, base, depth, gesture, pm_rate in [
+            (1, 0.75, 0.5, 0.125, 0.75),
+            (2, 0.25, -0.5, 0.875, 0.75),
+            (3, 0.25, -0.5, 0.875, 0.25),
+        ]:
+            srr_fixture['initial_patch']['version'] = version
+            encoders = run(srr_fixture, f'srr-v{version}', True)['squiggleBoy']
+            srr = encoders['SampleRateReductionWater']
+            assert srr['values']['values'][0] == base
+            assert srr['modulators'][2]['values']['values'][0] == depth
+            assert srr['gestures'][0]['values']['values'][0] == gesture
+            assert srr['gestures'][0]['active'][0]
+            assert encoders['PMSampleRateReductionWater']['values']['values'][0] == pm_rate
+
         for frames in (0, -1, 48001, '512x'):
             run(fixture, f'bad-frames-{frames}', False, callback_frames=frames)
         run(fixture, 'subframe-duration', False, seconds='0.000001')

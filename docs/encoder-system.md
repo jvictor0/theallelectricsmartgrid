@@ -86,11 +86,11 @@ A named cell saves `values.values` as eight numbers; a gesture also saves `activ
 as eight booleans. There is no inner track array.
 
 Patch JSON has a top-level integer `version`. Current saves, including recording
-snapshots, write version 1; a missing version means version 0. On the message
-thread, `StateInterchange::ParseForLoad` upgrades version 0 in memory before
+snapshots, write version 3. A missing version means version 0. On the message
+thread, `StateInterchange::ParseForLoad` upgrades older patches in memory before
 publishing the tree to audio. Opening a legacy patch does not rewrite its disk
-file; the upgraded form is written by a normal save. It splits each legacy
-Voice root into Water, Fire,
+file. A normal save writes the upgraded form. The version 0 upgrade splits each
+legacy Voice root into Water, Fire,
 and Earth roots. For each scene, trio indexes 0, 1, and 2 select the old
 scene-by-track value; gesture activation selects `active[scene * 16 + trio]`.
 The mapping recurses through modulators and gestures, retaining null slots and
@@ -99,10 +99,15 @@ Missing scene or track values become zero, and missing activation flags become
 false. Missing fields stay absent for partial loads. Unknown root fields and
 encoder names pass through unchanged. Already suffixed Voice roots stay intact,
 and already scalar shared values or eight-entry shared activation arrays are
-preserved during the transition. Explicit version 0 follows the same
-upgrade; version 1 is used unchanged. Negative, future, noninteger, and null
+preserved during the transition. Explicit version 0 follows the same upgrade.
+The version 2 upgrade reverses Shape SRR for patches before version 2. The
+version 3 upgrade reverses Physical Modeling RATE for patches before version 3.
+Both upgrades apply `1 - value` to knob positions and gesture targets and
+negate signed modulation depths and their gesture targets to preserve the
+effective reducer rate. Version 3 is used as saved. Negative, future, noninteger, and null
 versions are rejected, as are duplicate top-level `version` or `squiggleBoy`
-keys and legacy Voice roots that collide with a suffixed root. Recording container format version 5 is independent of patch version.
+keys and legacy Voice roots that collide with a suffixed root. The recording
+container version is independent of the patch version.
 
 ## Deep Modulation
 

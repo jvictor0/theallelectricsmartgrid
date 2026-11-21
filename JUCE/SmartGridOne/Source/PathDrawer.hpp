@@ -234,6 +234,15 @@ struct PathDrawer
             return;
         }
 
+        DrawResponseBand(g, colour, plot.m_frequencies.size(), [&](size_t i)
+        {
+            return plot.Get(i, lane);
+        });
+    }
+
+    template<typename ReadValues>
+    void DrawResponseBand(juce::Graphics& g, juce::Colour colour, size_t count, ReadValues readValues)
+    {
         struct Point
         {
             float m_x;
@@ -242,13 +251,12 @@ struct PathDrawer
             float m_upper;
         };
 
-        size_t count = plot.m_frequencies.size();
         std::vector<Point> points;
         points.reserve(count);
         for (size_t i = 0; i < count; ++i)
         {
             float position = static_cast<float>(i) / (count - 1);
-            const auto& values = plot.Get(i, lane);
+            const auto values = readValues(i);
             auto screenY = [&](float power)
             {
                 return m_yMin + m_height * (1 - NormalizeDb(SampledResponsePlot::PowerToDb(power)) / 2);

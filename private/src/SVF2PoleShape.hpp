@@ -135,7 +135,7 @@ struct SVF2PoleShapeGeneric : SquiggleBoyShapeBase
         input.m_lpResonance.Update(encoders.GetValue<Size>(Param::LPResonance, track));
         input.m_hpResonance.Update(encoders.GetValue<Size>(Param::HPResonance, track));
         input.m_saturationGain.Update(encoders.GetValue<Size>(Param::FilterDrive, track));
-        input.m_sampleRateReducerFreq.Update(Vector::Splat(1) - encoders.GetValue<Size>(Param::SampleRateReduction, track));
+        input.m_sampleRateReducerFreq.Update(encoders.GetValue<Size>(Param::SampleRateReduction, track));
     }
 };
 

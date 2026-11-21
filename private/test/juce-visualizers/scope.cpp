@@ -165,6 +165,87 @@ DOCTEST_TEST_CASE("Analyser: spectrum and oversampled response share the frequen
     }
 }
 
+DOCTEST_TEST_CASE("Filter SRR analyser: both sides of an image use the output-frequency high-pass")
+{
+    auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
+    auto& filter = ui->m_squiggleBoyUIState.m_voiceFilterUIState[0];
+    TrioSquiggleBoyShape shape;
+    auto& svf = shape.m_svf2Pole;
+    auto q = TrioFloat::Splat(0.70710678f);
+    svf.m_lpSVF.SetCutoffAndQ(TrioFloat::Splat(0.02f), q);
+    svf.m_hpSVF.SetCutoffAndQ(TrioFloat(0.12f, 0.499f, 0.12f), q);
+    svf.m_sampleRateReducer.SetFreq(TrioFloat(0.25f, 0.25f, 1.0f));
+    auto snapshot = shape.MakeSnapshot(VoiceMachine::FilterMachine::SVF2Pole);
+    filter.m_history.Push(snapshot);
+
+    int voiceOffset = -1;
+    auto& writer = ui->m_squiggleBoyUIState.m_voiceScopeWriter;
+    FilterSRRFilterComponent analyser(TrioWindowedFFT(&writer, 0), &voiceOffset, ui.get());
+    constexpr int x_width = PathDrawer::x_numPoints - 1;
+    constexpr int x_height = 400;
+    const auto nyquistImage = ResponseFrequency::CyclesPerSample(0.25);
+    DOCTEST_CHECK(SRRResponsePlot::HoldPower(nyquistImage, 0.25) < 1e-12f);
+
+    for (bool logX : {false, true})
+    {
+        DOCTEST_CAPTURE(logX);
+        PathDrawer drawer(x_height, x_width, 0, 0);
+        drawer.m_logX = logX;
+        analyser.PrepareResponse(drawer, 0);
+        DOCTEST_REQUIRE(analyser.m_srrResponse.m_preSrr.m_frequencies.size() == PathDrawer::x_numPoints);
+        DOCTEST_CHECK(analyser.m_srrResponse.m_srrRate == TrioFloat(0.25f, 0.25f, 1.0f));
+
+        juce::Image images[] = {
+            {juce::Image::ARGB, x_width, x_height, true},
+            {juce::Image::ARGB, x_width, x_height, true},
+            {juce::Image::ARGB, x_width, x_height, true}};
+        for (size_t lane = 0; lane < 3; ++lane)
+        {
+            juce::Graphics graphics(images[lane]);
+            analyser.DrawResponse(graphics, drawer, SmartGrid::Color::White, lane);
+        }
+
+        float nyquistPosition = logX ? PathDrawer::LinearToLog(0.125f) : 0.25f;
+        int nyquistX = static_cast<int>(std::round(nyquistPosition * x_width));
+        DOCTEST_CHECK(images[0].getPixelAt(nyquistX, 0).getAlpha() > 64);
+        DOCTEST_CHECK(images[0].getPixelAt(nyquistX, 3).getAlpha() == 0);
+        DOCTEST_CHECK(images[0].getPixelAt(nyquistX, 5).getAlpha() > 64);
+        DOCTEST_CHECK(images[0].getPixelAt(nyquistX + 3, 0).getAlpha() == 0);
+        DOCTEST_CHECK(images[2].getPixelAt(x_width - 1, 0).getAlpha() == 0);
+
+        for (double target : {0.23, 0.27})
+        {
+            float position = logX ? PathDrawer::LinearToLog(target) : 2 * target;
+            int x = static_cast<int>(std::round(position * x_width));
+            const auto& frequency = analyser.m_srrResponse.m_preSrr.m_frequencies[x];
+            double f = frequency.m_cyclesPerSample[0];
+            DOCTEST_CAPTURE(f);
+            auto source = ResponseFrequency::CyclesPerSample(std::abs(f - 0.25));
+            float lp = snapshot.m_svf.m_lp.MagnitudeSquaredResponse(source, 0);
+            float hp = snapshot.m_svf.m_hp.MagnitudeSquaredResponse(frequency, 0);
+            double hold = std::sin(4 * M_PI * f) / (4 * std::sin(M_PI * f));
+            float normalized = PathDrawer::NormalizeDb(10 * std::log10(lp * hp * hold * hold));
+            DOCTEST_REQUIRE(normalized > 0);
+            int y = static_cast<int>(std::round(x_height * (1 - normalized / 2)));
+
+            auto peakAlpha = [&](size_t lane)
+            {
+                int alpha = 0;
+                for (int dy = -3; dy <= 3; ++dy)
+                {
+                    alpha = std::max(alpha, static_cast<int>(images[lane].getPixelAt(x, y + dy).getAlpha()));
+                }
+
+                return alpha;
+            };
+            DOCTEST_CHECK(peakAlpha(0) > 25);
+            DOCTEST_CHECK(peakAlpha(0) < 150);
+            DOCTEST_CHECK(peakAlpha(1) == 0);
+            DOCTEST_CHECK(peakAlpha(2) == 0);
+        }
+    }
+}
+
 DOCTEST_TEST_CASE("Analyser: sub spectrum follows the trio and ignores the main signal and filter")
 {
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
@@ -593,6 +674,60 @@ DOCTEST_TEST_CASE("Sampled response rendering: percentile motion respects the GP
         juce::PNGImageFormat png;
         DOCTEST_CHECK(png.writeImageToStream(preview, *stream));
     }
+}
+
+DOCTEST_TEST_CASE("Physical Modeling response: SRR images pass through the comb")
+{
+    auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
+    auto& squiggle = ui->m_squiggleBoyUIState;
+    squiggle.m_voiceSourceUIState[0].m_sourceMachine.store(
+        SquiggleBoyTrack::VoiceConfig::SourceMachine::PhysicalModeling);
+    TrioPhysicalModelingSource source(17);
+    TrioPhysicalModelingSource::Input input;
+    input.m_mainSVFCutoff = TrioFloat::Splat(0.02f);
+    input.m_mainSVFMorph = TrioFloat::Splat(0);
+    input.m_sampleRateReducerFreq = TrioFloat::Splat(0.25f);
+    source.Process(input);
+    auto snapshot = source.MakeSnapshot();
+    snapshot.m_combFilter.m_branch[0].Set(0, TunedDecayComb::ComputeCoefficients(
+        0.05, 1, std::log2(5.0), 7, SampleTimer::x_sampleRate));
+    squiggle.m_physicalModelingUIState[0].m_history.Push(snapshot);
+
+    int voiceOffset = 0;
+    PhysicalModelingFrequencyResponseComponent analyser(ui.get(), &voiceOffset);
+    analyser.m_logX = false;
+    constexpr int x_width = PathDrawer::x_numPoints - 1;
+    constexpr int x_height = 400;
+    juce::Image image(juce::Image::ARGB, x_width, x_height, true);
+    juce::Graphics graphics(image);
+    analyser.Draw(graphics, {0, 0, x_width, x_height});
+    const auto& plot = analyser.m_srrResponse;
+    DOCTEST_REQUIRE(plot.m_preSrr.m_frequencies.size() == PathDrawer::x_numPoints);
+    DOCTEST_CHECK(plot.m_srrRate[0] == 0.25f);
+    const int nyquistX = static_cast<int>(std::round(x_width * 0.25));
+    DOCTEST_CHECK(image.getPixelAt(nyquistX, 0).getBrightness() > 0.1f);
+    DOCTEST_CHECK(image.getPixelAt(nyquistX, 3).getBrightness() == 0);
+    DOCTEST_CHECK(image.getPixelAt(nyquistX, 5).getBrightness() > 0.1f);
+
+    const int x = static_cast<int>(std::round(x_width * 0.46));
+    const auto& frequency = plot.m_preSrr.m_frequencies[x];
+    double f = frequency.m_cyclesPerSample[0];
+    auto reflected = ResponseFrequency::CyclesPerSample(std::abs(f - 0.25));
+    float svf = snapshot.m_mainSVF.MagnitudeSquaredResponse(reflected, 0);
+    float comb = snapshot.m_combFilter.MagnitudeSquaredResponse(frequency, 0);
+    DOCTEST_CHECK(plot.m_postSrr[x][0].m_median == doctest::Approx(comb));
+    DOCTEST_CHECK(comb != doctest::Approx(snapshot.m_combFilter.MagnitudeSquaredResponse(reflected, 0)));
+    float power = svf * comb * SRRResponsePlot::HoldPower(frequency, 0.25);
+    float normalized = PathDrawer::NormalizeDb(10 * std::log10(power));
+    DOCTEST_REQUIRE(normalized > 0);
+    int y = static_cast<int>(std::round(x_height * (1 - normalized / 2)));
+    float brightness = 0;
+    for (int dy = -3; dy <= 3; ++dy)
+    {
+        brightness = std::max(brightness, image.getPixelAt(x, y + dy).getBrightness());
+    }
+
+    DOCTEST_CHECK(brightness > 0.06f);
 }
 
 DOCTEST_TEST_CASE("Sampled response rendering: resizing retains the same narrow-resonance frequency grid")

@@ -21,12 +21,12 @@ F(BitReduction, PostFilterScope)
 F(PitchOffset, PostFilterScope)
 F(OscillatorDetune, PostFilterScope)
 
-// Physical modeling: resonator response and sample-rate-reduced spectrum.
+// Physical modeling response, including SRR images.
 //
 F(PMMainSVFCutoff, PhysModFreqResponse)
 F(PMMainSVFResonance, PhysModFreqResponse)
 F(PMMainSVFMorph, PhysModFreqResponse)
-F(PMSampleRateReduction, SourceAnalyzer)
+F(PMSampleRateReduction, PhysModFreqResponse)
 F(PMCombFeedback, PhysModFreqResponse)
 F(PMCombDampenCutoff, PhysModFreqResponse)
 

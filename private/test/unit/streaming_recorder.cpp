@@ -150,10 +150,11 @@ DOCTEST_TEST_CASE("streaming recorder: queued patch readers prevent reuse until 
     recorder.Shutdown();
     DOCTEST_CHECK(recorder.GetError() == StreamingRecorder::Error::None);
     const std::string bytes(memory->m_bytes.begin(), memory->m_bytes.end());
-    const size_t first = bytes.find("{\"old\":42,\"version\":1}");
+    const std::string upgradedPatch = "{\"old\":42,\"version\":" + std::to_string(PatchFormat::x_currentVersion) + "}";
+    const size_t first = bytes.find(upgradedPatch);
     DOCTEST_REQUIRE(first != std::string::npos);
-    DOCTEST_CHECK(bytes.find("{\"old\":42,\"version\":1}", first + 1) != std::string::npos);
-    DOCTEST_CHECK(bytes.find("{\"new\":99}") == std::string::npos);
+    DOCTEST_CHECK(bytes.find(upgradedPatch, first + 1) != std::string::npos);
+    DOCTEST_CHECK(bytes.find("\"new\":99") == std::string::npos);
 }
 
 DOCTEST_TEST_CASE("streaming recorder: failed sessions release queued and out-of-tail patches")

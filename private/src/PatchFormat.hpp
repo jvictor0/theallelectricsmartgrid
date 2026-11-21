@@ -1,6 +1,7 @@
 #pragma once
 
 #include "JuceSon.hpp"
+#include "SceneManager.hpp"
 #include "SmartGridOneLayout.hpp"
 #include <cstring>
 #include <string>
@@ -9,7 +10,9 @@
 //
 struct PatchFormat
 {
-    static constexpr int x_currentVersion = 1;
+    static constexpr int x_shapeSrrPolarityVersion = 2;
+    static constexpr int x_physicalModelingSrrPolarityVersion = 3;
+    static constexpr int x_currentVersion = x_physicalModelingSrrPolarityVersion;
 
     enum class Scope
     {
@@ -235,9 +238,117 @@ struct PatchFormat
         return result;
     }
 
+    static bool NeedsSrrPolarityUpgrade(const char* name, int64_t version)
+    {
+        return (version < x_shapeSrrPolarityVersion
+                && (strcmp(name, "SampleRateReductionWater") == 0
+                    || strcmp(name, "SampleRateReductionFire") == 0
+                    || strcmp(name, "SampleRateReductionEarth") == 0))
+            || (version < x_physicalModelingSrrPolarityVersion
+                && (strcmp(name, "PMSampleRateReductionWater") == 0
+                    || strcmp(name, "PMSampleRateReductionFire") == 0
+                    || strcmp(name, "PMSampleRateReductionEarth") == 0));
+    }
+
+    static float ReverseSrrValue(float value, bool bipolar)
+    {
+        return bipolar ? -value : 1.0f - value;
+    }
+
+    static JSON ReverseSrrValues(JsonArena& arena, JSON source, bool bipolar)
+    {
+        JSON result = arena.Object();
+        JSON oldValues = source.Get("values");
+        JSON values = arena.Array();
+        for (size_t scene = 0; scene < SmartGrid::SceneManager::x_numScenes; ++scene)
+        {
+            float value = static_cast<float>(oldValues.GetAt(scene).NumberValue());
+            values.AppendNew(arena.Real(ReverseSrrValue(value, bipolar)));
+        }
+
+        const size_t oldCount = IsArray(oldValues) ? oldValues.Size() : 0;
+        for (size_t scene = SmartGrid::SceneManager::x_numScenes; scene < oldCount; ++scene)
+        {
+            values.AppendNew(oldValues.GetAt(scene));
+        }
+
+        result.SetNew("values", values);
+        if (IsObject(source))
+        {
+            const JsonMember* members = Members(source);
+            for (uint32_t i = 0; i < MemberCount(source); ++i)
+            {
+                if (strcmp(members[i].m_key, "values") != 0)
+                {
+                    result.SetNew(members[i].m_key, JSON(members[i].m_value));
+                }
+            }
+        }
+
+        return result;
+    }
+
+    static JSON ReverseSrrCell(JsonArena& arena, JSON cell, bool bipolar)
+    {
+        if (!IsObject(cell))
+        {
+            return cell;
+        }
+
+        JSON result = arena.Object();
+        const JsonMember* members = Members(cell);
+        for (uint32_t i = 0; i < MemberCount(cell); ++i)
+        {
+            const char* key = members[i].m_key;
+            JSON value(members[i].m_value);
+            bool modulator = strcmp(key, "modulators") == 0;
+            if (strcmp(key, "values") == 0 && !value.IsNull())
+            {
+                value = ReverseSrrValues(arena, value, bipolar);
+            }
+            else if ((modulator || strcmp(key, "gestures") == 0) && IsArray(value))
+            {
+                // Modulation depths are signed and gesture targets inherit
+                // their parent's domain. Reversing the whole tree complements
+                // the final knob value even while modulation is active.
+                //
+                JSON children = arena.Array();
+                for (size_t child = 0; child < value.Size(); ++child)
+                {
+                    children.AppendNew(ReverseSrrCell(arena, value.GetAt(child), modulator || bipolar));
+                }
+
+                value = children;
+            }
+
+            result.SetNew(key, value);
+        }
+
+        return result;
+    }
+
+    static JSON ReverseSrrEncoders(JsonArena& arena, JSON encoders, int64_t sourceVersion)
+    {
+        if (!IsObject(encoders))
+        {
+            return encoders;
+        }
+
+        JSON result = arena.Object();
+        const JsonMember* members = Members(encoders);
+        for (uint32_t i = 0; i < MemberCount(encoders); ++i)
+        {
+            const char* key = members[i].m_key;
+            JSON cell(members[i].m_value);
+            result.SetNew(key, NeedsSrrPolarityUpgrade(key, sourceVersion) ? ReverseSrrCell(arena, cell, false) : cell);
+        }
+
+        return result;
+    }
+
     static JSON Upgrade(JsonArena& arena, JSON patch)
     {
-        if (!IsObject(patch))
+        if (arena.Failed() || !IsObject(patch))
         {
             return JSON::Null();
         }
@@ -262,31 +373,40 @@ struct PatchFormat
             return JSON::Null();
         }
 
-        JSON version = patch.Get("version");
+        int64_t sourceVersion = 0;
         if (versionCount == 1)
         {
+            JSON version = patch.Get("version");
             if (!version.m_node || version.m_node->m_type != JsonType::Integer)
             {
                 return JSON::Null();
             }
 
-            if (version.m_node->m_int == x_currentVersion)
+            sourceVersion = version.m_node->m_int;
+            if (sourceVersion == x_currentVersion)
             {
                 return patch;
             }
 
-            if (version.m_node->m_int != 0)
+            if (sourceVersion < 0 || sourceVersion > x_currentVersion)
             {
                 return JSON::Null();
             }
         }
 
         JSON encoders = patch.Get("squiggleBoy");
-        JSON converted = ConvertEncoders(arena, encoders);
-        if (IsObject(encoders) && converted.IsNull())
+        if (sourceVersion == 0)
         {
-            return JSON::Null();
+            JSON converted = ConvertEncoders(arena, encoders);
+            if (arena.Failed() || (IsObject(encoders) && converted.IsNull()))
+            {
+                return JSON::Null();
+            }
+
+            encoders = converted;
         }
+
+        encoders = ReverseSrrEncoders(arena, encoders, sourceVersion);
 
         JSON result = arena.Object();
         for (uint32_t i = 0; i < MemberCount(patch); ++i)
@@ -297,7 +417,7 @@ struct PatchFormat
                 continue;
             }
 
-            result.SetNew(key, strcmp(key, "squiggleBoy") == 0 ? converted : JSON(members[i].m_value));
+            result.SetNew(key, strcmp(key, "squiggleBoy") == 0 ? encoders : JSON(members[i].m_value));
         }
 
         result.SetNew("version", arena.Integer(x_currentVersion));

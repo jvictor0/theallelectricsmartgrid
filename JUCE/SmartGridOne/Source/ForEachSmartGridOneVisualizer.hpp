@@ -116,7 +116,7 @@ F(
     1,
     1,
     Full,
-    std::make_unique<AnalyserComponent>(
+    std::make_unique<FilterSRRFilterComponent>(
         TrioWindowedFFT(m_nonagon->GetVoiceScopeWriter(), static_cast<size_t>(SmartGridOne::VoiceScopes::PostAmp)),
         &m_scopeVoiceOffset,
         uiState),

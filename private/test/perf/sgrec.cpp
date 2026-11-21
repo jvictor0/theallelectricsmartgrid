@@ -1,4 +1,5 @@
 #include "Bench.hpp"
+#include "PatchFormat.hpp"
 #include "support/SynthRig.hpp"
 #include <map>
 #include <iterator>
@@ -30,6 +31,7 @@ struct ControlReplay
     size_t m_nextEvent = 0;
     size_t m_hostFrame = 0;
     size_t m_frames = 0;
+    int m_patchVersion = 0;
 
     explicit ControlReplay(JSON root)
     {
@@ -41,7 +43,9 @@ struct ControlReplay
         m_frames = static_cast<size_t>(frames);
         Require(!root.Get("initial_phase").IsNull() && std::isfinite(root.Get("initial_phase").NumberValue()),
             "Missing or nonfinite initial clock phase");
-        Require(m_rig.LoadPatchJSON(root.Get("initial_patch")), "Cannot load initial patch");
+        JSON initialPatch = root.Get("initial_patch");
+        Require(m_rig.LoadPatchJSON(initialPatch), "Cannot load initial patch");
+        m_patchVersion = initialPatch.Get("version").IntegerValue();
         auto& internal = m_rig.Internal();
         auto& synth = internal.m_squiggleBoy;
         uint32_t seed = 1000;
@@ -213,6 +217,11 @@ struct ControlReplay
                 float value = static_cast<float>(event.m_value.NumberValue());
                 Require(std::isfinite(value) && value >= (cell->m_bipolar ? -1 : 0) && value <= 1,
                     "Invalid encoder value");
+                if (PatchFormat::NeedsSrrPolarityUpgrade(event.m_name.c_str(), m_patchVersion))
+                {
+                    value = PatchFormat::ReverseSrrValue(value, cell->m_bipolar);
+                }
+
                 cell->SetAndRecordValue(cell->ToNormalized(value), event.m_scene);
                 cell->SetState();
             }

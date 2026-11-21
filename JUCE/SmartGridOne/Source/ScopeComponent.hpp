@@ -364,10 +364,26 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
         m_windowedFFT = windowedFFT;
     }
 
+    virtual void PrepareResponse(const PathDrawer& drawer, size_t track)
+    {
+        if (m_filterOverlay == FilterOverlay::Voice)
+        {
+            drawer.PrepareSampledResponse(m_responsePlot, m_voiceFilterUIState[track]);
+        }
+    }
+
+    virtual void DrawResponse(juce::Graphics& g, PathDrawer& drawer, SmartGrid::Color color, size_t lane)
+    {
+        if (m_filterOverlay == FilterOverlay::Voice)
+        {
+            color = color.Interpolate(SmartGrid::Color::White, 0.5f);
+            drawer.DrawSampledFrequencyResponse(g, juce::Colour(color.m_red, color.m_green, color.m_blue),
+                m_responsePlot, lane);
+        }
+    }
+
     void Draw(juce::Graphics& g, juce::Rectangle<int> boundsRect) override
     {
-        // Fill background
-        //
         g.fillAll(juce::Colours::black);
 
         auto bounds = boundsRect.toFloat();
@@ -386,10 +402,7 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
 
         PathDrawer responseDrawer(height, width, 0, 0);
         responseDrawer.m_logX = m_logX;
-        if (m_filterOverlay == FilterOverlay::Voice)
-        {
-            responseDrawer.PrepareSampledResponse(m_responsePlot, m_voiceFilterUIState[baseVoiceIx / x_voicesPerTrack]);
-        }
+        PrepareResponse(responseDrawer, baseVoiceIx / x_voicesPerTrack);
 
         for (size_t i = 0; i < numLoops; ++i)
         {
@@ -409,14 +422,7 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
                 juce::Colour(color.m_red, color.m_green, color.m_blue),
                 &m_windowedFFT, voiceIx % x_voicesPerTrack);
 
-            if (m_filterOverlay == FilterOverlay::Voice)
-            {
-                color = color.Interpolate(SmartGrid::Color::White, 0.5f);
-                responseDrawer.DrawSampledFrequencyResponse(
-                    g,
-                    juce::Colour(color.m_red, color.m_green, color.m_blue),
-                    m_responsePlot, voiceIx % x_voicesPerTrack);
-            }
+            DrawResponse(g, responseDrawer, color, voiceIx % x_voicesPerTrack);
         }
     }
 
@@ -427,6 +433,261 @@ struct AnalyserComponent : public SmartGridOneMainVisualizerComponent
         {
             *m_voiceOffset = -1;
         }
+    }
+};
+
+struct SRRResponsePlot
+{
+    using PlotPowers = std::array<float, PathDrawer::x_numPoints>;
+    using ResponseColumn = std::array<SampledTransferFunction::OrderStatistics, 3>;
+
+    struct StagePowers
+    {
+        TrioFloat m_preSrr;
+        TrioFloat m_postSrr;
+    };
+
+    static constexpr float x_visiblePower = 1e-6f;
+    SampledResponsePlot m_preSrr;
+    std::array<ResponseColumn, PathDrawer::x_numPoints> m_postSrr;
+    std::array<ResponseColumn, PathDrawer::x_numPoints> m_combined;
+    std::vector<StagePowers> m_stagePowers;
+    TrioFloat m_srrRate = TrioFloat::Splat(1);
+#if TEMPORARY_REDUCE_GPU
+    juce::Image m_imageLayer;
+#endif
+
+    template<typename Snapshot>
+    void Prepare(const PathDrawer& drawer, TransferFunctionGeneric<Snapshot>& state)
+    {
+        static_assert(Snapshot::x_numLanes == ResponseColumn{}.size());
+        auto samples = state.Sample();
+        if (!samples.empty())
+        {
+            m_srrRate = state.m_readSnapshots[samples.front()].m_srrRate;
+        }
+
+        m_stagePowers.resize(samples.size());
+        m_preSrr.Evaluate(PathDrawer::x_numPoints, drawer.m_logX,
+            PathDrawer::x_minFrequency * SampleTimer::x_sampleRate, SampleTimer::x_sampleRate,
+            state.NumLanes(), !samples.empty(), [&](size_t i, const auto& frequency, auto* output)
+            {
+                state.EvaluateAll(samples, frequency, output, [&](auto id, const auto& prepared)
+                {
+                    const auto& snapshot = state.m_readSnapshots[id];
+                    auto& powers = m_stagePowers[id];
+                    powers = {snapshot.PreSrrPower(prepared), snapshot.PostSrrPower(prepared)};
+                    return powers.m_preSrr;
+                });
+                state.EvaluateAll(samples, frequency, m_postSrr[i].data(), [&](auto id, const auto&)
+                {
+                    return m_stagePowers[id].m_postSrr;
+                });
+                state.EvaluateAll(samples, frequency, m_combined[i].data(), [&](auto id, const auto&)
+                {
+                    const auto& powers = m_stagePowers[id];
+                    return powers.m_preSrr * powers.m_postSrr;
+                });
+            });
+    }
+
+    // Exact for a fixed integer hold length. For fractional rates, use the
+    // captured rate as a continuous approximation to that envelope.
+    //
+    static float HoldPower(const ResponseFrequency& frequency, double rate)
+    {
+        if (rate >= 1 || frequency.m_cyclesPerSample[0] == 0)
+        {
+            return 1;
+        }
+
+        auto holdPhase = frequency.m_cyclesPerSample / (2 * rate);
+        double gain = rate * Math4096::Sin2pi(holdPhase)[0] / frequency.m_sinHalf[0];
+        return static_cast<float>(gain * gain);
+    }
+
+    void DrawImage(juce::Graphics& g, const PathDrawer& drawer, juce::Colour colour, size_t lane,
+        double offset, const PlotPowers& postPower, float peakPreSrr) const
+    {
+        juce::Path path;
+        bool previousVisible = false;
+        float dx = drawer.m_width / (postPower.size() - 1);
+        float bottom = drawer.m_yMin + drawer.m_height;
+        for (size_t i = 0; i < postPower.size(); ++i)
+        {
+            float normalized = 0;
+            if (postPower[i] * peakPreSrr > x_visiblePower)
+            {
+                double frequency = m_preSrr.m_frequencies[i].m_cyclesPerSample[0];
+                double source = std::abs(std::remainder(frequency - offset, 1.0));
+                float power = m_preSrr.InterpolateMedian(source, lane) * postPower[i];
+                normalized = PathDrawer::NormalizeDb(SampledResponsePlot::PowerToDb(power));
+            }
+            bool visible = normalized > 0;
+            float x = drawer.m_xMin + i * dx;
+            float y = bottom - drawer.m_height * normalized / 2;
+            if (visible && !previousVisible)
+            {
+                path.startNewSubPath(i == 0 ? x : x - dx, i == 0 ? y : bottom);
+            }
+
+            if (visible || previousVisible)
+            {
+                path.lineTo(x, y);
+            }
+
+            previousVisible = visible;
+        }
+
+        if (!path.isEmpty())
+        {
+            g.setColour(colour);
+            g.strokePath(path, juce::PathStrokeType(1));
+        }
+    }
+
+    void DrawImages(juce::Graphics& g, const PathDrawer& drawer, juce::Colour colour, size_t lane,
+        double rate, double imageCount, const PlotPowers& holdPower) const
+    {
+        PlotPowers postPower;
+        float peakPreSrr = 0;
+        for (size_t i = 0; i < postPower.size(); ++i)
+        {
+            postPower[i] = holdPower[i] * m_postSrr[i][lane].m_median;
+            peakPreSrr = std::max(peakPreSrr, m_preSrr.Get(i, lane).m_median);
+        }
+
+        // Signed image orders cover the periodic spectrum. At integer
+        // even factors the two outer orders are the same Nyquist image.
+        // Stop building paths once the colour's alpha rounds to zero.
+        //
+        float opacity = 0.52f;
+        for (int order = 1; 2 * order <= imageCount; ++order, opacity *= 0.8f)
+        {
+            auto imageColour = colour.withMultipliedAlpha(opacity);
+            if (imageColour.getAlpha() == 0)
+            {
+                break;
+            }
+
+            double offset = order * rate;
+            DrawImage(g, drawer, imageColour, lane, offset, postPower, peakPreSrr);
+            if (2 * order < imageCount)
+            {
+                DrawImage(g, drawer, imageColour, lane, -offset, postPower, peakPreSrr);
+            }
+        }
+    }
+
+#if TEMPORARY_REDUCE_GPU
+    void DrawImageLayer(juce::Graphics& g, const PathDrawer& drawer, juce::Colour colour, size_t lane,
+        double rate, double imageCount, const PlotPowers& holdPower)
+    {
+        int width = static_cast<int>(std::ceil(drawer.m_width));
+        int height = static_cast<int>(std::ceil(drawer.m_height));
+        if (width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        // Rasterize the translucent strokes into a bitmap at the plot's logical
+        // size. The display context composites one image for this voice.
+        //
+        if (m_imageLayer.getWidth() != width || m_imageLayer.getHeight() != height)
+        {
+            m_imageLayer = juce::Image(juce::Image::ARGB, width, height, true, juce::NativeImageType{});
+        }
+        else
+        {
+            m_imageLayer.clear(m_imageLayer.getBounds());
+        }
+
+        {
+            juce::Graphics imageGraphics(m_imageLayer);
+            DrawImages(imageGraphics, PathDrawer(height, width, 0, 0), colour, lane, rate, imageCount, holdPower);
+        }
+
+        g.setOpacity(1.0f);
+        g.drawImage(m_imageLayer, {drawer.m_xMin, drawer.m_yMin, drawer.m_width, drawer.m_height});
+    }
+#endif
+
+    static void DrawReducedNyquist(juce::Graphics& g, const PathDrawer& drawer, juce::Colour colour, double rate)
+    {
+        float nyquist = static_cast<float>(rate * 0.5);
+        if (nyquist >= PathDrawer::x_maxFrequency || (drawer.m_logX && nyquist < PathDrawer::x_minFrequency))
+        {
+            return;
+        }
+
+        float position = drawer.m_logX ? PathDrawer::LinearToLog(nyquist) : nyquist / PathDrawer::x_maxFrequency;
+        constexpr float x_dotSize = 2.0f;
+        constexpr float x_dotPeriod = 5.0f;
+        float left = drawer.m_xMin + position * drawer.m_width - x_dotSize / 2;
+        juce::RectangleList<float> dots;
+        for (float y = 0; y < drawer.m_height; y += x_dotPeriod)
+        {
+            dots.addWithoutMerging({left, drawer.m_yMin + y, x_dotSize, std::min(x_dotSize, drawer.m_height - y)});
+        }
+
+        g.setColour(colour.withMultipliedAlpha(0.55f));
+        g.fillRectList(dots);
+    }
+
+    void Draw(juce::Graphics& g, PathDrawer& drawer, juce::Colour colour, size_t lane)
+    {
+        double rate = m_srrRate[lane];
+        if (m_preSrr.m_values.empty() || rate <= 0)
+        {
+            return;
+        }
+
+        PlotPowers holdPower;
+        for (size_t i = 0; i < holdPower.size(); ++i)
+        {
+            holdPower[i] = HoldPower(m_preSrr.m_frequencies[i], rate);
+        }
+
+        double imageCount = rate < 1 ? std::round(1 / rate) : 1;
+        if (imageCount >= 2)
+        {
+#if TEMPORARY_REDUCE_GPU
+            DrawImageLayer(g, drawer, colour, lane, rate, imageCount, holdPower);
+#else
+            DrawImages(g, drawer, colour, lane, rate, imageCount, holdPower);
+#endif
+        }
+
+        drawer.DrawResponseBand(g, colour, holdPower.size(), [&](size_t i)
+        {
+            const auto& response = m_combined[i][lane];
+            float hold = holdPower[i];
+            return SampledTransferFunction::OrderStatistics{
+                hold * response.m_lower, hold * response.m_median, hold * response.m_upper};
+        });
+        DrawReducedNyquist(g, drawer, colour, rate);
+    }
+};
+
+struct FilterSRRFilterComponent : AnalyserComponent
+{
+    SRRResponsePlot m_srrResponse;
+
+    FilterSRRFilterComponent(const TrioWindowedFFT& windowedFFT, int* voiceOffset,
+        TheNonagonSquiggleBoyInternal::UIState* uiState)
+        : AnalyserComponent(windowedFFT, voiceOffset, uiState, FilterOverlay::None)
+    {
+    }
+
+    void PrepareResponse(const PathDrawer& drawer, size_t track) override
+    {
+        m_srrResponse.Prepare(drawer, m_voiceFilterUIState[track]);
+    }
+
+    void DrawResponse(juce::Graphics& g, PathDrawer& drawer, SmartGrid::Color color, size_t lane) override
+    {
+        color = color.Interpolate(SmartGrid::Color::White, 0.5f);
+        m_srrResponse.Draw(g, drawer, juce::Colour(color.m_red, color.m_green, color.m_blue), lane);
     }
 };
 
@@ -743,8 +1004,7 @@ struct TheoryOfTimeScopeComponent : public SmartGridOneMainVisualizerComponent
     }
 };
 
-// Physical modeling frequency response visualizer
-// Draws the combined response for pre-comb SVF and comb+one-pole damping comb.
+// The source response uses the morphing SVF before SRR and the damped comb after it.
 //
 struct PhysicalModelingFrequencyResponseComponent : public SmartGridOneMainVisualizerComponent
 {
@@ -754,7 +1014,7 @@ struct PhysicalModelingFrequencyResponseComponent : public SmartGridOneMainVisua
     std::atomic<size_t>* m_voiceIx;
     int* m_voiceOffset;
     bool m_logX;
-    SampledResponsePlot m_responsePlot;
+    SRRResponsePlot m_srrResponse;
 
     PhysicalModelingFrequencyResponseComponent(
         TheNonagonSquiggleBoyInternal::UIState* uiState,
@@ -781,7 +1041,7 @@ struct PhysicalModelingFrequencyResponseComponent : public SmartGridOneMainVisua
 
         PathDrawer responseDrawer(height, width, 0, 0);
         responseDrawer.m_logX = m_logX;
-        responseDrawer.PrepareSampledResponse(m_responsePlot,
+        m_srrResponse.Prepare(responseDrawer,
             m_uiState->m_squiggleBoyUIState.m_physicalModelingUIState[baseVoiceIx / x_voicesPerTrack]);
 
         for (size_t loopIx = 0; loopIx < numLoops; ++loopIx)
@@ -799,10 +1059,8 @@ struct PhysicalModelingFrequencyResponseComponent : public SmartGridOneMainVisua
             }
 
             SmartGrid::Color color = TheNonagonSmartGrid::VoiceColor(voiceIx);
-            responseDrawer.DrawSampledFrequencyResponse(
-                g,
-                juce::Colour(color.m_red, color.m_green, color.m_blue),
-                m_responsePlot, voiceIx % x_voicesPerTrack);
+            m_srrResponse.Draw(g, responseDrawer, juce::Colour(color.m_red, color.m_green, color.m_blue),
+                voiceIx % x_voicesPerTrack);
         }
     }
 

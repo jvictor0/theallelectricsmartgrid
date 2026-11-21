@@ -89,6 +89,7 @@ The filter section SHALL derive both cutoff frequencies from the voice base freq
 
 ### Requirement: Sample-Rate Reduction Before the High-Pass
 Each filter machine SHALL apply a `SampleRateReducer` to its low-pass output and feed the reduced signal to its high-pass, with reduction frequency `vcoBaseFreq * sampleRateReducerFactor` in cycles per engine sample, where the factor is an exponential parameter spanning 1 to 2048. Channels whose reduction frequency reaches one cycle per engine sample bypass the reducer.
+The factor SHALL be `2048^u`, where `u` is the normalized Shape SRR knob position. Full clockwise SHALL be the default.
 Because the reduction frequency is proportional to the voice base frequency, the digital-degradation character tracks pitch; at the maximum factor the reduction frequency is far above the audible band and the stage is effectively transparent.
 
 #### Scenario: Sample-rate reduction tracks pitch

@@ -336,12 +336,22 @@ struct TransferFunctionGeneric : SampledTransferFunction
     void ResponseAll(const std::vector<SampleId>& samples, const ResponseFrequency& frequency,
         OrderStatistics* output) override
     {
+        EvaluateAll(samples, frequency, output, [this](SampleId id, const Frequency& prepared)
+        {
+            return MagnitudeSquaredResponses(id, prepared);
+        });
+    }
+
+    template<typename EvaluatePower>
+    void EvaluateAll(const std::vector<SampleId>& samples, const ResponseFrequency& frequency,
+        OrderStatistics* output, EvaluatePower evaluatePower)
+    {
         assert(!samples.empty() && samples.size() <= m_config.m_numSamples);
         PrepareSort(samples.size());
         const auto prepared = frequency.template Broadcast<FrequencyVector>();
         for (size_t i = 0; i < samples.size(); ++i)
         {
-            m_powers[i] = MagnitudeSquaredResponses(samples[i], prepared);
+            m_powers[i] = evaluatePower(samples[i], prepared);
             for (size_t lane = 0; lane < x_numLanes; ++lane)
             {
                 assert(std::isfinite(m_powers[i][lane]) && m_powers[i][lane] >= 0);
@@ -443,6 +453,18 @@ struct SampledResponsePlot
 
     void Evaluate(SampledTransferFunction& response, size_t points, bool logX, double minHz, double sampleRate)
     {
+        auto samples = response.Sample();
+        Evaluate(points, logX, minHz, sampleRate, response.NumLanes(), !samples.empty(),
+            [&](size_t, const ResponseFrequency& frequency, SampledTransferFunction::OrderStatistics* output)
+            {
+                response.ResponseAll(samples, frequency, output);
+            });
+    }
+
+    template<typename EvaluateColumn>
+    void Evaluate(size_t points, bool logX, double minHz, double sampleRate, size_t numLanes, bool hasSamples,
+        EvaluateColumn evaluateColumn)
+    {
         assert(points > 1 && minHz > 0 && minHz < sampleRate / 2);
         if (m_frequencies.size() != points || m_logX != logX || m_sampleRate != sampleRate || m_minHz != minHz)
         {
@@ -461,17 +483,16 @@ struct SampledResponsePlot
             }
         }
 
-        m_numLanes = response.NumLanes();
-        auto samples = response.Sample();
-        m_values.resize(samples.empty() ? 0 : points * m_numLanes);
-        if (samples.empty())
+        m_numLanes = numLanes;
+        m_values.resize(hasSamples ? points * m_numLanes : 0);
+        if (!hasSamples)
         {
             return;
         }
 
         for (size_t i = 0; i < points; ++i)
         {
-            response.ResponseAll(samples, m_frequencies[i], m_values.data() + i * m_numLanes);
+            evaluateColumn(i, m_frequencies[i], m_values.data() + i * m_numLanes);
         }
     }
 
@@ -479,6 +500,25 @@ struct SampledResponsePlot
     {
         assert(lane < m_numLanes);
         return m_values[column * m_numLanes + lane];
+    }
+
+    float InterpolateMedian(double cyclesPerSample, size_t lane) const
+    {
+        auto upper = std::lower_bound(m_frequencies.begin(), m_frequencies.end(), cyclesPerSample,
+            [](const ResponseFrequency& frequency, double value)
+            {
+                return frequency.m_cyclesPerSample[0] < value;
+            });
+        size_t i = static_cast<size_t>(upper - m_frequencies.begin());
+        if (i == 0 || i == m_frequencies.size())
+        {
+            return Get(std::min(i, m_frequencies.size() - 1), lane).m_median;
+        }
+
+        double lowerFrequency = m_frequencies[i - 1].m_cyclesPerSample[0];
+        double upperFrequency = upper->m_cyclesPerSample[0];
+        float fraction = static_cast<float>((cyclesPerSample - lowerFrequency) / (upperFrequency - lowerFrequency));
+        return Get(i - 1, lane).m_median * (1 - fraction) + Get(i, lane).m_median * fraction;
     }
 };
 
