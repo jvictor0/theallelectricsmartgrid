@@ -163,46 +163,39 @@ struct CountingAudioBuffer
 DOCTEST_TEST_CASE("Rate boundaries: reverb keeps its physical delay times, modulation and damping")
 {
     GlobalEnv::ResetPerTest();
-    auto reverb = std::make_unique<QuadReverb>();
     QuadReverbInputSetter setter;
-    QuadReverb::Input input;
+    constexpr float x_engineSamplesPerReferenceSample = SampleTimer::x_sampleRate / 192000.0f;
 
-    DOCTEST_CHECK(setter.m_delayTime.m_factor == doctest::Approx(60.0 * x_ratio));
-    DOCTEST_CHECK(input.m_delayTimeSamples[0] == doctest::Approx(64.0 * x_ratio));
+    DOCTEST_CHECK(setter.m_delayTime.m_factor == doctest::Approx(240.0f * x_engineSamplesPerReferenceSample));
     DOCTEST_CHECK(SampleTimer::CycPerSampToHz(setter.m_dampingBase.m_factor) == doctest::Approx(23.4375).epsilon(1e-6));
     for (size_t channel = 0; channel < 4; ++channel)
     {
-        DOCTEST_CHECK(setter.m_delayTime.m_max[channel] == doctest::Approx(61440.0 * x_ratio));
+        DOCTEST_CHECK(setter.m_delayTime.m_max[channel] == doctest::Approx(245760.0f * x_engineSamplesPerReferenceSample));
         DOCTEST_CHECK(SampleTimer::CycPerSampToHz(setter.m_dampingBase.m_max[channel]) == doctest::Approx(24000.0).epsilon(1e-6));
     }
 
-    double ringSeconds = static_cast<double>(QuadReverb::x_delayLineSize) * SampleTimer::x_samplePeriod;
-    double longestSeconds = (QuadReverb::x_maxDelayHostSamples + QuadReverb::x_modulationHostSamples) * SampleTimer::x_hostSamplePeriod;
-    DOCTEST_CHECK(ringSeconds == doctest::Approx(65536.0 / 48000.0));
-    DOCTEST_CHECK(longestSeconds < ringSeconds);
-
-    DOCTEST_CHECK(reverb->m_inputFilter.m_filters[7].GetDelaySamples(0) == static_cast<int>(877 * x_ratio));
-    DOCTEST_CHECK(reverb->m_postFeedbackFilter.m_apf2.GetDelaySamples(3) == static_cast<int>(293 * x_ratio));
-    DOCTEST_CHECK(reverb->m_preFeedbackFilter.GetDelaySamples(0) == static_cast<int>(3 * x_ratio));
-    DOCTEST_CHECK(877 * x_ratio < QuadAllPassFilter::x_maxDelaySamples);
+    QuadReverbInputSetter::Input knobs;
+    const auto base = setter.Process(knobs).m_delaySamples;
+    knobs.m_delayOffsetKnob = QuadFloat(0.0f, 0.25f, 0.5f, 1.0f);
+    const auto expected = base + QuadFloat(-4000, -2000, 0, 4000) * x_engineSamplesPerReferenceSample;
+    DOCTEST_CHECK(setter.Process(knobs).m_delaySamples == expected);
+    DOCTEST_CHECK(QuadReverb::x_delayCapacity == 262144);
+    DOCTEST_CHECK(QuadReverb::x_maxDelaySamples + QuadReverb::x_modulationSamples < QuadReverb::x_delayCapacity);
 }
 
 DOCTEST_TEST_CASE("Rate boundaries: a reverb impulse first arrives after the physical loop delay")
 {
     GlobalEnv::ResetPerTest();
     auto reverb = std::make_unique<QuadReverb>();
-    QuadReverb::Input input;
     const size_t delaySamples = 1920 * x_ratio;
-    input.m_delayTimeSamples = QuadFloat::Splat(static_cast<float>(delaySamples));
-    input.m_feedback = QuadFloat::Splat(0.0f);
-    input.m_bffBase = QuadFloat::Splat(static_cast<float>(SampleTimer::HzToCycPerSamp(0.5)));
-    input.m_bffWidth = QuadFloat::Splat(65536.0f);
+    reverb->ComputeCoefficients({QuadFloat::Splat(static_cast<float>(delaySamples)), QuadFloat(),
+        QuadFloat::Splat(static_cast<float>(SampleTimer::HzToCycPerSamp(0.5))), QuadFloat::Splat(65536.0f)});
 
     double before = 0.0;
     double after = 0.0;
     for (size_t n = 0; n < delaySamples * 2; ++n)
     {
-        input.m_input = n == 0 ? QuadFloat::Splat(0.5f) : QuadFloat::Splat(0.0f);
+        const auto input = n == 0 ? QuadFloat::Splat(0.5f) : QuadFloat();
         QuadFloat output = reverb->Process(input);
         double energy = (output * output).Sum();
         if (n + 2 < delaySamples)

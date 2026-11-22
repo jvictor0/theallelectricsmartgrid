@@ -1,5 +1,7 @@
 import DSP.Codegen.Cpp
 import DSP.Codegen.DelayBuffer
+import DSP.Codegen.QuadReverb
+import DSP.Codegen.SmoothRandomLFO
 import DSP.Filters.DelayKernels.Runtime
 import DSP.Filters.OnePoleZOHLowPass
 import DSP.Filters.OnePoleZOHLowPass.Response
@@ -24,7 +26,10 @@ import DSP.SmoothRandomLFO
 #generate_cpp_preparation_generic DSP.SmoothRandomLFO.prepare as SmoothRandomLFOPrepareGeneric to "build/lean/generated/SmoothRandomLFOPrepareGeneric.hpp"
 #generate_cpp_function_generic DSP.SmoothRandomLFO.evaluate as SmoothRandomLFOCubicGeneric method Evaluate to "build/lean/generated/SmoothRandomLFOCubicGeneric.hpp"
 
+#generate_cpp_smooth_random_lfo_stream SmoothRandomLFOStreamGeneric to "build/lean/generated/SmoothRandomLFOStreamGeneric.hpp"
+
 #generate_cpp_delay_buffer CircularBufferGeneric to "build/lean/generated/CircularBufferGeneric.hpp"
+#generate_cpp_quad_reverb SquiggleBoyQuadReverb to "build/lean/generated/SquiggleBoyQuadReverb.hpp"
 #generate_cpp_generic DSP.DelayKernels.Runtime.AllPass.process as SchroederAllPassCoreGeneric to "build/lean/generated/SchroederAllPassCoreGeneric.hpp"
 #generate_cpp_generic DSP.DelayKernels.Runtime.Comb.process as TunedDecayCombCoreGeneric to "build/lean/generated/TunedDecayCombCoreGeneric.hpp"
 #generate_cpp_preparation_generic DSP.DelayKernels.Runtime.prepareCoefficients as TunedDecayCombTuningGeneric to "build/lean/generated/TunedDecayCombTuningGeneric.hpp"

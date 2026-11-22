@@ -40,11 +40,16 @@ variable {capacity : Nat} {ι R : Type}
 def project (ch : ι) (s : State capacity (ι → R)) : State capacity R :=
   ⟨s.buffer.map (fun v => v ch), s.y ch⟩
 
+def stepWithStorage {V : Type} [Neg R] [FMA R] (pack : (ι → R) → V) (unpack : V → ι → R)
+    (c : Coefficients capacity ι R) (s : State capacity (ι → R))
+    (x : Sample (ι → R)) : State capacity (ι → R) :=
+  let y := pack fun ch => FMA.fma (-(c.gain ch)) (x.x ch) (s.buffer.read (c.age ch) ch)
+  let written := pack fun ch => FMA.fma (c.gain ch) (unpack y ch) (x.x ch)
+  ⟨s.buffer.push (unpack written), unpack y⟩
+
 def step [Neg R] [FMA R] (c : Coefficients capacity ι R) (s : State capacity (ι → R))
     (x : Sample (ι → R)) : State capacity (ι → R) :=
-  let y := fun ch => FMA.fma (-(c.gain ch)) (x.x ch) (s.buffer.read (c.age ch) ch)
-  let written := fun ch => FMA.fma (c.gain ch) (y ch) (x.x ch)
-  ⟨s.buffer.push written, y⟩
+  stepWithStorage id id c s x
 
 end SchroederAllPass.Channels
 end DSP

@@ -59,5 +59,48 @@ theorem realizes {F : Type → Type} [Functor F]
   rw [hs]
   exact h i _
 
+/-- A branch that receives the same vector input has the same channel transfers. -/
+theorem Realizes.project {S T : Type}
+    {p : Step S (Sample (Fin n → K))} {q : Step T (Sample (Fin n → K))}
+    (π : S → T) (h : ∀ s x, π (p s x) = q (π s) x)
+    {initial : S} {f : T → Fin n → K} {H : Fin n → Stream K}
+    (hq : Realizes q (π initial) f H) : Realizes p initial (fun s => f (π s)) H := by
+  intro i u
+  have hs := Step.states_map p q π (fun _ x => x) h (fun k => ⟨u k⟩) initial
+  simpa only [hs] using hq i u
+
+/-- Driving a second independent-channel processor with the first's output
+multiplies their transfers in each channel. -/
+theorem Realizes.cascade {S T : Type}
+    {p : Step S (Sample (Fin n → K))} {q : Step T (Sample (Fin n → K))}
+    (π : S → T) (d : S → Fin n → K)
+    (h : ∀ s x, π (p s x) = q (π s) ⟨d (p s x)⟩)
+    {initial : S} {f : T → Fin n → K} {G H : Fin n → Stream K}
+    (hd : Realizes p initial d G) (hq : Realizes q (π initial) f H) :
+    Realizes p initial (fun s => f (π s)) (fun i => H i * G i) := by
+  intro i u
+  let v := fun k => d (Step.states p (fun j => ⟨u j⟩) initial (k + 1))
+  have hs := Step.states_map p q π (fun s x => ⟨d (p s x)⟩) h (fun k => ⟨u k⟩) initial
+  have hf : (fun k => f (π (Step.states p (fun j => ⟨u j⟩) initial (k + 1))) i) =
+      fun k => f (Step.states q (fun j => ⟨v j⟩) (π initial) (k + 1)) i := by
+    funext k
+    rw [hs]
+    rfl
+  rw [hf, hq i v, hd i u, mul_assoc]
+
+/-- Equal mixing adds the complex transfers before taking their magnitude. -/
+theorem Realizes.average {S : Type} {p : Step S (Sample (Fin n → K))}
+    {initial : S} {f g : S → Fin n → K} {F G : Fin n → Stream K}
+    (hf : Realizes p initial f F) (hg : Realizes p initial g G) :
+    Realizes p initial (fun s i => (f s i + g s i) / 2)
+      (fun i => const (1 / 2 : K) * (F i + G i)) := by
+  intro i u
+  let s := fun k => Step.states p (fun j => ⟨u j⟩) initial (k + 1)
+  change ser (fun k => (f (s k) i + g (s k) i) / 2) = _
+  simp only [div_eq_mul_inv, one_mul] at *
+  rw [show (fun k => (f (s k) i + g (s k) i) * (2 : K)⁻¹) =
+    (fun k => (2 : K)⁻¹ * (f (s k) i + g (s k) i)) from funext fun k => mul_comm _ _,
+    ser_mul, ser_add, hf i u, hg i u, ← add_mul, mul_assoc]
+
 end Channels
 end DSP

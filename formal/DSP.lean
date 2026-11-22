@@ -26,6 +26,7 @@ import DSP.Filters.TPTSVF4Pole.Proofs
 import DSP.Filters.TPTLadder
 import DSP.Filters.TPTLadder.Proofs
 import DSP.Transfer.Channels
+import DSP.Analysis.ParallelMixEnergy
 import DSP.Filters.Channels
 import DSP.Filters.Responses.Channels
 import DSP.Filters.Tuning.Digital
@@ -45,6 +46,8 @@ import DSP.DelayBuffer.History
 import DSP.DelayBuffer.Transfer
 import DSP.DelayBuffer.Energy
 import DSP.Filters.SchroederAllPass.Proofs
+import DSP.Filters.SquiggleBoyQuadReverb.Loop
+import DSP.Filters.SquiggleBoyQuadReverb.WanderingProofs
 import DSP.Filters.TunedDecayComb.Proofs
 import DSP.Filters.TunedDecayComb.Realization
 import DSP.Filters.TunedDecayComb.Linearity
@@ -56,4 +59,4 @@ import DSP.Filters.DelayChannelsProofs
 import DSP.Filters.TunedDecayComb.ResponseProofs
 import DSP.Filters.DelayKernelsProofs
 import DSP.Filters.DelayKernels.Runtime
-import DSP.SmoothRandomLFO.Proofs
+import DSP.SmoothRandomLFO.FramedProofs

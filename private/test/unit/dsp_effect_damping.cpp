@@ -3,6 +3,7 @@
 #include "QuadReverb.hpp"
 #include "../support/GlobalEnv.hpp"
 #include <complex>
+#include <memory>
 #include <type_traits>
 
 namespace
@@ -24,17 +25,6 @@ double ExpectedPower(double highCutoff, double lowCutoff, double frequency)
 void Configure(QuadDelay::PostFeedbackFilter& filter)
 {
     filter.SetBFFBaseWidth(QuadFloat(0.001f, 0.01f, 0.04f, 0.125f), QuadFloat(10, 4, 8, 2048));
-}
-
-void Configure(QuadReverb::PostFeedbackFilter& filter)
-{
-    filter.SetBFFBaseWidth(QuadFloat(0.001f, 0.01f, 0.04f, 0.125f), QuadFloat(10, 4, 8, 2048));
-    filter.SetAPFGain(0.6f);
-    for (size_t lane = 0; lane < 4; ++lane)
-    {
-        filter.m_apf1.SetDelaySamples(static_cast<int>(lane), static_cast<int>(3 + lane));
-        filter.m_apf2.SetDelaySamples(static_cast<int>(lane), static_cast<int>(5 + lane * 2));
-    }
 }
 
 template<typename PostFilter>
@@ -93,9 +83,30 @@ DOCTEST_TEST_CASE("Effect damping: delay TPT audio matches its sampled power res
     CheckAudioAndPlot<QuadDelay::PostFeedbackFilter>();
 }
 
-DOCTEST_TEST_CASE("Effect damping: reverb all-pass chain preserves the plotted TPT power")
+DOCTEST_TEST_CASE("Effect damping: reverb publishes the generated damping response")
 {
-    CheckAudioAndPlot<QuadReverb::PostFeedbackFilter>();
+    GlobalEnv::ResetPerTest();
+    auto reverb = std::make_unique<QuadReverb>();
+    QuadReverb::UIState ui;
+    reverb->SetupResponseUIState(&ui);
+    const QuadFloat high(0.001f, 0.01f, 0.04f, 0.125f);
+    const QuadFloat width(10, 4, 8, 2048);
+    const auto low = QuadFloat::Min(QuadFloat::Splat(0.499f), high * width);
+    reverb->ComputeCoefficients({QuadFloat::Splat(240), QuadFloat(), high, width});
+    reverb->PopulateUIStateSample();
+    const auto samples = ui.m_dampingFilter.Sample();
+    DOCTEST_REQUIRE(samples.size() == 1);
+    DOCTEST_CHECK(ui.m_dampingFilter.NumLanes() == 4);
+    for (double frequency : {0.003, 0.02, 0.1, 0.4, 0.49})
+    {
+        for (size_t lane = 0; lane < 4; ++lane)
+        {
+            const auto expected = ExpectedPower(high[lane], low[lane], frequency);
+            const auto plotted = ui.m_dampingFilter.MagnitudeSquaredResponse(samples.front(),
+                ResponseFrequency::CyclesPerSample(frequency), lane);
+            DOCTEST_CHECK(plotted == doctest::Approx(expected).epsilon(0.00003));
+        }
+    }
 }
 
 DOCTEST_TEST_CASE("Effect damping: clamp before tuning and preserve histories on modulation")

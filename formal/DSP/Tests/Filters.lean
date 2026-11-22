@@ -8,6 +8,7 @@ import DSP.Tests.Splitter
 import DSP.Tests.MultibandSaturator
 import DSP.Tests.AllPass
 import DSP.Tests.DelayFilters
+import DSP.Tests.QuadReverb
 import DSP.Filters.MorphingTPTSVF
 import DSP.Filters.TPTLadder
 
@@ -37,6 +38,7 @@ def main : IO Unit := do
   DSP.Tests.Multiband.check
   DSP.Tests.AllPass.check
   DSP.Tests.DelayFilters.check
+  DSP.Tests.QuadReverb.check
   let (zoh, zohFinal) := observe OnePoleZOHLowPass.step (·.y)
     ({ alpha := 0.5, y := 0.0 } : OnePoleZOHLowPass Float) [1.0, 0.0, -1.0]
   unless zoh == [0.5, 0.25, -0.375] && zohFinal.alpha == 0.5 do

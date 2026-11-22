@@ -236,15 +236,12 @@ DOCTEST_TEST_CASE("Reverb delay offset: neutral default and unsmoothed per-sampl
     GlobalEnv::ResetPerTest();
     QuadReverbInputSetter setter;
     QuadReverbInputSetter::Input input;
-    QuadReverb::Input output;
-    setter.Process(input, output);
-    DOCTEST_CHECK(output.m_delayOffsetSamples == QuadFloat());
+    const auto base = setter.Process(input).m_delaySamples;
     input.m_delayOffsetKnob = QuadFloat(0, 0.25f, 0.75f, 1);
-    setter.Process(input, output);
-    DOCTEST_CHECK(output.m_delayOffsetSamples == QuadFloat(-1000, -500, 500, 1000) * SampleTimer::x_oversample);
+    const auto offsets = QuadFloat(-4000, -2000, 2000, 4000);
+    DOCTEST_CHECK(setter.Process(input).m_delaySamples == base + offsets);
     input.m_delayOffsetKnob = QuadFloat::Splat(0.5f);
-    setter.Process(input, output);
-    DOCTEST_CHECK(output.m_delayOffsetSamples == QuadFloat());
+    DOCTEST_CHECK(setter.Process(input).m_delaySamples == base);
 }
 
 DOCTEST_TEST_CASE("Delay interpolation: a large write index preserves a small fractional delay")

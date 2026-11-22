@@ -4,7 +4,7 @@
 #include "PolyXFader.hpp"
 #include "QuadDelay.hpp"
 #include "QuadMasterChain.hpp"
-#include "QuadReverb.hpp"
+#include "ReverbWorkload.hpp"
 #include <cstring>
 #include <type_traits>
 
@@ -99,63 +99,6 @@ struct ClockViews
     void RecordWritePosition(double phase)
     {
         m_view.m_timeWarpInverter->Write(phase, static_cast<double>(SampleTimer::GetSample()));
-    }
-};
-
-template <int Mode>
-struct Reverb
-{
-    Signals m_signals{x_rate};
-    QuadReverb m_core;
-    QuadReverbInputSetter m_setter;
-    QuadReverb::Input m_input;
-    QuadReverbInputSetter::Input m_knobs;
-    Reverb()
-    {
-        Set(0);
-        m_setter.Process(m_knobs, m_input);
-        if constexpr (Mode == 0)
-        {
-            for (size_t c = 0; c < 4; ++c)
-            {
-                m_input.m_delayTimeSamples[c] = (2400 + 400 * c) * x_ratio;
-                m_input.m_feedback[c] = 0.7f;
-                m_input.m_widen[c] = 1.0f - 0.003f * c;
-                m_input.m_bffBase[c] = 90.0f / x_rate;
-                m_input.m_bffWidth[c] = 100;
-            }
-        }
-    }
-
-    void Set(size_t n)
-    {
-        for (size_t c = 0; c < 4; ++c)
-        {
-            float move = Motion(m_signals, n, c, Mode);
-            m_knobs.m_delayOffsetKnob[c] = 0.5f + 0.03f * c + 0.2f * move;
-            m_knobs.m_reverbTimeKnob[c] = 0.55f + 0.04f * c + 0.06f * move;
-            m_knobs.m_feedbackKnob[c] = 0.65f + 0.02f * c + 0.025f * move;
-            m_knobs.m_dampingBaseKnob[c] = 0.18f + 0.01f * c + 0.03f * move;
-            m_knobs.m_dampingWidthKnob[c] = 0.61f - 0.02f * c + 0.04f * move;
-        }
-    }
-
-    std::array<float, 4> Process(size_t n)
-    {
-        if constexpr (Mode != 0)
-        {
-            Set(n);
-            m_setter.Process(m_knobs, m_input);
-        }
-
-        for (size_t c = 0; c < 4; ++c)
-        {
-            m_input.m_input[c] = m_signals.m_audio[n % m_signals.m_period][c];
-        }
-
-        auto value = m_core.Process(m_input);
-        m_input.m_return = value;
-        return Result(value, 4);
     }
 };
 
@@ -420,8 +363,19 @@ void Run(const char* kind, int size, double seconds, const char* path)
 {
     if (std::strcmp(kind, "reverb") == 0)
     {
-        auto w = std::make_unique<Reverb<Mode>>();
-        Measure(*w, kind, Mode, x_rate, seconds, 2, path);
+        MeasureReverb<Mode, ReverbImplementation::Legacy>(seconds, path, std::cout);
+    }
+    else if (std::strcmp(kind, "reverb_generated") == 0)
+    {
+        MeasureReverb<Mode, ReverbImplementation::Wandering>(seconds, path, std::cout);
+    }
+    else if (std::strcmp(kind, "reverb_every_sample") == 0)
+    {
+        MeasureReverb<Mode, ReverbImplementation::WanderingEverySample>(seconds, path, std::cout);
+    }
+    else if (std::strcmp(kind, "reverb_fixed") == 0)
+    {
+        MeasureReverb<Mode, ReverbImplementation::FixedTaps>(seconds, path, std::cout);
     }
     else if (std::strcmp(kind, "delay") == 0)
     {
@@ -474,7 +428,8 @@ int main(int argc, char** argv)
     {
         std::string kind(options.m_kind);
         int size = options.m_lanes;
-        bool valid = ((kind == "reverb" || kind == "delay" || kind == "partial" || kind == "quad_master") &&
+        bool valid = ((kind == "reverb" || kind == "reverb_generated" || kind == "reverb_fixed" || kind == "reverb_every_sample" ||
+                      kind == "delay" || kind == "partial" || kind == "quad_master") &&
                       size == 4) ||
                      (kind == "stereo_master" && size == 2) || (kind == "random" && size == 3) ||
                      (kind == "polyxfader" && (size == 1 || size == 3 || size == 4));

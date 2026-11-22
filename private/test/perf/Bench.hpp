@@ -138,7 +138,7 @@ template <typename Work>
 
 template <typename Work>
 void Measure(Work& work, const char* kind, int mode, size_t rate, double seconds, double warmup,
-             const char* path)
+             const char* path, std::ostream& report)
 {
     const size_t block = 128 * rate / 48000;
     const size_t frames = static_cast<size_t>(seconds * rate) / block * block;
@@ -200,12 +200,21 @@ void Measure(Work& work, const char* kind, int mode, size_t rate, double seconds
     }
 
     double audioSeconds = static_cast<double>(frames) / rate;
-    std::printf("{\"kind\":\"%s\",\"mode\":%d,\"rate\":%zu,\"frames\":%zu,"
+    char line[512];
+    std::snprintf(line, sizeof(line), "{\"kind\":\"%s\",\"mode\":%d,\"rate\":%zu,\"frames\":%zu,"
                 "\"audio_seconds\":%.9f,\"cpu_seconds\":%.9f,\"ms_per_audio_second\":%.6f,"
                 "\"block_p50_us\":%.6f,\"block_p99_us\":%.6f,\"rms\":%.9g,\"peak\":%.9g,\"finite\":true}\n",
                 kind, mode, rate, frames, audioSeconds, cpuElapsed, cpuElapsed * 1000 / audioSeconds,
                 times[times.size() / 2], times[times.size() * 99 / 100], std::sqrt(sum / (output.size() * 4)),
                 peak);
+    report << line;
+}
+
+template <typename Work>
+void Measure(Work& work, const char* kind, int mode, size_t rate, double seconds, double warmup,
+             const char* path)
+{
+    Measure(work, kind, mode, rate, seconds, warmup, path, std::cout);
 }
 
 inline void Require(bool condition, const char* message)

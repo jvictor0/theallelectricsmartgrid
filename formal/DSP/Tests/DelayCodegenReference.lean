@@ -1,5 +1,6 @@
 import DSP.Filters.DelayKernels
 import DSP.DelayBuffer.Basic
+import DSP.Filters.SquiggleBoyQuadReverb.Loop
 
 namespace DSP.Tests.DelayCodegen
 open DelayKernels
@@ -47,6 +48,63 @@ def addresses (out : IO.FS.Stream) (capacity : Nat) : IO Unit := do
       let next := s.push 0.0
       out.putStrLn s!"address 64 {capacity} {head.val} {age.val} {read.toBits} {next.head.val}"
 
+private def reverbSpec (n : Nat) : SquiggleBoyQuadReverb.LogicalSpec Float where
+  delaySamples ch :=
+    let offset := ((n / 13 + ch.val * 3) % 263).toFloat / 4
+    let capacity := squiggleBoyReverbDelayCapacity.toFloat
+    match (n + ch.val * 17) % 251 with
+    | 0 => -offset
+    | 1 => capacity - offset
+    | 2 => capacity + offset
+    | 3 => 2 * capacity + offset
+    | _ => 1 + offset
+  feedback ch := (5 + ((n / 411 + ch.val * 2) % 18).toFloat) / 32
+  dampingBase ch := (3 + ((n / 17 + ch.val * 3) % 13).toFloat) / 128
+  dampingWidth ch := (8 + ((n / 73 + ch.val * 7) % 23).toFloat) / 8
+
+private def reverbAudio (n : Nat) (ch : Fin 4) : Float :=
+  if n == 0 then (ch.val + 1).toFloat / 4
+  else if n % 901 < 631 then (((n * (15 + 2 * ch.val)) % 31).toFloat - 15) / 128
+  else 0
+
+private def reverbRows {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3]
+    [OfNat R 4] [OfNat R 5] [OfScientific R] [Add R] [Sub R] [Neg R] [Mul R] [Div R]
+    [FMA R] [Tanh R] [IfLess R] [Trig R] [DelayMath R] [DelayBuffer.SampleIndex R]
+    [SmoothRandomLFO.SampleValue R]
+    (out : IO.FS.Stream) (precision : Nat) (wandering : Bool) (cast : Float → R)
+    (bits : R → String) : IO Unit := do
+  let specAt := fun n =>
+    let spec := reverbSpec n
+    ({ delaySamples := cast ∘ spec.delaySamples, feedback := cast ∘ spec.feedback
+       dampingBase := cast ∘ spec.dampingBase, dampingWidth := cast ∘ spec.dampingWidth } :
+      SquiggleBoyQuadReverb.LogicalSpec R)
+  let mut state := SquiggleBoyQuadReverb.init (specAt 0) wandering
+  for n in [:24064] do
+    let spec := specAt n
+    let audio := cast ∘ reverbAudio n
+    state := (state.computeCoefficients spec).step ⟨audio⟩
+    let fields := [spec.delaySamples, spec.feedback, spec.dampingBase, spec.dampingWidth, audio, state.y]
+    let values := fields.flatMap fun field => (List.finRange 4).map (bits ∘ field)
+    let kind := if wandering then "reverb" else "reverb_fixed"
+    out.putStrLn s!"{kind} {precision} {String.intercalate " " values}"
+
+private def splineRows {R : Type} [SmoothRandomLFO.SampleValue R] [FMA R]
+    (out : IO.FS.Stream) (precision : Nat) (bits : R → String) : IO Unit := do
+  let mut state := SmoothRandomLFO.Stream.init (R := R) 6 11
+  for _ in [:512] do
+    let (next, value) := state.step
+    out.putStrLn s!"spline {precision} {bits value}"
+    state := next
+
+private def framedSplineRows {R : Type} [SmoothRandomLFO.SampleValue R]
+    [Sub R] [Div R] [FMA R]
+    (out : IO.FS.Stream) (precision : Nat) (bits : R → String) : IO Unit := do
+  let mut state := SmoothRandomLFO.FramedStream.init (R := R) 6 11
+  for _ in [:512] do
+    let (next, value) := state.step
+    out.putStrLn s!"spline_framed {precision} {bits value}"
+    state := next
+
 def main : IO Unit := do
   let out ← IO.getStdout
   for n in [:180] do
@@ -73,6 +131,13 @@ def main : IO Unit := do
   ring out 16384 (by decide)
   for capacity in [1,2,3,4,7,8,16] do
     addresses out capacity
+  for wandering in [false, true] do
+    reverbRows out 32 wandering Float.toFloat32 (fun x => toString x.toBits)
+    reverbRows out 64 wandering id (fun x => toString x.toBits)
+  splineRows out 32 (fun x : Float32 => toString x.toBits)
+  splineRows out 64 (fun x : Float => toString x.toBits)
+  framedSplineRows out 32 (fun x : Float32 => toString x.toBits)
+  framedSplineRows out 64 (fun x : Float => toString x.toBits)
 
 end DSP.Tests.DelayCodegen
 

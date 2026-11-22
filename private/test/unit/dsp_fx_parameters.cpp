@@ -60,7 +60,6 @@ DOCTEST_TEST_CASE("QuadReverbInputSetter: four-lane mappings and slews match per
     GlobalEnv::ResetPerTest();
     QuadReverbInputSetter setter;
     QuadReverbInputSetter::Input input;
-    QuadReverb::Input output;
 
     PhaseUtils::ExpParam delayTime[4];
     PhaseUtils::ExpParam dampingBase[4];
@@ -85,25 +84,20 @@ DOCTEST_TEST_CASE("QuadReverbInputSetter: four-lane mappings and slews match per
         input.m_feedbackKnob = QuadKnob(sample, 0.15f);
         input.m_dampingBaseKnob = QuadKnob(sample, 0.2f);
         input.m_dampingWidthKnob = QuadKnob(sample, 0.25f);
-        setter.Process(input, output);
+        const auto spec = setter.Process(input);
         for (size_t lane = 0; lane < 4; ++lane)
         {
             DOCTEST_CAPTURE(sample);
             DOCTEST_CAPTURE(lane);
-            DOCTEST_CHECK(output.m_delayTimeSamples[lane] == doctest::Approx(delayTime[lane].Update(delayTimeFilter[lane].Process(input.m_reverbTimeKnob[lane]))).epsilon(x_tolerance));
-            DOCTEST_CHECK(output.m_bffBase[lane] == doctest::Approx(dampingBase[lane].Update(input.m_dampingBaseKnob[lane])).epsilon(x_tolerance));
-            DOCTEST_CHECK(output.m_bffWidth[lane] == doctest::Approx(dampingWidth[lane].Update(input.m_dampingWidthKnob[lane])).epsilon(x_tolerance));
-            DOCTEST_CHECK(output.m_delayOffsetSamples[lane] == doctest::Approx(
-                (2.0f * input.m_delayOffsetKnob[lane] - 1.0f) * 1000.0f * SampleTimer::x_oversample));
-            DOCTEST_CHECK(output.m_widen[lane] == doctest::Approx(wideners[lane].Update(1.0)).epsilon(x_tolerance));
-            DOCTEST_CHECK(output.m_feedback[lane] == doctest::Approx(1.25 * feedback[lane].Update(input.m_feedbackKnob[lane])).epsilon(x_tolerance));
+            const float baseDelay = delayTime[lane].Update(delayTimeFilter[lane].Process(input.m_reverbTimeKnob[lane]));
+            const float offset = (2.0f * input.m_delayOffsetKnob[lane] - 1.0f) * 4000.0f;
+            const float delaySamples = baseDelay * wideners[lane].Update(1.0) + offset;
+            DOCTEST_CHECK(spec.m_delaySamples[lane] == doctest::Approx(delaySamples).epsilon(x_tolerance));
+            DOCTEST_CHECK(spec.m_dampingBase[lane] == doctest::Approx(dampingBase[lane].Update(input.m_dampingBaseKnob[lane])).epsilon(x_tolerance));
+            DOCTEST_CHECK(spec.m_dampingWidth[lane] == doctest::Approx(dampingWidth[lane].Update(input.m_dampingWidthKnob[lane])).epsilon(x_tolerance));
+            DOCTEST_CHECK(spec.m_feedback[lane] == doctest::Approx(1.25 * feedback[lane].Update(input.m_feedbackKnob[lane])).epsilon(x_tolerance));
         }
     }
-
-    // Each lane keeps its own widening range.
-    //
-    DOCTEST_CHECK(output.m_widen[0] != output.m_widen[1]);
-    DOCTEST_CHECK(output.m_widen[2] != output.m_widen[3]);
 }
 
 DOCTEST_TEST_CASE("QuadDelayInputSetter: four-lane mappings and slews match per-channel scalars")

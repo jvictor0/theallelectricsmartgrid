@@ -32,7 +32,7 @@ variable {capacity : ℕ} {ι R : Type} [Neg R] [FMA R]
 theorem project_step (c : Coefficients capacity ι R) (s : State capacity (ι → R))
     (x : Sample (ι → R)) (ch : ι) :
     project ch (step c s x) = SchroederAllPass.step ⟨c.age ch, c.gain ch⟩ (project ch s) ⟨x.x ch⟩ := by
-  simp [project, step, SchroederAllPass.step, DelayBuffer.read_map, DelayBuffer.push_map]
+  simp [project, step, stepWithStorage, SchroederAllPass.step, DelayBuffer.read_map, DelayBuffer.push_map]
 
 theorem project_states (c : Coefficients capacity ι R) (s : State capacity (ι → R))
     (u : ℕ → ι → R) (ch : ι) (n : ℕ) :

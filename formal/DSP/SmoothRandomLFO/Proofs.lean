@@ -115,13 +115,22 @@ private theorem hasDerivAt_join {l r dl dr : ℝ → ℝ} (x : ℝ)
       filter_upwards [lt_mem_nhds hx] with y hy
       simp [join, hy.not_gt])
 
-/-- Sliding the window by one random point and span gives a C² join for
-arbitrary control values and positive knot spans. The derivatives here are
-with respect to sample time, so the two local phases may run at different rates. -/
-theorem contDiff_join (s : Segment ℝ) (point span : ℝ)
+def joinValue (s : Segment ℝ) (point span : ℝ) : ℝ → ℝ :=
+  join (atTime (prepare s) (-s.width) s.width)
+    (atTime (prepare (s.advance point span)) 0 s.next)
+
+def joinVelocity (s : Segment ℝ) (point span : ℝ) : ℝ → ℝ :=
+  join (fun t => velocity (prepare s) s.width ((t + s.width) / s.width))
+    (fun t => velocity (prepare (s.advance point span)) s.next (t / s.next))
+
+def joinAcceleration (s : Segment ℝ) (point span : ℝ) : ℝ → ℝ :=
+  join (fun t => acceleration (prepare s) s.width ((t + s.width) / s.width))
+    (fun t => acceleration (prepare (s.advance point span)) s.next (t / s.next))
+
+theorem join_hasDerivs (s : Segment ℝ) (point span : ℝ)
     (hp : 0 < s.previous) (hw : 0 < s.width) (hn : 0 < s.next) :
-    ContDiff ℝ 2 (join (atTime (prepare s) (-s.width) s.width)
-      (atTime (prepare (s.advance point span)) 0 s.next)) := by
+    (∀ t, HasDerivAt (joinValue s point span) (joinVelocity s point span t) t) ∧
+    (∀ t, HasDerivAt (joinVelocity s point span) (joinAcceleration s point span t) t) := by
   let p := prepare s
   let q := prepare (s.advance point span)
   let l := atTime p (-s.width) s.width
@@ -136,24 +145,41 @@ theorem contDiff_join (s : Segment ℝ) (point span : ℝ)
   have hv := congrArg Prod.fst hj
   have hd := congrArg (fun j => j.2.1) hj
   have hdd := congrArg (fun j => j.2.2) hj
-  have h₁ t : HasDerivAt (join l r) (join dl dr t) t :=
-    hasDerivAt_join t (hasDerivAt_time p _ _) (hasDerivAt_time q _ _) hv hd
-  have h₂ t : HasDerivAt (join dl dr) (join ddl ddr t) t :=
-    hasDerivAt_join t (hasDerivAt_velocity p _ _) (hasDerivAt_velocity q _ _) hd hdd
-  change ContDiff ℝ (1 + 1) (join l r)
+  constructor
+  · intro t
+    simpa [joinValue, joinVelocity, dl, dr, p, q] using
+      hasDerivAt_join t (hasDerivAt_time p _ _) (hasDerivAt_time q _ _) hv hd
+  · intro t
+    simpa [joinVelocity, joinAcceleration, dl, dr, ddl, ddr, p, q] using
+      hasDerivAt_join t (hasDerivAt_velocity p _ _) (hasDerivAt_velocity q _ _) hd hdd
+
+/-- Sliding the window by one random point and span gives a C² join for
+arbitrary control values and positive knot spans. The derivatives here are
+with respect to sample time, so the two local phases may run at different rates. -/
+theorem contDiff_join (s : Segment ℝ) (point span : ℝ)
+    (hp : 0 < s.previous) (hw : 0 < s.width) (hn : 0 < s.next) :
+    ContDiff ℝ 2 (join (atTime (prepare s) (-s.width) s.width)
+      (atTime (prepare (s.advance point span)) 0 s.next)) := by
+  obtain ⟨h₁, h₂⟩ := join_hasDerivs s point span hp hw hn
+  change ContDiff ℝ (1 + 1) (joinValue s point span)
   rw [contDiff_succ_iff_deriv]
   refine ⟨fun t => (h₁ t).differentiableAt, by simp, ?_⟩
-  rw [show deriv (join l r) = join dl dr from funext (fun t => (h₁ t).deriv)]
+  rw [show deriv (joinValue s point span) = joinVelocity s point span from
+    funext (fun t => (h₁ t).deriv)]
   rw [contDiff_one_iff_deriv]
   refine ⟨fun t => (h₂ t).differentiableAt, ?_⟩
-  rw [show deriv (join dl dr) = join ddl ddr from funext (fun t => (h₂ t).deriv)]
+  rw [show deriv (joinVelocity s point span) = joinAcceleration s point span from
+    funext (fun t => (h₂ t).deriv)]
+  unfold joinAcceleration join
   apply Continuous.piecewise
   · intro t ht
     rw [frontier_Iio, mem_singleton_iff] at ht
-    simpa [ht] using hdd
-  · unfold ddl acceleration
+    subst t
+    simpa [jet, Segment.advance, hw.ne'] using
+      congrArg (fun j => j.2.2) (jets_match s point span hp hw hn)
+  · unfold acceleration
     fun_prop
-  · unfold ddr acceleration
+  · unfold acceleration
     fun_prop
 
 end

@@ -13,7 +13,8 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build/lean"
 HEADERS = ("CircularBufferGeneric", "SchroederAllPassCoreGeneric", "TunedDecayCombCoreGeneric",
-           "TunedDecayCombTuningGeneric", "TunedDecayCombResponseGeneric")
+           "TunedDecayCombTuningGeneric", "TunedDecayCombResponseGeneric", "SquiggleBoyQuadReverb",
+           "SmoothRandomLFOStreamGeneric")
 
 
 def number(bits, precision):
@@ -32,7 +33,7 @@ def main():
         assert (BUILD / "generated" / (name + ".hpp")).read_bytes() == (
             ROOT / "formal/DSP/generated" / (name + ".hpp")).read_bytes(), f"Stale {name}"
     reference = subprocess.run([str(BUILD / "artifacts/bin/dsp_delay_codegen_reference")],
-                               check=True, capture_output=True, text=True, timeout=30).stdout
+                               check=True, capture_output=True, text=True, timeout=120).stdout
     (output / "delay-reference.txt").write_text(reference)
     rows = [line.split() for line in reference.splitlines()]
     inputs, expected, labels = [], [], []
@@ -68,6 +69,23 @@ def main():
             expected.append([bits(number(found, 64) + lane) if n > int(age) else bits(0)
                              for lane in range(width)] + [head])
             labels.append(("ring", 64, width, (capacity, n, age)))
+    for precision in (32, 64):
+        for kind in ("reverb", "reverb_fixed", "spline", "spline_framed"):
+            cases = [row[2:] for row in rows if row[:2] == [kind, str(precision)]]
+            assert len(cases) == (512 if kind.startswith("spline") else 24064)
+            width, input_count = (1, 0) if kind.startswith("spline") else (4, 20)
+            for index, row in enumerate(cases):
+                inputs.append(f"{kind} {precision} {width} " + " ".join(row[:input_count]))
+                expected.append(row[input_count:])
+                labels.append((kind, precision, width, index))
+    for precision in (32, 64):
+        sampled = [number(row[2], precision) for row in rows if row[:2] == ["spline", str(precision)]]
+        framed = [number(row[2], precision) for row in rows if row[:2] == ["spline_framed", str(precision)]]
+        for n in range(0, len(sampled) - 32, 32):
+            start, end = sampled[n], sampled[n + 32]
+            for position in range(32):
+                wanted = start + (end - start) * position / 32
+                assert abs(framed[n + position] - wanted) < (2e-7 if precision == 32 else 1e-12)
     runner = output / "delay-runner"
     compiler = shlex.split(os.environ.get("CXX", "c++"))
     subprocess.run(compiler + ["-std=c++17", "-O2", "-fno-fast-math", "-ffp-contract=off",
@@ -114,8 +132,8 @@ def main():
                         loop = sign * (a + q) / (1 + a * q) * lowpass * q ** int(delay)
                         assert abs(abs(lowpass) - 1) < 3e-6, (label, lane, lowpass)
                         assert abs(loop - 1) < 3e-6, (label, lane, loop)
-    print(f"Delay codegen: {len(actual)} stereo/quad cases; buffer and processing bits match Lean. "
-          f"Tuning/response maximum normalized error: {errors}")
+    print(f"Delay codegen: {len(actual)} stereo/quad cases; ring, comb, and all-pass bits match Lean. "
+          f"Tuning/response/reverb maximum normalized error: {errors}")
 
 
 if __name__ == "__main__":

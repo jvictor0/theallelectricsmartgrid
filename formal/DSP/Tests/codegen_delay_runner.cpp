@@ -1,11 +1,13 @@
 #include "CircularBufferGeneric.hpp"
 #include "SchroederAllPassCoreGeneric.hpp"
+#include "SquiggleBoyQuadReverb.hpp"
 #include "TunedDecayCombCoreGeneric.hpp"
 #include "TunedDecayCombTuningGeneric.hpp"
 #include "TunedDecayCombResponseGeneric.hpp"
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <type_traits>
 
@@ -188,6 +190,41 @@ void Run(const std::string& kind)
     std::cout << '\n';
 }
 
+template<typename Number, bool Wandering>
+void RunReverb()
+{
+    using Core = SquiggleBoyQuadReverb<Number, Wandering>;
+    static std::unique_ptr<Core> state;
+    const auto readVector = []()
+    {
+        typename Core::Vector values;
+        for (int ch = 0; ch < 4; ++ch)
+        {
+            values[ch] = Read<Number>();
+        }
+
+        return values;
+    };
+    const typename Core::LogicalSpec spec{readVector(), readVector(), readVector(), readVector()};
+    const auto audio = readVector();
+    if (!state)
+    {
+        state = std::make_unique<Core>(spec);
+    }
+    else
+    {
+        state->ComputeCoefficients(spec);
+    }
+
+    const auto output = state->Process(audio);
+    for (int ch = 0; ch < 4; ++ch)
+    {
+        Print(output[ch]);
+    }
+
+    std::cout << '\n';
+}
+
 template<size_t Capacity, size_t Size>
 void Ring(size_t age, double value)
 {
@@ -264,13 +301,53 @@ void AddressCapacity(size_t capacity, size_t head, size_t age)
     }
 }
 
+template<typename Stream>
+void RunSpline()
+{
+    static Stream stream(6, 11);
+    Print(stream.Process());
+    std::cout << '\n';
+}
+
 int main()
 {
     std::string kind;
     size_t precision, width;
     while (std::cin >> kind >> precision >> width)
     {
-        if (kind == "address")
+        if (kind == "reverb" && precision == 32 && width == 4)
+        {
+            RunReverb<float, true>();
+        }
+        else if (kind == "reverb" && precision == 64 && width == 4)
+        {
+            RunReverb<double, true>();
+        }
+        else if (kind == "reverb_fixed" && precision == 32 && width == 4)
+        {
+            RunReverb<float, false>();
+        }
+        else if (kind == "reverb_fixed" && precision == 64 && width == 4)
+        {
+            RunReverb<double, false>();
+        }
+        else if (kind == "spline" && precision == 32 && width == 1)
+        {
+            RunSpline<SmoothRandomLFOStreamGeneric<float>>();
+        }
+        else if (kind == "spline" && precision == 64 && width == 1)
+        {
+            RunSpline<SmoothRandomLFOStreamGeneric<double>>();
+        }
+        else if (kind == "spline_framed" && precision == 32 && width == 1)
+        {
+            RunSpline<SmoothRandomLFOFramedGeneric<float>>();
+        }
+        else if (kind == "spline_framed" && precision == 64 && width == 1)
+        {
+            RunSpline<SmoothRandomLFOFramedGeneric<double>>();
+        }
+        else if (kind == "address")
         {
             size_t capacity, head, age;
             std::cin >> capacity >> head >> age;

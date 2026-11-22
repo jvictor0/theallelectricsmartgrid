@@ -110,7 +110,6 @@ struct SquiggleBoy
     QuadReverbInputSetter m_reverbInputSetter;
 
     QuadDelay::Input m_delayState;
-    QuadReverb::Input m_reverbState;
     TheoryOfTime* m_theoryOfTime;
 
     PhaseUtils::SimpleOsc m_panPhase;
@@ -202,9 +201,7 @@ struct SquiggleBoy
         m_mixerState.m_return[0] = m_delay.Process(m_delayState);
         m_delayState.m_return = m_mixerState.m_return[0];
 
-        m_reverbState.m_input = m_mixer.m_send[1];
-        m_mixerState.m_return[1] = m_reverb.Process(m_reverbState);
-        m_reverbState.m_return = m_mixerState.m_return[1];
+        m_mixerState.m_return[1] = m_reverb.Process(m_mixer.m_send[1]);
 
         m_mixerState.m_return[2] = m_partialMachine.Process(m_mixer.m_send[2], m_partialMachineState);
     }
@@ -1165,7 +1162,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         reverbInputSetterInput.m_dampingWidthKnob = m_encoders.GetValue<4>(Param::ReverbDampWidth, 0);
         reverbInputSetterInput.m_delayOffsetKnob = m_encoders.GetValue<4>(Param::ReverbModDepth, 0);
         
-        m_reverbInputSetter.Process(reverbInputSetterInput, m_reverbState);
+        m_reverb.ComputeCoefficients(m_reverbInputSetter.Process(reverbInputSetterInput));
         m_mixerState.m_returnSendGain[1][0].Update(m_encoders.GetValue(Param::ReverbDelaySend));
         m_mixerState.m_returnSendGain[1][2].Update(m_encoders.GetValue(Param::ReverbPartialMachineSend));
         m_mixerState.m_returnGain[1].Update(m_encoders.GetValue(Param::ReverbReturn));

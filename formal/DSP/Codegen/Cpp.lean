@@ -29,6 +29,16 @@ inductive Value where
   | vector (elements : Array Value)
   deriving Inhabited
 
+/-- A method or function supplied by a storage backend for a typed Lean
+operation. Mutating methods return their receiver as the new state value. -/
+structure CallBinding where
+  source : Name
+  target : String
+  arguments : Nat
+  result : String
+  method : Bool := false
+  mutates : Bool := false
+
 structure Emission where
   lines : Array String := #[]
   next : Nat := 0
@@ -38,6 +48,8 @@ structure Emission where
   constants : Std.HashMap String (Float32 × Float) := {}
   /-- Only the fixed-capacity storage backend binds bounded indices to size_t. -/
   boundedIndices : Bool := false
+  calls : Array CallBinding := #[]
+  foldVectorConstants : Bool := false
 
 abbrev GenM := StateT Emission MetaM
 abbrev Locals := List (FVarId × Value)
@@ -71,13 +83,35 @@ def temporary (type text : String) : GenM Value := do
   emit s!"const {type} {name} = {text};"
   return .scalar type name
 
-/-- Track closed arithmetic separately at each target precision. The emitted
-arithmetic remains unchanged; this only recognizes exact constant trig inputs. -/
+/-- Exact hexadecimal literals preserve the bits selected by Lean's literal
+conversion, including subnormals, without a second decimal conversion. -/
+def hexLiteral (bits : Nat) (fractionBits exponentBits bias : Nat) (suffix : String) : MetaM String := do
+  if bits == 0 then return "0.0" ++ suffix
+  if bits == bias * 2 ^ fractionBits then return "1.0" ++ suffix
+  let exponent := (bits >>> fractionBits) % (2 ^ exponentBits)
+  let fraction := bits % (2 ^ fractionBits)
+  if exponent == 2 ^ exponentBits - 1 then
+    throwError "C++ codegen: non-finite literals are not supported"
+  let mantissa := if exponent == 0 then fraction else 2 ^ fractionBits + fraction
+  let power : Int := (if exponent == 0 then 1 else Int.ofNat exponent) - bias - fractionBits
+  let sign := if bits >>> (fractionBits + exponentBits) == 0 then "" else "-"
+  return s!"{sign}0x{String.ofList (Nat.toDigits 16 mantissa)}p{power}{suffix}"
+
+def vectorLiteral (single : Float32) (double : Float) : MetaM String := do
+  let singleText ← hexLiteral single.toBits.toNat 23 8 127 "f"
+  let doubleText ← hexLiteral double.toBits.toNat 52 11 1023 ""
+  return s!"Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? {singleText} : {doubleText}))"
+
+/-- Track closed arithmetic separately at each target precision, both for
+recognizing exact constant trig inputs and for storage backends that fold
+coefficients before rendering the processing schedule. -/
 def rememberConstant (value : Value) (single : Float32) (double : Float) : GenM Value := do
-  let (_, text) ← scalar value
-  if single.isFinite && double.isFinite then
-    modify fun s => {s with constants := s.constants.insert text (single, double)}
-  return value
+  let (type, text) ← scalar value
+  if !single.isFinite || !double.isFinite then return value
+  let text ← if type == "Vector" && (← get).foldVectorConstants then vectorLiteral single double
+    else pure text
+  modify fun s => {s with constants := s.constants.insert text (single, double)}
+  return .scalar type text
 
 def binaryTemporary (type op a b : String) : GenM Value := do
   let value ← temporary type s!"({a} {op} {b})"
@@ -228,14 +262,14 @@ def primitive (name : Name) : Bool :=
 /-- Unfold one pure definition at a time, so unknown external implementations
 cannot silently be replaced with their logical bodies. Value bindings stay
 shared, so each is emitted once; only function-typed bindings are inlined. -/
-partial def expose (expression : Expr) : MetaM Expr := withIncRecDepth do
+partial def expose (expression : Expr) (opaqueCalls : Array Name := #[]) : MetaM Expr := withIncRecDepth do
   let e := expression.consumeMData.headBeta.consumeMData
-  if e.isHeadBetaTarget then return ← expose e
+  if e.isHeadBetaTarget then return ← expose e opaqueCalls
   match e with
   | .letE _ type value body _ =>
-    if (← whnf type).isForall then expose (body.instantiate1 value) else return e
+    if (← whnf type).isForall then expose (body.instantiate1 value) opaqueCalls else return e
   | .proj name index value =>
-    let value ← expose value
+    let value ← expose value opaqueCalls
     if let .letE binder type bound body nondep := value then
       return .letE binder type bound (.proj name index body) nondep
     if let .const ctor _ := value.getAppFn then
@@ -247,9 +281,10 @@ partial def expose (expression : Expr) : MetaM Expr := withIncRecDepth do
   | _ =>
     match e.getAppFn with
     | .const name levels =>
+      if opaqueCalls.contains name then return e
       if name == ``Fin.val && e.getAppArgs.size == 2 then
         let value ← expose e.getAppArgs[1]!
-        if value.getAppFn.isConstOf ``Fin.mk then return ← expose value.getAppArgs[1]!
+        if value.getAppFn.isConstOf ``Fin.mk then return ← expose value.getAppArgs[1]! opaqueCalls
       if name == ``Nat.zero then return .lit (.natVal 0)
       if name == ``Nat.succ && e.getAppArgs.size == 1 then
         if let .lit (.natVal n) ← expose e.getAppArgs[0]! then return .lit (.natVal (n + 1))
@@ -259,8 +294,8 @@ partial def expose (expression : Expr) : MetaM Expr := withIncRecDepth do
         let args := e.getAppArgs
         if args.size < 2 then return e
         if args.size == 2 then
-          let a ← expose args[0]!
-          let b ← expose args[1]!
+          let a ← expose args[0]! opaqueCalls
+          let b ← expose args[1]! opaqueCalls
           if let (.lit (.natVal a), .lit (.natVal b)) := (a, b) then
             return .lit (.natVal (op a b))
         if name == ``Nat.add || name == ``Nat.sub then return e
@@ -276,11 +311,11 @@ partial def expose (expression : Expr) : MetaM Expr := withIncRecDepth do
         if predicate == some ``LT.lt && operands.size == 4 &&
             operands[0]!.isConstOf ``Nat && operands[1]!.isConstOf ``instLTNat &&
             args[2]!.getAppFn.isConstOf ``Nat.decLt then
-          let left ← expose operands[2]!
-          let right ← expose operands[3]!
+          let left ← expose operands[2]! opaqueCalls
+          let right ← expose operands[3]! opaqueCalls
           if let (.lit (.natVal left), .lit (.natVal right)) := (left, right) then
             let yes := left < right
-            return ← expose args[if yes then 3 else 4]!
+            return ← expose args[if yes then 3 else 4]! opaqueCalls
       if name == ``Nat.decEq && e.getAppArgs.size == 2 then
         let a ← expose e.getAppArgs[0]!
         let b ← expose e.getAppArgs[1]!
@@ -301,44 +336,30 @@ partial def expose (expression : Expr) : MetaM Expr := withIncRecDepth do
         if args.size > proj.numParams then
           let ctor ← getConstInfoCtor proj.ctorName
           let field := Expr.proj ctor.induct proj.i args[proj.numParams]!
-          return ← expose (mkAppN field (args.extract (proj.numParams + 1) args.size))
+          return ← expose (mkAppN field (args.extract (proj.numParams + 1) args.size)) opaqueCalls
       match ← getConstInfo name with
       | .recInfo info =>
         unless args.size > info.getMajorIdx do return e
         if name == ``Eq.rec then
-          if let some reduced ← reduceRecMatcher? e then return ← expose reduced
+          if let some reduced ← reduceRecMatcher? e then return ← expose reduced opaqueCalls
           throwError "C++ codegen: proof transport did not reduce"
-        let major ← expose args[info.getMajorIdx]!
+        let major ← expose args[info.getMajorIdx]! opaqueCalls
         unless major.isLit || (← isConstructorApp major) do
           throwError "C++ codegen: recursion requires a statically known constructor: {name}, {major}"
         let specialized := mkAppN (mkConst name levels) (args.set! info.getMajorIdx major)
-        if let some reduced ← reduceRecMatcher? specialized then return ← expose reduced
+        if let some reduced ← reduceRecMatcher? specialized then return ← expose reduced opaqueCalls
         throwError "C++ codegen: could not specialize recursor {name}"
       | .defnInfo info =>
         unless info.safety == .safe do
           throwError "C++ codegen: unsafe/partial definition {name} is not supported"
         let body := info.value.instantiateLevelParams info.levelParams levels
-        return ← expose (mkAppN body args)
+        return ← expose (mkAppN body args) opaqueCalls
       | _ => return e
     | .proj .. | .letE .. =>
-      let fn ← expose e.getAppFn
+      let fn ← expose e.getAppFn opaqueCalls
       let next := (mkAppN fn e.getAppArgs).headBeta
-      if next == e then return e else expose next
+      if next == e then return e else expose next opaqueCalls
     | _ => return e
-
-/-- Exact hexadecimal literals preserve the bits selected by Lean's literal
-conversion, including subnormals, without a second decimal conversion. -/
-def hexLiteral (bits : Nat) (fractionBits exponentBits bias : Nat) (suffix : String) : MetaM String := do
-  if bits == 0 then return "0.0" ++ suffix
-  if bits == bias * 2 ^ fractionBits then return "1.0" ++ suffix
-  let exponent := (bits >>> fractionBits) % (2 ^ exponentBits)
-  let fraction := bits % (2 ^ fractionBits)
-  if exponent == 2 ^ exponentBits - 1 then
-    throwError "C++ codegen: non-finite literals are not supported"
-  let mantissa := if exponent == 0 then fraction else 2 ^ fractionBits + fraction
-  let power : Int := (if exponent == 0 then 1 else Int.ofNat exponent) - bias - fractionBits
-  let sign := if bits >>> (fractionBits + exponentBits) == 0 then "" else "-"
-  return s!"{sign}0x{String.ofList (Nat.toDigits 16 mantissa)}p{power}{suffix}"
 
 def natLiteral : Expr → Option Nat
   | .lit (.natVal n) => some n
@@ -364,10 +385,7 @@ def floatLiteral (name : Name) (args : Array Expr) : GenM Value := do
       else Float32.ofNat mantissa
     let double := if scientific then Float.ofScientific mantissa negativeExponent exponent
       else Float.ofNat mantissa
-    let singleText ← hexLiteral single.toBits.toNat 23 8 127 "f"
-    let doubleText ← hexLiteral double.toBits.toNat 52 11 1023 ""
-    return ← rememberConstant (.scalar "Vector"
-      s!"Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? {singleText} : {doubleText}))") single double
+    return ← rememberConstant (.scalar "Vector" (← vectorLiteral single double)) single double
   else if name == ``Float.ofNat || name == ``Float.ofScientific then
     let value := if scientific then Float.ofScientific mantissa negativeExponent exponent
       else Float.ofNat mantissa
@@ -466,8 +484,14 @@ def emitDelayMath (index : Nat) (type : String) (values : Array String) : GenM V
     return ← temporary type (if vector then s!"{arg}.Exp()" else s!"MultiChannelNumber<{type}, 1>::Splat({arg}).Exp()[0]")
   throwError "C++ codegen: unsupported delay preparation operation"
 
+private partial def callArgument : Value → GenM String
+  | .scalar _ text => pure text
+  | .record fields => return "{" ++ String.intercalate ", " (← fields.toList.mapM callArgument) ++ "}"
+  | .vector _ => throwError "C++ codegen: a bound call requires packed vectors"
+
 partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
-  let e ← expose expression
+  let calls := (← get).calls
+  let e ← expose expression (calls.map (·.source))
   if let .proj name index (.fvar instanceId) := e.getAppFn then
     if (← get).arithmetic.contains instanceId then
       let args := e.getAppArgs
@@ -550,6 +574,20 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
     let .const name _ := e.getAppFn
       | throwError "C++ codegen: unsupported expression {e}"
     let args := e.getAppArgs
+    if let some call := calls.find? (·.source == name) then
+      unless call.arguments ≤ args.size do
+        throwError "C++ codegen: missing bound call arguments for {name}"
+      let values ← (args.extract (args.size - call.arguments) args.size).mapM (evaluate · locals)
+      let arguments ← values.toList.mapM callArgument
+      let (callee, arguments) ← if call.method then do
+          let (_, receiver) ← scalar values[0]!
+          pure (s!"{receiver}.{call.target}", arguments.drop 1)
+        else pure (call.target, arguments)
+      let code := callee ++ "(" ++ String.intercalate ", " arguments ++ ")"
+      if call.mutates then
+        emit (code ++ ";")
+        return values[0]!
+      return ← temporary call.result code
     if (name == ``ite || name == ``dite) && args.size == 5 then
       let decision ← expose args[2]!
       let .const decisionName _ := decision.getAppFn

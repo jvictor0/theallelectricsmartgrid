@@ -56,7 +56,7 @@ def cases(suite):
     if suite in ("components", "all"):
         for kind in ("ladder", "svf", "physical", "vps", "dual"):
             add("voices", kind, (1, 3), range(4))
-        for kind in ("reverb", "delay", "partial", "quad_master"):
+        for kind in ("reverb", "reverb_fixed", "reverb_every_sample", "reverb_generated", "delay", "partial", "quad_master"):
             add("effects", kind, (4,), range(4))
         add("effects", "stereo_master", (2,), range(4))
         add("effects", "random", (3,), range(4))

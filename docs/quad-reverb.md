@@ -1,34 +1,23 @@
 # Quadraphonic Reverb
 
-The **Quad Reverb** (`QuadReverb` in `private/src/QuadReverb.hpp`) is the secondary global effect in the Smart Grid One, providing dense, quadraphonic spatialization.
+Quad Reverb is the second global quad send effect in SmartGridOne. The audio core is generated from [the Lean reverb](../formal/DSP/Filters/SquiggleBoyQuadReverb/Loop.lean). The [app adapter](../private/src/QuadReverb.hpp) maps knobs to physical settings and publishes the generated damping response for the analyzer.
 
-## Structure
+## Signal path
 
-Unlike the highly experimental Phase Vocoder Quad Delay, the Quad Reverb follows a more traditional algorithmic reverb topology, scaled up to four channels:
+1. The input passes through two parallel banks of four cascaded Schroeder all-passes. The two bank outputs are averaged.
+2. The diffused signal is summed with the previous wet output scaled by feedback. A normalized saturator processes the sum before it enters the four-channel delay line.
+3. Cubic reads from the main delay line feed an orthogonal Givens mixer, then a wandering all-pass, a high-pass/low-pass damping stage, and a second wandering all-pass. The last stage supplies the wet output and the next feedback return.
 
-1. **Input Diffusion**: The incoming quadraphonic signal is first passed through a bank of 8 parallel All-Pass Filters (`QuadParallelAllPassFilter<8>`). This rapidly diffuses the initial transients, smearing them into a dense cluster of early reflections. The delay times for these APFs are chosen as prime numbers (e.g., 37, 61, 113...) to minimize metallic ringing.
-2. **Pre-Feedback All-Pass**: The feedback return (`input.m_return`) passes through a quadraphonic All-Pass Filter (`m_preFeedbackFilter`); the filtered return is then scaled by the feedback amount and summed with the diffused input before entering the main delay loop.
-3. **Main Delay Line**: A large quadraphonic delay line (`QuadDelayLine`) provides the core reverberant tail. Each channel adds a linear delay offset to its widened base delay. The regular modulation system can drive that offset to add chorus and break up resonances.
-4. **Post-Feedback Filtering**: Inside the feedback loop, the signal passes through a `PostFeedbackFilter` block consisting of:
-   - An All-Pass Filter (`m_apf1`).
-   - A Band-Pass Filter (`QuadTPTBaseWidthFilter` acting as a damping stage to roll off high and low frequencies).
-   - A second All-Pass Filter (`m_apf2`).
-5. **Saturation**: A `TanhSaturator` prevents the feedback loop from blowing up and adds a touch of warmth to the reverb tail.
+All ten APFs use gain 0.6 and a seeded spline to wander by up to 128 samples around their nominal taps. The spline rate parameter is 1,920,000 samples and the modulator is evaluated every 32 samples with linear interpolation between those evaluations. The audio tap reads use cubic interpolation.
 
-## Rate
+## Controls
 
-The reverb runs entirely at the engine rate. Its delay lengths are written as host-sample constants and multiplied by `SampleTimer::x_oversample`, the main ring holds `65536 * x_oversample` engine samples, and the damping base range is defined in Hz (`DampingFilter::x_minBaseHz` to `x_maxBaseHz`). Reverb time, all-pass delays, delay offsets and damping corners therefore keep their physical values at any oversampling ratio.
+The engine runs the reverb at 192 kHz. The main ring holds 262,144 samples per channel. The reverb-time knob uses a 1 Hz slew followed by an exponential map from 240 to 245,760 samples and fixed per-channel widening. The delay-offset knob adds −4,000 to +4,000 samples, with zero at 0.5. The offset accepts ordinary parameter modulation on each engine sample.
 
-The delay-offset knob maps linearly as `(2 * knob - 1) * 1000` host samples: 0 gives -1000, 0.5 gives zero, and 1 gives +1000. The input setter multiplies this by `x_oversample` before adding it to the engine-sample delay. It applies no separate LFO or depth smoothing; regular parameter modulation supplies any motion. The former internal LFO frequency and phase controls are removed.
-
-## Features
-
-- **Quadraphonic Mixing (Hadamard Transform)**: Inside the feedback loop, the reverb applies a Hadamard matrix transform (`output.Hadamard()` in `TransformOutput`). This mixes the four channels together in an orthogonal fashion, diffusing energy evenly and avoiding simple left/right or front/back swaps. The result is a dynamic, spatially immersive reverberant field with enhanced envelopment and movement. The Quad Delay uses a different approach (`RotateLinear` with a continuous `m_rotate` parameter) for its channel mixing.
-- **Modulation**: The regular modulation system can drive each channel's centered delay-offset control.
-- **Damping**: The internal band-pass filter allows for precise control over the decay characteristics of high and low frequencies.
-- **Return Sends**: The reverb output can be routed into the Quad Delay or the Partial Machine.
+The feedback knob uses a zeroed exponential map scaled by 1.25. Damping base maps exponentially from 23.4375 Hz to 24 kHz. Damping width is an exponential multiplier from 1 to 2,048. The reverb return and sends to Quad Delay and Partial Machine are handled in the mixer.
 
 ## Related
+
 - [Quad Delay](quad-delay.md)
 - [Partial Machine](partial-machine.md)
 - [DSP Overview](dsp-overview.md)

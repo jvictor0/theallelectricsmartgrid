@@ -1,6 +1,8 @@
 #include "Cases.hpp"
 #include "../DensityCase.hpp"
 #include "../ResponsesCase.hpp"
+#include "../ReverbWorkload.hpp"
+#include <random>
 #include <sstream>
 #include <stdexcept>
 
@@ -53,6 +55,48 @@ void RunTransferResponses(const std::vector<std::string>& arguments, std::ostrea
     }
 }
 
+void RunQuadReverb(const std::vector<std::string>& arguments, std::ostream& output)
+{
+    Require(arguments.size() <= 2, "Reverb: [REPEATS] [SECONDS_PER_CASE]");
+    const int repeats = arguments.empty() ? 7 : Integer(arguments[0].c_str());
+    const double seconds = arguments.size() < 2 ? 12 : PositiveSeconds(arguments[1].c_str());
+    Require(repeats > 0, "Reverb repeats must be positive");
+
+    using Run = void (*)(double, const char*, std::ostream&);
+    const std::array<Run, 16> cases{
+        MeasureReverb<0, ReverbImplementation::Legacy>,
+        MeasureReverb<0, ReverbImplementation::FixedTaps>,
+        MeasureReverb<0, ReverbImplementation::WanderingEverySample>,
+        MeasureReverb<0, ReverbImplementation::Wandering>,
+        MeasureReverb<1, ReverbImplementation::Legacy>,
+        MeasureReverb<1, ReverbImplementation::FixedTaps>,
+        MeasureReverb<1, ReverbImplementation::WanderingEverySample>,
+        MeasureReverb<1, ReverbImplementation::Wandering>,
+        MeasureReverb<2, ReverbImplementation::Legacy>,
+        MeasureReverb<2, ReverbImplementation::FixedTaps>,
+        MeasureReverb<2, ReverbImplementation::WanderingEverySample>,
+        MeasureReverb<2, ReverbImplementation::Wandering>,
+        MeasureReverb<3, ReverbImplementation::Legacy>,
+        MeasureReverb<3, ReverbImplementation::FixedTaps>,
+        MeasureReverb<3, ReverbImplementation::WanderingEverySample>,
+        MeasureReverb<3, ReverbImplementation::Wandering>};
+    std::vector<Run> jobs;
+    for (int repeat = 0; repeat < repeats; ++repeat)
+    {
+        jobs.insert(jobs.end(), cases.begin(), cases.end());
+    }
+
+    std::mt19937 random(1000);
+    std::shuffle(jobs.begin(), jobs.end(), random);
+
+    PrepareCPU();
+    SampleTimer::Init(512);
+    for (Run run : jobs)
+    {
+        run(seconds, nullptr, output);
+    }
+}
+
 const std::vector<BenchmarkCase>& BenchmarkCases()
 {
     static const std::vector<BenchmarkCase> x_cases
@@ -67,7 +111,10 @@ const std::vector<BenchmarkCase>& BenchmarkCases()
             "32 captured states, all lanes, cached frequency preparation and production percentile selection. "
             "Compares magnitude overrides with complex magnitude; reports CPU/wall ms per whole plot. "
             "Excludes JUCE path drawing, FFT, audio and concurrent publication. Arguments: [REPEATS] [SECONDS_PER_CASE].",
-            RunTransferResponses}
+            RunTransferResponses},
+        {"reverb", "Legacy, generated fixed-tap, and sample-rate and framed wandering reverbs at 192 kHz with shared traces. "
+            "Reports thread CPU ms per audio second for all four control modes after a two-second warmup. "
+            "Arguments: [REPEATS] [SECONDS_PER_CASE].", RunQuadReverb}
     };
     return x_cases;
 }

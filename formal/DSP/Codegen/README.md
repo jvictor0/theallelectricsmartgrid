@@ -8,6 +8,29 @@ Stereo and quad processing, tuning, response and ring wraparound are covered
 by native Lean/C++ comparisons. See the [delay proof and integration
 overview](../README.md#delay-filter-codegen-and-app-integration).
 
+[SquiggleBoyQuadReverb.hpp](../generated/SquiggleBoyQuadReverb.hpp) is the owning
+192 kHz reverb export. Its constructor and `ComputeCoefficients` take a
+`LogicalSpec` with per-channel delay in samples, linear feedback, damping base
+in cycles per sample, and dimensionless damping width. `Process` takes a quad
+audio sample and returns the quad output. The processor retains the delay and
+filter histories across coefficient updates.
+
+[QuadReverb.lean](QuadReverb.lean) binds the Lean sample schedule to in-place
+storage operations and emits their owning C++ types. Each wandering Schroeder
+stage owns a spline stream and its delay ring. A stage shares one smoothly
+varying fractional offset across its lanes. The concrete reverb gives each
+stage a distinct seed, a peak offset of 128 samples, and an exponential
+parameter of 1,920,000 samples per cycle. The reciprocal is the mean drawn
+phase velocity in cycles per sample, equivalent to 0.1 Hz at 192 kHz. The
+stream evaluates the spline every 32 samples and linearly interpolates between
+those values. See the [interpolation error bounds](../SmoothRandomLFO/FramedProofs.lean).
+The fixed-tap transfer proofs apply to the separate fixed configuration.
+
+The arithmetic evaluator lowers the mixer, saturation, damping cutoffs, and
+cubic interpolation. The delay codegen test compares both reverb
+configurations and spline knot crossings against native Lean in float and
+double.
+
 The generated filters are under [generated](../generated): the ZOH and TPT
 one-poles, TPT highpass and base-width band, `TPTSVF`, `MorphingTPTSVF`, the
 three `TPTSVF4Pole` variants, `TPTLadder` and `LinkwitzRileySplitter4BandGeneric`. Each is a

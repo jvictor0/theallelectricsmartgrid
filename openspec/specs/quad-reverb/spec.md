@@ -1,94 +1,68 @@
 # Quad Reverb Specification
 
 ## Purpose
-The Quad Reverb (`QuadReverb` and `QuadReverbInputSetter` in `private/src/QuadReverb.hpp`, filter primitives in `private/src/DelayLine.hpp` and `private/src/Filter.hpp`) is the second global quadraphonic send effect. Unlike the phase-vocoder quad-delay, it follows a traditional algorithmic reverb topology scaled to four channels: a parallel all-pass diffusion bank on the input, an all-pass stage on the feedback return, a modulated main delay line, a Hadamard matrix remix of the delayed signal, and a post-feedback chain of all-pass, band-pass damping, and all-pass filters, with tanh saturation bounding the feedback loop. Send and return routing between reverb, delay, and partial machine is specified in mixdown-mastering.
+
+Quad Reverb is the second global quadraphonic send effect. The audio core is generated from `DSP.SquiggleBoyQuadReverb` in Lean. Send and return routing between reverb, delay, and partial machine is specified in mixdown-mastering.
 
 ## Requirements
 
 ### Requirement: Parallel All-Pass Input Diffusion
-The system SHALL diffuse the incoming quad signal through a bank of eight parallel all-pass filters per channel (`QuadParallelAllPassFilter<8>`), whose outputs are summed and divided by eight. The eight filters use the prime delay lengths 37, 61, 113, 179, 281, 431, 613, and 877 host samples, each multiplied by `x_oversample` to engine samples, (the same set on each of the four channels) to smear transients into dense early reflections while minimizing comb coloration.
+
+The system SHALL diffuse the incoming quad signal through two parallel cascades of four all-pass filters and average their outputs. The cascades use nominal delays of 293, 487, 907, and 1433 samples and 4493, 6899, 9811, and 14033 samples at 192 kHz. Each stage shares its nominal delay across channels.
 
 #### Scenario: Impulse is smeared before the delay loop
-- **WHEN** a single-sample impulse arrives at a reverb input channel
-- **THEN** the diffusion stage output spreads its energy across a cluster of reflections at the prime delay offsets rather than passing a single dominant impulse into the main loop
 
-#### Scenario: Prime delays avoid common periodicity
-- **WHEN** the eight parallel all-pass outputs are averaged
-- **THEN** no two host-sample delay constants share a common factor, so their reflection patterns do not reinforce a single periodic resonance
-
-### Requirement: All-Pass Filtering of the Feedback Return
-The system SHALL pass the feedback return signal (the reverb's own previous output) through a quadraphonic all-pass filter (`m_preFeedbackFilter`) with per-channel delay lengths 3, 5, 7, and 11 host samples (times `x_oversample` in engine samples) before it is scaled by the feedback gain and summed with the diffused input. The dry input path is diffused by the parallel bank only; it is the recirculating path that passes this additional all-pass stage on every loop.
-
-#### Scenario: Each recirculation adds diffusion
-- **WHEN** a signal recirculates through the feedback loop N times
-- **THEN** it has passed the return all-pass stage N times in addition to its single pass through the input diffusion bank, so the tail grows progressively denser
+- **WHEN** a single-sample impulse arrives at one reverb input channel
+- **THEN** both cascades contribute reflections to the delay loop
 
 ### Requirement: Saturated Feedback Summation
-The system SHALL form the main delay line input as `diffusedInput + filteredReturn * feedback` per channel, where the feedback gain is the feedback knob mapped through a zeroed exponential curve and scaled by 1.25 (allowing loop gain above unity), and SHALL pass the sum through a `TanhSaturator` before writing it into the delay line, bounding the loop and adding harmonic warmth at high levels.
 
-#### Scenario: High feedback is soft-limited
-- **WHEN** the feedback knob is at maximum (effective gain 1.25)
-- **THEN** the recirculating signal grows until the tanh stage compresses it, sustaining a bounded, saturated tail instead of overflowing
+The generated core SHALL sum the diffused input with its previous wet output scaled by the per-channel feedback coefficient. A normalized saturator SHALL process the sum before the main delay write. The core SHALL own the feedback return, histories, and write indices.
 
-#### Scenario: Low feedback decays cleanly
-- **WHEN** the feedback gain is well below unity and signal levels are small
-- **THEN** the saturator operates in its near-linear region and the tail decays geometrically with each pass
+#### Scenario: Feedback control spans unity
+
+- **WHEN** the feedback knob moves from minimum to maximum
+- **THEN** its zeroed exponential mapping ranges from 0 to 1.25
 
 ### Requirement: Modulated Main Delay Line
-The system SHALL run entirely at the engine rate, expressing every delay length as a host-sample constant multiplied by `x_oversample` so physical times are unchanged. It SHALL read a four-channel delay line of 65536 * `x_oversample` engine samples per channel at `delayTimeSamples * widen + delayOffsetSamples`. The base delay time maps the reverb-time knob exponentially over 60 to 61440 host samples and is slewed by a one-pole filter. Fixed per-channel widener ratios (approximately 0.9786, 1.0, 0.9868, 0.9897) decorrelate the loop lengths. The delay-offset knob SHALL map linearly as `(2 * knob - 1) * 1000 * x_oversample` engine samples, without an internal LFO or separate depth smoothing. The regular parameter modulation system MAY drive this control. Internal LFO frequency and phase controls SHALL be absent.
+
+The production engine SHALL run the reverb at 192 kHz with a four-channel main delay capacity of 262144 samples. The core SHALL read the main line using cubic interpolation at `delayTimeSamples * widen + delayOffsetSamples`. The reverb-time knob SHALL be slewed by a 1 Hz one-pole and mapped exponentially from 240 to 245760 samples. Fixed widening factors per channel SHALL be approximately 0.9786, 1.0, 0.9868, and 0.9897.
 
 #### Scenario: Delay offset is centered and linear
+
 - **WHEN** a channel's delay-offset knob is 0, 0.5, or 1
-- **THEN** its offset is respectively -1000, 0, or +1000 host samples, multiplied by `x_oversample` before the delay read
+- **THEN** its offset at 192 kHz is respectively −4000, 0, or +4000 samples
 
 #### Scenario: Regular modulation moves the delay offset
+
 - **WHEN** a regular modulator varies the delay-offset control
 - **THEN** the resulting offset is added directly to the widened base delay on each engine sample
 
-#### Scenario: Channel loop lengths are intentionally unequal
-- **WHEN** all four channels share the same reverb-time knob value
-- **THEN** the effective per-channel delay times differ by the fixed widener ratios, so the four channels' echo periods never coincide exactly
+### Requirement: Givens Channel Remix in the Loop
 
-### Requirement: Hadamard Channel Remix in the Loop
-The system SHALL remix the four delayed channels with an orthogonal Hadamard transform (`QuadFloat::Hadamard`, the 4x4 matrix of ±1/2 entries) each pass: outputs are (a+b+c+d)/2, (a-b+c-d)/2, (a+b-c-d)/2, and (a-b-c+d)/2. This spreads energy evenly across all four channels without favoring a left/right or front/back swap, in contrast to the quad-delay's `RotateLinear` mixing.
+The system SHALL apply the generated orthogonal Givens mixer to the delayed quad signal on every pass.
 
-#### Scenario: Single-channel energy spreads to all four
-- **WHEN** the delayed signal is nonzero on exactly one channel with amplitude a
-- **THEN** after the Hadamard transform every channel carries amplitude a/2, and total energy is preserved (orthogonal matrix)
+#### Scenario: The mixer preserves signal energy
 
-#### Scenario: Repeated application returns to identity
-- **WHEN** the Hadamard transform is applied twice to the same vector
-- **THEN** the result equals the original vector, so successive feedback passes alternate between mixed and unmixed channel alignments rather than drifting
+- **WHEN** the delayed signal enters the Givens mixer
+- **THEN** the sum of squares over the four output lanes equals the input sum of squares in exact arithmetic
 
-### Requirement: Post-Feedback All-Pass and Band-Pass Damping
-The system SHALL filter the Hadamard-mixed signal through a `PostFeedbackFilter` chain of an all-pass stage (per-channel delays 17, 31, 53, 23 host samples), a band-pass damping stage (`QuadTPTBaseWidthFilter`, a one-pole high-pass plus one-pole low-pass per channel), and a second all-pass stage (per-channel delays 149, 211, 113, 293 host samples). The band-pass base and width are exponential mappings of the damping knobs (base `QuadTPTBaseWidthFilter::x_minBaseHz` to `x_maxBaseHz`, i.e. 1/2048 to 0.5 cycles per host sample (23.4375 Hz to 24 kHz at 48 kHz), converted to cycles per engine sample; width 1 to 2048). The chain's output is the reverb output and becomes the next pass's feedback return.
+### Requirement: Feedback All-Pass and Damping Stages
 
-#### Scenario: Damping rolls off the tail's extremes
-- **WHEN** the damping base and width knobs narrow the band-pass
-- **THEN** frequencies outside the band are attenuated on every recirculation, so spectral extremes decay faster than the passband
+The remixed signal SHALL pass through an all-pass, a one-pole high-pass and low-pass damping stage, and a second all-pass. At 192 kHz, the nominal tap delays in samples SHALL be 2039, 3719, 6359, and 2753 for the first stage, and 11923, 16879, 9041, and 23447 for the second stage. The last stage supplies the wet output.
+
+The damping base SHALL map exponentially from 23.4375 Hz to 24 kHz in engine cycles per sample. The width SHALL map exponentially from 1 to 2048. Both resulting cutoffs SHALL be limited to 0.499 cycles per sample.
 
 #### Scenario: Damping state is observable in the UI
-- **WHEN** `PopulateUIState` runs
-- **THEN** each channel's current high-pass and low-pass one-pole alphas are stored in `UIState::m_dampingFilter[i].m_hpAlpha` and `m_lpAlpha`, reflecting the active damping knob settings
 
-### Requirement: Unified All-Pass Gain
-The system SHALL set a single gain coefficient for every all-pass filter in the reverb (input diffusion bank, return-path all-pass, and both post-feedback all-pass stages) through `SetAPFGain`. The gain is fixed at 0.6 at construction; no runtime knob modifies it.
+- **WHEN** the reverb publishes a damping response sample
+- **THEN** the analyzer uses the generated damping stage's current snapshot for all four channels
 
-#### Scenario: One gain governs all diffusion stages
-- **WHEN** `SetAPFGain(g)` is called
-- **THEN** all 8x4 input-bank filters, the four return-path filters, and the eight post-feedback filters use feedback/feedforward coefficient g
+### Requirement: Wandering All-Pass Taps
 
-#### Scenario: Default diffusion gain
-- **WHEN** a `QuadReverb` is constructed
-- **THEN** every all-pass filter's gain is 0.6
+Each of the ten all-pass stages SHALL own a seeded spline modulator and use gain 0.6. The excursion SHALL be bounded by ±128 samples, with enough buffer history for all four interpolation taps. The exponential rate parameter SHALL be 1920000 samples. The spline SHALL be evaluated every 32 samples and linearly interpolated between evaluations. Audio tap reads SHALL use cubic interpolation.
 
-### Requirement: Smoothed Control Mapping
-The `QuadReverbInputSetter` SHALL map the per-channel knob inputs to DSP parameters once per engine sample: reverb time through a one-pole slew filter then an exponential map, delay offset through its centered linear map, damping base/width through exponential maps, and feedback through a zeroed exponential map (centered at 0.25) scaled by 1.25. The per-channel widen parameter is fixed at its maximum widener value.
+#### Scenario: The audio core receives physical settings and quad audio
 
-#### Scenario: Reverb time changes glide
-- **WHEN** the reverb-time knob jumps between two values
-- **THEN** the delay time in samples moves smoothly along the slewed, exponentially mapped trajectory rather than stepping, avoiding clicks in the tail
-
-#### Scenario: Feedback knob midpoint
-- **WHEN** the feedback knob is at 0.5
-- **THEN** the zeroed exponential mapping centered at 0.25 yields 0.25 before scaling, so the effective feedback gain is approximately 0.3125
+- **WHEN** the app updates encoder controls for an engine sample
+- **THEN** it SHALL install the mapped delay, feedback, and damping settings in the generated core and process the quad send through it
