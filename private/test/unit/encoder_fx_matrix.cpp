@@ -143,6 +143,8 @@ DOCTEST_TEST_CASE("FX Matrix: gesture colors come from encoders across pages and
     DOCTEST_CHECK(encoders.GetGestureColor(3) == SmartGrid::Color::Purple);
     DOCTEST_CHECK(GetBank(encoders, Bank::Delay, 0).GetGesturesAffecting().Get(3));
     AddGesture(matrix.GetBase(0, 2), 3);
+    DOCTEST_CHECK(encoders.GetGestureColor(3) == SmartGrid::Color::Purple);
+    AddGesture(matrix.GetBase(1, 2), 3);
     DOCTEST_CHECK(encoders.GetGestureColor(3) == SmartGrid::Color::White);
     encoders.ClearGesture(3);
     DOCTEST_CHECK(encoders.GetGestureColor(3) == SmartGrid::Color::Off);

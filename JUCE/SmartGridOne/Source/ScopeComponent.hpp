@@ -810,19 +810,19 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
             if (m_type == Type::Delay)
             {
                 DrawOne(g, 2, Type::PartialMachine, SmartGrid::Color::Cyan, boundsRect);
-                DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Fuscia, boundsRect);
+                DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Purple, boundsRect);
                 DrawOne(g, 0, Type::Delay, SmartGrid::Color::Pink, boundsRect);
             }
             else if (m_type == Type::Reverb)
             {
                 DrawOne(g, 2, Type::PartialMachine, SmartGrid::Color::Cyan, boundsRect);
                 DrawOne(g, 0, Type::Delay, SmartGrid::Color::Pink, boundsRect);
-                DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Fuscia, boundsRect);
+                DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Purple, boundsRect);
             }
             else if (m_type == Type::PartialMachine || m_type == Type::Mix)
             {
                 DrawOne(g, 0, Type::Delay, SmartGrid::Color::Pink, boundsRect);
-                DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Fuscia, boundsRect);
+                DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Purple, boundsRect);
                 DrawOne(g, 2, Type::PartialMachine, SmartGrid::Color::Cyan, boundsRect);
             }
         }
@@ -836,7 +836,7 @@ struct QuadAnalyserComponent : public SmartGridOneMainVisualizerComponent
         }
         else if (m_type == Type::Reverb)
         {
-            DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Fuscia, boundsRect);
+            DrawOne(g, 1, Type::Reverb, SmartGrid::Color::Purple, boundsRect);
         }
         else if (m_type == Type::PartialMachine)
         {

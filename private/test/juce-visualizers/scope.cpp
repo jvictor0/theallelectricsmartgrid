@@ -342,7 +342,7 @@ DOCTEST_TEST_CASE("Quad analyser: mix draws five separate colored spectra withou
     const Scope x_scopes[] = {Scope::Delay, Scope::Reverb, Scope::PartialMachine, Scope::Dry, Scope::Sub};
     const SmartGrid::Color x_colors[] =
     {
-        SmartGrid::Color::Pink, SmartGrid::Color::Fuscia, SmartGrid::Color::Cyan,
+        SmartGrid::Color::Pink, SmartGrid::Color::Purple, SmartGrid::Color::Cyan,
         SmartGrid::Color::Yellow, SmartGrid::Color::White
     };
     for (size_t source = 0; source < 5; ++source)
