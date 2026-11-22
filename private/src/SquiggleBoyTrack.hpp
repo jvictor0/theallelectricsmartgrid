@@ -609,13 +609,7 @@ struct SquiggleBoyTrackGeneric
 
         Vector sub = m_sub.Process(input.m_subInput.m_baseFreq * 0.5f);
         m_output = m_amp.Process(input.m_ampInput, shaped, sub);
-        for (size_t i = 0; i < Size; ++i)
-        {
-            if (m_sub.m_top[i])
-            {
-                m_amp.m_subScopeWriter.RecordStartAtVoice(i, m_sub.m_top[i].m_offset);
-            }
-        }
+        m_amp.m_subScopeWriter.RecordStarts(m_sub.m_top);
 
         m_pan.Process(input.m_panInput);
         m_squiggleLFO[0].Process(input.m_squiggleLFOInput[0]);

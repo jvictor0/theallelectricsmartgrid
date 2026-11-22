@@ -23,6 +23,7 @@
 // Signal chain:
 //   White Noise -> 2-pole SVF (with morph)
 //   -> AHD envelope (inverted, exponential) -> Sample Rate Reducer
+//   -> Fixed Butterworth low-pass and excitation gain
 //   -> Tuned decay comb with phase-compensated two-pole low-pass damping
 //
 // One sample per call for every channel. Process takes the amplitude
@@ -32,6 +33,12 @@ template <size_t Size>
 struct PhysicalModelingSourceGeneric
 {
     using Vector = MultiChannelNumber<float, Size>;
+    using ExcitationLowPass = TPTSVFLowPassFilterGeneric<float, Size>;
+
+    // Calibrated to -6 dBFS RMS at the comb input with CUT and RATE fully
+    // open, RES and MRPH at zero, and unity envelope gain.
+    //
+    static constexpr float x_excitationGain = 3.79f;
 
     struct Snapshot : PowerResponseSnapshot<Size>
     {
@@ -39,6 +46,7 @@ struct PhysicalModelingSourceGeneric
         using typename Base::Frequency;
         using typename Base::ResponseVector;
         typename MorphingTPTSVFFilterGeneric<float, Size>::Snapshot m_mainSVF;
+        typename ExcitationLowPass::Snapshot m_excitationLowPass;
         typename TunedDecayCombGeneric<Size>::Snapshot m_combFilter;
         Vector m_srrRate = Vector::Splat(1);
 
@@ -49,7 +57,9 @@ struct PhysicalModelingSourceGeneric
 
         ResponseVector PostSrrPower(const Frequency& frequency) const
         {
-            return m_combFilter.MagnitudeSquaredResponses(frequency);
+            return m_excitationLowPass.MagnitudeSquaredResponses(frequency)
+                * m_combFilter.MagnitudeSquaredResponses(frequency)
+                * (x_excitationGain * x_excitationGain);
         }
 
         ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
@@ -64,6 +74,7 @@ struct PhysicalModelingSourceGeneric
     {
         Snapshot snapshot;
         snapshot.m_mainSVF = m_mainSVF.MakeSnapshot();
+        snapshot.m_excitationLowPass = m_excitationLowPass.MakeSnapshot();
         snapshot.m_combFilter = m_combFilter.MakeSnapshot();
         snapshot.m_srrRate = m_sampleRateReducer.m_freq;
         return snapshot;
@@ -82,8 +93,10 @@ struct PhysicalModelingSourceGeneric
     WhiteNoiseGeneric<Size> m_noise;
     SampleRateReducerGeneric<Size> m_sampleRateReducer;
     MorphingTPTSVFFilterGeneric<float, Size> m_mainSVF;
+    ExcitationLowPass m_excitationLowPass;
     TunedDecayCombGeneric<Size> m_combFilter;
     Vector m_output;
+    MultiChannelNumber<double, Size> m_resonancePhase;
 
     // Amplitude envelope for ProcessWithAHD
     //
@@ -138,6 +151,9 @@ struct PhysicalModelingSourceGeneric
         , m_ahdInputSetter(0.0001f, 2.5f, 0.0005f, 2.5f)
     {
         m_mainSVFResonanceParam.SetBaseByCenter(0.125);
+        static constexpr float x_butterworthQ = 0.7071067811865475f;
+        m_excitationLowPass.SetCutoffAndQ(
+            Vector::Splat(0.5f / SampleTimer::x_oversample), Vector::Splat(x_butterworthQ));
     }
 
     void SetScopeWriters(ScopeWriterInput<Size>* scopeWriter, size_t track)
@@ -185,10 +201,16 @@ struct PhysicalModelingSourceGeneric
             input.m_envelope);
 
         m_sampleRateReducer.SetFreq(input.m_sampleRateReducerFreq);
-        Vector prefiltered = m_sampleRateReducer.Process(svfOut * envValue);
+        Vector reduced = m_sampleRateReducer.Process(svfOut * envValue);
+        m_excitationLowPass.Process(reduced);
 
-        m_output = m_combFilter.Process(prefiltered);
+        m_output = m_combFilter.Process(m_excitationLowPass.GetLowPass() * x_excitationGain);
         return m_output;
+    }
+
+    SampleTopGeneric<Size> AdvanceTop()
+    {
+        return SampleTopGeneric<Size>::Advance(m_resonancePhase, m_combFilter.GetTargetResonanceFrequency());
     }
 
     // Runs the AHD into the envelope, then the source.

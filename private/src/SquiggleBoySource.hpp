@@ -35,7 +35,7 @@ struct SquiggleBoySourceGeneric
 
     Vector m_output;
     Vector m_modOut[2];
-    SampleTop m_top[Size];
+    SampleTopGeneric<Size> m_top;
 
     struct Input
     {
@@ -69,7 +69,6 @@ struct SquiggleBoySourceGeneric
         : m_physicalModeling(42)
         , m_output(Vector::Splat(0))
     {
-        ClearTops();
     }
 
     void SetScopeWriters(ScopeWriterInput<Size>* scopeWriter, size_t track)
@@ -78,32 +77,20 @@ struct SquiggleBoySourceGeneric
         m_physicalModeling.SetScopeWriters(scopeWriter, track);
     }
 
-    void ClearTops()
-    {
-        for (size_t i = 0; i < Size; ++i)
-        {
-            m_top[i] = false;
-        }
-    }
-
     Vector Process(Input& input)
     {
-        ClearTops();
         switch (input.m_sourceMachine)
         {
             case SourceMachine::DualWaveShapingVCO:
             {
                 m_output = m_dualWaveShapingVCO.Process(input.m_dualWaveShapingVCOInput, m_modOut);
-                for (size_t i = 0; i < Size; ++i)
-                {
-                    m_top[i] = m_dualWaveShapingVCO.m_vco[0].m_top[i];
-                }
-
+                m_top = m_dualWaveShapingVCO.m_vco[0].m_top;
                 break;
             }
 
             case SourceMachine::Thru:
             {
+                m_top = {};
                 m_modOut[0] = Vector();
                 m_modOut[1] = Vector();
                 for (size_t i = 0; i < Size; ++i)
@@ -117,6 +104,7 @@ struct SquiggleBoySourceGeneric
             case SourceMachine::PhysicalModeling:
             {
                 m_output = m_physicalModeling.ProcessWithAHD(input.m_physicalModelingInput, m_modOut);
+                m_top = m_physicalModeling.AdvanceTop();
                 break;
             }
 
@@ -129,15 +117,12 @@ struct SquiggleBoySourceGeneric
 
                 input.m_sampleSourceInput.m_theoryOfTime = input.m_theoryOfTime;
                 m_output = m_sampleSource.Process(input.m_sampleSourceInput, m_modOut);
-                for (size_t i = 0; i < Size; ++i)
-                {
-                    m_top[i] = m_sampleSource.m_top[i];
-                }
-
+                m_top = m_sampleSource.m_top;
                 break;
             }
 
             default:
+                m_top = {};
                 break;
         }
 

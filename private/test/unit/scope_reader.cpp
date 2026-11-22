@@ -266,6 +266,48 @@ DOCTEST_TEST_CASE("ScopeReader: oscillator tops retain their subsample phase cro
     }
 }
 
+DOCTEST_TEST_CASE("ScopeReader: physical modeling marks full fractional periods for both feedback signs")
+{
+    GlobalEnv::ResetPerTest();
+    auto writer = std::make_unique<ScopeWriterGeneric<3, 1>>(1, 4096);
+    auto source = std::make_unique<TrioSquiggleBoySource>();
+    TrioSquiggleBoySource::Input sourceInput;
+    sourceInput.m_sourceMachine = VoiceMachine::SourceMachine::PhysicalModeling;
+    const TrioFloat frequency(3.0f / 32, 5.0f / 64, 3.0f / 32);
+    auto& model = source->m_physicalModeling;
+    model.SetCombParams(frequency, TrioFloat(0.8f, 0.2f, 0.5f), TrioFloat::Splat(0.5f), SampleTimer::x_sampleRate);
+
+    // Wrap the comb's delay buffer between the first and second cycle on each lane.
+    //
+    model.m_combFilter.m_buffer.m_head = TunedDecayComb::x_maxDelaySamples - 15;
+    constexpr size_t x_startIndex = 100;
+    writer->m_index = x_startIndex;
+    TrioSquiggleBoyShape filter;
+    TrioSquiggleBoyShape::Input filterInput;
+    filter.m_scopeWriter = ScopeWriterHolderGeneric<3>(writer.get(), 0);
+    for (size_t i = 0; i < 28; ++i)
+    {
+        filter.Process(filterInput, source->Process(sourceInput));
+        filter.WriteScopes(source->m_top);
+        writer->AdvanceIndex();
+    }
+
+    writer->Publish();
+    writer->AcceptSamples();
+    for (size_t lane = 0; lane < 2; ++lane)
+    {
+        const auto& markers = writer->GetAcceptedMarkers(0, lane);
+        const double period = 1.0 / frequency[lane];
+        DOCTEST_REQUIRE(markers.m_startIndexIndex == 2);
+        DOCTEST_CHECK(markers.m_startIndices[0] == doctest::Approx(x_startIndex + period - 1.0));
+        DOCTEST_CHECK(markers.m_startIndices[1] - markers.m_startIndices[0] == doctest::Approx(period));
+        ScopeReader reader(writer.get(), lane, 0, 1024);
+        DOCTEST_CHECK(reader.m_startIndex == doctest::Approx(x_startIndex + 2.0 * period - 1.0));
+    }
+
+    DOCTEST_CHECK(writer->GetAcceptedMarkers(0, 2).m_startIndexIndex == 0);
+}
+
 DOCTEST_TEST_CASE("ScopeReader: interpolated cycle length and reads survive buffer wrap")
 {
     auto writer = std::make_unique<ScopeWriterGeneric<1, 1>>(1, 4096);

@@ -54,11 +54,14 @@ The **Physical Modeling** source machine (`PhysicalModelingSource`) is a noise-d
 2. Morphable 2-pole SVF pre-filter (LP/BP/HP blend).
 3. Inverted AHD envelope modulation.
 4. Sample-rate reduction for texture control.
-5. Tuned decay comb (`TunedDecayComb`) with phase-compensated two-pole low-pass damping.
+5. Fixed two-pole Butterworth low-pass at host Nyquist (24 kHz) and fixed excitation gain.
+6. Tuned decay comb (`TunedDecayComb`) with phase-compensated two-pole low-pass damping.
 
 The source runs at the engine rate, one sample per call, and its comb takes `SampleTimer::x_sampleRate` as its sample rate. Its amplitude-depth control is inverted; attack ranges from 100 µs to 2.5 s and decay from 500 µs to 2.5 s. `ProcessWithAHD` runs the source's AHD once per engine sample, so envelope durations advance in engine samples and each trigger/release is consumed by one `AHD::Process` call. SVF morph uses quarter-circle LP→BP→HP weights, shared with its UI response.
 
 Factory defaults are CUT 100%, RES 0%, MRPH 0%, RATE 100%, FDBK 80%, DAMP 50%, ATK 0%, HOLD 25%, DEC 0%, and AMP 100%. The SVF cutoff and RATE mappings are defined in cycles per host sample and divided by `SampleTimer::x_oversample`. Increasing RATE raises the reducer rate exponentially from 48 Hz. At 100%, the reducer runs at the full processing rate and bypasses sample holding. A small upper-end headroom (4.0001 cycles per host sample) maintains bypass for oversample factors up to 4. Patches before version 3 reverse the saved RATE position on load to preserve the previous reducer rate.
+
+The fixed low-pass rolls off ultrasonic images from sample holding before the comb. The excitation gain targets −6 dBFS RMS at the comb input with CUT and RATE fully open, RES and MRPH at zero, and the source envelope at unity gain. This gain also applies to existing patches. The noise modulation output still taps the morphable SVF before the envelope.
 
 DECAY retains its signed knob mapping: negative feedback below 0.5, positive above 0.5, and dry at the exact center, including with DAMP enabled. With `u = abs(2*knob-1)`, `T60 = 0.001 * 5000^u` seconds sets the exact stationary fundamental lifetime and a ceiling on all other modal lifetimes, without an additional feedback blend. This holds for every DAMP setting and either sign, including clamped pitch boundaries. The 5 ms parameter transition keeps changes through the dry center smooth; moving coefficients do not have stationary decay guarantees.
 
@@ -89,7 +92,9 @@ Normalized pitch is clamped to `[cycles/16383, 0.25]`, where cycles is 1 for pos
 
 Parameter updates only store clamped physical values per channel (pitch in cycles per sample, feedback sign, log2 T60, damping octaves); coefficients are computed for changed channels when a crossfade starts. Two small filter/read branches share the delay buffer and crossfade their filtered outputs over 5 ms; the mixed output is written into the shared delay. Changes during a fade coalesce to the latest target without restarting it. No delay-buffer copies, allocations, or locks occur in processing. Modal guarantees apply after settling: moving parameters change the trajectory, and the plotted frozen-coefficient response is not a time-varying-system transfer function.
 
-The Source bank response visualizer samples the SVF, SRR rate, and comb together. It draws the original response and successively dimmer shifted and reflected copies of the cached SVF response, weighted by the sample-hold envelope and the comb response at each output frequency. A dotted marker shows half the reducer rate. The plot treats the AHD gain as fixed while computing the response.
+The post-filter scope starts a new cycle at each fractional wrap of a per-voice phase accumulator driven by the comb's clamped target pitch. Both feedback polarities mark the full fundamental period. The exact feedback center pauses the phase and emits no tops.
+
+The Source bank response visualizer samples the SVF, SRR rate, excitation low-pass, and comb together. It draws the original response and successively dimmer shifted and reflected copies of the cached SVF response, weighted by the sample-hold envelope, the excitation low-pass and gain, and the comb response at each output frequency. A dotted marker shows half the reducer rate. The plot treats the AHD gain as fixed while computing the response.
 
 ## Sample Source Machine
 
@@ -101,7 +106,7 @@ The **Sample** source machine (`SampleSource`) reads from one `AudioBufferBank` 
 - `SampleStart` and `SampleLength` define a wrapped window inside the normalized sample domain.
 - `SampleReadSpeed` selects quantized reverse, stopped, and forward rates from `-4x` through `4x`.
 - Audio is rendered through `GrainManager<AudioBufferBank>`, reusing the grain/resynthesis path used by the phase-vocoder components.
-- Each engine sample, `m_top` marks a playback wrap when the total phase time crosses an integer since the previous sample (`SampleTop::FromPhases`, with a fractional offset); the track starts post-filter scope cycles on it.
+- Each engine sample, `m_top` marks the lanes whose total phase time crossed an integer since the previous sample. `SampleTopGeneric::FromPhases` supplies fractional offsets for the post-filter scope cycles.
 
 Directory navigation and loading are asynchronous:
 

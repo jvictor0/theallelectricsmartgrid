@@ -104,7 +104,7 @@ struct SampleSourceGeneric : SampleSourceBase
     GrainManagerType m_grainManager;
     PlayHead m_phasorPlayHead;
     TimeVector m_previousTotalPhaseTime;
-    SampleTop m_top[Size];
+    SampleTopGeneric<Size> m_top;
     Vector m_sampleStart;
     Vector m_sampleLength;
 
@@ -125,10 +125,6 @@ struct SampleSourceGeneric : SampleSourceBase
         , m_sampleStart(Vector::Splat(0))
         , m_sampleLength(Vector::Splat(1))
     {
-        for (size_t i = 0; i < Size; ++i)
-        {
-            m_top[i] = false;
-        }
     }
 
     void SetAudioBufferBank(size_t channel, AudioBufferBank* audioBufferBank)
@@ -155,11 +151,7 @@ struct SampleSourceGeneric : SampleSourceBase
         input.m_phasorPlayHeadInput.m_theoryOfTime = input.m_theoryOfTime;
         TimeVector totalPhaseTime = m_phasorPlayHead.Process(input.m_phasorPlayHeadInput).template Convert<double>();
         Vector output = m_grainManager.Process(totalPhaseTime, Vector::Splat(0), input.m_grainManagerInput);
-        for (size_t i = 0; i < Size; ++i)
-        {
-            m_top[i] = SampleTop::FromPhases(m_previousTotalPhaseTime[i], totalPhaseTime[i]);
-        }
-
+        m_top = SampleTopGeneric<Size>::FromPhases(m_previousTotalPhaseTime, totalPhaseTime);
         m_previousTotalPhaseTime = totalPhaseTime;
         return output;
     }

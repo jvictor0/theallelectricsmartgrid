@@ -11,6 +11,7 @@
 #include "Filter.hpp"
 #include "SampleEventHistory.hpp"
 #include "SampleTimer.hpp"
+#include "SampleTop.hpp"
 #include "TimeWarpView.hpp"
 #include "PeriodicPhaseAxis.hpp"
 
@@ -738,6 +739,20 @@ struct ScopeWriterHolderGeneric
         if (m_scopeWriter)
         {
             m_scopeWriter->RecordStart(m_scopeIx, voice, offset);
+        }
+    }
+
+    void RecordStarts(const SampleTopGeneric<Size>& top)
+    {
+        if (!m_scopeWriter)
+        {
+            return;
+        }
+
+        for (uint64_t active = top.m_triggered.ToBits(); active != 0; active &= active - 1)
+        {
+            const size_t lane = static_cast<size_t>(__builtin_ctzll(active));
+            m_scopeWriter->RecordStart(m_scopeIx, lane, top.m_offset[lane]);
         }
     }
 

@@ -12,11 +12,11 @@ Defined in `private/src/ScopeWriter.hpp`.
 
 `RecordStart(scope, voice, sampleOffset)` retains a fractional real sample index. `RecordEnd` retains the corresponding end. Bound streams also store their continuous warped coordinates. On descending movement the writer undoes every crossed end and start: undoing an end reopens its start, and undoing a start restores the preceding interval. Backward start/end callbacks are ignored. Starts at an unchanged coordinate remain valid for existing transport behavior. Marker rings retain 256 intervals; expired entries cannot reappear during rewind.
 
-Top events use `SampleTop`: a trigger flag and a double offset in engine samples
-from the sample carrying the event. VPS derives the offset from the wrapped phase
-and frequency (`SampleTop::FromWrap`); the dual VCO records each oscillator's top
-on its own scope and forwards VCO 1's top to the source, whose post-filter scope
-uses it. These values travel through their existing top members and buffers.
+Top events use `SampleTopGeneric<Size>`, which holds a `MultiChannelBool` trigger
+mask and a vector of double offsets in engine samples. VPS derives the offsets
+from wrapped phase and frequency. The dual VCO records each oscillator's tops
+on its own scope and forwards VCO 1's tops to the post-filter scope. The scope
+writer records markers only for the lanes set in the mask.
 Theory of Time loop crossings need only boolean events. Periodic LFO scopes,
 including the Theory of Time scope, publish origin and period instead.
 Event-scope producers pass the interpolated crossing offset
@@ -92,7 +92,7 @@ at the current/previous-cycle join, and after unavailable history. The curve can
 therefore bend backwards without changing the horizontal coordinate or drawing
 a line across a wrap. Its cursor uses the same nominal-sweep rule as periodic LFOs.
 
-`SampleTop` owns phase-crossing interpolation. Offsets are always in engine samples. Producers pass
+`SampleTopGeneric` owns phase-crossing interpolation. Offsets are always in engine samples. Producers pass
 them unchanged to `RecordStart`, and the writer converts them to its own index
 units by dividing by its decimation. The reader converts inverse timestamps through the writer’s origin and decimation.
 
@@ -123,10 +123,11 @@ Cycle crossings and scope capture work as follows:
 
 | Location | Behavior |
 | --- | --- |
-| VPS | On a wrap, `SampleTop::FromWrap(wrapped, freq)` sets the offset to `-wrapped / freq` engine samples. Phase advancement and wrap detection do not depend on the offset. |
-| Dual VCO | Each oscillator's scope calls `RecordStartAtVoice(voice, top.m_offset)` on its wrap. VCO 1's top becomes the source top. |
-| Sub VCO | The sine VCO exposes each lane's fractional wrap top; the track passes its offset to the shaped sub scope's `RecordStartAtVoice`. |
-| Sample source | `SampleTop::FromPhases` applies the floor-crossing test between the previous and current total phase and adds its fractional timing. |
+| VPS | `SampleTopGeneric::Advance` advances and wraps the phase vector. Wrapped lanes get an offset of `-wrapped / freq` engine samples. |
+| Dual VCO | Each oscillator's scope records the lanes marked in its top vector. VCO 1's top vector becomes the source top. |
+| Sub VCO | The track passes the sine VCO's top vector to the shaped sub scope. |
+| Physical Modeling | The source dispatcher advances the comb-pitch phase vector and stores its fractional tops for the post-filter scope. |
+| Sample source | `SampleTopGeneric::FromPhases` detects integer crossings between the previous and current total phase vectors and interpolates their offsets. |
 | Theory of Time base | Stores boolean crossings in both phase domains, computed before topology acceptance. No remaining consumer needs a fractional offset. |
 | Filter scopes | Pass the source top's offset to `RecordStart`. |
 | SquiggleLFO scopes | Publish the clock offset and common participating loop period; no start events. |

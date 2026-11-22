@@ -178,16 +178,10 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
 
     // Writes the post-filter scopes, starting a cycle at each source top.
     //
-    void WriteScopes(const SampleTop* top)
+    void WriteScopes(const SampleTopGeneric<Size>& top)
     {
         m_scopeWriter.Write(m_output);
-        for (size_t i = 0; i < Size; ++i)
-        {
-            if (top[i])
-            {
-                m_scopeWriter.RecordStartAtVoice(i, top[i].m_offset);
-            }
-        }
+        m_scopeWriter.RecordStarts(top);
     }
 
     // Called from SetEncoderParameters to set the shape encoder params.

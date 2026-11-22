@@ -215,6 +215,7 @@ void AddWidth(std::vector<Case>& cases)
     Add(cases, "svf_hp" + suffix, GeneratedSVF<TPTSVFHighPassFilterGeneric<float, Size>>);
     Add(cases, "svf_morph" + suffix, GeneratedMorph<Size>);
     Add(cases, "svf_four_pole_hp" + suffix, GeneratedSVF<TPTSVF4PoleHighPassFilterGeneric<float, Size>>);
+    const auto initialSourceSnapshot = PhysicalModelingSourceGeneric<Size>(42).MakeSnapshot();
     for (bool crossfade : {false, true})
     {
         auto ending = std::string(crossfade ? "_crossfade" : "_active") + suffix;
@@ -222,9 +223,9 @@ void AddWidth(std::vector<Case>& cases)
         {
             return Comb<Size>(i, crossfade);
         });
-        Add(cases, "physical_model" + ending, [crossfade](size_t i)
+        Add(cases, "physical_model" + ending, [crossfade, initialSourceSnapshot](size_t i)
         {
-            typename PhysicalModelingSourceGeneric<Size>::Snapshot s;
+            auto s = initialSourceSnapshot;
             s.m_mainSVF = GeneratedMorph<Size>(i);
             s.m_combFilter = Comb<Size>(i, crossfade);
             return s;

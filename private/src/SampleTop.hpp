@@ -1,49 +1,52 @@
 #pragma once
 
-#include <cmath>
+#include "MultiChannelBool.hpp"
 
-struct SampleTop
+template<size_t Size>
+struct SampleTopGeneric
 {
-    bool m_triggered;
+    using OffsetVector = MultiChannelNumber<double, Size>;
 
+    MultiChannelBool<Size> m_triggered;
     // Offset in engine samples from the sample carrying this event.
     //
-    double m_offset;
+    OffsetVector m_offset;
 
-    SampleTop()
-        : SampleTop(false, 0.0)
+    template<class Number>
+    static SampleTopGeneric Advance(MultiChannelNumber<Number, Size>& phase, const MultiChannelNumber<Number, Size>& frequency)
     {
+        using PhaseVector = MultiChannelNumber<Number, Size>;
+        const auto next = phase + frequency;
+        const auto wrapped = next - next.Floor();
+        const auto crossed = next.Load() >= static_cast<Number>(1);
+        phase = PhaseVector::FromVector(crossed ? wrapped.Load() : next.Load());
+        return Interpolate(crossed, -wrapped.template Convert<double>(), frequency.template Convert<double>());
     }
 
-    SampleTop(bool triggered)
-        : SampleTop(triggered, 0.0)
+    static SampleTopGeneric FromPhases(const OffsetVector& previous, const OffsetVector& current)
     {
+        const auto previousCycle = previous.Floor();
+        const auto currentCycle = current.Floor();
+        const auto crossed = currentCycle.Load() != previousCycle.Load();
+        const auto boundary = currentCycle + OffsetVector::IfLess(current, previous, OffsetVector::Splat(1), OffsetVector{});
+        return Interpolate(crossed, boundary - current, current - previous);
     }
 
-    SampleTop(bool triggered, double offset)
-        : m_triggered(triggered)
-        , m_offset(offset)
+    template<class ComparisonVector>
+    static SampleTopGeneric Interpolate(ComparisonVector crossed, const OffsetVector& distance, const OffsetVector& increment)
     {
-    }
-
-    explicit operator bool() const
-    {
-        return m_triggered;
-    }
-
-    static SampleTop FromWrap(double phase, double frequency)
-    {
-        return {true, -phase / frequency};
-    }
-
-    static SampleTop FromPhases(double previous, double current)
-    {
-        if (std::floor(previous) == std::floor(current))
+        SampleTopGeneric result{MultiChannelBool<Size>::FromComparison(crossed), {}};
+        if (result.m_triggered.ToBits() != 0)
         {
-            return {};
+            using Comparison = decltype(distance.Load() != 0.0);
+            const auto event = __builtin_convertvector(crossed, Comparison);
+            const auto numerator = event ? distance.Load() : typename OffsetVector::Vector{};
+            const auto denominator = event ? increment.Load() : OffsetVector::Splat(1).Load();
+            result.m_offset = OffsetVector::FromVector(numerator / denominator);
         }
 
-        double boundary = std::floor(current) + (current < previous ? 1.0 : 0.0);
-        return {true, (boundary - current) / (current - previous)};
+        return result;
     }
 };
+
+using SampleTop = SampleTopGeneric<1>;

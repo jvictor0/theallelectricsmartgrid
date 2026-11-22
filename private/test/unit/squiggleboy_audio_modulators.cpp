@@ -37,14 +37,14 @@ void CheckSourceTaps()
                 DOCTEST_CHECK((dual ? 0.5f + 0.5f * recorded : recorded) == source->m_modOut[tap][lane]);
                 if (input.m_sourceMachine == Machine::DualWaveShapingVCO)
                 {
-                    const auto& top = source->m_dualWaveShapingVCO.m_vco[tap].m_top[lane];
-                    if (top)
+                    const auto& top = source->m_dualWaveShapingVCO.m_vco[tap].m_top;
+                    if (top.m_triggered[lane])
                     {
                         const auto& markers = writer->GetMarkers(scope, lane);
                         size_t count = markers.m_startIndexIndex;
                         DOCTEST_REQUIRE(count > 0);
                         DOCTEST_CHECK(markers.m_startIndices[(count - 1) % ScopeWriter::x_numStartIndices]
-                            == doctest::Approx(writer->m_index + top.m_offset));
+                            == doctest::Approx(writer->m_index + top.m_offset[lane]));
                     }
                 }
                 else if (input.m_sourceMachine == Machine::PhysicalModeling

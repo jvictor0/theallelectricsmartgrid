@@ -160,10 +160,32 @@ DOCTEST_TEST_CASE("PhysicalModeling: minimum attack is 100 microseconds and deca
     DOCTEST_CHECK(rig.Envelope().m_rawOutput == 0.0f);
 }
 
+DOCTEST_TEST_CASE("PhysicalModeling: full-open excitation reaches the dry comb input at -6 dBFS RMS")
+{
+    PhysicalModelingSource source(42);
+    PhysicalModelingSource::Input input;
+    input.m_mainSVFCutoff = 0.499f / SampleTimer::x_oversample;
+    input.m_mainSVFMorph = 0.0f;
+    input.m_envelope = 1.0f;
+    source.SetCombParams(220.0f / SampleTimer::x_sampleRate, 0.5f, 0.5f, SampleTimer::x_sampleRate);
+
+    double totalPower = 0.0;
+    for (size_t i = 0; i < SampleTimer::x_sampleRate; ++i)
+    {
+        double sample = source.Process(input)[0];
+        totalPower += sample * sample;
+    }
+
+    const double rmsDb = 10.0 * std::log10(totalPower / SampleTimer::x_sampleRate);
+    DOCTEST_CHECK(std::abs(rmsDb + 6.0) < 0.1);
+}
+
 DOCTEST_TEST_CASE("PhysicalModeling: UI morph response follows LP BP HP quarter-circle weights")
 {
-    PhysicalModelingSource::Snapshot snapshot;
+    PhysicalModelingSource source(42);
+    auto snapshot = source.MakeSnapshot();
     MorphingTPTSVFFilterGeneric<float, 1> filter;
+    const double excitationG = std::tan(M_PI * 0.5 / SampleTimer::x_oversample);
     const float x_blends[] = {-0.2f, 0.0f, 0.25f, 0.499999f, 0.5f, 0.500001f, 0.75f, 1.0f, 1.2f};
     const float x_lp[] = {1.0f, 1.0f, 0.707106781f, 0.00000314159f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
     const float x_bp[] = {0.0f, 0.0f, 0.707106781f, 1.0f, 1.0f, 1.0f, 0.707106781f, 0.0f, 0.0f};
@@ -176,12 +198,14 @@ DOCTEST_TEST_CASE("PhysicalModeling: UI morph response follows LP BP HP quarter-
                 std::log(2.0f) / std::log(11.0f), x_blends[i]);
             snapshot.m_mainSVF = filter.MakeSnapshot();
             const auto svf = TestSVF::Transfer(0.2, 1, freq);
-            auto expected = (
-                static_cast<double>(x_lp[i]) * svf.m_low +
+            auto frequency = ResponseFrequency::CyclesPerSample(freq);
+            auto expected = static_cast<double>(x_lp[i]) * svf.m_low +
                 static_cast<double>(x_bp[i]) * svf.m_band +
-                static_cast<double>(x_hp[i]) * svf.m_high) *
-                static_cast<std::complex<double>>(snapshot.m_combFilter.ComplexResponse(ResponseFrequency::CyclesPerSample(freq), 0));
-            DOCTEST_CHECK(snapshot.MagnitudeSquaredResponse(ResponseFrequency::CyclesPerSample(freq), 0)
+                static_cast<double>(x_hp[i]) * svf.m_high;
+            expected *= PhysicalModelingSource::x_excitationGain;
+            expected *= TestSVF::Transfer(excitationG, std::sqrt(2.0), freq).m_low;
+            expected *= snapshot.m_combFilter.ComplexResponse(frequency, 0);
+            DOCTEST_CHECK(snapshot.MagnitudeSquaredResponse(frequency, 0)
                 == doctest::Approx(std::norm(expected)).epsilon(0.00001));
         }
     }

@@ -62,7 +62,7 @@ The Dual Wave Shaping VCO SHALL run two oscillators with VCO 0 at `baseFreq * de
 - **THEN** each oscillator's phase-modulation input is 0 and the two oscillators run independently at their configured frequencies
 
 ### Requirement: Physical Modeling Signal Chain
-The Physical Modeling source machine SHALL process white noise through a morphable 2-pole SVF, apply inverted exponential AHD amplitude modulation, apply sample-rate reduction, and feed the result into a `TunedDecayComb` whose delay frequency tracks the voice base frequency.
+The Physical Modeling source machine SHALL process white noise through a morphable 2-pole SVF, apply inverted exponential AHD amplitude modulation, and apply sample-rate reduction. A fixed two-pole Butterworth low-pass at host Nyquist and fixed excitation gain SHALL process the reducer output before it drives a `TunedDecayComb` whose delay frequency tracks the voice base frequency. The fixed gain SHALL target −6 dBFS RMS at the comb input with CUT=1, RATE=1, RES=0, MRPH=0, and unity envelope gain.
 The SVF morph SHALL use shared quarter-circle weights: LP at 0, BP at 0.5, HP at 1, with nonnegative sine/cosine gains between endpoints. The source SHALL run at the engine rate and retain inverted amplitude-depth semantics, a 100 µs–2.5 s attack range, and a 500 µs–2.5 s decay range. `ProcessWithAHD` SHALL run the AHD once per engine sample, so AHD durations advance in engine samples and each trigger/release event is consumed by one `AHD::Process` call.
 
 Factory defaults SHALL be CUT=1, RES=0, MRPH=0, RATE=1, FDBK=0.8, DAMP=0.5, ATK=0, HOLD=0.25, DEC=0, and AMP=1. RATE SHALL increase the reducer rate exponentially from 48 Hz to full-rate bypass. The exponential mapping SHALL be expressed in cycles per host sample and divided by `SampleTimer::x_oversample`. Patches from before version 3 SHALL retain the effective reducer rate on load.
@@ -91,14 +91,14 @@ The implementation SHALL clamp normalized pitch to `[cycles/16383,0.25]` (cycles
 - **THEN** the inverted AHD envelope modulates the filtered noise amplitude through the exponential curve `ZeroedExpParam::Compute(10, env)` before sample-rate reduction and the comb stage
 
 ### Requirement: Physical Modeling Transfer Function UIState
-The Physical Modeling source SHALL expose a sampled `TransferFunctionGeneric` UI state. One audio-thread sampling decision SHALL capture the main SVF coefficients and morph weights, the reducer rate, and both comb branches with their transition mix. Per-snapshot response power SHALL multiply the morph-blended SVF power by the comb power before calculating statistics. The display SHALL treat the AHD gain as fixed. For active sample holding, the display SHALL include the hold envelope, shifted and reflected images of cached SVF power weighted by comb power at the output frequency, and a dotted marker at half the reducer rate when visible.
+The Physical Modeling source SHALL expose a sampled `TransferFunctionGeneric` UI state. One audio-thread sampling decision SHALL capture the main SVF coefficients and morph weights, the reducer rate, the fixed excitation low-pass coefficients, and both comb branches with their transition mix. Per-snapshot response power SHALL multiply the morph-blended SVF power by the post-reducer power, including the excitation low-pass, fixed gain, and comb, before calculating statistics. The display SHALL treat the AHD gain as fixed. For active sample holding, the display SHALL include the hold envelope, shifted and reflected images of cached SVF power weighted by the post-reducer power at the output frequency, and a dotted marker at half the reducer rate when visible.
 
 The comb SHALL retain its existing frozen response: `((1-m)*P0+m*P1)/(1-((1-m)*R0+m*R1))`, where P are transformed low-pass numerators and R are complete signed return loops. Numerators SHALL evaluate `gain*g*g*(1+q)^2/((1+k*g+g*g)+2*(g*g-1)*q+(1-k*g+g*g)*q*q)` with `q=r*exp(-j*omega)`. Integer delay, allpass, radial loss, signed feedback, bypass, and both branches' coefficients SHALL all come from the same captured state. Identity numerators apply only to the exact dry-center state. Settled and frozen-transition responses SHALL continue to agree with rendered audio.
 
-#### Scenario: Morph at zero yields a pure low-pass times comb response
+#### Scenario: Morph at zero selects the main SVF low-pass response
 - **WHEN** a snapshot was captured with morph zero
 - **THEN** its SVF factor is the LP response with unit LP weight and zero BP/HP weights
-- **AND** the complete response multiplies that factor by the captured comb response
+- **AND** the complete response multiplies that factor by the excitation low-pass, fixed gain, and captured comb response
 
 #### Scenario: Physical-model motion uses the common renderer
 - **WHEN** coefficients vary between captured states
@@ -118,7 +118,7 @@ The Sample source machine SHALL read audio from the voice's assigned `AudioBuffe
 
 #### Scenario: Loop wrap marks a cycle top
 - **WHEN** the play head's total phase time crosses an integer boundary between consecutive engine samples
-- **THEN** `SampleSource::m_top` for that voice is set by `SampleTop::FromPhases` with the fractional offset of the crossing, and `SquiggleBoySource` forwards it so the track starts a post-filter scope cycle there
+- **THEN** `SampleTopGeneric::FromPhases` marks that voice's lane in `SampleSource::m_top` with the fractional crossing offset, and `SquiggleBoySource` forwards the top vector so the track starts a post-filter scope cycle there
 
 The play head SHALL apply speed and window scaling to absolute modulated loop phase before wrapping at the playback output. It SHALL NOT restart fractional-speed playback at every source-loop boundary. All existing bank selection, grain rendering, window, and speed controls SHALL remain available.
 

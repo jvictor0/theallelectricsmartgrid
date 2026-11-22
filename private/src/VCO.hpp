@@ -11,7 +11,7 @@ struct VCOGeneric
 
     Vector m_output;
     Vector m_phase;
-    SampleTop m_top[Size];
+    SampleTopGeneric<Size> m_top;
 
     VCOGeneric()
         : m_output(Vector::Splat(0))
@@ -21,18 +21,7 @@ struct VCOGeneric
 
     Vector Process(const Vector& freq)
     {
-        m_phase += freq;
-        Vector wrapped = m_phase - m_phase.Floor();
-        for (size_t i = 0; i < Size; ++i)
-        {
-            m_top[i] = false;
-            if (1 <= m_phase[i])
-            {
-                m_top[i] = SampleTop::FromWrap(wrapped[i], freq[i]);
-            }
-        }
-
-        m_phase = Vector::IfLess(m_phase, Vector::Splat(1), m_phase, wrapped);
+        m_top = SampleTopGeneric<Size>::Advance(m_phase, freq);
         m_output = Math::Sin2pi(m_phase);
         return m_output;
     }

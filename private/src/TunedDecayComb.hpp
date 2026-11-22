@@ -294,6 +294,12 @@ struct TunedDecayCombGeneric : TunedDecayCombBase
     bool m_pending = false;
     bool m_initialized = false;
 
+    DoubleVector GetTargetResonanceFrequency() const
+    {
+        const auto active = m_targetParams.m_feedbackSign.Load() != 0.0;
+        return DoubleVector::FromVector(active ? m_targetParams.m_frequency.Load() : typename DoubleVector::Vector{});
+    }
+
     // Cheap enough to call every sample: only stores the mapped parameters.
     // Coefficients follow when the next crossfade starts. Frequencies are
     // normalized to the processing rate.

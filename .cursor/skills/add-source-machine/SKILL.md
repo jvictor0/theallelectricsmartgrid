@@ -88,7 +88,7 @@ struct MyNewSourceGeneric
 
     Vector m_phase;
     Vector m_output;
-    SampleTop m_top[Size];
+    SampleTopGeneric<Size> m_top;
 
     // Encoder mappings
     //
@@ -113,26 +113,11 @@ struct MyNewSourceGeneric
         , m_output(Vector::Splat(0))
         , m_myParamMapping(0.25f, 4.0f)
     {
-        for (size_t i = 0; i < Size; ++i)
-        {
-            m_top[i] = false;
-        }
     }
 
     Vector Process(const Input& input)
     {
-        m_phase += input.m_baseFreq;
-        Vector wrapped = m_phase - m_phase.Floor();
-        for (size_t i = 0; i < Size; ++i)
-        {
-            m_top[i] = false;
-            if (1 <= m_phase[i])
-            {
-                m_top[i] = SampleTop::FromWrap(wrapped[i], input.m_baseFreq[i]);
-            }
-        }
-
-        m_phase = Vector::IfLess(m_phase, Vector::Splat(1), m_phase, wrapped);
+        m_top = SampleTopGeneric<Size>::Advance(m_phase, input.m_baseFreq);
 
         // Your DSP here, using m_phase and input.m_myParam
         //
@@ -159,7 +144,7 @@ using TrioMyNewSource = MyNewSourceGeneric<3>;
 
 Key requirements:
 - `Vector Process(const Input& input)`: renders one engine sample for every channel and returns it
-- `m_top[Size]` (`SampleTop`): optional cycle-top events with a fractional sample offset; the track starts post-filter scope cycles on them. `SampleTop::FromWrap` (phase wrap) and `SampleTop::FromPhases` (integer crossing between two phases) build them
+- `m_top` (`SampleTopGeneric<Size>`) carries a per-channel trigger mask and fractional offsets for post-filter scope cycles. `Advance` marks oscillator wraps. `FromPhases` marks integer crossings between two phase vectors.
 - Frequencies and times are per engine sample; convert constants with the `SampleTimer` helpers (`HzToCycPerSamp`, `SecondsToSamples`, `SecondsToCycPerSamp`, and the `Host` variants for values defined per host sample)
 - `SetEncoderParams` runs every engine sample; read each value with `encoders.GetValue<Size>(Param::X, track)` and map it through `PhaseUtils::ExpParamGeneric` / `ZeroedExpParamGeneric` `Update`, which only recompute when the value changes. Encoder values arrive smoothed at their sources, so no per-parameter slew is needed
 
@@ -192,22 +177,17 @@ In `private/src/SquiggleBoySource.hpp`, add the include, a type alias, the membe
 
 ## Step 4: Integrate into Process and SetEncoderParams
 
-`SquiggleBoySource::Process` clears `m_top`, dispatches to the selected machine, and returns `m_output`. Add a case for your machine, copying its tops if it produces them:
+`SquiggleBoySource::Process` dispatches to the selected machine and returns `m_output`. Add a case that assigns the machine's top vector or clears `m_top` for a machine without cycle markers.
 
 ```cpp
 Vector Process(Input& input)
 {
-    ClearTops();
     switch (input.m_sourceMachine)
     {
         case SourceMachine::DualWaveShapingVCO:
         {
             m_output = m_dualWaveShapingVCO.Process(input.m_dualWaveShapingVCOInput);
-            for (size_t i = 0; i < Size; ++i)
-            {
-                m_top[i] = m_dualWaveShapingVCO.m_vco[0].m_top[i];
-            }
-
+            m_top = m_dualWaveShapingVCO.m_vco[0].m_top;
             break;
         }
 
@@ -216,15 +196,12 @@ Vector Process(Input& input)
         case SourceMachine::MyNewSource:
         {
             m_output = m_myNewSource.Process(input.m_myNewSourceInput);
-            for (size_t i = 0; i < Size; ++i)
-            {
-                m_top[i] = m_myNewSource.m_top[i];
-            }
-
+            m_top = m_myNewSource.m_top;
             break;
         }
 
         default:
+            m_top = {};
             break;
     }
 

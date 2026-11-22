@@ -27,7 +27,7 @@ struct VectorPhaseShaperGeneric
     Vector m_out;
     Vector m_dScale;
     Vector m_phaseMod;
-    SampleTop m_top[Size];
+    SampleTopGeneric<Size> m_top;
 
     struct Input
     {
@@ -72,11 +72,6 @@ struct VectorPhaseShaperGeneric
         , m_dScale(Vector::Splat(1))
         , m_phaseMod(Vector::Splat(0))
     {
-        for (size_t i = 0; i < Size; ++i)
-        {
-            m_top[i] = false;
-        }
-
         SetDV(Vector::Splat(0.5), Vector::Splat(0.5));
     }
 
@@ -107,18 +102,7 @@ struct VectorPhaseShaperGeneric
 
     void UpdatePhase()
     {
-        m_phase += m_freq;
-        Vector wrapped = m_phase - m_phase.Floor();
-        for (size_t i = 0; i < Size; ++i)
-        {
-            m_top[i] = false;
-            if (1 <= m_phase[i])
-            {
-                m_top[i] = SampleTop::FromWrap(wrapped[i], m_freq[i]);
-            }
-        }
-
-        m_phase = Vector::IfLess(m_phase, Vector::Splat(1), m_phase, wrapped);
+        m_top = SampleTopGeneric<Size>::Advance(m_phase, m_freq);
     }
 
     // Quintic Hermite segment on [a, b] with zero second derivatives at both ends.

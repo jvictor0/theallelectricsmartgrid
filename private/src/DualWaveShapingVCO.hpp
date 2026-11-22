@@ -127,13 +127,7 @@ struct DualWaveShapingVCOGeneric
         for (size_t j = 0; j < 2; ++j)
         {
             m_scopeWriter[j].Write(m_vco[j].m_out);
-            for (size_t i = 0; i < Size; ++i)
-            {
-                if (m_vco[j].m_top[i])
-                {
-                    m_scopeWriter[j].RecordStartAtVoice(i, m_vco[j].m_top[i].m_offset);
-                }
-            }
+            m_scopeWriter[j].RecordStarts(m_vco[j].m_top);
         }
     }
 

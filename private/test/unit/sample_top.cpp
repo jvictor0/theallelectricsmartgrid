@@ -20,8 +20,8 @@ DOCTEST_TEST_CASE("SampleTop: VPS stores the wrap offset in samples")
     VectorPhaseShaperInternal::Input input;
     input.m_freq = 0.015625f;
     vps.Process(input);
-    DOCTEST_CHECK(vps.m_top[0].m_triggered);
-    DOCTEST_CHECK(vps.m_top[0].m_offset == doctest::Approx(-0.5));
+    DOCTEST_CHECK(vps.m_top.m_triggered[0]);
+    DOCTEST_CHECK(vps.m_top.m_offset[0] == doctest::Approx(-0.5));
 }
 
 DOCTEST_TEST_CASE("SampleTop: interpolates the latest crossed boundary in either direction")
@@ -55,9 +55,22 @@ DOCTEST_TEST_CASE("SampleTop: interpolates the latest crossed boundary in either
         DOCTEST_CAPTURE(item.m_previous);
         DOCTEST_CAPTURE(item.m_current);
         SampleTop top = SampleTop::FromPhases(item.m_previous, item.m_current);
-        DOCTEST_CHECK(top.m_triggered == item.m_triggered);
-        DOCTEST_CHECK(top.m_offset == doctest::Approx(item.m_offset));
+        DOCTEST_CHECK(top.m_triggered[0] == item.m_triggered);
+        DOCTEST_CHECK(top.m_offset[0] == doctest::Approx(item.m_offset));
     }
+}
+
+DOCTEST_TEST_CASE("SampleTop: vector crossings handle both directions and exclude the padding lane")
+{
+    MultiChannelNumber<double, 3> previous(0.875, 1.125, 2.0);
+    MultiChannelNumber<double, 3> current(1.125, 0.625, 2.0);
+    previous.m_values[3] = 0.875;
+    current.m_values[3] = 1.125;
+    auto top = SampleTopGeneric<3>::FromPhases(previous, current);
+    DOCTEST_CHECK(top.m_triggered.ToBits() == 0b011);
+    DOCTEST_CHECK(top.m_offset[0] == -0.5);
+    DOCTEST_CHECK(top.m_offset[1] == -0.75);
+    DOCTEST_CHECK(top.m_offset[2] == 0.0);
 }
 
 DOCTEST_TEST_CASE("SampleTop: VPS publishes the fractional crossing on its existing top")
@@ -66,13 +79,13 @@ DOCTEST_TEST_CASE("SampleTop: VPS publishes the fractional crossing on its exist
     vps.m_phase = 0.9765625f;
     vps.m_freq = 0.015625f;
     vps.UpdatePhase();
-    DOCTEST_CHECK_FALSE(vps.m_top[0].m_triggered);
+    DOCTEST_CHECK_FALSE(vps.m_top.m_triggered[0]);
     vps.UpdatePhase();
-    DOCTEST_CHECK(vps.m_top[0].m_triggered);
-    DOCTEST_CHECK(vps.m_top[0].m_offset == doctest::Approx(-0.5));
+    DOCTEST_CHECK(vps.m_top.m_triggered[0]);
+    DOCTEST_CHECK(vps.m_top.m_offset[0] == doctest::Approx(-0.5));
     vps.UpdatePhase();
-    DOCTEST_CHECK_FALSE(vps.m_top[0].m_triggered);
-    DOCTEST_CHECK(vps.m_top[0].m_offset == 0.0);
+    DOCTEST_CHECK_FALSE(vps.m_top.m_triggered[0]);
+    DOCTEST_CHECK(vps.m_top.m_offset[0] == 0.0);
 }
 
 DOCTEST_TEST_CASE("Time loop crossings: Theory of Time retains both domains and clears them on stop")

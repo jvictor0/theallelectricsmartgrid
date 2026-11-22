@@ -341,13 +341,13 @@ DOCTEST_TEST_CASE("Trio: dual wave shaping VCO channels match mono cores")
             float monoOutput = mono[i]->Process(monoInput[i]);
             output.Add(i, trioOutput[i], monoOutput);
 
-            const SampleTop& trioTop = trio->m_vco[0].m_top[i];
-            const SampleTop& monoTop = mono[i]->m_vco[0].m_top[0];
-            DOCTEST_REQUIRE(trioTop.m_triggered == monoTop.m_triggered);
-            if (monoTop.m_triggered)
+            const auto& trioTop = trio->m_vco[0].m_top;
+            const auto& monoTop = mono[i]->m_vco[0].m_top;
+            DOCTEST_REQUIRE(trioTop.m_triggered[i] == monoTop.m_triggered[0]);
+            if (monoTop.m_triggered[0])
             {
                 ++topCount[i];
-                tops.Add(i, trioTop.m_offset, monoTop.m_offset);
+                tops.Add(i, trioTop.m_offset[i], monoTop.m_offset[0]);
             }
         }
     }
@@ -606,7 +606,7 @@ DOCTEST_TEST_CASE("Trio: sample source channels match mono cores with their own 
         for (size_t i = 0; i < 3; ++i)
         {
             output.Add(i, trioOutput[i], mono[i]->Process(monoInput[i])[0]);
-            DOCTEST_REQUIRE(trio->m_top[i].m_triggered == mono[i]->m_top[0].m_triggered);
+            DOCTEST_REQUIRE(trio->m_top.m_triggered[i] == mono[i]->m_top.m_triggered[0]);
         }
 
         DOCTEST_CHECK(RGen::s_gen == randomAfter);

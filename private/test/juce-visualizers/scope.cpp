@@ -676,7 +676,7 @@ DOCTEST_TEST_CASE("Sampled response rendering: percentile motion respects the GP
     }
 }
 
-DOCTEST_TEST_CASE("Physical Modeling response: SRR images pass through the comb")
+DOCTEST_TEST_CASE("Physical Modeling response: SRR images pass through the excitation filter and comb")
 {
     auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
     auto& squiggle = ui->m_squiggleBoyUIState;
@@ -715,9 +715,12 @@ DOCTEST_TEST_CASE("Physical Modeling response: SRR images pass through the comb"
     auto reflected = ResponseFrequency::CyclesPerSample(std::abs(f - 0.25));
     float svf = snapshot.m_mainSVF.MagnitudeSquaredResponse(reflected, 0);
     float comb = snapshot.m_combFilter.MagnitudeSquaredResponse(frequency, 0);
-    DOCTEST_CHECK(plot.m_postSrr[x][0].m_median == doctest::Approx(comb));
+    float lowPass = snapshot.m_excitationLowPass.MagnitudeSquaredResponse(frequency, 0);
+    constexpr float x_gain = TrioPhysicalModelingSource::x_excitationGain;
+    float postSrr = lowPass * comb * (x_gain * x_gain);
+    DOCTEST_CHECK(plot.m_postSrr[x][0].m_median == doctest::Approx(postSrr));
     DOCTEST_CHECK(comb != doctest::Approx(snapshot.m_combFilter.MagnitudeSquaredResponse(reflected, 0)));
-    float power = svf * comb * SRRResponsePlot::HoldPower(frequency, 0.25);
+    float power = svf * postSrr * SRRResponsePlot::HoldPower(frequency, 0.25);
     float normalized = PathDrawer::NormalizeDb(10 * std::log10(power));
     DOCTEST_REQUIRE(normalized > 0);
     int y = static_cast<int>(std::round(x_height * (1 - normalized / 2)));
@@ -733,7 +736,8 @@ DOCTEST_TEST_CASE("Physical Modeling response: SRR images pass through the comb"
 DOCTEST_TEST_CASE("Sampled response rendering: resizing retains the same narrow-resonance frequency grid")
 {
     PhysicalModelingSource::UIState response;
-    PhysicalModelingSource::Snapshot snapshot;
+    PhysicalModelingSource source(42);
+    auto snapshot = source.MakeSnapshot();
     MorphingTPTSVFFilterGeneric<float, 1> svf;
     svf.SetCutoffResonanceAndMorph(SampleTimer::HzToCycPerSamp(10000), 0.0f, 0.0f);
     snapshot.m_mainSVF = svf.MakeSnapshot();

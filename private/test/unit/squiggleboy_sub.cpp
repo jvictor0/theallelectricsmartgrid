@@ -317,7 +317,7 @@ DOCTEST_TEST_CASE("Sub: scope starts on each lane's fractional oscillator wrap")
             for (size_t lane = 0; lane < 3; ++lane)
             {
                 const bool expectedTop = sample == (lane == 2 ? 1 : 0);
-                DOCTEST_CHECK(track.m_sub.m_top[lane].m_triggered == expectedTop);
+                DOCTEST_CHECK(track.m_sub.m_top.m_triggered[lane] == expectedTop);
             }
 
             writer->AdvanceIndex();
