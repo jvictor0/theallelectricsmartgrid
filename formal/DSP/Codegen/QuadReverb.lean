@@ -33,17 +33,20 @@ private def returnPair (value : Value) : GenM Unit := do
   emit ("return {" ++ a ++ ", " ++ b ++ "};")
 
 private def renderMethod (signature : String) (lines : Array String) : Array String :=
-  #["    " ++ signature, "    {"] ++ lines.map (fun line => "        " ++ line) ++ #["    }", ""]
+  #["    " ++ signature, "    {"] ++
+    lines.map (fun line => if line.isEmpty || line.startsWith "#" then line else "        " ++ line) ++
+    #["    }", ""]
 
 private def processingCalls : Array CallBinding := #[
-  ⟨``SquiggleBoyWanderingIntroAPFs.step, "Process", 2, "", true, true⟩,
-  ⟨``SquiggleBoyWanderingIntroAPFs.y, "Y", 1, "Vector", true, false⟩,
-  ⟨``SquiggleBoyQuadReverb.drive, "Drive", 4, "Vector", false, false⟩,
+  ⟨``WanderingSchroederAllPassCascade.step, "Process", 2, "", true, true⟩,
+  ⟨``WanderingSchroederAllPassCascade.y, "Y", 1, "Vector", true, false⟩,
+  ⟨``SquiggleBoyQuadReverb.sumFeedback, "SumFeedback", 3, "Vector", false, false⟩,
   ⟨``SquiggleBoyQuadReverb.pushDelay, "Push", 2, "", true, true⟩,
   ⟨``DelayBuffer.readCubic, "ReadCubic", 2, "Vector", true, false⟩,
   ⟨``squiggleBoyReverbMix, "Mix", 1, "Vector", false, false⟩,
   ⟨``WanderingSchroederAllPassGeneric.step, "Process", 2, "", true, true⟩,
   ⟨``WanderingSchroederAllPassGeneric.y, "Y", 1, "Vector", true, false⟩,
+  ⟨``SquiggleBoyQuadReverb.saturate, "Saturate", 2, "Vector", false, false⟩,
   ⟨``SquiggleBoyQuadReverb.stepDamping, "Process", 2, "", true, true⟩,
   ⟨``SquiggleBoyQuadReverb.dampedSample, "Y", 1, "Vector", true, false⟩]
 
@@ -52,13 +55,13 @@ private def stateFields : Array Value := #[
   .scalar "CubicDelay" "m_delay",
   vector "m_delaySamples",
   vector "m_feedback",
-  .record #[vector "m_saturator.first", vector "m_saturator.second"],
+  vector "m_saturatorGain",
   .scalar "AllPass" "m_firstAllPass",
   .scalar "Damping" "m_damping",
   .scalar "AllPass" "m_secondAllPass"]
 
 private def specFields : Array Value :=
-  #["delaySamples", "feedback", "dampingBase", "dampingWidth"].map (fun field =>
+  #["delaySamples", "feedback", "dampingBase", "dampingWidth", "saturatorGain"].map (fun field =>
     vector ("spec.m_" ++ field))
 
 private def renderProcess : MetaM (Array String) := do
@@ -73,27 +76,22 @@ private def renderTuning : MetaM (Array String) := do
   let lines ← kernel ``SquiggleBoyQuadReverb.computeCoefficients
     #[.record specFields, .record stateFields] (fun next => do
       let .record fields := next | throwError "Expected reverb state"
-      for i in #[2, 3] do
+      for i in #[2, 3, 4] do
         let (_, name) ← scalar stateFields[i]!
         let (_, value) ← scalar fields[i]!
         emit s!"{name} = {value};") #[tune]
-  return renderMethod "void ComputeCoefficients(const LogicalSpec& spec)" lines
+  let check := #["#ifndef NDEBUG", "for (int ch = 0; ch < 4; ++ch)", "{",
+    "    assert(spec.m_delaySamples[ch] > 0);", "}", "#endif", ""]
+  return renderMethod "void ComputeCoefficients(const LogicalSpec& spec)" (check ++ lines)
 
 private def renderKernels : MetaM (Array String) := do
-  let mixOutputs ← kernel ``ParallelSchroederAllPassCascades.mixOutputs
-    (#[ "shortBranch", "longBranch" ].map vector) returnVector
   let cutoffs ← kernel ``SquiggleBoyQuadReverb.dampingCutoffs
     (#["base", "width"].map vector) returnPair
-  let drive ← kernel ``SquiggleBoyQuadReverb.drive
-    #[.record #[vector "saturator.first", vector "saturator.second"], vector "input",
-      vector "previous", vector "feedback"] returnVector
-  let saturator ← kernel ``NormalizedTanh.prepare #[.record #[vector "gain"]] returnPair
+  let sumFeedback ← kernel ``SquiggleBoyQuadReverb.sumFeedback
+    (#["input", "previous", "feedback"].map vector) returnVector
+  let saturate ← kernel ``SquiggleBoyQuadReverb.saturate
+    (#["gain", "sample"].map vector) returnVector
   let gain ← kernel ``SquiggleBoyQuadReverb.allPassGain #[] returnVector
-  let saturatorGain ← kernel ``SquiggleBoyQuadReverb.saturatorSpec #[] (fun value => do
-    let .record #[gain] := value | throwError "Expected saturator spec"
-    returnVector gain)
-  let cubicPosition ← kernel ``DelayBuffer.cubicPosition
-    (#["period", "samples"].map vector) returnPair
   let fractionalPosition ← kernel ``DelayBuffer.fractionalPosition #[vector "samples"] returnPair
   let offset ← kernel ``WanderingSchroederAllPassGeneric.offsetSamples
     (#["depth", "spline"].map vector) returnVector
@@ -107,12 +105,9 @@ private def renderKernels : MetaM (Array String) := do
       return name ++ "[0]"
     emit ("return {" ++ String.intercalate ", " scalars ++ "};")) #[] 1
   return renderMethod "static Vector AllPassGain()" gain ++
-    renderMethod "static Vector SaturatorGain()" saturatorGain ++
-    renderMethod "static std::pair<Vector, Vector> PrepareSaturator(const Vector& gain)" saturator ++
-    renderMethod "static Vector MixOutputs(const Vector& shortBranch, const Vector& longBranch)" mixOutputs ++
     renderMethod "static std::pair<Vector, Vector> DampingCutoffs(const Vector& base, const Vector& width)" cutoffs ++
-    renderMethod "static Vector Drive(const std::pair<Vector, Vector>& saturator, const Vector& input, const Vector& previous, const Vector& feedback)" drive ++
-    renderMethod "static std::pair<Vector, Vector> CubicPosition(const Vector& period, const Vector& samples)" cubicPosition ++
+    renderMethod "static Vector SumFeedback(const Vector& input, const Vector& previous, const Vector& feedback)" sumFeedback ++
+    renderMethod "static Vector Saturate(const Vector& gain, const Vector& sample)" saturate ++
     renderMethod "static std::pair<Vector, Vector> FractionalPosition(const Vector& samples)" fractionalPosition ++
     renderMethod "static Vector WanderOffset(const Vector& depth, const Vector& spline)" offset ++
     renderMethod "static Vector Interpolate(const Vector& older, const Vector& center, const Vector& newer, const Vector& newest, const Vector& fraction)" interpolate ++
@@ -231,7 +226,7 @@ private def renderStorage : Array String := #[
   "",
   "        Vector ReadCubic(const Vector& samples) const",
   "        {",
-  "            const auto [rounded, fraction] = CubicPosition(Vector::Splat(2 * Capacity), samples);",
+  "            const auto [rounded, fraction] = FractionalPosition(samples);",
   "            Vector older, center, newer, newest;",
   "            for (int ch = 0; ch < 4; ++ch)",
   "            {",
@@ -249,23 +244,18 @@ private def renderStorage : Array String := #[
   ""]
 
 private def renderDiffusion : Array String := Id.run do
-  let capacities := #[squiggleBoyReverbShortCapacities, squiggleBoyReverbLongCapacities]
-  let names := #["short", "long"]
   let mut fields := #[]
-  let mut body := #[]
-  for branch in List.finRange 2 do
-    let name := names[branch.val]!
-    body := body.push s!"            Vector {name}Audio = input;"
-    for stage in List.finRange 4 do
-      let capacity := (capacities[branch.val]!)[stage.val]!
-      let tap := squiggleBoyReverbIntroAPFsDelayTime branch stage
-      let member := s!"m_{name}{stage.val}"
-      let seed := (squiggleBoyReverbIntroSeed branch stage).toNat
-      fields := fields.push s!"        AllPass<{capacity}, {seed}, {tap}> {member};"
-      body := body.push s!"            {name}Audio = {member}.Process({name}Audio);"
+  let mut body := #["            Vector audio = input;"]
+  for stage in squiggleBoyReverbIntroOrder do
+    let capacity := squiggleBoyReverbIntroAPFCapacity stage
+    let tap := squiggleBoyReverbIntroAPFsDelayTime stage
+    let member := s!"m_stage{stage.val}"
+    let seed := (squiggleBoyReverbIntroSeed stage).toNat
+    fields := fields.push s!"        AllPass<{capacity}, {seed}, {tap}> {member};"
+    body := body.push s!"            audio = {member}.Process(audio);"
   return #["    struct Diffusion", "    {"] ++ fields ++
     #["        Vector m_output;", "", "        void Process(const Vector& input)", "        {"] ++
-    body ++ #["            m_output = MixOutputs(shortAudio, longAudio);", "        }", "",
+    body ++ #["            m_output = audio;", "        }", "",
       "        Vector Y() const", "        {", "            return m_output;", "        }", "",
       "    };", ""]
 
@@ -275,7 +265,7 @@ private def renderState : Array String := Id.run do
   return #["    Diffusion m_diffusion;",
     "    CubicDelay<x_delayCapacity> m_delay;",
     "    Vector m_delaySamples;", "    Vector m_feedback;",
-    "    const std::pair<Vector, Vector> m_saturator = PrepareSaturator(SaturatorGain());",
+    "    Vector m_saturatorGain;",
     s!"    AllPass<{squiggleBoyReverbFirstCapacity}, {(squiggleBoyReverbLoopSeed 0).toNat}, {taps 0}> m_firstAllPass;",
     "    Damping m_damping;",
     s!"    AllPass<{squiggleBoyReverbSecondCapacity}, {(squiggleBoyReverbLoopSeed 1).toNat}, {taps 1}> m_secondAllPass;",
@@ -292,14 +282,14 @@ def generateQuadReverb (name : String) : MetaM String := do
     "// Compile with strict floating-point arithmetic and implicit contraction disabled.", "//", "",
     "#include \"CircularBufferGeneric.hpp\"", "#include \"SchroederAllPassCoreGeneric.hpp\"",
     "#include \"SmoothRandomLFOStreamGeneric.hpp\"", "#include \"TPTBaseWidthGeneric.hpp\"",
-    "#include <cstdint>", "#include <type_traits>", "#include <utility>", "",
+    "#include <cassert>", "#include <cstdint>", "#include <type_traits>", "#include <utility>", "",
     "template<typename Number, bool Wandering = true, bool Framed = true>", s!"struct {name}", "{",
     "    using Vector = MultiChannelNumber<Number, 4>;",
     "    using DampingUIState = typename TPTBaseWidthGeneric<Number, 4>::UIState;",
     s!"    static constexpr size_t x_delayCapacity = {squiggleBoyReverbDelayCapacity};", "",
     "    struct LogicalSpec", "    {",
     "        Vector m_delaySamples;", "        Vector m_feedback;", "        Vector m_dampingBase;",
-    "        Vector m_dampingWidth;", "    };", "",
+    "        Vector m_dampingWidth;", "        Vector m_saturatorGain;", "    };", "",
     s!"    explicit {name}(const LogicalSpec& spec)", "    {", "        ComputeCoefficients(spec);",
     "    }", "",
     "    auto MakeDampingSnapshot() const",

@@ -14,13 +14,14 @@ struct QuadReverb : SquiggleBoyQuadReverb<float>
     static constexpr float x_minDelaySamples = 240.0f * x_delayScale;
     static constexpr float x_maxDelaySamples = 245760.0f * x_delayScale;
     static constexpr float x_defaultDelaySamples = 256.0f * x_delayScale;
-    static constexpr float x_modulationSamples = 4000.0f * x_delayScale;
+    static constexpr float x_modulationSamples = 200.0f * x_delayScale;
+    static constexpr float x_defaultSaturatorGain = 0.5f;
     static_assert(x_maxDelaySamples + x_modulationSamples < x_delayCapacity);
 
     QuadReverb()
         : Core({QuadFloat::Splat(x_defaultDelaySamples), QuadFloat::Splat(0.5f),
             QuadFloat::Splat(static_cast<float>(QuadTPTBaseWidthFilter::x_minBaseHz / SampleTimer::x_sampleRate)),
-            QuadFloat::Splat(1.0f)})
+            QuadFloat::Splat(1.0f), QuadFloat::Splat(x_defaultSaturatorGain)})
     {
     }
 
@@ -53,6 +54,7 @@ struct QuadReverbInputSetter
     QuadExpParam m_delayTime;
     QuadExpParam m_dampingBase;
     QuadExpParam m_dampingWidth;
+    QuadExpParam m_saturatorGain;
 
     // Each channel widens over its own range, so the wideners stay per channel.
     //
@@ -72,6 +74,7 @@ struct QuadReverbInputSetter
         QuadFloat m_feedbackKnob;
         QuadFloat m_dampingBaseKnob;
         QuadFloat m_dampingWidthKnob;
+        QuadFloat m_saturatorGainKnob;
 
         Input()
             : m_reverbTimeKnob()
@@ -79,6 +82,7 @@ struct QuadReverbInputSetter
             , m_feedbackKnob()
             , m_dampingBaseKnob()
             , m_dampingWidthKnob()
+            , m_saturatorGainKnob()
         {
         }
     };
@@ -87,6 +91,7 @@ struct QuadReverbInputSetter
       : m_delayTime(QuadReverb::x_minDelaySamples, QuadReverb::x_maxDelaySamples)
       , m_dampingBase(SampleTimer::HzToCycPerSamp(QuadTPTBaseWidthFilter::x_minBaseHz), SampleTimer::HzToCycPerSamp(QuadTPTBaseWidthFilter::x_maxBaseHz))
       , m_dampingWidth(1.0, 2048.0)
+      , m_saturatorGain(QuadReverb::x_defaultSaturatorGain, 4.0)
       , m_wideners
       {
         PhaseUtils::ExpParam(1.0, 0.978615137775),
@@ -105,15 +110,16 @@ struct QuadReverbInputSetter
             input.m_reverbTimeKnob.Convert<double>()).Convert<float>());
         const auto dampingBase = m_dampingBase.Update(input.m_dampingBaseKnob);
         const auto dampingWidth = m_dampingWidth.Update(input.m_dampingWidthKnob);
+        const auto saturatorGain = m_saturatorGain.Update(input.m_saturatorGainKnob);
         const auto delayOffset = (input.m_delayOffsetKnob * 2.0f - 1.0f)
             * QuadReverb::x_modulationSamples;
-        const auto feedback = m_feedback.Update(input.m_feedbackKnob) * 1.25f;
+        const auto feedback = (m_feedback.Update(input.m_feedbackKnob) * 1.25f) / saturatorGain;
         QuadFloat widen;
         for (int i = 0; i < 4; ++i)
         {
             widen[i] = m_wideners[i].Update(1.0);
         }
 
-        return {delayTime * widen + delayOffset, feedback, dampingBase, dampingWidth};
+        return {delayTime * widen + delayOffset, feedback, dampingBase, dampingWidth, saturatorGain};
     }
 };

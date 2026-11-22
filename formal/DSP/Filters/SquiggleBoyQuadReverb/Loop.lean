@@ -1,8 +1,8 @@
 import DSP.DelayBuffer.Cubic
-import DSP.Filters.NormalizedTanh
 import DSP.Filters.SquiggleBoyQuadReverb
 import DSP.Filters.SquiggleBoyQuadReverb.Mixing
 import DSP.Filters.Tuning
+import DSP.Nonlinear
 
 namespace DSP
 
@@ -31,7 +31,7 @@ structure SquiggleBoyQuadReverb (R : Type) where
   private delay : DelayBuffer squiggleBoyReverbDelayCapacity (Fin 4 → R)
   private delaySamples : Fin 4 → R
   private feedback : Fin 4 → R
-  private saturator : NormalizedTanh.Coefficients (Fin 4 → R)
+  private saturatorGain : Fin 4 → R
   private firstAllPass : WanderingSchroederAllPassGeneric squiggleBoyReverbFirstCapacity 4 R
   private damping : TPTBaseWidth (Fin 4 → R)
   private secondAllPass : WanderingSchroederAllPassGeneric squiggleBoyReverbSecondCapacity 4 R
@@ -43,6 +43,7 @@ structure LogicalSpec (R : Type) where
   feedback : Fin 4 → R
   dampingBase : Fin 4 → R
   dampingWidth : Fin 4 → R
+  saturatorGain : Fin 4 → R
 
 def dampingCutoffs {R : Type} [OfScientific R] [Mul R] [IfLess R]
     (base width : R) : R × R :=
@@ -58,14 +59,19 @@ def computeCoefficients {R : Type} [OfNat R 1] [OfScientific R] [Add R] [Mul R] 
     [Trig R] [IfLess R] (spec : LogicalSpec R) (state : SquiggleBoyQuadReverb R) :
     SquiggleBoyQuadReverb R :=
   let damping := tuneDamping state.damping spec.dampingBase spec.dampingWidth
-  { state with delaySamples := spec.delaySamples, feedback := spec.feedback, damping }
+  { state with
+    delaySamples := spec.delaySamples
+    feedback := spec.feedback
+    damping := damping
+    saturatorGain := spec.saturatorGain }
 
 def allPassGain {R : Type} [OfScientific R] : R := 0.6
-def saturatorSpec {R : Type} [OfScientific R] : NormalizedTanh.LogicalSpec R := ⟨0.5⟩
 
-def drive {R : Type} [Add R] [Mul R] [Div R] [Tanh R] (saturator : NormalizedTanh.Coefficients R)
-    (input previous feedback : R) : R :=
-  NormalizedTanh.apply saturator (input + previous * feedback)
+def sumFeedback {R : Type} [Add R] [Mul R] (input previous feedback : R) : R :=
+  input + previous * feedback
+
+def saturate {R : Type} [Mul R] [Tanh R] (gain sample : R) : R :=
+  Tanh.tanh (sample * gain)
 
 def pushDelay {capacity : Nat} {R : Type} (delay : DelayBuffer capacity (Fin 4 → R))
     (sample : Fin 4 → R) : DelayBuffer capacity (Fin 4 → R) :=
@@ -86,7 +92,7 @@ def stepDamping {R : Type} [Sub R] [FMA R] (state : TPTBaseWidth (Fin 4 → R))
 def dampedSample {R : Type} (damping : TPTBaseWidth R) : R := damping.lowPass.y
 
 def init {R : Type} [OfNat R 0] [OfNat R 1] [OfScientific R] [Add R] [Mul R] [Div R]
-    [Trig R] [IfLess R] [Tanh R] [SmoothRandomLFO.SampleValue R]
+    [Trig R] [IfLess R] [SmoothRandomLFO.SampleValue R]
     [Sub R] [FMA R] (spec : LogicalSpec R)
     (wandering : Bool := true) : SquiggleBoyQuadReverb R :=
   let gain : Fin 4 → R := allPassGain
@@ -97,7 +103,7 @@ def init {R : Type} [OfNat R 0] [OfNat R 1] [OfScientific R] [Add R] [Mul R] [Di
     delay := DelayBuffer.empty (by decide)
     delaySamples := zero
     feedback := zero
-    saturator := NormalizedTanh.prepare saturatorSpec
+    saturatorGain := zero
     firstAllPass := WanderingSchroederAllPassGeneric.init (squiggleBoyReverbLoopAPFsDelayTime 0)
       gain wander (squiggleBoyReverbLoopSeed 0) (squiggleBoyReverbLoopWanderFits wandering 0) (by decide)
     damping := ⟨⟨⟨zero, zero, zero⟩, zero⟩, ⟨zero, zero, zero⟩⟩
@@ -111,10 +117,10 @@ def step {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3] [OfNat R 4] 
     [DelayMath R] [DelayBuffer.SampleIndex R] [SmoothRandomLFO.SampleValue R]
     (state : SquiggleBoyQuadReverb R) (input : Sample (Fin 4 → R)) : SquiggleBoyQuadReverb R :=
   let diffusion := state.diffusion.step input
-  let delay := pushDelay state.delay (drive state.saturator diffusion.y state.secondAllPass.y state.feedback)
+  let delay := pushDelay state.delay (sumFeedback diffusion.y state.secondAllPass.y state.feedback)
   let mixed := squiggleBoyReverbMix (delay.readCubic state.delaySamples)
   let firstAllPass := state.firstAllPass.step ⟨mixed⟩
-  let damping := stepDamping state.damping ⟨firstAllPass.y⟩
+  let damping := stepDamping state.damping ⟨saturate state.saturatorGain firstAllPass.y⟩
   let secondAllPass := state.secondAllPass.step ⟨dampedSample damping⟩
   { state with diffusion, delay, firstAllPass, damping, secondAllPass }
 

@@ -179,3 +179,4 @@ BASELINE_PARAM(SubSlewRise, RISE, Sub, 2, 0, 0, "Sub Envelope Rise", SmartGrid::
 BASELINE_PARAM(SubSlewFall, FALL, Sub, 3, 0, 0, "Sub Envelope Fall", SmartGrid::Color(183, 0, 0), 0xFF, 0xFF, 0, false)
 BASELINE_PARAM(MasterTune, TUNE, TheoryOfTime, 0, 1, 0.4806131f, "Master Tune", SmartGrid::Color::White, 0xFF, 0xFF, 0, false)
 BASELINE_PARAM(SubShape, SHAP, Sub, 1, 1, 0, "Sub Shape", SmartGrid::Color(183, 0, 0), 0xFF, 0xFF, 0, false)
+BASELINE_PARAM(ReverbSaturation, SAT, Reverb, 0, 2, 0, "Reverb Saturation", SmartGrid::Color::Purple, 0xFF, 0xFF, 0, false)

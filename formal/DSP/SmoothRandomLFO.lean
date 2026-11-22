@@ -58,4 +58,8 @@ end Arithmetic
 def evaluate [FMA R] (p : Cubic R) (phase : R) : R :=
   FMA.fma (FMA.fma (FMA.fma p.a phase p.b) phase p.c) phase p.d
 
+/-- One frame of the smoothed phase clock. Both speeds are in knots per sample. -/
+def smoothVelocity [OfNat R 1] [Sub R] [Mul R] [FMA R] (alpha speed draw : R) : R :=
+  FMA.fma alpha speed ((1 - alpha) * draw)
+
 end DSP.SmoothRandomLFO

@@ -21,19 +21,12 @@ def fractionalPosition {R : Type} [Neg R] [Sub R] [DelayMath R] (samples : R) : 
   let rounded := -DelayMath.floor (-samples)
   (rounded, rounded - samples)
 
-def cubicPosition {R : Type} [Neg R] [Sub R] [Mul R] [Div R]
-    [IfLess R] [DelayMath R] (period samples : R) : R × R :=
-  let magnitude := maxValue samples (-samples)
-  let wrapped := magnitude - period * DelayMath.floor (magnitude / period)
-  let reflected := minValue wrapped (period - wrapped)
-  fractionalPosition reflected
-
-private def cubicTap {capacity : Nat} {R : Type} [OfNat R 2] [Neg R] [Sub R] [Mul R] [Div R]
-    [IfLess R] [DelayMath R] [SampleIndex R] (positive : 0 < capacity) (samples : R) :
+private def cubicTap {capacity : Nat} {R : Type} [Neg R] [Sub R]
+    [DelayMath R] [SampleIndex R] (positive : 0 < capacity) (samples : R) :
     CubicTap capacity R :=
-  let position := cubicPosition (2 * SampleIndex.ofNat capacity) samples
-  let whole := SampleIndex.toNat position.1
-  ⟨⟨(whole + capacity - 1) % capacity, Nat.mod_lt _ positive⟩, position.2⟩
+  let (rounded, fraction) := fractionalPosition samples
+  let whole := SampleIndex.toNat rounded
+  ⟨⟨(whole + capacity - 1) % capacity, Nat.mod_lt _ positive⟩, fraction⟩
 
 private def olderAge {capacity : Nat} (age : Fin capacity) : Fin capacity :=
   ⟨(age.val + 1) % capacity, Nat.mod_lt _ (Nat.zero_lt_of_lt age.isLt)⟩
@@ -71,10 +64,10 @@ def readCubicOffset {capacity : Nat} {ι R : Type} [OfNat R 2] [OfNat R 3] [OfNa
     let age := ⟨(base ch + whole + capacity - 1) % capacity, Nat.mod_lt _ positive⟩
     interpolateAt buffer ⟨age, fraction⟩ ch
 
-/-- Read fractional delays in samples after writing the current input. Delays
-reflect at zero and at capacity before Catmull–Rom interpolation. -/
+/-- Read positive fractional delays in samples after writing the current input.
+The caller supplies delays with enough history for the interpolation neighbors. -/
 def readCubic {capacity : Nat} {ι R : Type} [OfNat R 2] [OfNat R 3] [OfNat R 4] [OfNat R 5]
-    [OfScientific R] [Neg R] [Sub R] [Mul R] [Div R] [FMA R] [IfLess R] [DelayMath R] [SampleIndex R]
+    [OfScientific R] [Neg R] [Sub R] [Mul R] [FMA R] [DelayMath R] [SampleIndex R]
     (buffer : DelayBuffer capacity (ι → R)) (delaySamples : ι → R) : ι → R :=
   fun ch => interpolateAt buffer
     (cubicTap (Nat.zero_lt_of_lt buffer.head.isLt) (delaySamples ch)) ch

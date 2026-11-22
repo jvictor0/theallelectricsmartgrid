@@ -63,6 +63,22 @@ theorem amplitude_aligned (retention : ℝ) (n : Nat) :
       Complex.ofReal_mul, Complex.ofReal_one, mul_one]
     exact add_comm _ _
 
+/-- One unforced mode with a constant round-trip gain and a varying phase. -/
+def freeAmplitude (retention : ℝ) (phase : Nat → ℂ) (initial : ℂ) : Nat → ℂ
+  | 0 => initial
+  | n + 1 => (retention : ℂ) * phase n * freeAmplitude retention phase initial n
+
+/-- Phase motion alone cannot reduce unforced growth in the scalar model. -/
+theorem freeAmplitude_norm {retention : ℝ} (nonneg : 0 ≤ retention) {phase : Nat → ℂ}
+    (unit : ∀ n, ‖phase n‖ = 1) (initial : ℂ) (n : Nat) :
+    ‖freeAmplitude retention phase initial n‖ = retention ^ n * ‖initial‖ := by
+  induction n with
+  | zero => simp [freeAmplitude]
+  | succ n ih =>
+    simp only [freeAmplitude, norm_mul, Complex.norm_real, Real.norm_eq_abs,
+      abs_of_nonneg nonneg, unit, mul_one, ih, pow_succ']
+    ring
+
 /-- The delay phasor for an ideal fractional read at a digital frequency. -/
 def delayPhasor (frequency delay : ℝ) : ℂ :=
   Complex.exp (Complex.I * ((-(2 * Real.pi * frequency * delay) : ℝ) : ℂ))
@@ -154,6 +170,36 @@ theorem frozenAllPass_mode_power {gain frequency before after retention : ℝ}
   change powerRatio retention (b / a) = _
   rw [powerRatio, denominator_eq retention (by rw [Complex.normSq_div, hb, ha, div_one])]
   rw [← div_self ha', ← sub_div, Complex.normSq_div, ha, div_one]
+
+/-- The chord swept by two ideal APFs in series is bounded by the sum of the
+two tap excursions over the window times the frozen phase sensitivity. -/
+theorem norm_frozenAllPass_pair_sub_le {gain frequency a b a' b' : ℝ} (hg : |gain| < 1) :
+    ‖frozenAllPass gain frequency a' * frozenAllPass gain frequency b' -
+      frozenAllPass gain frequency a * frozenAllPass gain frequency b‖ ≤
+    (1 + |gain|) / (1 - |gain|) * (2 * Real.pi * |frequency| * (|a' - a| + |b' - b|)) := by
+  let x := frozenAllPass gain frequency a'
+  let y := frozenAllPass gain frequency b'
+  let u := frozenAllPass gain frequency a
+  let v := frozenAllPass gain frequency b
+  have normX : ‖x‖ = 1 := by
+    have h : Complex.normSq x = 1 := frozenAllPass_normSq hg
+    rw [Complex.normSq_eq_norm_sq] at h
+    nlinarith [norm_nonneg x]
+  have normV : ‖v‖ = 1 := by
+    have h : Complex.normSq v = 1 := frozenAllPass_normSq hg
+    rw [Complex.normSq_eq_norm_sq] at h
+    nlinarith [norm_nonneg v]
+  change ‖x * y - u * v‖ ≤ _
+  calc
+    _ = ‖x * (y - v) + (x - u) * v‖ := by congr 1; ring
+    _ ≤ ‖x * (y - v)‖ + ‖(x - u) * v‖ := norm_add_le _ _
+    _ = ‖y - v‖ + ‖x - u‖ := by simp [normX, normV]
+    _ ≤ _ := by
+      have h := add_le_add
+        (norm_frozenAllPass_sub_le (frequency := frequency) (before := b) (after := b') hg)
+        (norm_frozenAllPass_sub_le (frequency := frequency) (before := a) (after := a') hg)
+      refine h.trans_eq ?_
+      ring
 
 end
 end DSP.ModulatedMode

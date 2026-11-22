@@ -8,6 +8,7 @@
 #include "SchroederAllPassCoreGeneric.hpp"
 #include "SmoothRandomLFOStreamGeneric.hpp"
 #include "TPTBaseWidthGeneric.hpp"
+#include <cassert>
 #include <cstdint>
 #include <type_traits>
 #include <utility>
@@ -25,6 +26,7 @@ struct SquiggleBoyQuadReverb
         Vector m_feedback;
         Vector m_dampingBase;
         Vector m_dampingWidth;
+        Vector m_saturatorGain;
     };
 
     explicit SquiggleBoyQuadReverb(const LogicalSpec& spec)
@@ -39,9 +41,17 @@ struct SquiggleBoyQuadReverb
 
     void ComputeCoefficients(const LogicalSpec& spec)
     {
+#ifndef NDEBUG
+        for (int ch = 0; ch < 4; ++ch)
+        {
+            assert(spec.m_delaySamples[ch] > 0);
+        }
+#endif
+
         m_damping.Tune(spec.m_dampingBase, spec.m_dampingWidth);
         m_delaySamples = spec.m_delaySamples;
         m_feedback = spec.m_feedback;
+        m_saturatorGain = spec.m_saturatorGain;
     }
 
     Vector Process(const Vector& input)
@@ -49,17 +59,18 @@ struct SquiggleBoyQuadReverb
         m_diffusion.Process({input});
         const Vector v0 = m_diffusion.Y();
         const Vector v1 = m_secondAllPass.Y();
-        const Vector v2 = Drive({m_saturator.first, m_saturator.second}, v0, v1, m_feedback);
+        const Vector v2 = SumFeedback(v0, v1, m_feedback);
         m_delay.Push(v2);
         const Vector v3 = m_delay.ReadCubic(m_delaySamples);
         const Vector v4 = Mix(v3);
         m_firstAllPass.Process({v4});
         const Vector v5 = m_firstAllPass.Y();
-        m_damping.Process({v5});
-        const Vector v6 = m_damping.Y();
-        m_secondAllPass.Process({v6});
-        const Vector v7 = m_secondAllPass.Y();
-        return v7;
+        const Vector v6 = Saturate(m_saturatorGain, v5);
+        m_damping.Process({v6});
+        const Vector v7 = m_damping.Y();
+        m_secondAllPass.Process({v7});
+        const Vector v8 = m_secondAllPass.Y();
+        return v8;
     }
 
 private:
@@ -71,28 +82,6 @@ private:
         return Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x99999ap-24f : 0x13333333333333p-53));
     }
 
-    static Vector SaturatorGain()
-    {
-        return Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-24f : 0x10000000000000p-53));
-    }
-
-    static std::pair<Vector, Vector> PrepareSaturator(const Vector& gain)
-    {
-        const Vector v0 = (gain * gain);
-        const Vector v1 = (gain * (v0 + Vector::Splat(27)));
-        const Vector v2 = Vector::FusedMultiplyAdd(gain * Vector::Splat(9), gain, Vector::Splat(27));
-        const Vector v3 = (v1 / v2);
-        const Vector v4 = Vector::Min(Vector::Splat(1), Vector::Max(Vector::Splat(-1), v3));
-        return {gain, v4};
-    }
-
-    static Vector MixOutputs(const Vector& shortBranch, const Vector& longBranch)
-    {
-        const Vector v0 = (shortBranch + longBranch);
-        const Vector v1 = (v0 / Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0x800000p-22f : 0x10000000000000p-51)));
-        return v1;
-    }
-
     static std::pair<Vector, Vector> DampingCutoffs(const Vector& base, const Vector& width)
     {
         const Vector v0 = Vector::IfLess(base, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0xff7ceep-25f : 0x1fef9db22d0e56p-54)), base, Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? 0xff7ceep-25f : 0x1fef9db22d0e56p-54)));
@@ -102,37 +91,22 @@ private:
         return {v0, v3};
     }
 
-    static Vector Drive(const std::pair<Vector, Vector>& saturator, const Vector& input, const Vector& previous, const Vector& feedback)
+    static Vector SumFeedback(const Vector& input, const Vector& previous, const Vector& feedback)
     {
         const Vector v0 = (previous * feedback);
         const Vector v1 = (input + v0);
-        const Vector v2 = (v1 * saturator.first);
-        const Vector v3 = (v2 * v2);
-        const Vector v4 = (v2 * (v3 + Vector::Splat(27)));
-        const Vector v5 = Vector::FusedMultiplyAdd(v2 * Vector::Splat(9), v2, Vector::Splat(27));
-        const Vector v6 = (v4 / v5);
-        const Vector v7 = Vector::Min(Vector::Splat(1), Vector::Max(Vector::Splat(-1), v6));
-        const Vector v8 = (v7 / saturator.second);
-        return v8;
+        return v1;
     }
 
-    static std::pair<Vector, Vector> CubicPosition(const Vector& period, const Vector& samples)
+    static Vector Saturate(const Vector& gain, const Vector& sample)
     {
-        const Vector v0 = (-samples);
-        const Vector v1 = (-samples);
-        const Vector v2 = Vector::IfLess(samples, v0, v1, samples);
-        const Vector v3 = (v2 / period);
-        const Vector v4 = v3.Floor();
-        const Vector v5 = (period * v4);
-        const Vector v6 = (v2 - v5);
-        const Vector v7 = (period - v6);
-        const Vector v8 = (period - v6);
-        const Vector v9 = Vector::IfLess(v7, v6, v8, v6);
-        const Vector v10 = (-v9);
-        const Vector v11 = v10.Floor();
-        const Vector v12 = (-v11);
-        const Vector v13 = (v12 - v9);
-        return {v12, v13};
+        const Vector v0 = (sample * gain);
+        const Vector v1 = (v0 * v0);
+        const Vector v2 = (v0 * (v1 + Vector::Splat(27)));
+        const Vector v3 = Vector::FusedMultiplyAdd(v0 * Vector::Splat(9), v0, Vector::Splat(27));
+        const Vector v4 = (v2 / v3);
+        const Vector v5 = Vector::Min(Vector::Splat(1), Vector::Max(Vector::Splat(-1), v4));
+        return v5;
     }
 
     static std::pair<Vector, Vector> FractionalPosition(const Vector& samples)
@@ -312,7 +286,7 @@ private:
 
         Vector ReadCubic(const Vector& samples) const
         {
-            const auto [rounded, fraction] = CubicPosition(Vector::Splat(2 * Capacity), samples);
+            const auto [rounded, fraction] = FractionalPosition(samples);
             Vector older, center, newer, newest;
             for (int ch = 0; ch < 4; ++ch)
             {
@@ -330,29 +304,28 @@ private:
 
     struct Diffusion
     {
-        AllPass<2048, 1, 293> m_short0;
-        AllPass<2048, 2, 487> m_short1;
-        AllPass<2048, 3, 907> m_short2;
-        AllPass<2048, 4, 1433> m_short3;
-        AllPass<8192, 5, 4493> m_long0;
-        AllPass<8192, 6, 6899> m_long1;
-        AllPass<16384, 7, 9811> m_long2;
-        AllPass<16384, 8, 14033> m_long3;
+        AllPass<2048, 1, 293> m_stage0;
+        AllPass<2048, 2, 487> m_stage1;
+        AllPass<2048, 3, 907> m_stage2;
+        AllPass<2048, 4, 1433> m_stage3;
+        AllPass<8192, 5, 4493> m_stage4;
+        AllPass<8192, 6, 6899> m_stage5;
+        AllPass<16384, 7, 9811> m_stage6;
+        AllPass<16384, 8, 14033> m_stage7;
         Vector m_output;
 
         void Process(const Vector& input)
         {
-            Vector shortAudio = input;
-            shortAudio = m_short0.Process(shortAudio);
-            shortAudio = m_short1.Process(shortAudio);
-            shortAudio = m_short2.Process(shortAudio);
-            shortAudio = m_short3.Process(shortAudio);
-            Vector longAudio = input;
-            longAudio = m_long0.Process(longAudio);
-            longAudio = m_long1.Process(longAudio);
-            longAudio = m_long2.Process(longAudio);
-            longAudio = m_long3.Process(longAudio);
-            m_output = MixOutputs(shortAudio, longAudio);
+            Vector audio = input;
+            audio = m_stage0.Process(audio);
+            audio = m_stage1.Process(audio);
+            audio = m_stage2.Process(audio);
+            audio = m_stage3.Process(audio);
+            audio = m_stage4.Process(audio);
+            audio = m_stage5.Process(audio);
+            audio = m_stage6.Process(audio);
+            audio = m_stage7.Process(audio);
+            m_output = audio;
         }
 
         Vector Y() const
@@ -366,7 +339,7 @@ private:
     CubicDelay<x_delayCapacity> m_delay;
     Vector m_delaySamples;
     Vector m_feedback;
-    const std::pair<Vector, Vector> m_saturator = PrepareSaturator(SaturatorGain());
+    Vector m_saturatorGain;
     AllPass<8192, 9, 2039, 3719, 6359, 2753> m_firstAllPass;
     Damping m_damping;
     AllPass<32768, 10, 11923, 16879, 9041, 23447> m_secondAllPass;

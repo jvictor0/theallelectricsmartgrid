@@ -4,101 +4,90 @@ import Mathlib.Data.Fin.VecNotation
 
 namespace DSP
 
-/-- The short and long input diffusion taps in 192 kHz samples. -/
-def squiggleBoyReverbIntroAPFsDelayTime : Fin 2 → Fin 4 → Nat :=
-  ![![293, 487, 907, 1433], ![4493, 6899, 9811, 14033]]
+/-- The eight serial input diffusion taps in 192 kHz samples, in processing order. -/
+def squiggleBoyReverbIntroAPFsDelayTime : Fin 8 → Nat :=
+  ![293, 487, 907, 1433, 4493, 6899, 9811, 14033]
 
-def squiggleBoyReverbShortCapacities : List Nat := [2048, 2048, 2048, 2048]
-def squiggleBoyReverbLongCapacities : List Nat := [8192, 8192, 16384, 16384]
+def squiggleBoyReverbIntroCapacities : List Nat :=
+  [2048, 2048, 2048, 2048, 8192, 8192, 16384, 16384]
 
-def squiggleBoyReverbIntroAPFCapacity (branch : Fin 2) (stage : Fin 4) : Nat :=
-  if branch = 0 then squiggleBoyReverbShortCapacities[stage.val]'stage.isLt
-  else squiggleBoyReverbLongCapacities[stage.val]'stage.isLt
+def squiggleBoyReverbIntroAPFCapacity (stage : Fin 8) : Nat :=
+  squiggleBoyReverbIntroCapacities[stage.val]'stage.isLt
+
+/-- Processing order shared by both Lean cascades and the C++ storage renderer. -/
+def squiggleBoyReverbIntroOrder : List (Fin 8) := [0, 1, 2, 3, 4, 5, 6, 7]
+
+private def buildIntroCascade {Cascade : List Nat → Type} (empty : Cascade [])
+    (series : (i : Fin 8) → {rest : List Nat} → Cascade rest →
+      Cascade (squiggleBoyReverbIntroAPFCapacity i :: rest)) :
+    (order : List (Fin 8)) → Cascade (order.map squiggleBoyReverbIntroAPFCapacity)
+  | [] => empty
+  | i :: tail => series i (buildIntroCascade empty series tail)
 
 abbrev SquiggleBoyQuadReverbIntroAPFs (R : Type) :=
-  ParallelSchroederAllPassCascades squiggleBoyReverbShortCapacities squiggleBoyReverbLongCapacities 4 R
+  SchroederAllPassCascade 4 R (squiggleBoyReverbIntroOrder.map squiggleBoyReverbIntroAPFCapacity)
 
 def squiggleBoyQuadReverbIntroAPFs {R : Type} [OfNat R 0] (gain : Fin 4 → R) :
-    SquiggleBoyQuadReverbIntroAPFs R where
-  short :=
-    .series (.uniform (squiggleBoyReverbIntroAPFsDelayTime 0 0) (by decide) (by decide) gain) <|
-    .series (.uniform (squiggleBoyReverbIntroAPFsDelayTime 0 1) (by decide) (by decide) gain) <|
-    .series (.uniform (squiggleBoyReverbIntroAPFsDelayTime 0 2) (by decide) (by decide) gain) <|
-    .series (.uniform (squiggleBoyReverbIntroAPFsDelayTime 0 3) (by decide) (by decide) gain) <|
-    .passthrough (fun _ => 0)
-  long :=
-    .series (.uniform (squiggleBoyReverbIntroAPFsDelayTime 1 0) (by decide) (by decide) gain) <|
-    .series (.uniform (squiggleBoyReverbIntroAPFsDelayTime 1 1) (by decide) (by decide) gain) <|
-    .series (.uniform (squiggleBoyReverbIntroAPFsDelayTime 1 2) (by decide) (by decide) gain) <|
-    .series (.uniform (squiggleBoyReverbIntroAPFsDelayTime 1 3) (by decide) (by decide) gain) <|
-    .passthrough (fun _ => 0)
+    SquiggleBoyQuadReverbIntroAPFs R :=
+  have fits : ∀ stage : Fin 8,
+      0 < squiggleBoyReverbIntroAPFsDelayTime stage ∧
+        squiggleBoyReverbIntroAPFsDelayTime stage ≤ squiggleBoyReverbIntroAPFCapacity stage := by decide
+  let stage (i : Fin 8) : SchroederAllPassFilterGeneric (squiggleBoyReverbIntroAPFCapacity i) 4 R :=
+    .uniform (squiggleBoyReverbIntroAPFsDelayTime i) (fits i).1 (fits i).2 gain
+  buildIntroCascade (Cascade := SchroederAllPassCascade 4 R) (.passthrough (fun _ => 0))
+    (fun i {_} tail => .series (stage i) tail) squiggleBoyReverbIntroOrder
 
 theorem squiggleBoyQuadReverbIntroAPFs_realizes {K : Type} [Field K] (gain : Fin 4 → K) :
-    let bank := squiggleBoyQuadReverbIntroAPFs gain
-    Channels.Realizes ParallelSchroederAllPassCascades.step bank ParallelSchroederAllPassCascades.y
-      (bank.response Bilinear.const Bilinear.delay) := by
-  apply ParallelSchroederAllPassCascades.realizes <;>
-    simp [squiggleBoyQuadReverbIntroAPFs, SchroederAllPassCascade.AtRest]
+    let chain := squiggleBoyQuadReverbIntroAPFs gain
+    Channels.Realizes SchroederAllPassCascade.step chain SchroederAllPassCascade.y
+      (chain.response Bilinear.const Bilinear.delay) := by
+  apply SchroederAllPassCascade.realizes
+  simp only [squiggleBoyQuadReverbIntroAPFs, buildIntroCascade, squiggleBoyReverbIntroOrder,
+    SchroederAllPassCascade.AtRest, and_true]
+  repeat' first | exact SchroederAllPassFilterGeneric.uniform_atRest _ _ _ _ | constructor
 
-/-- The mean velocity draw is one cycle per 1,920,000 samples. -/
+/-- The fixed-tap intro cascade has unit magnitude on the unit circle. -/
+theorem squiggleBoyQuadReverbIntroAPFs_response_unit (gain : Fin 4 → ℝ)
+    (ch : Fin 4) (q : ℂ) (stable : |gain ch| < 1) (unit : Complex.normSq q = 1) :
+    Complex.normSq ((squiggleBoyQuadReverbIntroAPFs gain).response (fun g : ℝ => (g : ℂ)) q ch) = 1 := by
+  apply SchroederAllPassCascade.response_unit _ ch q unit
+  simp [squiggleBoyQuadReverbIntroAPFs, buildIntroCascade, squiggleBoyReverbIntroOrder, SchroederAllPassCascade.StableGains,
+    SchroederAllPassFilterGeneric.gain, SchroederAllPassFilterGeneric.uniform,
+    SchroederAllPassFilterGeneric.init, stable]
+
+/-- The exponential speed draw has mean one knot per 1,920,000 samples. -/
 def squiggleBoyReverbLambdaSamples : Nat := 1920000
 
 def squiggleBoyReverbWanderSpec (enabled : Bool) : WanderingSchroederAllPassGeneric.WanderSpec :=
   ⟨if enabled then 128 else 0, Float.ofNat squiggleBoyReverbLambdaSamples⟩
 
-theorem squiggleBoyReverbIntroWanderFits (enabled : Bool) (branch : Fin 2) (stage : Fin 4) :
-    DelayBuffer.CubicOffsetFits (squiggleBoyReverbIntroAPFCapacity branch stage)
-      (squiggleBoyReverbIntroAPFsDelayTime branch stage) (squiggleBoyReverbWanderSpec enabled).depth := by
-  have all : ∀ (e : Bool) (b : Fin 2) (s : Fin 4),
-      DelayBuffer.CubicOffsetFits (squiggleBoyReverbIntroAPFCapacity b s)
-        (squiggleBoyReverbIntroAPFsDelayTime b s) (squiggleBoyReverbWanderSpec e).depth := by decide
-  exact all enabled branch stage
+theorem squiggleBoyReverbIntroWanderFits (enabled : Bool) (stage : Fin 8) :
+    DelayBuffer.CubicOffsetFits (squiggleBoyReverbIntroAPFCapacity stage)
+      (squiggleBoyReverbIntroAPFsDelayTime stage) (squiggleBoyReverbWanderSpec enabled).depth := by
+  have all : ∀ (e : Bool) (s : Fin 8),
+      DelayBuffer.CubicOffsetFits (squiggleBoyReverbIntroAPFCapacity s)
+        (squiggleBoyReverbIntroAPFsDelayTime s) (squiggleBoyReverbWanderSpec e).depth := by decide
+  exact all enabled stage
 
-def squiggleBoyReverbIntroSeed (branch : Fin 2) (stage : Fin 4) : UInt64 :=
-  UInt64.ofNat (branch.val * 4 + stage.val + 1)
+def squiggleBoyReverbIntroSeed (stage : Fin 8) : UInt64 :=
+  UInt64.ofNat (stage.val + 1)
 
 def squiggleBoyReverbLoopSeed (stage : Fin 2) : UInt64 :=
   UInt64.ofNat (9 + stage.val)
 
-structure SquiggleBoyWanderingIntroAPFs (R : Type) where
-  short : WanderingSchroederAllPassCascade 4 R squiggleBoyReverbShortCapacities
-  long : WanderingSchroederAllPassCascade 4 R squiggleBoyReverbLongCapacities
+abbrev SquiggleBoyWanderingIntroAPFs (R : Type) :=
+  WanderingSchroederAllPassCascade 4 R (squiggleBoyReverbIntroOrder.map squiggleBoyReverbIntroAPFCapacity)
 
 namespace SquiggleBoyWanderingIntroAPFs
 
 def init {R : Type} [OfNat R 0] [SmoothRandomLFO.SampleValue R] [Sub R] [Div R] [FMA R]
     (enabled : Bool) (gain : Fin 4 → R) : SquiggleBoyWanderingIntroAPFs R :=
   let spec := squiggleBoyReverbWanderSpec enabled
-  { short :=
-      .series (.uniform (squiggleBoyReverbIntroAPFsDelayTime 0 0) gain spec (squiggleBoyReverbIntroSeed 0 0)
-        (squiggleBoyReverbIntroWanderFits enabled 0 0)) <|
-      .series (.uniform (squiggleBoyReverbIntroAPFsDelayTime 0 1) gain spec (squiggleBoyReverbIntroSeed 0 1)
-        (squiggleBoyReverbIntroWanderFits enabled 0 1)) <|
-      .series (.uniform (squiggleBoyReverbIntroAPFsDelayTime 0 2) gain spec (squiggleBoyReverbIntroSeed 0 2)
-        (squiggleBoyReverbIntroWanderFits enabled 0 2)) <|
-      .series (.uniform (squiggleBoyReverbIntroAPFsDelayTime 0 3) gain spec (squiggleBoyReverbIntroSeed 0 3)
-        (squiggleBoyReverbIntroWanderFits enabled 0 3)) <|
-      .passthrough (fun _ => 0)
-    long :=
-      .series (.uniform (squiggleBoyReverbIntroAPFsDelayTime 1 0) gain spec (squiggleBoyReverbIntroSeed 1 0)
-        (squiggleBoyReverbIntroWanderFits enabled 1 0)) <|
-      .series (.uniform (squiggleBoyReverbIntroAPFsDelayTime 1 1) gain spec (squiggleBoyReverbIntroSeed 1 1)
-        (squiggleBoyReverbIntroWanderFits enabled 1 1)) <|
-      .series (.uniform (squiggleBoyReverbIntroAPFsDelayTime 1 2) gain spec (squiggleBoyReverbIntroSeed 1 2)
-        (squiggleBoyReverbIntroWanderFits enabled 1 2)) <|
-      .series (.uniform (squiggleBoyReverbIntroAPFsDelayTime 1 3) gain spec (squiggleBoyReverbIntroSeed 1 3)
-        (squiggleBoyReverbIntroWanderFits enabled 1 3)) <|
-      .passthrough (fun _ => 0) }
-
-def y {R : Type} [Add R] [Div R] [OfNat R 2] (bank : SquiggleBoyWanderingIntroAPFs R) : Fin 4 → R :=
-  fun ch => ParallelSchroederAllPassCascades.mixOutputs (bank.short.y ch) (bank.long.y ch)
-
-def step {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3] [OfNat R 4] [OfNat R 5]
-    [OfScientific R] [Add R] [Sub R] [Neg R] [Mul R] [Div R] [FMA R] [IfLess R]
-    [DelayMath R] [DelayBuffer.SampleIndex R] [SmoothRandomLFO.SampleValue R]
-    (bank : SquiggleBoyWanderingIntroAPFs R) (input : Sample (Fin 4 → R)) :
-    SquiggleBoyWanderingIntroAPFs R :=
-  ⟨bank.short.step input, bank.long.step input⟩
+  let stage (i : Fin 8) : WanderingSchroederAllPassGeneric (squiggleBoyReverbIntroAPFCapacity i) 4 R :=
+    .uniform (squiggleBoyReverbIntroAPFsDelayTime i) gain spec (squiggleBoyReverbIntroSeed i)
+      (squiggleBoyReverbIntroWanderFits enabled i)
+  buildIntroCascade (Cascade := WanderingSchroederAllPassCascade 4 R) (.passthrough (fun _ => 0))
+    (fun i {_} tail => .series (stage i) tail) squiggleBoyReverbIntroOrder
 
 end SquiggleBoyWanderingIntroAPFs
 end DSP

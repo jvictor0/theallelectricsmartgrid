@@ -144,6 +144,7 @@ F(ReverbTime, ReverbAnalyzer)
 F(ReverbDampBase, ReverbAnalyzer)
 F(ReverbDampWidth, ReverbAnalyzer)
 F(ReverbModDepth, ReverbAnalyzer)
+F(ReverbSaturation, ReverbAnalyzer)
 
 // Partial machine: tracked partials, spectral filtering, and spatial placement.
 //

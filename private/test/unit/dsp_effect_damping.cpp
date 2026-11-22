@@ -92,7 +92,8 @@ DOCTEST_TEST_CASE("Effect damping: reverb publishes the generated damping respon
     const QuadFloat high(0.001f, 0.01f, 0.04f, 0.125f);
     const QuadFloat width(10, 4, 8, 2048);
     const auto low = QuadFloat::Min(QuadFloat::Splat(0.499f), high * width);
-    reverb->ComputeCoefficients({QuadFloat::Splat(240), QuadFloat(), high, width});
+    reverb->ComputeCoefficients({QuadFloat::Splat(240), QuadFloat(), high, width,
+        QuadFloat::Splat(QuadReverb::x_defaultSaturatorGain)});
     reverb->PopulateUIStateSample();
     const auto samples = ui.m_dampingFilter.Sample();
     DOCTEST_REQUIRE(samples.size() == 1);

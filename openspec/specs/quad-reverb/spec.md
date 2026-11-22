@@ -6,23 +6,30 @@ Quad Reverb is the second global quadraphonic send effect. The audio core is gen
 
 ## Requirements
 
-### Requirement: Parallel All-Pass Input Diffusion
+### Requirement: Serial All-Pass Input Diffusion
 
-The system SHALL diffuse the incoming quad signal through two parallel cascades of four all-pass filters and average their outputs. The cascades use nominal delays of 293, 487, 907, and 1433 samples and 4493, 6899, 9811, and 14033 samples at 192 kHz. Each stage shares its nominal delay across channels.
+The system SHALL diffuse the incoming quad signal through one cascade of eight all-pass filters. In processing order, their nominal delays are 293, 487, 907, 1433, 4493, 6899, 9811, and 14033 samples at 192 kHz. Each stage shares its nominal delay across channels.
 
 #### Scenario: Impulse is smeared before the delay loop
 
 - **WHEN** a single-sample impulse arrives at one reverb input channel
-- **THEN** both cascades contribute reflections to the delay loop
+- **THEN** each stage diffuses the previous stage's output before the last stage feeds the delay loop
 
-### Requirement: Saturated Feedback Summation
+### Requirement: Feedback Summation and Saturation
 
-The generated core SHALL sum the diffused input with its previous wet output scaled by the per-channel feedback coefficient. A normalized saturator SHALL process the sum before the main delay write. The core SHALL own the feedback return, histories, and write indices.
+The generated core SHALL multiply its previous wet output by the per-channel feedback coefficient and sum the result with the diffused input at the main delay write. The core SHALL own the feedback return, histories, and write indices.
 
-#### Scenario: Feedback control spans unity
+#### Scenario: Feedback control compensates for SAT gain
 
 - **WHEN** the feedback knob moves from minimum to maximum
-- **THEN** its zeroed exponential mapping ranges from 0 to 1.25
+- **THEN** the input setter divides the zeroed exponential feedback map, scaled to a maximum of 1.25, by the current per-channel SAT gain
+- **AND** the resulting coefficient spans 0 to 2.5 at minimum SAT
+- **AND** equal SAT settings across the lanes preserve the 0 to 1.25 small-signal range before damping in the frozen loop
+
+#### Scenario: SAT changes the feedback saturator gain
+
+- **WHEN** one channel's SAT control at `(0, 2)` moves from minimum to maximum
+- **THEN** the tanh input gain for that channel maps exponentially from 0.5 to 4, with a default of 0.5
 
 ### Requirement: Modulated Main Delay Line
 
@@ -31,7 +38,7 @@ The production engine SHALL run the reverb at 192 kHz with a four-channel main d
 #### Scenario: Delay offset is centered and linear
 
 - **WHEN** a channel's delay-offset knob is 0, 0.5, or 1
-- **THEN** its offset at 192 kHz is respectively −4000, 0, or +4000 samples
+- **THEN** its offset at 192 kHz is respectively −200, 0, or +200 samples
 
 #### Scenario: Regular modulation moves the delay offset
 
@@ -49,7 +56,7 @@ The system SHALL apply the generated orthogonal Givens mixer to the delayed quad
 
 ### Requirement: Feedback All-Pass and Damping Stages
 
-The remixed signal SHALL pass through an all-pass, a one-pole high-pass and low-pass damping stage, and a second all-pass. At 192 kHz, the nominal tap delays in samples SHALL be 2039, 3719, 6359, and 2753 for the first stage, and 11923, 16879, 9041, and 23447 for the second stage. The last stage supplies the wet output.
+The remixed signal SHALL pass through an all-pass, tanh with the per-channel SAT input gain, a one-pole high-pass and low-pass damping stage, and a second all-pass. At 192 kHz, the nominal tap delays in samples SHALL be 2039, 3719, 6359, and 2753 for the first stage, and 11923, 16879, 9041, and 23447 for the second stage. The last stage supplies the wet output.
 
 The damping base SHALL map exponentially from 23.4375 Hz to 24 kHz in engine cycles per sample. The width SHALL map exponentially from 1 to 2048. Both resulting cutoffs SHALL be limited to 0.499 cycles per sample.
 
@@ -60,7 +67,7 @@ The damping base SHALL map exponentially from 23.4375 Hz to 24 kHz in engine cyc
 
 ### Requirement: Wandering All-Pass Taps
 
-Each of the ten all-pass stages SHALL own a seeded spline modulator and use gain 0.6. The excursion SHALL be bounded by ±128 samples, with enough buffer history for all four interpolation taps. The exponential rate parameter SHALL be 1920000 samples. The spline SHALL be evaluated every 32 samples and linearly interpolated between evaluations. Audio tap reads SHALL use cubic interpolation.
+Each of the ten all-pass stages SHALL own a seeded spline modulator and use gain 0.6. The excursion SHALL be bounded by ±128 samples, with enough buffer history for all four interpolation taps. Every 32 samples the phase clock SHALL draw an exponential speed with mean `1 / 1920000` knots per sample and smooth it with a one-pole time constant of 48000 samples. The spline SHALL be evaluated at each frame boundary and linearly interpolated between evaluations. Audio tap reads SHALL use cubic interpolation.
 
 #### Scenario: The audio core receives physical settings and quad audio
 

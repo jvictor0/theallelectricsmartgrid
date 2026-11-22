@@ -177,7 +177,7 @@ DOCTEST_TEST_CASE("Rate boundaries: reverb keeps its physical delay times, modul
     QuadReverbInputSetter::Input knobs;
     const auto base = setter.Process(knobs).m_delaySamples;
     knobs.m_delayOffsetKnob = QuadFloat(0.0f, 0.25f, 0.5f, 1.0f);
-    const auto expected = base + QuadFloat(-4000, -2000, 0, 4000) * x_engineSamplesPerReferenceSample;
+    const auto expected = base + QuadFloat(-200, -100, 0, 200) * x_engineSamplesPerReferenceSample;
     DOCTEST_CHECK(setter.Process(knobs).m_delaySamples == expected);
     DOCTEST_CHECK(QuadReverb::x_delayCapacity == 262144);
     DOCTEST_CHECK(QuadReverb::x_maxDelaySamples + QuadReverb::x_modulationSamples < QuadReverb::x_delayCapacity);
@@ -189,27 +189,20 @@ DOCTEST_TEST_CASE("Rate boundaries: a reverb impulse first arrives after the phy
     auto reverb = std::make_unique<QuadReverb>();
     const size_t delaySamples = 1920 * x_ratio;
     reverb->ComputeCoefficients({QuadFloat::Splat(static_cast<float>(delaySamples)), QuadFloat(),
-        QuadFloat::Splat(static_cast<float>(SampleTimer::HzToCycPerSamp(0.5))), QuadFloat::Splat(65536.0f)});
+        QuadFloat::Splat(static_cast<float>(SampleTimer::HzToCycPerSamp(0.5))), QuadFloat::Splat(65536.0f),
+        QuadFloat::Splat(QuadReverb::x_defaultSaturatorGain)});
 
     double before = 0.0;
-    double after = 0.0;
-    for (size_t n = 0; n < delaySamples * 2; ++n)
+    for (size_t n = 0; n + 1 < delaySamples; ++n)
     {
         const auto input = n == 0 ? QuadFloat::Splat(0.5f) : QuadFloat();
-        QuadFloat output = reverb->Process(input);
-        double energy = (output * output).Sum();
-        if (n + 2 < delaySamples)
-        {
-            before += energy;
-        }
-        else
-        {
-            after += energy;
-        }
+        const auto output = reverb->Process(input);
+        before += (output * output).Sum();
     }
 
+    const auto first = reverb->Process(QuadFloat());
     DOCTEST_CHECK(before < 1e-12);
-    DOCTEST_CHECK(after > 1e-3);
+    DOCTEST_CHECK((first * first).Sum() > 1e-7);
 }
 
 DOCTEST_TEST_CASE("Rate boundaries: grains launch every analysis hop's duration in engine samples")

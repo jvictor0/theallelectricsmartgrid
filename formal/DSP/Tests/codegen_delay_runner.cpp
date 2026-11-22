@@ -205,7 +205,7 @@ void RunReverb()
 
         return values;
     };
-    const typename Core::LogicalSpec spec{readVector(), readVector(), readVector(), readVector()};
+    const typename Core::LogicalSpec spec{readVector(), readVector(), readVector(), readVector(), readVector()};
     const auto audio = readVector();
     if (!state)
     {

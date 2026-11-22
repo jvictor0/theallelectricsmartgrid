@@ -73,7 +73,7 @@ def main():
         for kind in ("reverb", "reverb_fixed", "spline", "spline_framed"):
             cases = [row[2:] for row in rows if row[:2] == [kind, str(precision)]]
             assert len(cases) == (512 if kind.startswith("spline") else 24064)
-            width, input_count = (1, 0) if kind.startswith("spline") else (4, 20)
+            width, input_count = (1, 0) if kind.startswith("spline") else (4, 24)
             for index, row in enumerate(cases):
                 inputs.append(f"{kind} {precision} {width} " + " ".join(row[:input_count]))
                 expected.append(row[input_count:])

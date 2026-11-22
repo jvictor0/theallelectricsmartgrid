@@ -77,6 +77,20 @@ DOCTEST_TEST_CASE("QuadReverbInputSetter: four-lane mappings and slews match per
         feedback[lane].SetBaseByCenter(0.25);
     }
 
+    input.m_feedbackKnob = QuadFloat(0, 0.5f, 0.75f, 1);
+    const auto minimumSat = setter.Process(input);
+    input.m_saturatorGainKnob = QuadFloat::Splat(1);
+    const auto maximumSat = setter.Process(input);
+    for (size_t lane = 0; lane < 4; ++lane)
+    {
+        const auto loopGain = 1.25 * feedback[lane].Update(input.m_feedbackKnob[lane]);
+        DOCTEST_CHECK(minimumSat.m_saturatorGain[lane] == 0.5f);
+        DOCTEST_CHECK(minimumSat.m_feedback[lane] == doctest::Approx(loopGain / 0.5).epsilon(x_tolerance));
+        DOCTEST_CHECK(maximumSat.m_saturatorGain[lane] == doctest::Approx(4.0).epsilon(x_tolerance));
+        DOCTEST_CHECK(maximumSat.m_feedback[lane] * maximumSat.m_saturatorGain[lane]
+            == doctest::Approx(loopGain).epsilon(x_tolerance));
+    }
+
     for (size_t sample = 0; sample < 128; ++sample)
     {
         input.m_reverbTimeKnob = QuadKnob(sample, 0.0f);
@@ -84,18 +98,23 @@ DOCTEST_TEST_CASE("QuadReverbInputSetter: four-lane mappings and slews match per
         input.m_feedbackKnob = QuadKnob(sample, 0.15f);
         input.m_dampingBaseKnob = QuadKnob(sample, 0.2f);
         input.m_dampingWidthKnob = QuadKnob(sample, 0.25f);
+        input.m_saturatorGainKnob = QuadKnob(sample, 0.35f);
         const auto spec = setter.Process(input);
         for (size_t lane = 0; lane < 4; ++lane)
         {
             DOCTEST_CAPTURE(sample);
             DOCTEST_CAPTURE(lane);
             const float baseDelay = delayTime[lane].Update(delayTimeFilter[lane].Process(input.m_reverbTimeKnob[lane]));
-            const float offset = (2.0f * input.m_delayOffsetKnob[lane] - 1.0f) * 4000.0f;
+            const float offset = (2.0f * input.m_delayOffsetKnob[lane] - 1.0f) * 200.0f;
             const float delaySamples = baseDelay * wideners[lane].Update(1.0) + offset;
             DOCTEST_CHECK(spec.m_delaySamples[lane] == doctest::Approx(delaySamples).epsilon(x_tolerance));
             DOCTEST_CHECK(spec.m_dampingBase[lane] == doctest::Approx(dampingBase[lane].Update(input.m_dampingBaseKnob[lane])).epsilon(x_tolerance));
             DOCTEST_CHECK(spec.m_dampingWidth[lane] == doctest::Approx(dampingWidth[lane].Update(input.m_dampingWidthKnob[lane])).epsilon(x_tolerance));
-            DOCTEST_CHECK(spec.m_feedback[lane] == doctest::Approx(1.25 * feedback[lane].Update(input.m_feedbackKnob[lane])).epsilon(x_tolerance));
+            const double saturatorGain = 0.5 * std::pow(8.0, input.m_saturatorGainKnob[lane]);
+            const double loopGain = 1.25 * feedback[lane].Update(input.m_feedbackKnob[lane]);
+            DOCTEST_CHECK(spec.m_saturatorGain[lane] == doctest::Approx(
+                saturatorGain).epsilon(x_tolerance));
+            DOCTEST_CHECK(spec.m_feedback[lane] == doctest::Approx(loopGain / saturatorGain).epsilon(x_tolerance));
         }
     }
 }

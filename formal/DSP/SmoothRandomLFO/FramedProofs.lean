@@ -371,7 +371,7 @@ theorem reverb_grid_velocity_le {u : ℝ} (hu : (2 ^ 53 : ℝ)⁻¹ ≤ u) :
   rw [div_le_iff₀ (by norm_num : (0 : ℝ) < 1920000)]
   linarith [Real.log_two_lt_d9]
 
-/-- Knot span in the exact interpretation of the same clamp used by drawWidth. -/
+/-- Knot span of the exponential-velocity comparison clock in exact arithmetic. -/
 def idealSpan (lambdaSamples u : ℝ) : ℝ :=
   1 / min 1 (max ((2 ^ 48 : ℝ)⁻¹) (velocityDraw lambdaSamples u))
 

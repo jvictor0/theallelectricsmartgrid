@@ -53,14 +53,15 @@ private def reverbSpec (n : Nat) : SquiggleBoyQuadReverb.LogicalSpec Float where
     let offset := ((n / 13 + ch.val * 3) % 263).toFloat / 4
     let capacity := squiggleBoyReverbDelayCapacity.toFloat
     match (n + ch.val * 17) % 251 with
-    | 0 => -offset
-    | 1 => capacity - offset
-    | 2 => capacity + offset
-    | 3 => 2 * capacity + offset
-    | _ => 1 + offset
+    | 0 => 1
+    | 1 => capacity - 1 - offset
+    | 2 => 240 + offset
+    | 3 => 4096 + offset
+    | _ => 3 + offset
   feedback ch := (5 + ((n / 411 + ch.val * 2) % 18).toFloat) / 32
   dampingBase ch := (3 + ((n / 17 + ch.val * 3) % 13).toFloat) / 128
   dampingWidth ch := (8 + ((n / 73 + ch.val * 7) % 23).toFloat) / 8
+  saturatorGain ch := (4 + ((n / 109 + ch.val * 5) % 21).toFloat) / 8
 
 private def reverbAudio (n : Nat) (ch : Fin 4) : Float :=
   if n == 0 then (ch.val + 1).toFloat / 4
@@ -76,14 +77,16 @@ private def reverbRows {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3
   let specAt := fun n =>
     let spec := reverbSpec n
     ({ delaySamples := cast ∘ spec.delaySamples, feedback := cast ∘ spec.feedback
-       dampingBase := cast ∘ spec.dampingBase, dampingWidth := cast ∘ spec.dampingWidth } :
+       dampingBase := cast ∘ spec.dampingBase, dampingWidth := cast ∘ spec.dampingWidth
+       saturatorGain := cast ∘ spec.saturatorGain } :
       SquiggleBoyQuadReverb.LogicalSpec R)
   let mut state := SquiggleBoyQuadReverb.init (specAt 0) wandering
   for n in [:24064] do
     let spec := specAt n
     let audio := cast ∘ reverbAudio n
     state := (state.computeCoefficients spec).step ⟨audio⟩
-    let fields := [spec.delaySamples, spec.feedback, spec.dampingBase, spec.dampingWidth, audio, state.y]
+    let fields := [spec.delaySamples, spec.feedback, spec.dampingBase, spec.dampingWidth,
+      spec.saturatorGain, audio, state.y]
     let values := fields.flatMap fun field => (List.finRange 4).map (bits ∘ field)
     let kind := if wandering then "reverb" else "reverb_fixed"
     out.putStrLn s!"{kind} {precision} {String.intercalate " " values}"

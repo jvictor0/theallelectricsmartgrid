@@ -238,7 +238,7 @@ DOCTEST_TEST_CASE("Reverb delay offset: neutral default and unsmoothed per-sampl
     QuadReverbInputSetter::Input input;
     const auto base = setter.Process(input).m_delaySamples;
     input.m_delayOffsetKnob = QuadFloat(0, 0.25f, 0.75f, 1);
-    const auto offsets = QuadFloat(-4000, -2000, 2000, 4000);
+    const auto offsets = QuadFloat(-200, -100, 100, 200);
     DOCTEST_CHECK(setter.Process(input).m_delaySamples == base + offsets);
     input.m_delayOffsetKnob = QuadFloat::Splat(0.5f);
     DOCTEST_CHECK(setter.Process(input).m_delaySamples == base);

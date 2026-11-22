@@ -1160,6 +1160,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         reverbInputSetterInput.m_feedbackKnob = m_encoders.GetValue<4>(Param::ReverbFeedback, 0);
         reverbInputSetterInput.m_dampingBaseKnob = m_encoders.GetValue<4>(Param::ReverbDampBase, 0);
         reverbInputSetterInput.m_dampingWidthKnob = m_encoders.GetValue<4>(Param::ReverbDampWidth, 0);
+        reverbInputSetterInput.m_saturatorGainKnob = m_encoders.GetValue<4>(Param::ReverbSaturation, 0);
         reverbInputSetterInput.m_delayOffsetKnob = m_encoders.GetValue<4>(Param::ReverbModDepth, 0);
         
         m_reverb.ComputeCoefficients(m_reverbInputSetter.Process(reverbInputSetterInput));

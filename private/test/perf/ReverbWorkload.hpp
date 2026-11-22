@@ -33,7 +33,8 @@ struct ReverbWorkload
     {
         if constexpr (x_generated)
         {
-            return Core({QuadFloat::Splat(1), QuadFloat(), QuadFloat::Splat(0.1f), QuadFloat::Splat(2)});
+            return Core({QuadFloat::Splat(1), QuadFloat(), QuadFloat::Splat(0.1f), QuadFloat::Splat(2),
+                QuadFloat::Splat(QuadReverb::x_defaultSaturatorGain)});
         }
         else
         {
@@ -90,7 +91,7 @@ struct ReverbWorkload
         if constexpr (x_generated)
         {
             m_core.ComputeCoefficients({m_spec.m_delaySamples, m_spec.m_feedback,
-                m_spec.m_dampingBase, m_spec.m_dampingWidth});
+                m_spec.m_dampingBase, m_spec.m_dampingWidth, m_spec.m_saturatorGain});
             value = m_core.Process(input);
         }
         else

@@ -175,3 +175,4 @@ F(SubSlewRise, RISE, Voice, 0, "Sub Envelope Rise", GetModulatorColor(VoiceModul
 F(SubSlewFall, FALL, Voice, 0, "Sub Envelope Fall", GetModulatorColor(VoiceModulator::Sub), 0, false)
 F(MasterTune, TUNE, Global, Tuning::x_defaultMasterTune, "Master Tune", SmartGrid::Color::White, 0, false)
 F(SubShape, SHAP, Voice, 0, "Sub Shape", GetModulatorColor(VoiceModulator::Sub), 0, false)
+F(ReverbSaturation, SAT, Quad, 0, "Reverb Saturation", SmartGrid::Color::Purple, 0, false)

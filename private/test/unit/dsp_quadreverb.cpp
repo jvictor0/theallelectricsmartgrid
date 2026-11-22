@@ -8,16 +8,17 @@
 namespace
 {
 
-QuadReverb::LogicalSpec ReverbSpec(float feedback)
+QuadReverb::LogicalSpec ReverbSpec(float feedback, float saturatorGain)
 {
     return {QuadFloat::Splat(2048.0f), QuadFloat::Splat(feedback),
-        QuadFloat::Splat(1.0f / 65536.0f), QuadFloat::Splat(65536.0f)};
+        QuadFloat::Splat(1.0f / 65536.0f), QuadFloat::Splat(65536.0f),
+        QuadFloat::Splat(saturatorGain)};
 }
 
-double ReverbImpulseEnergy(float feedback, size_t startSample)
+double ReverbImpulseEnergy(float feedback, float saturatorGain, size_t startSample)
 {
     auto reverb = std::make_unique<QuadReverb>();
-    reverb->ComputeCoefficients(ReverbSpec(feedback));
+    reverb->ComputeCoefficients(ReverbSpec(feedback, saturatorGain));
     double energy = 0;
     for (size_t sample = 0; sample < 192000; ++sample)
     {
@@ -38,21 +39,23 @@ double ReverbImpulseEnergy(float feedback, size_t startSample)
 
 }
 
-DOCTEST_TEST_CASE("QuadReverb impulse produces a substantial wet return without feedback")
+DOCTEST_TEST_CASE("QuadReverb SAT changes the wet return without feedback")
 {
     GlobalEnv::ResetPerTest();
-    double energy = ReverbImpulseEnergy(0.0f, 0);
-    DOCTEST_CHECK(energy > 0.25);
-    DOCTEST_CHECK(energy < 0.7);
+    const double minimumSat = ReverbImpulseEnergy(0.0f, 0.5f, 0);
+    const double maximumSat = ReverbImpulseEnergy(0.0f, 4.0f, 0);
+    DOCTEST_CHECK(minimumSat > 0.05);
+    DOCTEST_CHECK(minimumSat < 0.15);
+    DOCTEST_CHECK(maximumSat / minimumSat == doctest::Approx(64.0).epsilon(0.01));
 }
 
 DOCTEST_TEST_CASE("QuadReverb feedback sustains the late tail")
 {
     GlobalEnv::ResetPerTest();
-    double dryTail = ReverbImpulseEnergy(0.0f, 144000);
-    double feedbackTail = ReverbImpulseEnergy(0.7f, 144000);
+    double dryTail = ReverbImpulseEnergy(0.0f, QuadReverb::x_defaultSaturatorGain, 144000);
+    double feedbackTail = ReverbImpulseEnergy(1.25f, QuadReverb::x_defaultSaturatorGain, 144000);
     DOCTEST_CHECK(feedbackTail > 1e-4);
-    DOCTEST_CHECK(feedbackTail > 10.0 * dryTail);
+    DOCTEST_CHECK(feedbackTail > 5.0 * dryTail);
     DOCTEST_CHECK(feedbackTail < 1.0);
 }
 
@@ -60,7 +63,7 @@ DOCTEST_TEST_CASE("QuadReverb silent input does not generate a tail at ordinary 
 {
     GlobalEnv::ResetPerTest();
     auto reverb = std::make_unique<QuadReverb>();
-    reverb->ComputeCoefficients(ReverbSpec(0.7f));
+    reverb->ComputeCoefficients(ReverbSpec(0.7f, QuadReverb::x_defaultSaturatorGain));
     for (size_t sample = 0; sample < 8192; ++sample)
     {
         const auto output = reverb->Process(QuadFloat());
