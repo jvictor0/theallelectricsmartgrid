@@ -1,5 +1,6 @@
 #pragma once
 
+#include <filesystem>
 #include <ostream>
 #include <string>
 #include <vector>
@@ -11,7 +12,7 @@ struct BenchmarkCase
 {
     const char* m_name;
     const char* m_notes;
-    void (*m_run)(const std::vector<std::string>& arguments, std::ostream& output);
+    void (*m_run)(const std::vector<std::string>& arguments, const std::filesystem::path& runDirectory, std::ostream& output);
 };
 
 const std::vector<BenchmarkCase>& BenchmarkCases();

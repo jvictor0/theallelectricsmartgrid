@@ -171,7 +171,8 @@
         words.emplace_back(word.UTF8String);
     }
 
-    std::thread([self, selected, words]
+    const auto runDirectory = std::filesystem::path(directory.fileSystemRepresentation) / runID.UTF8String;
+    std::thread([self, selected, words, runDirectory]
     {
         @autoreleasepool
         {
@@ -179,7 +180,7 @@
             std::string error;
             try
             {
-                selected->m_run(words, output);
+                selected->m_run(words, runDirectory, output);
             }
             catch (const std::exception& failure)
             {

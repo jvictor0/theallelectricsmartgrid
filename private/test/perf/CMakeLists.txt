@@ -39,6 +39,7 @@ foreach(kind voices effects extra auxiliary encoders sgrec density audio_diagnos
     target_compile_options(perf_${kind} PRIVATE -fno-fast-math -ffp-contract=off -funroll-loops)
     target_link_libraries(perf_${kind} PRIVATE perf_codec Threads::Threads)
 endforeach()
+target_sources(perf_sgrec PRIVATE sgrec_main.cpp)
 target_sources(perf_density PRIVATE density_main.cpp)
 target_sources(perf_responses PRIVATE responses_main.cpp)
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/build.json" CONTENT

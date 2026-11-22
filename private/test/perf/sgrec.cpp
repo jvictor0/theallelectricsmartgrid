@@ -1,3 +1,4 @@
+#include "SgrecReplay.hpp"
 #include "Bench.hpp"
 #include "PatchFormat.hpp"
 #include "support/SynthRig.hpp"
@@ -286,97 +287,86 @@ struct CallbackTiming
     }
 };
 
-int main(int argc, char** argv)
+void RunSgrecReplay(const char* preparedPath, const char* callbackSize, const char* duration,
+                    const char* callbacksPath, const char* finalPatchPath, std::ostream& progress)
 {
-    try
+    const int callbackFrames = Integer(callbackSize);
+    Require(callbackFrames > 0 && callbackFrames <= SampleTimer::x_hostSampleRate,
+        "Callback frames must be in [1, host sample rate]");
+    std::ifstream input(preparedPath);
+    Require(input.good(), "Cannot open prepared replay");
+    std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    Require(text.size() < 64 * 1024 * 1024, "Replay JSON too large");
+    JsonArena arena(text.size() * 16 + 1024 * 1024);
+    JSON root = arena.Loads(text.c_str());
+    Require(!root.IsNull() && !arena.Failed(), "Invalid replay JSON");
+    PrepareCPU();
+    ControlReplay replay(root);
+    const size_t end = std::string(duration) == "all" ? replay.m_frames : std::min(replay.m_frames,
+        static_cast<size_t>(PositiveSeconds(duration) * SampleTimer::x_hostSampleRate));
+    Require(end > 0, "Duration must contain at least one host frame");
+    std::ofstream output(callbacksPath);
+    Require(output.good(), "Cannot open result output");
+    output << std::setprecision(17);
+    std::array<CallbackTiming, 256> pending;
+    size_t pendingCount = 0;
+    size_t callback = 0;
+    while (replay.m_hostFrame < end)
     {
-        Require(argc == 5 || argc == 6,
-            "Usage: perf_sgrec PREPARED.json CALLBACK_FRAMES SECONDS|all OUTPUT.jsonl [FINAL_PATCH.json]");
-        const int callbackFrames = Integer(argv[2]);
-        Require(callbackFrames > 0 && callbackFrames <= SampleTimer::x_hostSampleRate,
-            "Callback frames must be in [1, host sample rate]");
-        std::ifstream input(argv[1]);
-        Require(input.good(), "Cannot open prepared replay");
-        std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
-        Require(text.size() < 64 * 1024 * 1024, "Replay JSON too large");
-        JsonArena arena(text.size() * 16 + 1024 * 1024);
-        JSON root = arena.Loads(text.c_str());
-        Require(!root.IsNull() && !arena.Failed(), "Invalid replay JSON");
-        PrepareCPU();
-        ControlReplay replay(root);
-        const size_t end = std::string(argv[3]) == "all" ? replay.m_frames : std::min(replay.m_frames,
-            static_cast<size_t>(PositiveSeconds(argv[3]) * SampleTimer::x_hostSampleRate));
-        Require(end > 0, "Duration must contain at least one host frame");
-        std::ofstream output(argv[4]);
-        Require(output.good(), "Cannot open result output");
-        output << std::setprecision(17);
-        std::array<CallbackTiming, 256> pending;
-        size_t pendingCount = 0;
-        size_t callback = 0;
-        while (replay.m_hostFrame < end)
+        const size_t begin = replay.m_hostFrame;
+        const size_t next = std::min(end, begin + callbackFrames);
+        const size_t eventsBefore = replay.m_nextEvent;
+        const double cpu = CPUSeconds();
+        const auto wall = std::chrono::steady_clock::now();
+        replay.RunTo(next);
+        const double elapsed = CPUSeconds() - cpu;
+        const double wallSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - wall).count();
+        auto& synth = replay.m_rig.Internal().m_squiggleBoy;
+        size_t activeBins = 0;
+        for (const auto& pvdr : synth.m_delay.m_grainManager.m_resynthesizer.m_pvdr)
         {
-            const size_t begin = replay.m_hostFrame;
-            const size_t next = std::min(end, begin + callbackFrames);
-            const size_t eventsBefore = replay.m_nextEvent;
-            const double cpu = CPUSeconds();
-            const auto wall = std::chrono::steady_clock::now();
-            replay.RunTo(next);
-            const double elapsed = CPUSeconds() - cpu;
-            const double wallSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - wall).count();
-            auto& synth = replay.m_rig.Internal().m_squiggleBoy;
-            size_t activeBins = 0;
-            for (const auto& pvdr : synth.m_delay.m_grainManager.m_resynthesizer.m_pvdr)
+            for (size_t i = 0; i < pvdr.m_size; ++i)
             {
-                for (size_t i = 0; i < pvdr.m_size; ++i)
-                {
-                    activeBins += !pvdr.m_results[i].m_small;
-                }
-            }
-
-            pending[pendingCount++] = {callback++, begin, next - begin, replay.m_nextEvent - eventsBefore,
-                elapsed, wallSeconds,
-                replay.m_rig.Internal().m_nonagon.m_nonagon.m_theoryOfTime.m_sample.m_unmodulatedPhase, activeBins};
-            const bool progress = next / (60 * SampleTimer::x_hostSampleRate)
-                != begin / (60 * SampleTimer::x_hostSampleRate) || next == end;
-            if (pendingCount == pending.size() || progress)
-            {
-                for (size_t i = 0; i < pendingCount; ++i)
-                {
-                    pending[i].Write(output);
-                }
-
-                pendingCount = 0;
-                Require(output.good(), "Cannot write results");
-            }
-
-            if (progress)
-            {
-                output.flush();
-                std::cerr << "Replayed " << next / SampleTimer::x_hostSampleRate << " s\n";
+                activeBins += !pvdr.m_results[i].m_small;
             }
         }
 
-        output.close();
-        Require(output.good(), "Cannot write results");
-        if (argc == 6)
+        pending[pendingCount++] = {callback++, begin, next - begin, replay.m_nextEvent - eventsBefore,
+            elapsed, wallSeconds,
+            replay.m_rig.Internal().m_nonagon.m_nonagon.m_theoryOfTime.m_sample.m_unmodulatedPhase, activeBins};
+        const bool reportProgress = next / (60 * SampleTimer::x_hostSampleRate)
+            != begin / (60 * SampleTimer::x_hostSampleRate) || next == end;
+        if (pendingCount == pending.size() || reportProgress)
         {
-            JsonArena snapshotArena(16 * 1024 * 1024);
-            auto snapshot = replay.m_rig.Internal().ToJSON(snapshotArena);
-            Require(!snapshotArena.Failed() && !snapshot.IsNull(), "Cannot snapshot replay state");
-            char* dumped = snapshot.Dumps(0);
-            Require(dumped != nullptr, "Cannot serialize replay state");
-            std::ofstream saved(argv[5]);
-            saved << dumped << '\n';
-            std::free(dumped);
-            saved.close();
-            Require(saved.good(), "Cannot write replay state");
+            for (size_t i = 0; i < pendingCount; ++i)
+            {
+                pending[i].Write(output);
+            }
+
+            pendingCount = 0;
+            Require(output.good(), "Cannot write results");
+        }
+
+        if (reportProgress)
+        {
+            output.flush();
+            progress << "Replayed " << next / SampleTimer::x_hostSampleRate << " s\n";
         }
     }
-    catch (const std::exception& error)
-    {
-        std::cerr << error.what() << '\n';
-        return 1;
-    }
 
-    return 0;
+    output.close();
+    Require(output.good(), "Cannot write results");
+    if (finalPatchPath != nullptr)
+    {
+        JsonArena snapshotArena(16 * 1024 * 1024);
+        auto snapshot = replay.m_rig.Internal().ToJSON(snapshotArena);
+        Require(!snapshotArena.Failed() && !snapshot.IsNull(), "Cannot snapshot replay state");
+        char* dumped = snapshot.Dumps(0);
+        Require(dumped != nullptr, "Cannot serialize replay state");
+        std::ofstream saved(finalPatchPath);
+        saved << dumped << '\n';
+        std::free(dumped);
+        saved.close();
+        Require(saved.good(), "Cannot write replay state");
+    }
 }

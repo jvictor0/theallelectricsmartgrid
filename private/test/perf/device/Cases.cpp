@@ -2,11 +2,12 @@
 #include "../DensityCase.hpp"
 #include "../ResponsesCase.hpp"
 #include "../ReverbWorkload.hpp"
+#include "../SgrecReplay.hpp"
 #include <random>
 #include <sstream>
 #include <stdexcept>
 
-void RunInverter(const std::vector<std::string>& arguments, std::ostream& output)
+void RunInverter(const std::vector<std::string>& arguments, const std::filesystem::path&, std::ostream& output)
 {
     std::vector<std::string> words{"inverter"};
     if (arguments.empty())
@@ -38,7 +39,7 @@ void RunInverter(const std::vector<std::string>& arguments, std::ostream& output
     }
 }
 
-void RunTransferResponses(const std::vector<std::string>& arguments, std::ostream& output)
+void RunTransferResponses(const std::vector<std::string>& arguments, const std::filesystem::path&, std::ostream& output)
 {
     std::vector<std::string> words{"responses"};
     words.insert(words.end(), arguments.begin(), arguments.end());
@@ -55,7 +56,7 @@ void RunTransferResponses(const std::vector<std::string>& arguments, std::ostrea
     }
 }
 
-void RunQuadReverb(const std::vector<std::string>& arguments, std::ostream& output)
+void RunQuadReverb(const std::vector<std::string>& arguments, const std::filesystem::path&, std::ostream& output)
 {
     Require(arguments.size() <= 2, "Reverb: [REPEATS] [SECONDS_PER_CASE]");
     const int repeats = arguments.empty() ? 7 : Integer(arguments[0].c_str());
@@ -97,6 +98,16 @@ void RunQuadReverb(const std::vector<std::string>& arguments, std::ostream& outp
     }
 }
 
+void RunRecordingReplay(const std::vector<std::string>& arguments, const std::filesystem::path& runDirectory,
+                        std::ostream& output)
+{
+    Require(arguments.size() == 2, "SGREC replay requires CALLBACK_FRAMES SECONDS|all");
+    const auto replay = runDirectory / "replay.json";
+    const auto callbacks = runDirectory / "callbacks.jsonl";
+    RunSgrecReplay(replay.c_str(), arguments[0].c_str(), arguments[1].c_str(), callbacks.c_str(), nullptr, std::cerr);
+    output << "{\"callback_frames\":" << Integer(arguments[0].c_str()) << "}\n";
+}
+
 const std::vector<BenchmarkCase>& BenchmarkCases()
 {
     static const std::vector<BenchmarkCase> x_cases
@@ -114,7 +125,9 @@ const std::vector<BenchmarkCase>& BenchmarkCases()
             RunTransferResponses},
         {"reverb", "Legacy, generated fixed-tap, and sample-rate and framed wandering reverbs at 192 kHz with shared traces. "
             "Reports thread CPU ms per audio second for all four control modes after a two-second warmup. "
-            "Arguments: [REPEATS] [SECONDS_PER_CASE].", RunQuadReverb}
+            "Arguments: [REPEATS] [SECONDS_PER_CASE].", RunQuadReverb},
+        {"sgrec", "Replays a recorded control timeline through SynthRig and times each callback-sized window.",
+            RunRecordingReplay}
     };
     return x_cases;
 }

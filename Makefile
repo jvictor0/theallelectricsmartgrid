@@ -169,9 +169,9 @@ PERF_IPAD_DIR := $(REPO_ROOT)/build/tools/perf-ipad/Release
 PERF_TEAM ?= 84DCGNY7JA
 .PHONY: perf-ipad-build perf-ipad
 perf-ipad-build:
-	cmake -S "$(REPO_ROOT)/private/test/perf/device" -B "$(PERF_IPAD_DIR)" -G Xcode \
+	juce_root=$$(python3 "$(REPO_ROOT)/scripts/build_cache.py" juce) && cmake -S "$(REPO_ROOT)/private/test/perf/device" -B "$(PERF_IPAD_DIR)" -G Xcode \
 		-DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=18.0 \
-		-DCMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM="$(PERF_TEAM)"
+		-DCMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM="$(PERF_TEAM)" -DSMARTGRID_JUCE_ROOT="$$juce_root"
 	cmake --build "$(PERF_IPAD_DIR)" --config Release --parallel "$(JOBS)" -- -allowProvisioningUpdates
 
 perf-ipad: perf-ipad-build

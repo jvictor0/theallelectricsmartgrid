@@ -44,13 +44,14 @@ sqlite3 ~/Documents/SmartGridOne/perf.sqlite3 \
   'select started_at, case_name, substr(git_commit,1,8), status, notes from runs order by started_at desc limit 10;'
 ```
 
-`--timeout SECONDS` defaults to 600. Failed launches/transfers remain in the
+`--timeout SECONDS` defaults to 600 for component cases. Failed launches/transfers remain in the
 database as failures. Device JSON reports remain under the benchmark app's
 `Documents/perf/` for inspection if collection fails. No recording/patch sync
 is performed. Device selection uses the existing `--udid` / `--host` options.
 
-To add a case, implement a function taking `const std::vector<std::string>&`
-and `std::ostream&`, add its name/description/function to `device/Cases.cpp`,
+To add a case, implement a function taking `const std::vector<std::string>&`,
+`const std::filesystem::path&` for the run's staging directory, and `std::ostream&`.
+Add its name, description and function to `device/Cases.cpp`
 and add its source to `device/CMakeLists.txt`. Emit one JSON object per line;
 choose any metrics or units, and throw on failure. The case owns setup, warmup,
 repetitions, and timed regions. Do not spawn workload threads. Reporting belongs
@@ -420,6 +421,27 @@ named **new** directory; it refuses to replace previous results. It saves:
   `source.diff` retains the tracked working diff, not untracked source files.
 - Validated `replay.json`, per-run logs and final patches. The latter can be
   compared with `extract_recording.py patch --sample`.
+
+### Replay on iPad
+
+```sh
+make perf-ipad PERF_ARGS='--sgrec "/path/to/performance.sgrec" --callback-frames 1024'
+```
+
+Stop SmartGridOne before measuring and keep SmartGrid Perf in the foreground.
+The Mac prepares the control timeline and sends it to the benchmark app.
+The app runs the same SynthRig replay as the desktop command. The iPad
+replay defaults to the full recording and sets the timeout based on its duration.
+Use `--seconds` to limit the replay from frame zero.
+
+The runner saves `replay.json`, `callbacks.jsonl`, `device-report.json`, and
+`summary.json` under `build/results/ipad-sgrec-<run-id>/`. Use `--output` to name
+a new directory. The usual iPad benchmark database also records the summary.
+To compare with a live session, divide timed CPU or wall duration by the
+matching callback budget. A value above 100% in the offline replay is a budget
+exceedance. The device report records the build and thermal conditions.
+
+### Desktop runner details
 
 Replay metadata records completion, failure, or interruption. Interrupting a
 run stops its native replay process and retains completed repetitions and the
