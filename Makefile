@@ -12,6 +12,96 @@ CMAKE_ARGS ?=
 
 all: build
 
+.PHONY: ladder-periodic-grid-build ladder-periodic-grid
+LADDER_GRID_LIBRARY := $(REPO_ROOT)/build/tools/ladder-periodic-grid/libladder_periodic_grid.so
+$(LADDER_GRID_LIBRARY): $(REPO_ROOT)/scripts/ladder_periodic_grid.cpp
+	mkdir -p "$(@D)"
+	$(CXX) -std=c++17 -O3 -fPIC -shared -ffp-contract=off "$<" -o "$@"
+
+ladder-periodic-grid-build: $(LADDER_GRID_LIBRARY)
+
+ladder-periodic-grid: ladder-periodic-grid-build
+	OPENBLAS_NUM_THREADS=1 python3 "$(REPO_ROOT)/scripts/analyze_ladder_periodic_grid.py" $(LADDER_GRID_ARGS)
+
+.PHONY: ladder-energy-grid-build
+LADDER_ENERGY_BINARY := $(REPO_ROOT)/build/tools/ladder-energy-grid/ladder-energy-grid
+$(LADDER_ENERGY_BINARY): $(REPO_ROOT)/scripts/ladder_energy_grid.cpp
+	mkdir -p "$(@D)"
+	$(CXX) -std=c++17 -O3 -fno-fast-math -ffp-contract=off -pthread -framework Accelerate "$<" -o "$@"
+
+ladder-energy-grid-build: $(LADDER_ENERGY_BINARY)
+
+.PHONY: ladder-gpu-bench-build
+LADDER_GPU_BINARY := $(REPO_ROOT)/build/tools/ladder-gpu-bench/ladder-gpu-bench
+$(LADDER_GPU_BINARY): $(REPO_ROOT)/scripts/ladder_gpu_bench.mm $(REPO_ROOT)/scripts/ladder_gpu_host.hpp $(REPO_ROOT)/scripts/ladder_gpu_common.hpp $(REPO_ROOT)/scripts/ladder_gpu.metal $(REPO_ROOT)/scripts/ladder_energy_grid.cpp
+	mkdir -p "$(@D)"
+	$(CXX) -std=c++17 -O3 -fno-fast-math -ffp-contract=off -fobjc-arc -pthread -framework Foundation -framework Metal -framework Accelerate "$<" -o "$@"
+
+ladder-gpu-bench-build: $(LADDER_GPU_BINARY)
+
+.PHONY: ladder-gpu-grid-build
+LADDER_GPU_GRID_BINARY := $(REPO_ROOT)/build/tools/ladder-gpu-grid/ladder-gpu-grid
+$(LADDER_GPU_GRID_BINARY): $(REPO_ROOT)/scripts/ladder_gpu_grid.mm $(REPO_ROOT)/scripts/ladder_gpu_host.hpp $(REPO_ROOT)/scripts/ladder_gpu_common.hpp $(REPO_ROOT)/scripts/ladder_gpu.metal $(REPO_ROOT)/scripts/ladder_energy_grid.cpp
+	mkdir -p "$(@D)"
+	$(CXX) -std=c++17 -O3 -fno-fast-math -ffp-contract=off -fobjc-arc -pthread -framework Foundation -framework Metal -framework Accelerate "$<" -o "$@"
+
+ladder-gpu-grid-build: $(LADDER_GPU_GRID_BINARY)
+
+.PHONY: ladder-gpu-long-build
+LADDER_GPU_LONG_BINARY := $(REPO_ROOT)/build/tools/ladder-gpu-long/ladder-gpu-long
+$(LADDER_GPU_LONG_BINARY): $(REPO_ROOT)/scripts/ladder_gpu_long.mm $(REPO_ROOT)/scripts/ladder_gpu_long.metal $(REPO_ROOT)/scripts/ladder_gpu_host.hpp $(REPO_ROOT)/scripts/ladder_gpu_common.hpp $(REPO_ROOT)/scripts/ladder_energy_grid.cpp
+	mkdir -p "$(@D)"
+	$(CXX) -std=c++17 -O3 -fno-fast-math -ffp-contract=off -fobjc-arc -pthread -framework Foundation -framework Metal -framework Accelerate "$<" -o "$@"
+
+ladder-gpu-long-build: $(LADDER_GPU_LONG_BINARY)
+
+.PHONY: ladder-gpu-capture-build
+LADDER_GPU_CAPTURE_BINARY := $(REPO_ROOT)/build/tools/ladder-gpu-capture/ladder-gpu-capture
+$(LADDER_GPU_CAPTURE_BINARY): $(REPO_ROOT)/scripts/ladder_gpu_capture.mm $(REPO_ROOT)/scripts/ladder_gpu_capture.metal $(REPO_ROOT)/scripts/ladder_gpu_long.mm $(REPO_ROOT)/scripts/ladder_gpu_long.metal $(REPO_ROOT)/scripts/ladder_gpu_host.hpp $(REPO_ROOT)/scripts/ladder_gpu_common.hpp $(REPO_ROOT)/scripts/ladder_energy_grid.cpp
+	mkdir -p "$(@D)"
+	$(CXX) -std=c++17 -O3 -fno-fast-math -ffp-contract=off -fobjc-arc -pthread -framework Foundation -framework Metal -framework Accelerate "$<" -o "$@"
+
+ladder-gpu-capture-build: $(LADDER_GPU_CAPTURE_BINARY)
+
+.PHONY: ladder-gpu-basins-build ladder-rational-period-build
+LADDER_GPU_BASINS_BINARY := $(REPO_ROOT)/build/tools/ladder-gpu-basins/ladder-gpu-basins
+$(LADDER_GPU_BASINS_BINARY): $(REPO_ROOT)/scripts/ladder_gpu_basins.mm $(REPO_ROOT)/scripts/ladder_gpu_host.hpp $(REPO_ROOT)/scripts/ladder_gpu_common.hpp $(REPO_ROOT)/scripts/ladder_gpu.metal $(REPO_ROOT)/scripts/ladder_energy_grid.cpp
+	mkdir -p "$(@D)"
+	$(CXX) -std=c++17 -O3 -fno-fast-math -ffp-contract=off -fobjc-arc -pthread -framework Foundation -framework Metal -framework Accelerate "$<" -o "$@"
+
+ladder-gpu-basins-build: $(LADDER_GPU_BASINS_BINARY)
+
+LADDER_RATIONAL_LIBRARY := $(REPO_ROOT)/build/tools/ladder-rational-period/libladder_rational_period.so
+$(LADDER_RATIONAL_LIBRARY): $(REPO_ROOT)/scripts/ladder_rational_period.cpp
+	mkdir -p "$(@D)"
+	$(CXX) -std=c++17 -O3 -fno-fast-math -ffp-contract=off -shared -fPIC "$<" -o "$@"
+
+ladder-rational-period-build: $(LADDER_RATIONAL_LIBRARY)
+
+LADDER_BREAK_LIBRARY := $(REPO_ROOT)/build/tools/ladder-break-replay/libladder_break_replay.so
+$(LADDER_BREAK_LIBRARY): $(REPO_ROOT)/scripts/ladder_break_replay.mm $(REPO_ROOT)/scripts/ladder_gpu_host.hpp $(REPO_ROOT)/scripts/ladder_gpu_common.hpp $(REPO_ROOT)/scripts/ladder_energy_grid.cpp
+	mkdir -p "$(@D)"
+	$(CXX) -std=c++17 -O3 -fno-fast-math -ffp-contract=off -fobjc-arc -shared -fPIC -framework Foundation -framework Metal -framework Accelerate "$<" -o "$@"
+
+.PHONY: ladder-break-replay-build
+ladder-break-replay-build: $(LADDER_BREAK_LIBRARY) $(LADDER_RATIONAL_LIBRARY)
+
+.PHONY: ladder-gpu-continuation-build
+LADDER_CONTINUATION_BINARY := $(REPO_ROOT)/build/tools/ladder-gpu-continuation/ladder-gpu-continuation
+$(LADDER_CONTINUATION_BINARY): $(REPO_ROOT)/scripts/ladder_gpu_continuation.mm $(REPO_ROOT)/scripts/ladder_continuation_common.hpp $(REPO_ROOT)/scripts/ladder_continuation.metal $(REPO_ROOT)/scripts/ladder_gpu_host.hpp $(REPO_ROOT)/scripts/ladder_gpu_common.hpp $(REPO_ROOT)/scripts/ladder_energy_grid.cpp
+	mkdir -p "$(@D)"
+	$(CXX) -std=c++17 -O3 -fno-fast-math -ffp-contract=off -fobjc-arc -pthread -framework Foundation -framework Metal -framework Accelerate "$<" -o "$@"
+
+ladder-gpu-continuation-build: $(LADDER_CONTINUATION_BINARY)
+
+.PHONY: ladder-survey-sql-build
+LADDER_SQL_VERIFY := $(REPO_ROOT)/build/tools/ladder-survey-sql/libladder_survey_verify.so
+$(LADDER_SQL_VERIFY): $(REPO_ROOT)/scripts/ladder_survey_verify.cpp
+	mkdir -p "$(@D)"
+	$(CXX) -std=c++17 -O3 -shared -fPIC -pthread "$<" -o "$@"
+
+ladder-survey-sql-build: $(LADDER_SQL_VERIFY)
+
 $(JUCE_TARGETS):
 	$(MAKE) -C "$(JUCE_DIR)" $@
 
@@ -110,6 +200,11 @@ lean-dsp-test: lean-dsp-codegen-test
 lean-dsp-floor-free-probe:
 	"$(REPO_ROOT)/scripts/lean.sh" build dsp_floor_free_probe
 	"$(REPO_ROOT)/scripts/lean.sh" exe dsp_floor_free_probe $(FLOOR_FREE_PROBE_ARGS)
+
+.PHONY: lean-dsp-finite-level-probe
+lean-dsp-finite-level-probe:
+	"$(REPO_ROOT)/scripts/lean.sh" build dsp_finite_level_probe
+	"$(REPO_ROOT)/scripts/lean.sh" exe dsp_finite_level_probe $(FINITE_LEVEL_PROBE_ARGS)
 
 lean-test:
 	python3 "$(REPO_ROOT)/scripts/check_encoder_spec.py"

@@ -43,6 +43,16 @@ the same command; if it fails, the build stops before compiling or deploying.
 | `make lean-dsp-codegen` / `make lean-dsp-codegen-test` | `build/lean/generated/`, `build/lean/codegen-test/` |
 | `make lean-dsp-generate` | Updates the headers in `formal/DSP/generated/` from build-tree generation |
 | `make perf-ladder-build` / `make perf-ladder PERF_ARGS="9 4194304"` | Builds/runs the ladder comparison in `build/tools/perf/Release/` |
+| `make ladder-periodic-grid` | Research sweep helper in `build/tools/ladder-periodic-grid/`; table in `build/results/ladder-periodic-grid/` |
+| `make ladder-energy-grid-build` | macOS SIMD research runner in `build/tools/ladder-energy-grid/` |
+| `make ladder-gpu-bench-build` | Standalone macOS Metal research benchmark in `build/tools/ladder-gpu-bench/` |
+| `make ladder-gpu-grid-build` | Resumable float/rational Metal survey in `build/tools/ladder-gpu-grid/` |
+| `make ladder-gpu-long-build` | Selected long Metal trajectories in `build/tools/ladder-gpu-long/`; see [long-run measurements](ladder-long-runs.md) |
+| `make ladder-gpu-capture-build` | Saved-state waveform continuations in `build/tools/ladder-gpu-capture/`; see [persistent spectra](ladder-long-runs.md#complete-spectra-of-the-persistent-responses) |
+| `make ladder-gpu-basins-build` | Perturbation and control-path experiments using the survey shader, in `build/tools/ladder-gpu-basins/` |
+| `make ladder-rational-period-build` | Binary64 rational return map and derivative diagnostics, in `build/tools/ladder-rational-period/` |
+| `make ladder-gpu-continuation-build` | Fine resonance continuation and periodicity measurements in `build/tools/ladder-gpu-continuation/`; see [the continuation protocol](ladder-gpu-survey.md#fine-resonance-continuation-at-18-dbfs) |
+| `make ladder-survey-sql-build` | Read-only checksum verifier for the [DuckDB survey importer](ladder-survey-sql.md), in `build/tools/ladder-survey-sql/` |
 
 The CMake families also expose `core-configure` / `core-build`,
 `visualizers-configure` / `visualizers-build`, and `midi-configure` / `midi-build`.
@@ -52,6 +62,31 @@ parallelism (default 4), and `CMAKE_ARGS='...'` for additional configure options
 The core requires CMake, a C++17 compiler, Python 3, pkg-config, and libFLAC.
 JUCE tests require macOS; their Make targets initialize the pinned
 `third_party/JUCE` submodule automatically when it is missing.
+
+The optional `ladder-periodic-grid` research target requires NumPy and SciPy.
+It runs the detector-disabled real-tanh recurrence in binary64 over a 10×10×10×10
+parameter grid and records numerical repeat residuals and settling times, without
+changing the app. `LADDER_GRID_ARGS` passes probe options; for another experiment,
+choose a new `--output build/results/<name>` to retain previous results. Run
+`scripts/report_ladder_periodic_grid.py <output-directory>` for the offline HTML
+table and CSV response view. These results are numerical observations, not proof
+certificates or a performance benchmark of the app.
+
+The separate `ladder-energy-grid-build` target builds a macOS double-precision
+SIMD energy survey, with four cutoff values per worker and resumable output.
+See [the energy survey guide](ladder-energy-survey.md) for the exact model,
+window definitions, binary format, Studio execution, and restart procedure.
+The current survey selects k*s³ > 3.5 from a 100×100×100×100 grid and runs 10
+one-second initial conditions per retained point. This is a long-running
+experiment, not a routine test target.
+
+`ladder-gpu-bench-build` benchmarks a separate float/rational-tanh model using
+Metal compute and a matching multithreaded NEON CPU reference. It uses the
+installed Metal runtime to compile the shader source at startup. See the
+[GPU benchmark notes](ladder-gpu-benchmark.md) for commands, validation and the
+distinction between this bounded benchmark and the resumable full survey.
+The [Metal survey guide](ladder-gpu-survey.md) documents the 100-start GPU run,
+selection, measurements and recovery.
 
 Use `CORE_CONFIG=Debug`, `VISUALIZERS_CONFIG=Debug`, or `MIDI_CONFIG=Debug` for
 separate debug test builds. Core tests default to RelWithDebInfo with assertions
