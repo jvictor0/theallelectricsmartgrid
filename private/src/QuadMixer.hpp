@@ -3,7 +3,6 @@
 #include "QuadUtils.hpp"
 #include "DelayLine.hpp"
 #include "SmartGridOneContext.hpp"
-#include "Noise.hpp"
 #include "QuadMasterChain.hpp"
 #include "QuadToStereoMixdown.hpp"
 #include "Metering.hpp"
@@ -78,7 +77,6 @@ struct QuadMixerInternal
     std::string m_recordingDirectory;
     bool m_recordingFrameActive = false;
     size_t m_recordingSubSample = 0;
-    PinkNoiseGeneric<1> m_pinkNoise;
 
     OutputDecimator m_outputDecimator;
     PannedDecimator m_pannedRecordingDecimators[x_firstSubRecordingTrack];
@@ -98,7 +96,6 @@ struct QuadMixerInternal
 
     QuadMixerInternal(SmartGridOneContext* context)
         : m_recorder(&context->m_recorder)
-        , m_pinkNoise(0)
     {
     }
 
@@ -132,12 +129,9 @@ struct QuadMixerInternal
         QuadFloat m_return[x_numSends];
         PhaseUtils::ZeroedExpParam m_returnGain[x_numSends];
         PhaseUtils::ZeroedExpParam m_returnSendGain[x_numSends][x_numSends];
-        bool m_noiseMode;
-
         DualMasteringChain::Input m_masterChainInput;
 
         Input()
-            : m_noiseMode(false)
         {
             for (size_t i = 0; i < x_numSends; ++i)
             {
@@ -181,18 +175,6 @@ struct QuadMixerInternal
         }
 
         return saturated;
-    }
-
-    // Noise mode replaces panning with an unsaturated center mix of each lane.
-    //
-    template <size_t Size>
-    void MixNoise(const MultiChannelNumber<float, Size>& input)
-    {
-        for (size_t i = 0; i < Size; ++i)
-        {
-            m_dryOutput += QuadFloat::Splat(input[i]);
-            m_quadToStereoMixdown.MixSample(0.5f, 0.5f, input[i]);
-        }
     }
 
     template <size_t Size>
@@ -333,51 +315,34 @@ struct QuadMixerInternal
             m_send[i] = QuadFloat();
         }
 
-        if (input.m_noiseMode)
+        for (size_t i = 0; i < x_numTracks; ++i)
         {
-            float pink = m_pinkNoise.Generate();
-            m_dryOutput = QuadFloat::Splat(pink);
-            for (const TrackInput& track : input.m_tracks)
+            const TrackInput& track = input.m_tracks[i];
+            TrioFloat saturated = Mix(track.m_input, track.m_gain.m_expParam, track.m_x, track.m_y, track.m_sendGain, true, m_trackMeters[i], m_dryOutput);
+            if (recording)
             {
-                MixNoise(track.m_input * track.m_gain.m_expParam);
-            }
-
-            for (const ExternalInput& external : input.m_externals)
-            {
-                MixNoise(external.m_input);
+                RecordPanned(i * x_voicesPerTrack, saturated, track.m_x, track.m_y);
             }
         }
-        else
+
+        for (size_t i = 0; i < x_numExternalInputs; ++i)
         {
-            for (size_t i = 0; i < x_numTracks; ++i)
+            const ExternalInput& external = input.m_externals[i];
+            StereoFloat saturated = Mix<x_externalInputLanes>(external.m_input, StereoFloat::Splat(1.0f), external.m_x, external.m_y, nullptr, external.m_monitor, m_externalMeters[i], m_dryOutput);
+            if (recording)
             {
-                const TrackInput& track = input.m_tracks[i];
-                TrioFloat saturated = Mix(track.m_input, track.m_gain.m_expParam, track.m_x, track.m_y, track.m_sendGain, true, m_trackMeters[i], m_dryOutput);
-                if (recording)
-                {
-                    RecordPanned(i * x_voicesPerTrack, saturated, track.m_x, track.m_y);
-                }
+                RecordPanned(x_firstExternalRecordingTrack + i * x_externalInputLanes, saturated, external.m_x, external.m_y);
             }
+        }
 
-            for (size_t i = 0; i < x_numExternalInputs; ++i)
+        const TrioFloat unity = TrioFloat::Splat(1.0f);
+        const TrioFloat center = TrioFloat::Splat(0.5f);
+        for (size_t i = 0; i < x_numTracks; ++i)
+        {
+            TrioFloat saturated = Mix<x_voicesPerTrack>(input.m_tracks[i].m_sub, unity, center, center, nullptr, true, m_subMeters[i], m_subOutput);
+            if (recording)
             {
-                const ExternalInput& external = input.m_externals[i];
-                StereoFloat saturated = Mix<x_externalInputLanes>(external.m_input, StereoFloat::Splat(1.0f), external.m_x, external.m_y, nullptr, external.m_monitor, m_externalMeters[i], m_dryOutput);
-                if (recording)
-                {
-                    RecordPanned(x_firstExternalRecordingTrack + i * x_externalInputLanes, saturated, external.m_x, external.m_y);
-                }
-            }
-
-            const TrioFloat unity = TrioFloat::Splat(1.0f);
-            const TrioFloat center = TrioFloat::Splat(0.5f);
-            for (size_t i = 0; i < x_numTracks; ++i)
-            {
-                TrioFloat saturated = Mix<x_voicesPerTrack>(input.m_tracks[i].m_sub, unity, center, center, nullptr, true, m_subMeters[i], m_subOutput);
-                if (recording)
-                {
-                    RecordSub(i, saturated);
-                }
+                RecordSub(i, saturated);
             }
         }
 
@@ -395,21 +360,16 @@ struct QuadMixerInternal
         {
             m_envelopeFollowers[static_cast<size_t>(MixerModulationTap::DelayReturn) + j].Process(input.m_return[j]);
             QuadFloat& postReturn = m_returnOutput[j];
-            postReturn = QuadFloat();
-            if (!input.m_noiseMode)
-            {
-                postReturn = input.m_return[j] * input.m_returnGain[j].m_expParam;
-                postReturn = m_returnMeters[j].ProcessAndSaturate(postReturn);
-                m_quadToStereoMixdown.MixQuadSample(postReturn);
-                m_output.m_output += postReturn;
+            postReturn = m_returnMeters[j].ProcessAndSaturate(input.m_return[j] * input.m_returnGain[j].m_expParam);
+            m_quadToStereoMixdown.MixQuadSample(postReturn);
+            m_output.m_output += postReturn;
 
-                if (IsRecording())
+            if (IsRecording())
+            {
+                QuadFloat recorded = m_returnRecordingDecimators[j].Process(postReturn * x_recordingGain);
+                if (m_recordingFrameActive)
                 {
-                    QuadFloat recorded = m_returnRecordingDecimators[j].Process(postReturn * x_recordingGain);
-                    if (m_recordingFrameActive)
-                    {
-                        m_recorder->Submit(x_firstReturnRecordingTrack + j, recorded.m_values, 4);
-                    }
+                    m_recorder->Submit(x_firstReturnRecordingTrack + j, recorded.m_values, 4);
                 }
             }
         }

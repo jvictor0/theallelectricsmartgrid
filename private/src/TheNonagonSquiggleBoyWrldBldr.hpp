@@ -368,7 +368,7 @@ struct TheNonagonSquiggleBoyWrldBldr
         AuxGrid(TheNonagonSquiggleBoyWrldBldr* owner)
             : m_owner(owner)
         {
-            // Row 0: Main = scene selectors, Aux = gesture selectors (visible when auxFocus OR numGesturesHeld > 0)
+            // Row 0: Trio selectors, with gesture selectors in auxiliary mode.
             //
             for (size_t i = 0; i < SmartGrid::x_baseGridSize; ++i)
             {
@@ -380,7 +380,6 @@ struct TheNonagonSquiggleBoyWrldBldr
                 }
 
                 Put(i, 0, new GestureVisibleCell(m_owner, std::move(mainCell), std::move(gestureCell)));
-                Put(i, 6, new TheNonagonSquiggleBoyInternal::SceneSelectorCell(m_owner->m_internal, i));
             }
 
             // Row 1: Main = grid mode selectors (0-3) + display mode (7), Aux = gesture selectors
@@ -436,18 +435,15 @@ struct TheNonagonSquiggleBoyWrldBldr
 
             Put(0, 4, m_owner->m_internal->MakeShiftCell());
             Put(0, 5, m_owner->MakeAuxFocusCell());
-            Put(1, 4, m_owner->m_internal->MakeRunningCell());
-            Put(1, 5, new TheNonagonSquiggleBoyInternal::RecordCell(m_owner->m_internal));
+            Put(2, 4, m_owner->m_internal->MakeRunningCell());
+            Put(2, 5, new TheNonagonSquiggleBoyInternal::RecordCell(m_owner->m_internal));
             Put(3, 4, new TheNonagonSquiggleBoyInternal::SaveLoadJSONCell(m_owner->m_internal, true));
             Put(3, 5, new TheNonagonSquiggleBoyInternal::SaveLoadJSONCell(m_owner->m_internal, false));
-            Put(2, 4, m_owner->m_internal->MakeNoiseModeCell());
 
-            for (size_t i = 0; i < 4; ++i)
+            for (int scene = 0; scene < SmartGrid::x_baseGridSize; ++scene)
             {
-                for (size_t j = 0; j < 2; ++j)
-                {
-                    Put(i + 4, j + 4, new TimerCell(&m_owner->m_internal->m_timer, 2 * (i + 4 * j)));
-                }
+                Put(4 + scene % 4, 4 + scene / 4,
+                    new TheNonagonSquiggleBoyInternal::SceneSelectorCell(m_owner->m_internal, scene));
             }
         }
     };

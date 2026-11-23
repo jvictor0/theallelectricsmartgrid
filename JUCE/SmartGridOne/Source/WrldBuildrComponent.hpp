@@ -193,9 +193,7 @@ struct WrldBuildrComponent : public juce::Component
     std::unique_ptr<BasicPadGridHolder> m_bottomCenterGrid;
     std::unique_ptr<BasicPadGridHolder> m_belowEncodersGrid;
     std::unique_ptr<BasicPadGridHolder> m_leftTopGrid;
-    std::unique_ptr<BasicPadGridHolder> m_timerGrid;
-    std::unique_ptr<BasicPadGridHolder> m_leftArcadeGrid;
-    std::unique_ptr<BasicPadGridHolder> m_rightArcadeGrid;
+    std::unique_ptr<BasicPadGridHolder> m_sceneGrid;
 
     ModulatorVisualizers m_modulatorVisualizers;
     std::unique_ptr<EncoderGridHolder> m_encoderGrids[4];
@@ -240,27 +238,15 @@ struct WrldBuildrComponent : public juce::Component
         addAndMakeVisible(m_belowEncodersGrid->m_padGrid.get());
 
         auto leftTopGrid = std::make_unique<BasicPadGrid>(m_nonagon->MkLaunchPadUIGridWrldBldr(TheNonagonSquiggleBoyWrldBldr::Routes::AuxGrid), 0, 4, 4, 6);
+        leftTopGrid->GetPad(1, 0)->setVisible(false);
+        leftTopGrid->GetPad(1, 1)->setVisible(false);
         m_leftTopGrid = std::make_unique<BasicPadGridHolder>(std::move(leftTopGrid), 0, 6);
         addAndMakeVisible(m_leftTopGrid->m_padGrid.get());
 
-        auto timerGrid = std::make_unique<BasicPadGrid>(m_nonagon->MkLaunchPadUIGridWrldBldr(TheNonagonSquiggleBoyWrldBldr::Routes::AuxGrid), 4, 4, 8, 6);
-        m_timerGrid = std::make_unique<BasicPadGridHolder>(std::move(timerGrid), 4, 2);
-        addAndMakeVisible(m_timerGrid->m_padGrid.get());
+        auto sceneGrid = std::make_unique<BasicPadGrid>(m_nonagon->MkLaunchPadUIGridWrldBldr(TheNonagonSquiggleBoyWrldBldr::Routes::AuxGrid), 4, 4, 8, 6);
+        m_sceneGrid = std::make_unique<BasicPadGridHolder>(std::move(sceneGrid), 4, 2);
+        addAndMakeVisible(m_sceneGrid->m_padGrid.get());
 
-        auto leftArcadeGrid = std::make_unique<BasicPadGrid>(m_nonagon->MkLaunchPadUIGridWrldBldr(TheNonagonSquiggleBoyWrldBldr::Routes::AuxGrid), 0, 6, 4, 7);
-        m_leftArcadeGrid = std::make_unique<BasicPadGridHolder>(std::move(leftArcadeGrid), 0, 16);
-        m_leftArcadeGrid->m_padGrid->SetSkin(PadComponent::Skin::AcradeButton);
-        m_leftArcadeGrid->m_padWidth = 2;
-        m_leftArcadeGrid->m_padHeight = 2;
-        addAndMakeVisible(m_leftArcadeGrid->m_padGrid.get());
-
-        auto rightArcadeGrid = std::make_unique<BasicPadGrid>(m_nonagon->MkLaunchPadUIGridWrldBldr(TheNonagonSquiggleBoyWrldBldr::Routes::AuxGrid), 4, 6, 8, 7);
-        m_rightArcadeGrid = std::make_unique<BasicPadGridHolder>(std::move(rightArcadeGrid), 16, 16);
-        m_rightArcadeGrid->m_padGrid->SetSkin(PadComponent::Skin::AcradeButton);
-        m_rightArcadeGrid->m_padWidth = 2;
-        m_rightArcadeGrid->m_padHeight = 2;
-        addAndMakeVisible(m_rightArcadeGrid->m_padGrid.get());
-        
         InitializeEncoderModulatorVisualizers(m_modulatorVisualizers, m_nonagon->GetUIState());
         for (int i = 0; i < 4; ++i)
         {
@@ -393,9 +379,7 @@ struct WrldBuildrComponent : public juce::Component
         m_bottomCenterGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
         m_belowEncodersGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
         m_leftTopGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
-        m_timerGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
-        m_leftArcadeGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
-        m_rightArcadeGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
+        m_sceneGrid->SetBounds(m_cellSize, m_gridX, m_gridY);
 
         for (int i = 0; i < 4; ++i)
         {

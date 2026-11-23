@@ -99,6 +99,30 @@ DOCTEST_TEST_CASE("encoder selectors: WorldBuilder exposes six families and shar
     CheckSelectors(world.m_auxGrid, 3, 2, rig.Internal());
 }
 
+DOCTEST_TEST_CASE("WorldBuilder aux grid: scenes and transport use their new pads")
+{
+    synthrig::SynthRig rig;
+    auto& internal = rig.Internal();
+    TheNonagonSquiggleBoyWrldBldr world(&internal);
+    auto& grid = world.m_auxGrid;
+    auto& sceneManager = internal.m_context.m_sceneManager;
+    sceneManager.m_blendFactor = 0.0f;
+    for (int scene = 0; scene < 8; ++scene)
+    {
+        DOCTEST_CHECK(grid.GetColor(scene, 6) == SmartGrid::Color::Off);
+        grid.OnPress(4 + scene % 4, 4 + scene / 4, 100);
+        DOCTEST_CHECK(sceneManager.m_scene2 == scene);
+    }
+
+    DOCTEST_CHECK(grid.GetColor(1, 4) == SmartGrid::Color::Off);
+    DOCTEST_CHECK(grid.GetColor(1, 5) == SmartGrid::Color::Off);
+    const bool wasRunning = internal.m_running;
+    grid.OnPress(2, 4, 100);
+    DOCTEST_CHECK(internal.m_running != wasRunning);
+    DOCTEST_CHECK(grid.GetColor(2, 5) == SmartGrid::Color::Red.Dim());
+    DOCTEST_CHECK(rig.Quad().m_bottomLeftGrid->GetColor(-1, 5) == SmartGrid::Color::Off);
+}
+
 DOCTEST_TEST_CASE("encoder display: every selected trio bank maps to its family display")
 {
     synthrig::SynthRig rig;

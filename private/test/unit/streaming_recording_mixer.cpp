@@ -421,7 +421,7 @@ DOCTEST_TEST_CASE("recording mixer: returns retain corner order and masters are 
     DOCTEST_CHECK(std::abs(reconstructed.m_output[0] * x_recordingGain - fixture.Sample(x_masterStereoTrack)) > 0.0001f);
 }
 
-DOCTEST_TEST_CASE("recording mixer: noise mode zeroes skipped lanes and split processing commits masters")
+DOCTEST_TEST_CASE("recording mixer: split processing commits one frame after the returns")
 {
     MixerRecordingTest fixture;
     auto& track = fixture.m_input.m_tracks[0];
@@ -433,31 +433,19 @@ DOCTEST_TEST_CASE("recording mixer: noise mode zeroes skipped lanes and split pr
     fixture.m_input.m_return[0] = QuadFloat(0.1f, 0.2f, 0.3f, 0.4f);
     fixture.m_input.m_returnGain[0].m_expParam = 1.0f;
     fixture.Start();
-    DOCTEST_REQUIRE(fixture.Sample(0) != 0);
-    fixture.m_input.m_noiseMode = true;
     fixture.Settle(fixture.m_input);
+    const uint64_t frames = fixture.m_context.m_recorder.m_acceptedFrames;
     fixture.m_mixer.ProcessInputs(fixture.m_input);
-    DOCTEST_CHECK(fixture.m_mixer.m_subOutput == QuadFloat());
-    DOCTEST_CHECK(fixture.m_mixer.m_dryOutput == fixture.m_mixer.m_output.m_output);
-    fixture.m_mixer.ProcessReturns(fixture.m_input);
-    for (const auto& output : fixture.m_mixer.m_returnOutput)
-    {
-        DOCTEST_CHECK(output == QuadFloat());
-    }
-
     DOCTEST_REQUIRE(fixture.m_mixer.m_recordingFrameActive);
-    for (size_t i = 0; i < fixture.m_context.m_recorder.m_trackOffsets[x_masterQuadTrack]; ++i)
-    {
-        DOCTEST_CHECK(fixture.m_context.m_recorder.m_staging[i] == 0);
-    }
-
-    DOCTEST_CHECK(fixture.Sample(x_masterQuadTrack) == fixture.m_mixer.m_output.m_output[0] * x_recordingGain);
-    DOCTEST_CHECK(fixture.Sample(x_masterStereoTrack) == fixture.m_mixer.m_output.m_stereoOutput[0] * x_recordingGain);
-    fixture.m_input.m_noiseMode = false;
-    fixture.Settle(fixture.m_input);
-    fixture.m_mixer.Process(fixture.m_input);
+    DOCTEST_CHECK(fixture.m_context.m_recorder.m_acceptedFrames == frames);
     DOCTEST_CHECK(fixture.Sample(0) > 0);
     DOCTEST_CHECK(fixture.Sample(0, 1) == doctest::Approx(0.9f));
+    DOCTEST_CHECK(fixture.Sample(x_subTrack) > 0);
+    fixture.m_mixer.ProcessReturns(fixture.m_input);
+    DOCTEST_CHECK(fixture.m_context.m_recorder.m_acceptedFrames == frames + 1);
+    DOCTEST_CHECK(fixture.Sample(x_returnTrack) > 0);
+    DOCTEST_CHECK(fixture.Sample(x_masterQuadTrack) == fixture.m_mixer.m_output.m_output[0] * x_recordingGain);
+    DOCTEST_CHECK(fixture.Sample(x_masterStereoTrack) == fixture.m_mixer.m_output.m_stereoOutput[0] * x_recordingGain);
 }
 
 DOCTEST_TEST_CASE("recording mixer: capture leaves live DSP unchanged and follows mastering controls")
@@ -535,7 +523,6 @@ DOCTEST_TEST_CASE("recording mixer: writes full-layout fixture from accepted cap
     for (size_t frame = 0; frame < 64; ++frame)
     {
         auto& input = fixture.m_input;
-        input.m_noiseMode = frame >= 20 && frame < 24;
         auto setLane = [&](size_t index, float& signal, float& x, float& y)
         {
             signal = std::sin(static_cast<float>(frame + index + 1) * 0.17f) * 0.4f;

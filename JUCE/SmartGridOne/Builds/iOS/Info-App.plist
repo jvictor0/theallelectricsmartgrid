@@ -10,6 +10,8 @@
     <key>LSRequiresIPhoneOS</key>
     <true/>
     <key>UIViewControllerBasedStatusBarAppearance</key>
+    <false/>
+    <key>UIStatusBarHidden</key>
     <true/>
     <key>UILaunchStoryboardName</key>
     <string>LaunchScreen</string>

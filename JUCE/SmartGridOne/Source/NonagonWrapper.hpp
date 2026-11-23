@@ -778,6 +778,16 @@ struct NonagonWrapper
         m_internal.m_context.m_recorder.LogDiagnostics();
     }
 
+    uint64_t GetRecordingElapsedSeconds() const
+    {
+        return m_internal.m_context.m_recorder.GetElapsedSeconds();
+    }
+
+    bool IsRecording() const
+    {
+        return m_internal.m_context.m_recorder.IsRecording();
+    }
+
     // Runs the engine samples of one host frame. Engine samples are numbered
     // from 1, so the host frame's sub-sample 0 is the last of the group; its
     // output is the decimated host-rate sample.

@@ -73,7 +73,6 @@ DOCTEST_TEST_CASE("Quad scopes: all effects follow return gain and saturation be
     for (size_t sample = 0; sample < 5; ++sample)
     {
         DOCTEST_CAPTURE(sample);
-        input.m_noiseMode = sample == 3;
         for (size_t effect = 0; effect < QuadMixerInternal::x_numSends; ++effect)
         {
             const float level = static_cast<float>(effect + 1);
@@ -110,7 +109,7 @@ DOCTEST_TEST_CASE("Quad scopes: all effects follow return gain and saturation be
             DOCTEST_CAPTURE(effect);
             for (size_t speaker = 0; speaker < 4; ++speaker)
             {
-                const float expected = input.m_noiseMode ? 0.0f : TanhSaturator<false>::Tanh(
+                const float expected = TanhSaturator<false>::Tanh(
                     input.m_return[effect][speaker] * input.m_returnGain[effect].m_expParam);
                 DOCTEST_CHECK(writer.ReadSample(static_cast<size_t>(x_scopes[effect]), speaker, index)
                     == doctest::Approx(expected));

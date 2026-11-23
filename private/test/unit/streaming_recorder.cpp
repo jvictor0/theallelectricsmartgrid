@@ -586,3 +586,30 @@ DOCTEST_TEST_CASE("streaming recorder: timeline follows accepted frames and rese
     DOCTEST_CHECK(recorder.m_acceptedFrames == 0);
     recorder.Shutdown();
 }
+
+DOCTEST_TEST_CASE("streaming recorder: elapsed time follows live capture, holds on stop and resets on start")
+{
+    StreamingRecorder recorder;
+    auto session = Session();
+    session.m_sampleRate = StreamingRecorder::x_pageFrames / 2 + 1;
+    session.m_blockFrames = StreamingRecorder::x_pageFrames;
+    DOCTEST_REQUIRE(recorder.Prepare(session, "/unused", std::make_unique<MemorySink>()));
+    DOCTEST_CHECK(recorder.GetElapsedSeconds() == 0);
+    DOCTEST_REQUIRE(recorder.Start());
+    for (size_t frame = 0; frame < 2 * session.m_sampleRate; ++frame)
+    {
+        DOCTEST_REQUIRE(recorder.BeginFrame());
+        recorder.CommitFrame();
+        if (frame + 1 == StreamingRecorder::x_pageFrames)
+        {
+            DOCTEST_CHECK(recorder.GetElapsedSeconds() == 1);
+        }
+    }
+
+    recorder.Stop();
+    DOCTEST_REQUIRE(Await([&]() { return recorder.GetState() == StreamingRecorder::State::Idle; }));
+    DOCTEST_CHECK(recorder.GetElapsedSeconds() == 2);
+    DOCTEST_REQUIRE(recorder.Start());
+    DOCTEST_CHECK(recorder.GetElapsedSeconds() == 0);
+    recorder.Shutdown();
+}

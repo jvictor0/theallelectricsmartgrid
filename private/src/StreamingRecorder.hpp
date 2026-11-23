@@ -147,6 +147,7 @@ struct StreamingRecorder
     std::atomic<bool> m_stopRequested{false};
     std::atomic<bool> m_shutdown{false};
     std::atomic<uint64_t> m_writtenFrames{0};
+    std::atomic<uint64_t> m_elapsedSeconds{0};
     std::atomic<uint64_t> m_writtenBytes{0};
     std::atomic<uint64_t> m_queueHighWater{0};
     std::atomic<uint64_t> m_maxBlockMicros{0};
@@ -248,6 +249,7 @@ struct StreamingRecorder
         m_page = nullptr;
         m_frameOpen = false;
         m_acceptedFrames = 0;
+        m_elapsedSeconds.store(0, std::memory_order_relaxed);
         m_hasRecordedTransport = false;
         m_writtenFrames = 0;
         m_writtenBytes = 0;
@@ -267,6 +269,7 @@ struct StreamingRecorder
     {
         if (m_page != nullptr && m_page->m_frames != 0)
         {
+            m_elapsedSeconds.store(m_acceptedFrames / m_session.m_sampleRate, std::memory_order_relaxed);
             m_ring->CompletePush();
             m_queueHighWater = std::max(m_queueHighWater.load(), static_cast<uint64_t>(m_ring->Size()));
         }
@@ -506,6 +509,11 @@ struct StreamingRecorder
     bool IsRecording() const
     {
         return GetState() == State::Recording;
+    }
+
+    uint64_t GetElapsedSeconds() const
+    {
+        return m_elapsedSeconds.load(std::memory_order_relaxed);
     }
 
     void Shutdown()

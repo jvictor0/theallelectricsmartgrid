@@ -455,7 +455,7 @@ The current mixer has 31 tracks / 78 streams: 17 panned inputs, 9 mono lanes,
 is about 35 MiB for audio, plus two 8 MiB arenas for initial/reset snapshots and event storage,
 before allocator/logging overhead. A longer disk stall can
 produce an incomplete recording and visible error. Source-width switches keep
-track IDs and types. Noise mode zeroes skipped stems and still records masters.
+track IDs and types.
 
 Build and run the standalone recorder measurement from the checkout root. Keep
 the generated header, executable, and measurements in the worktree:

@@ -49,7 +49,6 @@
 //   * Gesture selectors:  BottomLeftGrid (route 2), x=0..7, y=8
 //   * Save patch:         BottomRightGrid (route 3), x=-1, y=0
 //   * Load last save:     BottomRightGrid (route 3), x=-1, y=1
-//   * Noise mode:         BottomLeftGrid (route 2), x=-1, y=5
 //   * Record toggle:      BottomLeftGrid (route 2), x=-1, y=7
 //   * Top-grid mode sel:  BottomRightGrid (route 3), x=8, y=4..7 (Matrix/Water/Earth/Fire)
 // Encoders / faders (go to TheNonagonSquiggleBoyInternal::Apply directly):

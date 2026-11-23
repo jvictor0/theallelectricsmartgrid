@@ -202,12 +202,17 @@ struct FourteenSegmentDisplayComponent : public juce::Component
             onColor = onColor.brighter(0.1f);
         }
 
-        if (m_onColor == onColor)
+        SetOnColor(onColor);
+    }
+
+    void SetOnColor(juce::Colour color)
+    {
+        if (m_onColor == color)
         {
             return;
         }
 
-        m_onColor = onColor;
+        m_onColor = color;
         repaint();
     }
 
@@ -240,7 +245,11 @@ struct FourteenSegmentDisplayComponent : public juce::Component
 
     void paint(juce::Graphics& g) override
     {
-        auto bounds = getLocalBounds().toFloat();
+        DrawDisplay(g, getLocalBounds().toFloat());
+    }
+
+    void DrawDisplay(juce::Graphics& g, juce::Rectangle<float> bounds)
+    {
         int numChars = m_numChars > 0 ? m_numChars : static_cast<int>(m_text.length());
 
         if (numChars == 0)
@@ -254,7 +263,6 @@ struct FourteenSegmentDisplayComponent : public juce::Component
         for (int i = 0; i < numChars; ++i)
         {
             char c = (i < m_text.length()) ? static_cast<char>(m_text[i]) : ' ';
-            uint16_t mask = GetSegmentMask(c);
 
             juce::Rectangle<float> charBounds(
                 bounds.getX() + i * charWidth,
@@ -263,7 +271,25 @@ struct FourteenSegmentDisplayComponent : public juce::Component
                 charHeight
             );
 
-            DrawCharacter(g, charBounds, mask);
+            if (c == ':' || c == '.')
+            {
+                const float dotSize = charWidth * m_segmentThickness * 1.4f;
+                const float dotX = charBounds.getCentreX() - dotSize * 0.5f;
+                g.setColour(m_onColor);
+                if (c == ':')
+                {
+                    g.fillEllipse(dotX, charBounds.getY() + charHeight * 0.3f, dotSize, dotSize);
+                    g.fillEllipse(dotX, charBounds.getY() + charHeight * 0.7f, dotSize, dotSize);
+                }
+                else
+                {
+                    g.fillEllipse(dotX, charBounds.getBottom() - charWidth * 0.05f - dotSize, dotSize, dotSize);
+                }
+            }
+            else
+            {
+                DrawCharacter(g, charBounds, GetSegmentMask(c));
+            }
         }
     }
 

@@ -3,6 +3,7 @@
 #include "TheNonagonSquiggleBoy.hpp"
 #include "InteriorGrid.hpp"
 #include "SampleTimer.hpp"
+#include "TimerCell.hpp"
 
 struct TheNonagonSquiggleBoyQuadLaunchpadTwister
 {
@@ -84,7 +85,6 @@ struct TheNonagonSquiggleBoyQuadLaunchpadTwister
                 Put(i, SmartGrid::x_baseGridSize, new TheNonagonSquiggleBoyInternal::GestureSelectorCell(owner->m_internal, i));
             }
 
-            Put(-1, 5, owner->MakeNoiseModeCell());
             Put(-1, 6, owner->MakeRunningCell());
             Put(-1, 7, new TheNonagonSquiggleBoyInternal::RecordCell(owner->m_internal));
 
@@ -201,11 +201,6 @@ struct TheNonagonSquiggleBoyQuadLaunchpadTwister
     SmartGrid::Cell* MakeRunningCell()
     {
         return m_internal->MakeRunningCell();
-    }
-
-    SmartGrid::Cell* MakeNoiseModeCell()
-    {
-        return m_internal->MakeNoiseModeCell();
     }
 
     void SetTopGridsMode(TopGridsMode mode)

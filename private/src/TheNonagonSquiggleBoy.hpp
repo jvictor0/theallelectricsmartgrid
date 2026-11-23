@@ -4,7 +4,6 @@
 #include "Filter.hpp"
 #include "SquiggleBoy.hpp"
 #include "TheNonagon.hpp"
-#include "TimerCell.hpp"
 #include "MessageInBus.hpp"
 #include "PadUI.hpp"
 #include "AnalogUIState.hpp"
@@ -831,15 +830,6 @@ struct TheNonagonSquiggleBoyInternal
                 SmartGrid::Color::Green /*onColor*/,
                 SmartGrid::Color::Green.Dim() /*offColor*/,
                 &m_running,
-                SmartGrid::RuntimeStateCell::Mode::Toggle);
-    }
-
-    SmartGrid::Cell* MakeNoiseModeCell()
-    {
-        return new SmartGrid::RuntimeStateCell(
-                SmartGrid::Color::White /*onColor*/,
-                SmartGrid::Color::Pink /*offColor*/,
-                &m_squiggleBoy.m_mixerState.m_noiseMode,
                 SmartGrid::RuntimeStateCell::Mode::Toggle);
     }
 

@@ -123,7 +123,7 @@ void MainComponent::resized()
         m_wrldBuildrGrid->setVisible(showingHome && !showingVisualizer);
     }
 
-    // The connected page places the existing status controls beside its meters.
+    // The connected page places its status controls in the top strip.
     //
     auto rightPanel = showingVisualizer ? juce::Rectangle<int>() : bounds.removeFromRight(50);
     
@@ -158,7 +158,7 @@ void MainComponent::resized()
     else if (m_wrldBuildrVisualizerPage && showingVisualizer)
     {
         m_wrldBuildrVisualizerPage->setBounds(bounds);
-        m_wrldBuildrVisualizerPage->LayoutStatusControls(m_cpuLabel, m_fileButton, m_configButton);
+        m_wrldBuildrVisualizerPage->LayoutStatusButtons(m_fileButton, m_configButton);
     }
     else if (m_wrldBuildrGrid && !m_showingConfig && !m_showingFile)
     {
@@ -568,7 +568,16 @@ void MainComponent::timerCallback()
             m_nextRepaintMs = repaintNowMs + x_repaintIntervalMs;
         }
 
-        m_cpuLabel.setText(juce::String(m_cpuUsageBuffer.Max(), 1) + "%", juce::dontSendNotification);
+        const float cpuUsage = m_cpuUsageBuffer.Max();
+        if (showingVisualizer)
+        {
+            m_wrldBuildrVisualizerPage->UpdateStatusDisplays(cpuUsage);
+        }
+        else
+        {
+            m_cpuLabel.setText(juce::String(cpuUsage, 1) + "%", juce::dontSendNotification);
+        }
+
         repaint();
     }
 

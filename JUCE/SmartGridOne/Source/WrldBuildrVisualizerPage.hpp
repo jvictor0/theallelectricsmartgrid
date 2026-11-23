@@ -2,6 +2,7 @@
 
 #include "EncoderComponent.hpp"
 #include "EncoderModulatorVisualizers.hpp"
+#include "FourteenSegmentDisplayComponent.hpp"
 #include "LFOTargetVisualizers.hpp"
 #include "NonagonWrapper.hpp"
 #include "MeterComponent.hpp"
@@ -34,6 +35,33 @@ struct WrldBuildrVisualizerPage : public juce::Component
     static constexpr int x_meterY = x_encoderY - x_meterHeight;
     static constexpr int x_visualizerY = x_meterY - x_visualizerSize;
     static constexpr int x_configHeight = 15;
+    static constexpr int x_statusButtonWidth = 5;
+    static constexpr int x_statusDisplayWidth = 8;
+    static constexpr int x_statusGap = 1;
+    static constexpr float x_statusTopPadding = 0.3f;
+    static constexpr float x_statusBottomPadding = 0.6f;
+    static constexpr int x_configButtonX = x_statusButtonWidth + x_statusGap;
+    static constexpr int x_cpuDisplayX = x_configButtonX + x_statusButtonWidth + x_statusGap;
+    static constexpr int x_recordingDisplayX = x_cpuDisplayX + x_statusDisplayWidth + x_statusGap;
+
+    struct StatusDisplay : FourteenSegmentDisplayComponent
+    {
+        static constexpr int x_numStatusChars = 6;
+
+        StatusDisplay()
+        {
+            SetNumChars(x_numStatusChars);
+            SetOnColor(juce::Colours::lightgrey);
+            SetOffColor(juce::Colour(0xff343434));
+        }
+
+        void paint(juce::Graphics& g) override
+        {
+            auto bounds = getLocalBounds().toFloat();
+            const float inset = bounds.getHeight() * 0.12f;
+            DrawDisplay(g, bounds.reduced(inset));
+        }
+    };
 
     struct VisualizerSlot
     {
@@ -53,6 +81,9 @@ struct WrldBuildrVisualizerPage : public juce::Component
         m_visualizers{};
     std::array<std::unique_ptr<EncoderComponent>, 16> m_encoders;
     VoiceConfigComponent m_voiceConfigComponent;
+    StatusDisplay m_cpuDisplay;
+    StatusDisplay m_recordingDisplay;
+    uint64_t m_displayedRecordingSeconds = 0;
     float m_cellSize = 0.0f;
     juce::Point<float> m_gridOrigin;
 
@@ -90,6 +121,11 @@ struct WrldBuildrVisualizerPage : public juce::Component
         }
 
         addChildComponent(m_voiceConfigComponent);
+        m_cpuDisplay.SetText("  0.0%");
+        m_recordingDisplay.SetText("  0:00");
+        m_recordingDisplay.SetOnColor(juce::Colours::white);
+        addAndMakeVisible(m_cpuDisplay);
+        addAndMakeVisible(m_recordingDisplay);
         UpdateConfigModeVisibility();
     }
 
@@ -110,6 +146,12 @@ struct WrldBuildrVisualizerPage : public juce::Component
         return GetVisualizerRegionBounds(bounds, region);
     }
 
+    juce::Rectangle<int> GetStatusBounds(float x, float width) const
+    {
+        return GetGridBounds(x, x_statusTopPadding, width,
+            x_visualizerY - x_statusTopPadding - x_statusBottomPadding);
+    }
+
     void resized() override
     {
         m_cellSize = std::min(static_cast<float>(getWidth()) / x_gridWidth,
@@ -117,6 +159,8 @@ struct WrldBuildrVisualizerPage : public juce::Component
         m_gridOrigin = {(getWidth() - x_gridWidth * m_cellSize) * 0.5f,
             (getHeight() - x_gridHeight * m_cellSize) * 0.5f};
 
+        m_cpuDisplay.setBounds(GetStatusBounds(x_cpuDisplayX, x_statusDisplayWidth));
+        m_recordingDisplay.setBounds(GetStatusBounds(x_recordingDisplayX, x_statusDisplayWidth));
         m_meteringComponent.setBounds(
             GetGridBounds(x_meterX, x_meterY, x_meterWidth, x_meterHeight));
         m_voiceConfigComponent.setBounds(
@@ -135,20 +179,43 @@ struct WrldBuildrVisualizerPage : public juce::Component
         }
     }
 
-    // The controls remain owned by MainComponent, retaining their existing
-    // callbacks and CPU source. Only their position changes on this page.
-    //
-    void LayoutStatusControls(juce::Label& cpu, juce::TextButton& file, juce::TextButton& config)
+    void LayoutStatusButtons(juce::TextButton& file, juce::TextButton& config)
     {
         auto origin = getPosition();
-        int buttonWidth = x_meterX / 3;
-        int cpuWidth = x_meterX - 2 * buttonWidth;
-        file.setBounds(GetGridBounds(0, x_meterY, buttonWidth, x_meterHeight) + origin);
-        config.setBounds(GetGridBounds(buttonWidth, x_meterY, buttonWidth, x_meterHeight) + origin);
-        cpu.setBounds(GetGridBounds(2 * buttonWidth, x_meterY, cpuWidth, x_meterHeight) + origin);
-        cpu.toFront(false);
+        file.setBounds(GetStatusBounds(0, x_statusButtonWidth) + origin);
+        config.setBounds(GetStatusBounds(x_configButtonX, x_statusButtonWidth) + origin);
         file.toFront(false);
         config.toFront(false);
+    }
+
+    void UpdateStatusDisplays(float cpuUsage)
+    {
+        cpuUsage = juce::jlimit(0.0f, 100.0f, cpuUsage);
+        auto cpuText = juce::String(cpuUsage, 1) + "%";
+        m_cpuDisplay.SetText(cpuText.paddedLeft(' ', StatusDisplay::x_numStatusChars));
+
+        auto cpuColor = juce::Colours::lightgrey;
+        if (cpuUsage > 90.0f)
+        {
+            cpuColor = juce::Colours::orange.interpolatedWith(juce::Colours::red, (cpuUsage - 90.0f) / 10.0f);
+        }
+        else if (cpuUsage > 80.0f)
+        {
+            cpuColor = juce::Colours::yellow.interpolatedWith(juce::Colours::orange, (cpuUsage - 80.0f) / 10.0f);
+        }
+
+        m_cpuDisplay.SetOnColor(cpuColor);
+
+        m_recordingDisplay.SetOnColor(m_nonagon->IsRecording() ? juce::Colours::red : juce::Colours::white);
+        static constexpr uint64_t x_maxSeconds = 999 * 60 + 59;
+        const uint64_t elapsedSeconds = std::min(m_nonagon->GetRecordingElapsedSeconds(), x_maxSeconds);
+        if (elapsedSeconds != m_displayedRecordingSeconds)
+        {
+            m_displayedRecordingSeconds = elapsedSeconds;
+            auto recordingText = juce::String::formatted("%d:%02d",
+                static_cast<int>(elapsedSeconds / 60), static_cast<int>(elapsedSeconds % 60));
+            m_recordingDisplay.SetText(recordingText.paddedLeft(' ', StatusDisplay::x_numStatusChars));
+        }
     }
 
     bool ShouldShowSlot(const VisualizerSlot& slot)
