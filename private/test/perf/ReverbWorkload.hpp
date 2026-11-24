@@ -8,7 +8,6 @@
 enum class ReverbImplementation
 {
     Legacy,
-    FixedTaps,
     WanderingEverySample,
     Wandering
 };
@@ -18,8 +17,7 @@ struct ReverbWorkload
 {
     static constexpr bool x_generated = Implementation != ReverbImplementation::Legacy;
     static constexpr bool x_framed = Implementation == ReverbImplementation::Wandering;
-    static constexpr bool x_wandering = x_framed || Implementation == ReverbImplementation::WanderingEverySample;
-    using Core = std::conditional_t<x_generated, SquiggleBoyQuadReverb<float, x_wandering, x_framed>, LegacyQuadReverb>;
+    using Core = std::conditional_t<x_generated, SquiggleBoyQuadReverb<float, x_framed>, LegacyQuadReverb>;
 
     static constexpr size_t x_rate = SampleTimer::x_sampleRate;
     static constexpr size_t x_ratio = x_rate / 48000;
@@ -109,7 +107,7 @@ void MeasureReverb(double seconds, const char* path, std::ostream& report)
     using Work = ReverbWorkload<Mode, Implementation>;
     static_assert(Work::x_rate == 192000, "The reverb comparison uses 192 kHz tuning");
     constexpr const char* x_name = Work::x_framed ? "reverb_generated"
-        : Work::x_wandering ? "reverb_every_sample" : Work::x_generated ? "reverb_fixed" : "reverb";
+        : Work::x_generated ? "reverb_every_sample" : "reverb";
     auto workload = std::make_unique<Work>();
     Measure(*workload, x_name, Mode, Work::x_rate, seconds, 2, path, report);
 }

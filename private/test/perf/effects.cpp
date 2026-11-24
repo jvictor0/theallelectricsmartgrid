@@ -373,10 +373,6 @@ void Run(const char* kind, int size, double seconds, const char* path)
     {
         MeasureReverb<Mode, ReverbImplementation::WanderingEverySample>(seconds, path, std::cout);
     }
-    else if (std::strcmp(kind, "reverb_fixed") == 0)
-    {
-        MeasureReverb<Mode, ReverbImplementation::FixedTaps>(seconds, path, std::cout);
-    }
     else if (std::strcmp(kind, "delay") == 0)
     {
         auto w = std::make_unique<Delay<Mode>>();
@@ -428,7 +424,7 @@ int main(int argc, char** argv)
     {
         std::string kind(options.m_kind);
         int size = options.m_lanes;
-        bool valid = ((kind == "reverb" || kind == "reverb_generated" || kind == "reverb_fixed" || kind == "reverb_every_sample" ||
+        bool valid = ((kind == "reverb" || kind == "reverb_generated" || kind == "reverb_every_sample" ||
                       kind == "delay" || kind == "partial" || kind == "quad_master") &&
                       size == 4) ||
                      (kind == "stereo_master" && size == 2) || (kind == "random" && size == 3) ||

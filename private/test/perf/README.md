@@ -213,7 +213,7 @@ Direct executable arguments are `KIND LANES MODE SECONDS [OUTPUT.f32]`.
 | Executable | Kinds | LANES |
 | --- | --- | --- |
 | `perf_voices` | `ladder` (Naive Reupping Ladder), `svf`, `physical`, `vps`, `dual` | 1 = three independent mono instances; 3 = one trio |
-| `perf_effects` | `reverb`, `reverb_fixed`, `reverb_every_sample`, `reverb_generated`, `delay`, `partial`, `quad_master` | 4 |
+| `perf_effects` | `reverb`, `reverb_every_sample`, `reverb_generated`, `delay`, `partial`, `quad_master` | 4 |
 | `perf_effects` | `stereo_master`, `random` | 2 and 3 respectively |
 | `perf_effects` | `polyxfader` | 1 = three mono; 3 = one trio; 4 = one quad |
 | `perf_extra` | `lissajous`, `sub_osc`, `sub_kernel` | 1 = three mono; 3 = one trio |
@@ -224,8 +224,8 @@ Direct executable arguments are `KIND LANES MODE SECONDS [OUTPUT.f32]`.
 
 The reverb cases use the same control traces at 192 kHz. `reverb` keeps the
 handwritten benchmark baseline. `reverb_generated` runs the production core
-with interpolation between 32-sample spline frame endpoints. `reverb_fixed`
-uses fixed taps and `reverb_every_sample` evaluates the spline each sample.
+with interpolation between 32-sample spline frame endpoints.
+`reverb_every_sample` evaluates the spline each sample.
 
 ```sh
 make perf-run PERF_ARGS="--suite components --case 'reverb*/4/*' --seconds 12 --repeats 7"

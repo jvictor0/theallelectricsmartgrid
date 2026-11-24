@@ -12,13 +12,48 @@ structure StateBinding where
   arguments : Nat
   generated : Option (Name × Name) := none
 
-private def native (source : Name) (method : String) (arguments : Nat) : StateBinding :=
-  ⟨source, method, arguments, none⟩
+/-- Template parameters for a native storage representation of packed samples. -/
+inductive StorageParameter where
+  | number
+  | channels
+  | natural (argument : Nat)
+  | boolean (value : Bool)
 
-/-- The storage and numeric allowance for compiled StateM actions. Entries
-marked generated must resolve to two emitted Lean procedures, one per sample
-precision. Their native methods only adapt the storage view and call that code. -/
-def stateBindings : Array StateBinding := #[
+structure StorageBinding where
+  source : Name
+  cppName : String
+  header : String
+  sampleArgument : Nat
+  parameters : Array StorageParameter
+
+inductive NativeBinding where
+  | action (binding : StateBinding)
+  | storage (binding : StorageBinding)
+
+private def native (source : Name) (method : String) (arguments : Nat) : NativeBinding :=
+  .action ⟨source, method, arguments, none⟩
+
+/-- The native storage and numeric allowance. Actions marked generated must
+resolve to two emitted Lean procedures, one per sample precision. -/
+def nativeBindings : Array NativeBinding := #[
+  .storage ⟨`DSP.DelayBuffer, "CircularBufferGeneric", "CircularBufferGeneric.hpp", 1,
+    #[.number, .channels, .natural 0]⟩,
+  .storage ⟨`DSP.WanderingRandomLFO.Stream, "PackedWanderingRandomLFO", "WanderingRandomLFO.hpp", 0,
+    #[.number, .channels, .boolean false]⟩,
+  .storage ⟨`DSP.WanderingRandomLFO.FramedStream, "PackedWanderingRandomLFO", "WanderingRandomLFO.hpp", 0,
+    #[.number, .channels, .boolean true]⟩,
+  native `DSP.DelayBuffer.readWrappedAge "ReadWrappedAge" 1,
+  native `DSP.DelayBuffer.readAgeOffsets "ReadAgeOffsets" 2,
+  native `DSP.DelayBuffer.pushFrame "Push" 1,
+  native `DSP.DelayBuffer.clear "Clear" 0,
+  .action ⟨`DSP.WanderingRandomLFO.FramedStream.initialize, "Initialize", 2, some
+    (`DSP.WanderingRandomLFO.initializeFramed32, `DSP.WanderingRandomLFO.initializeFramed64)⟩,
+  .action ⟨`DSP.WanderingRandomLFO.Stream.initialize, "Initialize", 2, some
+    (`DSP.WanderingRandomLFO.initialize32, `DSP.WanderingRandomLFO.initialize64)⟩,
+  .action ⟨`DSP.WanderingRandomLFO.FramedStream.nextValue, "NextSpline", 0, some
+    (`DSP.WanderingRandomLFO.processFramed32, `DSP.WanderingRandomLFO.processFramed64)⟩,
+  .action ⟨`DSP.WanderingRandomLFO.Stream.nextValue, "NextSpline", 0, some
+    (`DSP.WanderingRandomLFO.process32, `DSP.WanderingRandomLFO.process64)⟩,
   native `DSP.Resynthesis.PVDR.Storage.magnitude "Magnitude" 1,
   native `DSP.Resynthesis.PVDR.Storage.previousMagnitude "PreviousMagnitude" 1,
   native `DSP.Resynthesis.PVDR.Storage.phase "Phase" 1,
@@ -63,9 +98,9 @@ def stateBindings : Array StateBinding := #[
   native `DSP.Resynthesis.FrameStorage.getSample "GetSample" 2,
   native `DSP.Resynthesis.FrameStorage.putSample "PutSample" 3,
   native `DSP.Resynthesis.FrameStorage.window "Window" 1,
-  ⟨`DSP.Resynthesis.FrameStorage.analyzeGraph, "AnalyzeGraph", 1, some
+  .action ⟨`DSP.Resynthesis.FrameStorage.analyzeGraph, "AnalyzeGraph", 1, some
     (`DSP.Resynthesis.PVDR.Storage.analyze32, `DSP.Resynthesis.PVDR.Storage.analyze64)⟩,
-  ⟨`DSP.Resynthesis.FrameStorage.synthesize, "Synthesize", 1, some
+  .action ⟨`DSP.Resynthesis.FrameStorage.synthesize, "Synthesize", 1, some
     (`DSP.Resynthesis.SpectrumStorage.synthesize32, `DSP.Resynthesis.SpectrumStorage.synthesize64)⟩,
   native `DSP.Resynthesis.FrameStorage.clearAnalysisMagnitude "ClearAnalysisMagnitude" 1,
   native `DSP.Resynthesis.FrameStorage.clearPreviousMagnitude "ClearPreviousMagnitude" 1,
@@ -77,5 +112,13 @@ def stateBindings : Array StateBinding := #[
   native `DSP.Resynthesis.FrameStorage.clearOrder "ClearOrder" 1,
   native `DSP.Resynthesis.FrameStorage.clearMagnitude "ClearMagnitude" 1,
   native `DSP.Resynthesis.FrameStorage.setSlewCutoff "SetSlewCutoff" 2]
+
+def stateBindings : Array StateBinding := nativeBindings.filterMap fun
+  | .action binding => some binding
+  | .storage _ => none
+
+def storageBindings : Array StorageBinding := nativeBindings.filterMap fun
+  | .action _ => none
+  | .storage binding => some binding
 
 end DSP.Codegen

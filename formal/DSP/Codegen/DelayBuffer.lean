@@ -18,26 +18,39 @@ def generateDelayBuffer (cppName : String) : MetaM String := do
           (age.fvarId!, Value.scalar "size_t" "age")]
         let (_, read) ← (do
           let (_, index) ← scalar (← evaluate (mkAppN (mkConst ``DelayBuffer.address) #[capacity, head, age]) locals)
-          emit s!"return m_data[{index}];").run { boundedIndices := true }
+          emit s!"return {index};").run { boundedIndices := true }
         let (_, push) ← (do
           let (_, index) ← scalar (← evaluate (mkAppN (mkConst ``DelayBuffer.advance) #[capacity, head]) locals)
           emit "m_data[m_head] = value;"
           emit s!"m_head = {index};").run { boundedIndices := true }
         let lines := #["#pragma once", "", "// Generated from DSP.DelayBuffer. Do not edit.",
           "// Storage lowering is tested against native Lean, not formally verified.", "//", "",
-          "#include \"MultiChannelNumber.hpp\"", "#include <array>", "#include <cassert>", "#include <cstddef>",
-          "#include <limits>", "",
+          "#include \"MultiChannelArray.hpp\"", "#include <array>", "#include <cassert>", "#include <cstddef>",
+          "#include <cstdint>", "#include <limits>", "",
           "template<typename Number, size_t Size, size_t Capacity>", s!"struct {cppName}", "{",
           "    static_assert(Capacity > 0);", "    using Vector = MultiChannelNumber<Number, Size>;",
+          "    static constexpr size_t x_capacity = Capacity;",
           "    static constexpr bool x_modularWrap = (Capacity & (Capacity - 1)) == 0 &&",
           "        Capacity <= std::numeric_limits<size_t>::max() / 2;",
-          "    std::array<Vector, Capacity> m_data{};", "    size_t m_head = 0;", "",
-          "    Vector ReadAge(size_t age) const", "    {", "        assert(age < Capacity);",
+          "    MultiChannelArray<Number, Size, Capacity> m_data{};", "    size_t m_head = 0;", "",
+          "    size_t Address(size_t age) const", "    {", "        assert(age < Capacity);",
           "        assert(m_head < Capacity);", "        if constexpr (x_modularWrap)", "        {",
-          "            return m_data[(m_head + Capacity - (age + 1)) % Capacity];", "        }",
+          "            return (m_head + Capacity - (age + 1)) % Capacity;", "        }",
           "        else", "        {"] ++
           read.lines.map (fun line => if line.isEmpty then "" else "            " ++ line) ++
-          #["        }", "    }", "", "    Vector ReadDelay(size_t delay) const", "    {",
+          #["        }", "    }", "", "    Vector ReadAge(size_t age) const", "    {",
+          "        return m_data[Address(age)];", "    }", "",
+          "    Vector ReadWrappedAge(std::uint64_t age) const", "    {",
+          "        return ReadAge(age % Capacity);", "    }", "",
+          "    template<typename Index, size_t Count>",
+          "    std::array<Vector, Count> ReadAgeOffsets(const MultiChannelNumber<Index, Size>& ages,",
+          "        const std::array<std::uint64_t, Count>& offsets) const",
+          "    {",
+          "        return m_data.GatherWrappedOffsets([&](size_t lane)",
+          "        {",
+          "            return Address(ages[lane] % Capacity);",
+          "        }, offsets);",
+          "    }", "", "    Vector ReadDelay(size_t delay) const", "    {",
           "        assert(delay > 0 && delay <= Capacity);", "        return ReadAge(delay - 1);", "    }", "",
           "    Vector ReadDelays(const MultiChannelNumber<size_t, Size>& delays) const", "    {",
           "        Vector result;", "        for (size_t lane = 0; lane < Size; ++lane)", "        {",

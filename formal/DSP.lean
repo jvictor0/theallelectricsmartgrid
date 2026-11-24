@@ -47,6 +47,7 @@ import DSP.DelayBuffer.Transfer
 import DSP.DelayBuffer.Energy
 import DSP.Filters.SchroederAllPass.Proofs
 import DSP.Filters.SquiggleBoyQuadReverb.Loop
+import DSP.Filters.SquiggleBoyQuadReverb.Runtime
 import DSP.Filters.SquiggleBoyQuadReverb.SmallSignal
 import DSP.Filters.SquiggleBoyQuadReverb.WanderingProofs
 import DSP.Filters.TunedDecayComb.Proofs

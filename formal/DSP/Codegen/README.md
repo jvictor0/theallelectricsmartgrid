@@ -4,21 +4,29 @@ The delay filters also use generated cores: `SchroederAllPassCoreGeneric`,
 `TunedDecayCombCoreGeneric`, `TunedDecayCombTuningGeneric` and
 `TunedDecayCombResponseGeneric`. Their existing app wrappers retain control
 scheduling and UI interfaces and share `CircularBufferGeneric` storage.
+Its `MultiChannelArray` indexes a frame normally with a scalar. With packed
+indices it takes lane `ch` from frame `indices[ch]`. Several reads with shared
+circular offsets can be gathered together, computing the starting address once
+per lane. Lean selects the offsets for the reverb's cubic read.
 Stereo and quad processing, tuning, response and ring wraparound are covered
 by native Lean/C++ comparisons. See the [delay proof and integration
 overview](../README.md#delay-filter-codegen-and-app-integration).
 
-[SquiggleBoyQuadReverb.hpp](../generated/SquiggleBoyQuadReverb.hpp) is the owning
-192 kHz reverb export. Its constructor and `ComputeCoefficients` take a
+[SquiggleBoyQuadReverb.hpp](../../../private/src/SquiggleBoyQuadReverb.hpp) exposes the
+192 kHz reverb API. Its constructor and `ComputeCoefficients` take a
 `LogicalSpec` with per-channel delay in samples, linear feedback, damping base
 in cycles per sample, damping width, and tanh input gain. `Process` takes a quad
 audio sample and returns the quad output. The processor retains the delay and
 filter histories across coefficient updates.
 
-[QuadReverb.lean](QuadReverb.lean) binds the Lean sample schedule to in-place
-storage operations and emits their owning C++ types. The fixed-tap intro model,
-the wandering Lean cascade, and the C++ renderer use the same stage order and
-tap constants from Lean. Each wandering Schroeder stage owns a
+[The Lean runtime](../Filters/SquiggleBoyQuadReverb/Runtime.lean) defines the
+owning state, initialization, tuning, and sample schedule. Diffusion stores
+each stage at its declared capacity in a fixed product. The common emitter
+lowers the [Schroeder stages](../Filters/SchroederAllPass/Storage.lean) and their
+parent together. Lean computes the tap ages, cubic interpolation, and all-pass
+recurrence. Native operations access the rings and call the generated LFO.
+The main delay uses the same [cubic read](../DelayBuffer/Quad.lean) with a
+packed conversion of its four requested delay lengths. Each all-pass stage owns a
 [wandering random LFO](../WanderingRandomLFO.lean) and its delay ring. A stage shares one smoothly
 varying fractional offset across its lanes. The concrete reverb gives each
 stage a distinct seed and a peak offset of 128 samples. Every 32 samples, the
@@ -31,12 +39,11 @@ and interpolation. Normal `StateM` record updates write the phase and countdown
 in place, and separate generated calls handle speed refresh, knots, and frame
 renewal. The C++ wrapper selects the precision and frame mode.
 See the [framed spline proofs](../SmoothRandomLFO/FramedProofs.lean).
-The fixed-tap transfer proofs apply to the separate fixed configuration.
+The fixed-tap transfer proofs describe an analytical reference.
 
 The arithmetic evaluator lowers the mixer, saturation, damping cutoffs, and
-cubic interpolation. The delay codegen test compares both reverb
-configurations and spline knot crossings against native Lean in float and
-double.
+cubic interpolation. The delay codegen test compares reverb output and spline
+knot crossings against native Lean in float and double.
 
 The generated filters are under [generated](../generated): the ZOH and TPT
 one-poles, TPT highpass and base-width band, `TPTSVF`, `MorphingTPTSVF`, the
@@ -175,6 +182,13 @@ the branch that updates them. Finite monadic folds carry the same storage
 through each iteration. A previously exported `#generate_cpp_state` action
 can be called directly from another action. Add `outlined` before `as` to
 keep its code in a separate function.
+
+`DSP.focus` runs a child action on one field of its parent. The emitter checks
+the getter and setter and passes the field by reference. Use it to access a
+child filter or a ring and to read small fields of a state that contains native
+storage. `#generate_cpp_state_generic` lowers packed record actions. Its
+`owning` form also emits their state layout, including fixed products and
+registered native storage fields.
 
 `#generate_cpp_view_into` writes a pure record result into a compatible output
 view. The emitter snapshots the result before writing, so the input and output

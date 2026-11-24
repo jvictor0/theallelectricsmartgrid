@@ -1,4 +1,4 @@
-import DSP.DelayBuffer.Cubic
+import DSP.DelayBuffer.Quad
 import DSP.Filters.SquiggleBoyQuadReverb
 import DSP.Filters.SquiggleBoyQuadReverb.Mixing
 import DSP.Filters.Tuning
@@ -17,13 +17,13 @@ def squiggleBoyReverbSecondCapacity : Nat := 32768
 def squiggleBoyReverbLoopAPFCapacity (stage : Fin 2) : Nat :=
   if stage = 0 then squiggleBoyReverbFirstCapacity else squiggleBoyReverbSecondCapacity
 
-theorem squiggleBoyReverbLoopWanderFits (enabled : Bool) (stage : Fin 2) (channel : Fin 4) :
+theorem squiggleBoyReverbLoopWanderFits (stage : Fin 2) (channel : Fin 4) :
     DelayBuffer.CubicOffsetFits (squiggleBoyReverbLoopAPFCapacity stage)
-      (squiggleBoyReverbLoopAPFsDelayTime stage channel) (squiggleBoyReverbWanderSpec enabled).depth := by
-  have all : ∀ (e : Bool) (s : Fin 2) (ch : Fin 4),
+      (squiggleBoyReverbLoopAPFsDelayTime stage channel) squiggleBoyReverbWanderSpec.depth := by
+  have all : ∀ (s : Fin 2) (ch : Fin 4),
       DelayBuffer.CubicOffsetFits (squiggleBoyReverbLoopAPFCapacity s)
-        (squiggleBoyReverbLoopAPFsDelayTime s ch) (squiggleBoyReverbWanderSpec e).depth := by decide
-  exact all enabled stage channel
+        (squiggleBoyReverbLoopAPFsDelayTime s ch) squiggleBoyReverbWanderSpec.depth := by decide
+  exact all stage channel
 
 structure SquiggleBoyQuadReverb (R : Type) where
   private mk ::
@@ -78,6 +78,13 @@ def pushDelay {capacity : Nat} {R : Type} (delay : DelayBuffer capacity (Fin 4 �
   let channels := Vector.ofFn sample
   delay.push (fun ch => channels[ch])
 
+def readMainDelay {R : Type} [OfNat R 2] [OfNat R 3] [OfNat R 4] [OfNat R 5]
+    [OfScientific R] [Neg R] [Sub R] [Mul R] [FMA R] [DelayMath R]
+    [DelayBuffer.SampleAges R] [DelayBuffer.Gather R]
+    (input : Sample R) : StateM (DelayBuffer squiggleBoyReverbDelayCapacity R) R := do
+  let (rounded, fraction) := DelayBuffer.fractionalPosition input.x
+  DelayBuffer.readCubicAges (DelayBuffer.SampleAges.toAges rounded) fraction
+
 def stepDamping {R : Type} [Sub R] [FMA R] (state : TPTBaseWidth (Fin 4 → R))
     (sample : Sample (Fin 4 → R)) : TPTBaseWidth (Fin 4 → R) :=
   let next := state.step sample
@@ -93,22 +100,21 @@ def dampedSample {R : Type} (damping : TPTBaseWidth R) : R := damping.lowPass.y
 
 def init {R : Type} [OfNat R 0] [OfNat R 1] [OfScientific R] [Add R] [Mul R] [Div R]
     [Trig R] [IfLess R] [WanderingRandomLFO.SampleValue R]
-    [Sub R] [FMA R] (spec : LogicalSpec R)
-    (wandering : Bool := true) : SquiggleBoyQuadReverb R :=
+    [Sub R] [FMA R] (spec : LogicalSpec R) : SquiggleBoyQuadReverb R :=
   let gain : Fin 4 → R := allPassGain
   let zero : Fin 4 → R := fun _ => 0
-  let wander := squiggleBoyReverbWanderSpec wandering
+  let wander := squiggleBoyReverbWanderSpec
   computeCoefficients spec {
-    diffusion := SquiggleBoyWanderingIntroAPFs.init wandering gain
+    diffusion := SquiggleBoyWanderingIntroAPFs.init gain
     delay := DelayBuffer.empty (by decide)
     delaySamples := zero
     feedback := zero
     saturatorGain := zero
     firstAllPass := WanderingSchroederAllPassGeneric.init (squiggleBoyReverbLoopAPFsDelayTime 0)
-      gain wander (squiggleBoyReverbLoopSeed 0) (squiggleBoyReverbLoopWanderFits wandering 0) (by decide)
+      gain wander (squiggleBoyReverbLoopSeed 0) (squiggleBoyReverbLoopWanderFits 0) (by decide)
     damping := ⟨⟨⟨zero, zero, zero⟩, zero⟩, ⟨zero, zero, zero⟩⟩
     secondAllPass := WanderingSchroederAllPassGeneric.init (squiggleBoyReverbLoopAPFsDelayTime 1)
-      gain wander (squiggleBoyReverbLoopSeed 1) (squiggleBoyReverbLoopWanderFits wandering 1) (by decide) }
+      gain wander (squiggleBoyReverbLoopSeed 1) (squiggleBoyReverbLoopWanderFits 1) (by decide) }
 
 def y {R : Type} (state : SquiggleBoyQuadReverb R) : Fin 4 → R := state.secondAllPass.y
 

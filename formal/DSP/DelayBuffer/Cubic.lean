@@ -13,6 +13,14 @@ class SampleIndex (R : Type) where
 instance : SampleIndex Float := ⟨Float.ofNat, fun samples => samples.toUInt64.toNat⟩
 instance : SampleIndex Float32 := ⟨Float32.ofNat, fun samples => samples.toUInt64.toNat⟩
 
+/-- Broadcast a whole sample length when `R` is packed. -/
+def SampleIndex.ofWord {R : Type} [SampleIndex R] (n : UInt64) : R :=
+  SampleIndex.ofNat n.toNat
+
+/-- Extract an integral sample position. Packed callers supply one shared value. -/
+def SampleIndex.toWord {R : Type} [SampleIndex R] (samples : R) : UInt64 :=
+  UInt64.ofNat (SampleIndex.toNat samples)
+
 private structure CubicTap (capacity : Nat) (R : Type) where
   age : Fin capacity
   fraction : R

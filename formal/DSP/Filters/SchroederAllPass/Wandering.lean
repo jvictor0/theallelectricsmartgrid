@@ -13,7 +13,7 @@ structure WanderingSchroederAllPassGeneric (capacity channels : Nat) (R : Type) 
   private base : Fin channels → Nat
   private gain : Fin channels → R
   private depth : Nat
-  private lfo : Option (WanderingRandomLFO.FramedStream R)
+  private lfo : WanderingRandomLFO.FramedStream R
   private output : Fin channels → R
 
 namespace WanderingSchroederAllPassGeneric
@@ -31,7 +31,7 @@ def init [OfNat R 0] [WanderingRandomLFO.SampleValue R] [Sub R] [Div R] [FMA R]
     (positive : 0 < capacity) :
     WanderingSchroederAllPassGeneric capacity channels R :=
   ⟨DelayBuffer.empty positive, fun ch => tap ch - spec.depth, gain, spec.depth,
-    if spec.depth = 0 then none else some (WanderingRandomLFO.FramedStream.init spec.lambdaSamples seed),
+    WanderingRandomLFO.FramedStream.init spec.lambdaSamples seed,
     fun _ => 0⟩
 
 def uniform [OfNat R 0] [WanderingRandomLFO.SampleValue R] [Sub R] [Div R] [FMA R]
@@ -54,15 +54,9 @@ def step [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3] [OfNat R 4] [OfNat R 5]
     [DelayMath R] [DelayBuffer.SampleIndex R] [WanderingRandomLFO.SampleValue R]
     (filter : WanderingSchroederAllPassGeneric capacity channels R) (input : Sample (Fin channels → R)) :
     WanderingSchroederAllPassGeneric capacity channels R :=
-  let (lfo, delayed) := match filter.lfo with
-    | none =>
-      let positive := Nat.zero_lt_of_lt filter.history.head.isLt
-      (none, filter.history.readChannels fun ch =>
-        ⟨(filter.base ch + capacity - 1) % capacity, Nat.mod_lt _ positive⟩)
-    | some lfo =>
-      let (next, value) := lfo.step
-      let offset := offsetSamples (DelayBuffer.SampleIndex.ofNat filter.depth) value
-      (some next, filter.history.readCubicOffset filter.base offset)
+  let (lfo, value) := filter.lfo.step
+  let offset := offsetSamples (DelayBuffer.SampleIndex.ofNat filter.depth) value
+  let delayed := filter.history.readCubicOffset filter.base offset
   let result := Vector.ofFn fun ch =>
     DelayKernels.allPassStep ⟨filter.gain ch, 0, 0⟩ ⟨input.x ch, delayed ch⟩
   let written := Vector.ofFn fun (ch : Fin channels) => result[ch].written

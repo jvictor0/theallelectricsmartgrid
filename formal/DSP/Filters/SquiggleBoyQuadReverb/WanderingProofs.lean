@@ -51,12 +51,12 @@ theorem idealTapPitchCents_le_nine {s : Segment ℝ} {point a b : ℝ}
     (bounds : SegmentBounded s 1) (hpoint : |point| ≤ 1) (hab : a < b)
     (clock : b - a ≤ 32 / 50000) (within : Icc a b ⊆ Icc (-s.width) s.next) :
     let f := joinValue s point 1
-    let depth : ℝ := (squiggleBoyReverbWanderSpec true).depth
+    let depth : ℝ := squiggleBoyReverbWanderSpec.depth
     let drift := (offsetSamples depth (f b) - offsetSamples depth (f a)) / 32
     |pitchCents (idealTapPitchRatio 0 drift)| ≤ 9 := by
   dsimp only
   let f := joinValue s point 1
-  let depth : ℝ := (squiggleBoyReverbWanderSpec true).depth
+  let depth : ℝ := squiggleBoyReverbWanderSpec.depth
   have depthEq : depth = 128 := by norm_num [depth, squiggleBoyReverbWanderSpec]
   have secant : |frameSlope f a b| ≤ 2 := by
     simpa [f] using abs_join_frameSlope_le (by norm_num : (0 : ℝ) < 1)

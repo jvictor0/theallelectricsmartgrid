@@ -44,10 +44,30 @@ def recordUpdate (input : RecordInput) : StateM RecordState Float := do
   if input.reset then set before
   return left + (← get : RecordState).right
 
+structure FocusState where
+  first : RecordState
+  second : RecordState
+
+def nestedUpdate (swap : Bool) : StateM FocusState Float :=
+  focus FocusState.first (fun parent first => { parent with first }) (recordPairUpdate swap)
+
+def invalidFocus (swap : Bool) : StateM FocusState Float :=
+  focus FocusState.first (fun parent first => { parent with first, second := first })
+    (recordPairUpdate swap)
+
+def readFocusParent (_ : PUnit.{1}) : StateM FocusState Float :=
+  modifyGet fun parent => (parent.second.left, parent)
+
+def focusCapturesParent (_ : PUnit.{1}) : StateM FocusState Float := fun parent =>
+  (focus FocusState.first (fun s first => { s with first }) (fun child =>
+    let saved := (readFocusParent ⟨⟩).run parent
+    (saved.1, child))).run parent
+
 end DSP.Tests
 
 #generate_cpp_state DSP.Tests.recordPairUpdate outlined as RecordPairUpdate to "build/lean/generated/RecordPairUpdate.hpp"
 #generate_cpp_state DSP.Tests.recordUpdate as RecordUpdate to "build/lean/generated/RecordUpdate.hpp"
+#generate_cpp_state DSP.Tests.readFocusParent outlined as ReadFocusParent to "build/lean/generated/ReadFocusParent.hpp"
 
 open Lean Elab Command in
 run_cmd liftTermElabM do
@@ -57,6 +77,20 @@ run_cmd liftTermElabM do
     throwError "unmodified fields should not be written by an in-place branch"
   unless swap.contains "state.m_left = " && increment.contains "state.m_right = " do
     throwError "stores should remain in their own update branch"
+  let focused ← DSP.Codegen.generateEffect ``DSP.Tests.nestedUpdate "FocusedUpdate" (ownRecord := true)
+  unless focused.contains "RecordPairUpdate::Process(state.m_first," &&
+      !focused.contains "state.m_second" do
+    throwError "focus must pass the current child field without accessing its sibling"
+  for (source, expected) in #[
+      (``DSP.Tests.invalidFocus, "focus setter must replace only the selected field"),
+      (``DSP.Tests.focusCapturesParent, "a focused action may only use its current child storage")] do
+    let mut rejected := false
+    try
+      let _ ← DSP.Codegen.generateEffect source "InvalidFocus" (ownRecord := true)
+    catch error =>
+      unless (← error.toMessageData.toString).contains expected do throw error
+      rejected := true
+    unless rejected do throwError "C++ codegen accepted an invalid focus in {source}"
 
 namespace DSP.Tests
 

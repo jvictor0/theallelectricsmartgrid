@@ -1,11 +1,12 @@
 import DSP.Codegen.Cpp
 import DSP.Codegen.DelayBuffer
-import DSP.Codegen.QuadReverb
+import DSP.Filters.SquiggleBoyQuadReverb.Runtime
 import DSP.Resynthesis.Runtime
 import DSP.Resynthesis.PVDRStorage
 import DSP.Resynthesis.SpectrumStorage
 import DSP.Resynthesis.FrameStorage
 import DSP.Filters.DelayKernels.Runtime
+import DSP.Filters.SchroederAllPass.Storage
 import DSP.Filters.OnePoleZOHLowPass
 import DSP.Filters.OnePoleZOHLowPass.Response
 import DSP.Filters.OnePoleTPTLowPass
@@ -50,7 +51,11 @@ import DSP.WanderingRandomLFO
 #generate_cpp_state DSP.WanderingRandomLFO.processFramed64 as WanderingRandomLFOFramed64 to "build/lean/generated/WanderingRandomLFOFramed64.hpp"
 
 #generate_cpp_delay_buffer CircularBufferGeneric to "build/lean/generated/CircularBufferGeneric.hpp"
-#generate_cpp_quad_reverb SquiggleBoyQuadReverb to "build/lean/generated/SquiggleBoyQuadReverb.hpp"
+#generate_cpp_state_generic DSP.SquiggleBoyQuadReverb.Runtime.processFramed owning as SquiggleBoyQuadReverbFramed to "build/lean/generated/SquiggleBoyQuadReverbFramed.hpp"
+#generate_cpp_state_generic DSP.SquiggleBoyQuadReverb.Runtime.processSample owning as SquiggleBoyQuadReverbEverySample to "build/lean/generated/SquiggleBoyQuadReverbEverySample.hpp"
+#generate_cpp_state_generic DSP.SquiggleBoyQuadReverb.Runtime.initializeFramed as SquiggleBoyQuadReverbInitFramed to "build/lean/generated/SquiggleBoyQuadReverbInitFramed.hpp"
+#generate_cpp_state_generic DSP.SquiggleBoyQuadReverb.Runtime.initializeSample as SquiggleBoyQuadReverbInitEverySample to "build/lean/generated/SquiggleBoyQuadReverbInitEverySample.hpp"
+#generate_cpp_state_generic DSP.SquiggleBoyQuadReverb.Runtime.tuneFramed as SquiggleBoyQuadReverbTuning to "build/lean/generated/SquiggleBoyQuadReverbTuning.hpp"
 #generate_cpp_effect DSP.Resynthesis.PVDR.Storage.analyze32 as AnalyzePVDR32 to "build/lean/generated/AnalyzePVDR32.hpp"
 #generate_cpp_effect DSP.Resynthesis.PVDR.Storage.analyze64 as AnalyzePVDR64 to "build/lean/generated/AnalyzePVDR64.hpp"
 #generate_cpp_effect DSP.Resynthesis.SpectrumStorage.synthesize32 as SynthesizeSpectrum32 to "build/lean/generated/SynthesizeSpectrum32.hpp"

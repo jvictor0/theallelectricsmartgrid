@@ -58,16 +58,16 @@ theorem squiggleBoyQuadReverbIntroAPFs_response_unit (gain : Fin 4 → ℝ)
 /-- The exponential speed draw has mean one knot per 1,920,000 samples. -/
 def squiggleBoyReverbLambdaSamples : Nat := 1920000
 
-def squiggleBoyReverbWanderSpec (enabled : Bool) : WanderingSchroederAllPassGeneric.WanderSpec :=
-  ⟨if enabled then 128 else 0, Float.ofNat squiggleBoyReverbLambdaSamples⟩
+def squiggleBoyReverbWanderSpec : WanderingSchroederAllPassGeneric.WanderSpec :=
+  ⟨128, Float.ofNat squiggleBoyReverbLambdaSamples⟩
 
-theorem squiggleBoyReverbIntroWanderFits (enabled : Bool) (stage : Fin 8) :
+theorem squiggleBoyReverbIntroWanderFits (stage : Fin 8) :
     DelayBuffer.CubicOffsetFits (squiggleBoyReverbIntroAPFCapacity stage)
-      (squiggleBoyReverbIntroAPFsDelayTime stage) (squiggleBoyReverbWanderSpec enabled).depth := by
-  have all : ∀ (e : Bool) (s : Fin 8),
+      (squiggleBoyReverbIntroAPFsDelayTime stage) squiggleBoyReverbWanderSpec.depth := by
+  have all : ∀ (s : Fin 8),
       DelayBuffer.CubicOffsetFits (squiggleBoyReverbIntroAPFCapacity s)
-        (squiggleBoyReverbIntroAPFsDelayTime s) (squiggleBoyReverbWanderSpec e).depth := by decide
-  exact all enabled stage
+        (squiggleBoyReverbIntroAPFsDelayTime s) squiggleBoyReverbWanderSpec.depth := by decide
+  exact all stage
 
 def squiggleBoyReverbIntroSeed (stage : Fin 8) : UInt64 :=
   UInt64.ofNat (stage.val + 1)
@@ -81,11 +81,11 @@ abbrev SquiggleBoyWanderingIntroAPFs (R : Type) :=
 namespace SquiggleBoyWanderingIntroAPFs
 
 def init {R : Type} [OfNat R 0] [WanderingRandomLFO.SampleValue R] [Sub R] [Div R] [FMA R]
-    (enabled : Bool) (gain : Fin 4 → R) : SquiggleBoyWanderingIntroAPFs R :=
-  let spec := squiggleBoyReverbWanderSpec enabled
+    (gain : Fin 4 → R) : SquiggleBoyWanderingIntroAPFs R :=
+  let spec := squiggleBoyReverbWanderSpec
   let stage (i : Fin 8) : WanderingSchroederAllPassGeneric (squiggleBoyReverbIntroAPFCapacity i) 4 R :=
     .uniform (squiggleBoyReverbIntroAPFsDelayTime i) gain spec (squiggleBoyReverbIntroSeed i)
-      (squiggleBoyReverbIntroWanderFits enabled i)
+      (squiggleBoyReverbIntroWanderFits i)
   buildIntroCascade (Cascade := WanderingSchroederAllPassCascade 4 R) (.passthrough (fun _ => 0))
     (fun i {_} tail => .series (stage i) tail) squiggleBoyReverbIntroOrder
 

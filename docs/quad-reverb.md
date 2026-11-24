@@ -1,6 +1,6 @@
 # Quadraphonic Reverb
 
-Quad Reverb is the second global quad send effect in SmartGridOne. The audio core is generated from [the Lean reverb](../formal/DSP/Filters/SquiggleBoyQuadReverb/Loop.lean). The [app adapter](../private/src/QuadReverb.hpp) maps knobs to physical settings and publishes the generated damping response for the analyzer.
+Quad Reverb is the second global quad send effect in SmartGridOne. The audio core and its owning state are generated from [the Lean reverb runtime](../formal/DSP/Filters/SquiggleBoyQuadReverb/Runtime.lean). The [app adapter](../private/src/QuadReverb.hpp) maps knobs to physical settings and publishes the generated damping response for the analyzer.
 
 ## Signal path
 

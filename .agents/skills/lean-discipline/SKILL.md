@@ -34,6 +34,21 @@ general lowering support. Treat custom algorithm emitters in existing exports
 as migration work. Tests compare the behavior of allowed lowerings and cannot
 substitute for deriving the algorithm body from Lean.
 
+## Compose stateful processors with StateM
+
+Describe processing, initialization, and tuning as ordinary `StateM` actions.
+The owner declares its child state and buffer capacities in Lean. Pass input
+and current-sample results as values, and update persistent state in place
+through the common emitter.
+
+Use [`DSP.focus`](../../../formal/DSP/StateFocus.lean) to run a child action on
+one field of its parent. Supply the field projection and the matching record
+update. The emitter validates both and borrows the field by reference. Focus
+on small fields when reading values from a record that owns native storage.
+Use fixed products for statically sized children with different capacities.
+Use the shared native storage bindings for buffer reads, writes, and gathers,
+with the caller choosing the addresses and their order in Lean.
+
 ## Use exact mathematics by default
 
 For numerical theorems, use the real numbers (`ℝ`) or complex numbers (`ℂ`) as appropriate, unless the task specifies a different numerical model. Interpret transcendental operations using their exact mathematical definitions, such as `Real.sin`, `Real.exp`, and `Real.tanh`. Keep `Float` and `Float32` specializations available for execution and testing where needed. Apply exact algebraic laws only in interpretations that satisfy them.

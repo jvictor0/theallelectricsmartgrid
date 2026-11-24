@@ -1,5 +1,6 @@
 #pragma once
 
+#include "MultiChannelNumber.hpp"
 #include "WanderingRandomLFO32.hpp"
 #include "WanderingRandomLFO64.hpp"
 #include "WanderingRandomLFOFramed32.hpp"
@@ -29,7 +30,14 @@ struct WanderingRandomLFOGeneric
 
     State m_state{};
 
+    WanderingRandomLFOGeneric() = default;
+
     WanderingRandomLFOGeneric(double lambdaSamples, std::uint64_t seed)
+    {
+        Initialize(lambdaSamples, seed);
+    }
+
+    void Initialize(double lambdaSamples, std::uint64_t seed)
     {
         Initializer::Process(m_state, {lambdaSamples, seed});
     }
@@ -37,5 +45,14 @@ struct WanderingRandomLFOGeneric
     Number Process()
     {
         return Kernel::Process(m_state);
+    }
+};
+
+template<typename Number, size_t Size, bool Framed>
+struct PackedWanderingRandomLFO : WanderingRandomLFOGeneric<Number, Framed>
+{
+    MultiChannelNumber<Number, Size> NextSpline()
+    {
+        return MultiChannelNumber<Number, Size>::Splat(this->Process());
     }
 };

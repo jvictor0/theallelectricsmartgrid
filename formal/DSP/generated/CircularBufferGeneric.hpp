@@ -4,10 +4,11 @@
 // Storage lowering is tested against native Lean, not formally verified.
 //
 
-#include "MultiChannelNumber.hpp"
+#include "MultiChannelArray.hpp"
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 
 template<typename Number, size_t Size, size_t Capacity>
@@ -15,18 +16,19 @@ struct CircularBufferGeneric
 {
     static_assert(Capacity > 0);
     using Vector = MultiChannelNumber<Number, Size>;
+    static constexpr size_t x_capacity = Capacity;
     static constexpr bool x_modularWrap = (Capacity & (Capacity - 1)) == 0 &&
         Capacity <= std::numeric_limits<size_t>::max() / 2;
-    std::array<Vector, Capacity> m_data{};
+    MultiChannelArray<Number, Size, Capacity> m_data{};
     size_t m_head = 0;
 
-    Vector ReadAge(size_t age) const
+    size_t Address(size_t age) const
     {
         assert(age < Capacity);
         assert(m_head < Capacity);
         if constexpr (x_modularWrap)
         {
-            return m_data[(m_head + Capacity - (age + 1)) % Capacity];
+            return (m_head + Capacity - (age + 1)) % Capacity;
         }
         else
         {
@@ -46,8 +48,28 @@ struct CircularBufferGeneric
                 v6 = v5;
             }
 
-            return m_data[v6];
+            return v6;
         }
+    }
+
+    Vector ReadAge(size_t age) const
+    {
+        return m_data[Address(age)];
+    }
+
+    Vector ReadWrappedAge(std::uint64_t age) const
+    {
+        return ReadAge(age % Capacity);
+    }
+
+    template<typename Index, size_t Count>
+    std::array<Vector, Count> ReadAgeOffsets(const MultiChannelNumber<Index, Size>& ages,
+        const std::array<std::uint64_t, Count>& offsets) const
+    {
+        return m_data.GatherWrappedOffsets([&](size_t lane)
+        {
+            return Address(ages[lane] % Capacity);
+        }, offsets);
     }
 
     Vector ReadDelay(size_t delay) const

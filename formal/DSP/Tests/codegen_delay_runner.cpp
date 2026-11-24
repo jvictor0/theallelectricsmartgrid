@@ -4,6 +4,8 @@
 #include "TunedDecayCombCoreGeneric.hpp"
 #include "TunedDecayCombTuningGeneric.hpp"
 #include "TunedDecayCombResponseGeneric.hpp"
+#include <array>
+#include <cassert>
 #include <cstdint>
 #include <cstring>
 #include <iostream>
@@ -190,10 +192,10 @@ void Run(const std::string& kind)
     std::cout << '\n';
 }
 
-template<typename Number, bool Wandering>
+template<typename Number>
 void RunReverb()
 {
-    using Core = SquiggleBoyQuadReverb<Number, Wandering>;
+    using Core = SquiggleBoyQuadReverb<Number>;
     static std::unique_ptr<Core> state;
     const auto readVector = []()
     {
@@ -276,6 +278,27 @@ void Address(size_t head, size_t age)
 
     ring.m_head = head;
     auto output = ring.ReadAge(age);
+    MultiChannelNumber<size_t, Size> ages;
+    MultiChannelNumber<size_t, Size> indices;
+    for (size_t lane = 0; lane < Size; ++lane)
+    {
+        ages[lane] = (age + lane) % Capacity;
+        indices[lane] = ring.Address(ages[lane]);
+    }
+
+    const auto diagonal = ring.m_data[indices];
+    const std::array<std::uint64_t, 4> offsets{0, 1, 3, Capacity + 2};
+    const auto gathered = ring.ReadAgeOffsets(ages, offsets);
+    for (size_t lane = 0; lane < Size; ++lane)
+    {
+        assert(diagonal[lane] == ring.ReadAge(ages[lane])[lane]);
+        for (size_t tap = 0; tap < offsets.size(); ++tap)
+        {
+            const auto expectedAge = (ages[lane] + Capacity - offsets[tap] % Capacity) % Capacity;
+            assert(gathered[tap][lane] == ring.ReadAge(expectedAge)[lane]);
+        }
+    }
+
     ring.Push(MultiChannelNumber<double, Size>::Splat(0));
     for (size_t lane = 0; lane < Size; ++lane)
     {
@@ -317,19 +340,11 @@ int main()
     {
         if (kind == "reverb" && precision == 32 && width == 4)
         {
-            RunReverb<float, true>();
+            RunReverb<float>();
         }
         else if (kind == "reverb" && precision == 64 && width == 4)
         {
-            RunReverb<double, true>();
-        }
-        else if (kind == "reverb_fixed" && precision == 32 && width == 4)
-        {
-            RunReverb<float, false>();
-        }
-        else if (kind == "reverb_fixed" && precision == 64 && width == 4)
-        {
-            RunReverb<double, false>();
+            RunReverb<double>();
         }
         else if (kind == "spline" && precision == 32 && width == 1)
         {

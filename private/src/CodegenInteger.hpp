@@ -64,4 +64,20 @@ inline size_t ToIndex(int64_t value)
 
     return static_cast<size_t>(value);
 }
+
+template<typename Number>
+std::uint64_t ToWord(Number value)
+{
+    if (!(value > 0))
+    {
+        return 0;
+    }
+
+    if (value >= static_cast<Number>(0x1p64))
+    {
+        return std::numeric_limits<std::uint64_t>::max();
+    }
+
+    return static_cast<std::uint64_t>(value);
+}
 }

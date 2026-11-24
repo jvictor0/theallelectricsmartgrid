@@ -57,6 +57,8 @@ private def reverbSpec (n : Nat) : SquiggleBoyQuadReverb.LogicalSpec Float where
     | 1 => capacity - 1 - offset
     | 2 => 240 + offset
     | 3 => 4096 + offset
+    | 4 => 1.25
+    | 5 => capacity
     | _ => 3 + offset
   feedback ch := (5 + ((n / 411 + ch.val * 2) % 18).toFloat) / 32
   dampingBase ch := (3 + ((n / 17 + ch.val * 3) % 13).toFloat) / 128
@@ -72,7 +74,7 @@ private def reverbRows {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3
     [OfNat R 4] [OfNat R 5] [OfScientific R] [Add R] [Sub R] [Neg R] [Mul R] [Div R]
     [FMA R] [Tanh R] [IfLess R] [Trig R] [DelayMath R] [DelayBuffer.SampleIndex R]
     [WanderingRandomLFO.SampleValue R]
-    (out : IO.FS.Stream) (precision : Nat) (wandering : Bool) (cast : Float → R)
+    (out : IO.FS.Stream) (precision : Nat) (cast : Float → R)
     (bits : R → String) : IO Unit := do
   let specAt := fun n =>
     let spec := reverbSpec n
@@ -80,7 +82,7 @@ private def reverbRows {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3
        dampingBase := cast ∘ spec.dampingBase, dampingWidth := cast ∘ spec.dampingWidth
        saturatorGain := cast ∘ spec.saturatorGain } :
       SquiggleBoyQuadReverb.LogicalSpec R)
-  let mut state := SquiggleBoyQuadReverb.init (specAt 0) wandering
+  let mut state := SquiggleBoyQuadReverb.init (specAt 0)
   for n in [:24064] do
     let spec := specAt n
     let audio := cast ∘ reverbAudio n
@@ -88,8 +90,7 @@ private def reverbRows {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3
     let fields := [spec.delaySamples, spec.feedback, spec.dampingBase, spec.dampingWidth,
       spec.saturatorGain, audio, state.y]
     let values := fields.flatMap fun field => (List.finRange 4).map (bits ∘ field)
-    let kind := if wandering then "reverb" else "reverb_fixed"
-    out.putStrLn s!"{kind} {precision} {String.intercalate " " values}"
+    out.putStrLn s!"reverb {precision} {String.intercalate " " values}"
 
 private def splineRows {R : Type} [WanderingRandomLFO.SampleValue R] [FMA R]
     (out : IO.FS.Stream) (precision : Nat) (bits : R → String) : IO Unit := do
@@ -134,9 +135,8 @@ def main : IO Unit := do
   ring out 16384 (by decide)
   for capacity in [1,2,3,4,7,8,16] do
     addresses out capacity
-  for wandering in [false, true] do
-    reverbRows out 32 wandering Float.toFloat32 (fun x => toString x.toBits)
-    reverbRows out 64 wandering id (fun x => toString x.toBits)
+  reverbRows out 32 Float.toFloat32 (fun x => toString x.toBits)
+  reverbRows out 64 id (fun x => toString x.toBits)
   splineRows out 32 (fun x : Float32 => toString x.toBits)
   splineRows out 64 (fun x : Float => toString x.toBits)
   framedSplineRows out 32 (fun x : Float32 => toString x.toBits)

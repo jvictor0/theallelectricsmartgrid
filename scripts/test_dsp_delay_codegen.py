@@ -14,7 +14,9 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build/lean"
 HEADERS = ("CircularBufferGeneric", "SchroederAllPassCoreGeneric", "TunedDecayCombCoreGeneric",
-           "TunedDecayCombTuningGeneric", "TunedDecayCombResponseGeneric", "SquiggleBoyQuadReverb",
+           "TunedDecayCombTuningGeneric", "TunedDecayCombResponseGeneric", "SquiggleBoyQuadReverbFramed",
+           "SquiggleBoyQuadReverbEverySample", "SquiggleBoyQuadReverbInitFramed",
+           "SquiggleBoyQuadReverbInitEverySample", "SquiggleBoyQuadReverbTuning",
            "WanderingRandomLFOInit32", "WanderingRandomLFOInit64", "WanderingRandomLFOFramedInit32",
            "WanderingRandomLFOFramedInit64", "WanderingRandomLFO32", "WanderingRandomLFO64",
            "WanderingRandomLFOFramed32", "WanderingRandomLFOFramed64", "WanderingRandomLFOFramedState",
@@ -83,7 +85,7 @@ def main():
                              for lane in range(width)] + [head])
             labels.append(("ring", 64, width, (capacity, n, age)))
     for precision in (32, 64):
-        for kind in ("reverb", "reverb_fixed", "spline", "spline_framed"):
+        for kind in ("reverb", "spline", "spline_framed"):
             cases = [row[2:] for row in rows if row[:2] == [kind, str(precision)]]
             assert len(cases) == (512 if kind.startswith("spline") else 24064)
             width, input_count = (1, 0) if kind.startswith("spline") else (4, 24)
