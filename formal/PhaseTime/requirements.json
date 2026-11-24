@@ -104,7 +104,8 @@
     "requirement": "Backwards travel preserves the chosen forward inverse; coordinates ahead of the current cursor are unavailable.",
     "theorems": [
       "PhaseTime.rewind_keeps_inverse",
-      "PhaseTime.future_unavailable"
+      "PhaseTime.future_unavailable",
+      "PhaseTime.InverseRuntime.nonforward_keeps_payload"
     ],
     "anchors": [
       "inverse_reverse",
@@ -386,7 +387,8 @@
       "PhaseTime.FixedCell.restart_uses_frontier",
       "PhaseTime.FixedCell.restart_certified",
       "PhaseTime.FixedCell.restart_cell_valid",
-      "PhaseTime.FixedCell.restart_read_sound"
+      "PhaseTime.FixedCell.restart_read_sound",
+      "PhaseTime.InverseRuntime.keep_cut_refines_restart"
     ],
     "anchors": [
       "cell_coalesce",
@@ -495,6 +497,38 @@
     ],
     "anchors": [
       "write_batch"
+    ]
+  },
+  {
+    "id": "P36",
+    "status": "proved",
+    "requirement": "Each successful executable inverse lookup in a certified cell returns a causal sample time within the requested cutoff and a one-cell sampled phase residual. An exact preimage exists in the certified trajectory.",
+    "theorems": [
+      "PhaseTime.InverseRuntime.read_interval_refines",
+      "PhaseTime.InverseRuntime.read_interval_sound",
+      "PhaseTime.InverseRuntime.read_cell_sound"
+    ],
+    "anchors": [
+      "grid_lookup",
+      "cell_select"
+    ]
+  },
+  {
+    "id": "P37",
+    "status": "proved",
+    "requirement": "An executable inverse batch, including its predecessor finish, refines a completed prefix of the scalar traversal. Visible cell data, the seed slot and the frontier agree even when ring addresses alias.",
+    "theorems": [
+      "PhaseTime.InverseRuntime.assign_cell_refines",
+      "PhaseTime.InverseRuntime.finish_cell_refines",
+      "PhaseTime.InverseRuntime.commit_batch_is_prefix",
+      "PhaseTime.InverseRuntime.coherent_runtime_read"
+    ],
+    "anchors": [
+      "cell_enter",
+      "cell_finish",
+      "write_batch",
+      "snapshot_write",
+      "snapshot_read"
     ]
   }
 ]

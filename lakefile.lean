@@ -30,6 +30,10 @@ lean_exe dsp_delay_codegen_reference where
   root := `DSP.Tests.DelayCodegenReference
   leanOptions := #[⟨`autoImplicit, false⟩, ⟨`warningAsError, true⟩]
 
+lean_exe time_warp_inverse_reference where
+  root := `TimeWarpInverseReference
+  leanOptions := #[⟨`autoImplicit, false⟩, ⟨`warningAsError, true⟩]
+
 @[default_target]
 lean_lib Encoder where
   globs := #[.submodules `Encoder]

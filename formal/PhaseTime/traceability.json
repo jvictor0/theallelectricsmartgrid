@@ -8,17 +8,18 @@
     "private/src/PhaseUtils.hpp": "5e569f67e8b6a1c9ee143400caef8916383bbfc1f5d72ba1e021f9ec88652368",
     "private/src/PolyXFader.hpp": "ed902e89b6ac9cb0cfd3f8fad9a8699db6ef984b6faee35e172a1f78be9cf4d3",
     "private/src/QuadDelay.hpp": "d236458a04acb828049bf58b8e0d24d32f93297f8b268ab64a7eea7d7651dfa5",
-    "private/src/ScopeWriter.hpp": "d567768335118202cec6add7f61d123d3de5d968267627cd9a19abbd4e46b0a3",
+    "private/src/ScopeWriter.hpp": "23d01acfecc41ad945c53bfbde16c376c38dcd8a9aad1a556d6d57a0272f8788",
     "private/src/SmartGridOneModulatorHistory.hpp": "8c17b7abd10f07d0d953cf543b425b49a027c2d30fdbf2cba278e28309ee15d6",
-    "private/src/SquiggleBoyTrack.hpp": "0d3288cbbd18b196c30caa6d26a5c9a3d2a2509aaa60aab9892f0f2581aded5a",
+    "private/src/SquiggleBoyTrack.hpp": "904975838563f7020bd15a774ed996fdc2cbb28882b68f04485224517d0ef37f",
     "private/src/TapeHead.hpp": "fd7e94c9eca576ba8ed19bc0df9100970657c1683b96c8685ab1283f825a999f",
     "private/src/TheoryOfTime.hpp": "653250fa379a48326b44439fc57eb5b037654462257a5cab6b04c717905a85e4",
     "private/src/TheoryOfTimeBase.hpp": "753a7ae7c1d173261a46b307c38611c4883f715d4e42cfa4e50d5ad2d227bf9c",
-    "private/src/TimeWarpInverter.hpp": "c9cbbb93f5cdbf8ff3d845446fc0bb46a8d5e44917dbf00f2ab913c824685bb5",
+    "private/src/TimeWarpInverter.hpp": "3dd6212109bf5f333d9a9e615f116ee0d71d36800717c8ef365e838ae2aa3058",
     "private/src/TimeWarpView.hpp": "d6787c25d2229d1437c57fa96d99302542508654c925c3a7192c909c0ae178e4",
-    "JUCE/SmartGridOne/Source/ScopeComponent.hpp": "04b6baf84984533be097b811268fcb35ae6febf3cd3027dc2025f4420a7b35d1",
+    "JUCE/SmartGridOne/Source/ScopeComponent.hpp": "f751407a789ebf9e8a4dd6b765f99c00bcb7935e67af1bfd882157a0f327f39a",
     "private/src/Resynthesis.hpp": "01663ac984d85a5570e024e0a50760471b0c5d7ae20073c5babf66cab1f04e16",
-    "private/src/SquiggleBoy.hpp": "fb4b90ff8d15091d7277427b30e8e2e7484902a846591b4633ed633229655da2"
+    "private/src/SquiggleBoy.hpp": "e0e404d66f6bb352a7e3de377cbe20fc6fcacd05fdf398e6582a02ba25160a61",
+    "formal/PhaseTime/generated/TimeWarpInverseCore.hpp": "f46f4e56c03aac2b26f0c93d9ac5158335e968f77482a90845f87110ee05092d"
   },
   "anchors": {
     "clock_init": [
@@ -47,8 +48,8 @@
     ],
     "inverse_forward": [
       {
-        "path": "private/src/TimeWarpInverter.hpp",
-        "symbol": "void ScatterBufferToInverse(double low, double high, double lowTime, double highTime)"
+        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
+        "symbol": "static void ScatterBufferToInverse(Storage& storage,"
       }
     ],
     "inverse_reverse": [
@@ -179,26 +180,26 @@
     ],
     "grid_lookup": [
       {
-        "path": "private/src/TimeWarpInverter.hpp",
-        "symbol": "double ReadPayload(double gridPhase, double cutoff) const"
+        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
+        "symbol": "static double ReadPayload(const Storage& storage,"
       }
     ],
     "grid_forward": [
       {
-        "path": "private/src/TimeWarpInverter.hpp",
-        "symbol": "void ScatterBufferToInverse(double low, double high, double lowTime, double highTime)"
+        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
+        "symbol": "static void ScatterBufferToInverse(Storage& storage,"
       }
     ],
     "grid_frontier": [
       {
-        "path": "private/src/TimeWarpInverter.hpp",
-        "symbol": "m_frontierPhase.store(high);"
+        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
+        "symbol": "storage.m_frontierPhase.store(high);"
       }
     ],
     "grid_codec": [
       {
-        "path": "private/src/TimeWarpInverter.hpp",
-        "symbol": "m_turnTime[slot].store(static_cast<float>(time - base));"
+        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
+        "symbol": "storage.m_turnTime[slot].store(static_cast<float>(time - base));"
       }
     ],
     "grid_memory": [
@@ -227,14 +228,14 @@
     ],
     "cell_select": [
       {
-        "path": "private/src/TimeWarpInverter.hpp",
-        "symbol": "double ReadPayload(double gridPhase, double cutoff) const"
+        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
+        "symbol": "static double ReadPayload(const Storage& storage,"
       }
     ],
     "cell_replace": [
       {
-        "path": "private/src/TimeWarpInverter.hpp",
-        "symbol": "void BeginBranch(double phase, double time)"
+        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
+        "symbol": "static void BeginBranch(Storage& storage,"
       }
     ],
     "cell_enter": [
@@ -257,14 +258,14 @@
     ],
     "inverse_reassign": [
       {
-        "path": "private/src/TimeWarpInverter.hpp",
-        "symbol": "void BeginBranch(double phase, double time)"
+        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
+        "symbol": "static void BeginBranch(Storage& storage,"
       }
     ],
     "cell_coalesce": [
       {
-        "path": "private/src/TimeWarpInverter.hpp",
-        "symbol": "bool sameVisit = std::isfinite(oldTurn) && m_frontierPhase.load() <= floorPhase + 1.0;"
+        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
+        "symbol": "!TimeWarpInverseKernels::KeepCut("
       }
     ],
     "snapshot_write": [
@@ -297,8 +298,8 @@
     ],
     "write_batch": [
       {
-        "path": "private/src/TimeWarpInverter.hpp",
-        "symbol": "static constexpr size_t x_writeBatchSize ="
+        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
+        "symbol": "static constexpr unsigned x_batchCapacity ="
       }
     ]
   }

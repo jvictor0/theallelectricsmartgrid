@@ -53,6 +53,7 @@ reversal. Stopped transport continues at nominal positive phase speed.
 | [AnalysisStability.lean](AnalysisStability.lean) | Stationary-partial common-shift invariance, phase-controlled window-feature bounds, and a conditional criterion for coalescing tiny reversals |
 | [Concurrency.lean](Concurrency.lean) | Coherent scalar reads under one sequence counter; publication ordering; retry completion under an explicit eventual-quiet-attempt hypothesis |
 | [WriteOptimization.lean](WriteOptimization.lean) | Inactive-store elimination, scalar-reference refinement, direct complete-cell fusion, arbitrary ring aliases, batch-prefix equivalence, bounded stores and coherent publication |
+| [InverseRuntimeProofs.lean](InverseRuntimeProofs.lean) | Executable lookup soundness for certified cells, write-batch refinement through the first edge, and equality of visible storage and the frontier with the scalar traversal |
 | [Slew.lean](Slew.lean) | Ideal phase-distance decay is bounded and contractive, holds at zero, depends on absolute travel, and composes under forward constant-input subdivision; forward chain rule |
 | [StateMachine.lean](StateMachine.lean), [Reachability.lean](Reachability.lean) | Veil transition obligations and a reachable-state safety theorem |
 
@@ -110,12 +111,21 @@ the continuity theorem holds those settings fixed.
 
 ## Implementation boundary
 
-These are mathematical proofs with reviewed source correspondence, just like
-the encoder model. They are not generated C++, C++ semantics proofs, or machine
-code verification. [traceability.json](traceability.json) names unique source
-anchors and pins the complete covered files. `check_phase_spec.py` rejects source
-drift or unreferenced anchors. Review the mathematical correspondence before
-updating hashes; a changed hash alone is not evidence of equivalence.
+[InverseRuntime.lean](InverseRuntime.lean) implements the fixed-cell inverse over a
+bounded ring. Its exact-real instantiation connects the lookup and batch commits
+to the cell and scalar-traversal theorems. Its executable instantiation uses
+`Float` for phases and absolute times and `Float32` for replacement deltas.
+[InverseCodegen.lean](InverseCodegen.lean) lowers the arithmetic and traversal to
+the native atomic ring. Both Theory of Time inverses use the generated core.
+`make lean-inverse-test` checks header regeneration and compares native Lean,
+generated C++, and the frozen C++ reference on identical observation and query
+traces.
+
+The lookup proof assumes the selected interval is certified. The native traversal
+lifecycle, floating-point operations, and sequentially consistent atomics are
+validated through source review and native tests. [traceability.json](traceability.json)
+pins the covered files and identifies correspondence anchors. `check_phase_spec.py`
+rejects drift or missing anchors. Review the matched operations before updating hashes.
 
 The clock/history/Veil model retains an ideal pointwise inverse. Its reassignment
 transition may select any causal historical preimage without changing F or the

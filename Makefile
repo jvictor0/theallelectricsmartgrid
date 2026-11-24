@@ -45,6 +45,7 @@ $(eval $(call cmake_targets,visualizers,private/test/juce-visualizers,VISUALIZER
 $(eval $(call cmake_targets,midi,private/test/juce-midi,MIDI_CONFIG,juce))
 
 .PHONY: lean-setup lean-cache lean-test lean-dsp-test lean-dsp-codegen lean-dsp-generate lean-dsp-codegen-test
+.PHONY: lean-inverse-codegen lean-inverse-generate lean-inverse-test
 lean-setup:
 	"$(REPO_ROOT)/scripts/lean.sh" setup
 
@@ -120,6 +121,18 @@ lean-dsp-test: lean-dsp-codegen-test
 	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/DSP/Audit.lean"
 	"$(REPO_ROOT)/scripts/lean.sh" exe dsp_filter_smoke
 
+lean-inverse-codegen:
+	"$(REPO_ROOT)/scripts/lean.sh" build PhaseTime.InverseCodegen
+	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/GenerateTimeWarpInverse.lean"
+
+lean-inverse-generate: lean-inverse-codegen
+	cp "$(REPO_ROOT)/build/lean/generated/TimeWarpInverseCore.hpp" "$(REPO_ROOT)/formal/PhaseTime/generated/TimeWarpInverseCore.hpp"
+
+lean-inverse-test: lean-inverse-codegen
+	cmp "$(REPO_ROOT)/build/lean/generated/TimeWarpInverseCore.hpp" "$(REPO_ROOT)/formal/PhaseTime/generated/TimeWarpInverseCore.hpp"
+	"$(REPO_ROOT)/scripts/lean.sh" build PhaseTime.InverseRuntimeProofs time_warp_inverse_reference
+	python3 "$(REPO_ROOT)/scripts/test_time_warp_inverse.py"
+
 lean-test:
 	python3 "$(REPO_ROOT)/scripts/check_encoder_spec.py"
 	python3 "$(REPO_ROOT)/scripts/check_phase_spec.py"
@@ -129,6 +142,7 @@ lean-test:
 	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/Encoder/Audit.lean"
 	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/PhaseTime/Audit.lean"
 	$(MAKE) -f "$(REPO_ROOT)/Makefile" lean-dsp-codegen-test
+	$(MAKE) -f "$(REPO_ROOT)/Makefile" lean-inverse-test
 
 PERF_DIR := $(REPO_ROOT)/build/tools/perf/Release
 .PHONY: perf-configure perf-build perf-test perf-run perf-sgrec

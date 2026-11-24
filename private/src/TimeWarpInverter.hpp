@@ -3,8 +3,7 @@
 #include "MultiChannelNumber.hpp"
 #include "PhaseUtils.hpp"
 #include "TimeWarpView.hpp"
-#include <algorithm>
-#include <array>
+#include "../../formal/PhaseTime/generated/TimeWarpInverseCore.hpp"
 #include <atomic>
 #include <cmath>
 #include <cstddef>
@@ -21,7 +20,7 @@ struct TimeWarpInverter : TimeWarpSource
 {
     static constexpr size_t x_maxSamples = MaxSamples;
     static constexpr size_t x_maxCellPieces = 2;
-    static constexpr size_t x_writeBatchSize = 8;
+    using Core = TimeWarpInverseCore<TimeWarpInverter>;
     static constexpr double x_missing = std::numeric_limits<double>::quiet_NaN();
     static_assert(std::atomic<double>::is_always_lock_free);
     static_assert(std::atomic<float>::is_always_lock_free);
@@ -36,7 +35,7 @@ struct TimeWarpInverter : TimeWarpSource
 
     // All shared accesses are sequentially consistent. Readers retry until
     // they see one unchanged even revision. Each scatter section covers at
-    // most x_writeBatchSize grid edges and their final frontier. The single
+    // most eight grid edges and their final frontier. The single
     // audio writer does not wait for readers. See PhaseTime/Concurrency.lean
     // and PhaseTime/WriteOptimization.lean.
     //
@@ -159,176 +158,9 @@ struct TimeWarpInverter : TimeWarpSource
         }
     }
 
-    // Keep the earliest minimum during a replacement visit confined to this
-    // cell, including touches of its right edge. A visit after leaving the cell
-    // replaces the cut and can reassign older islands to the fixed fallback.
-    // An unfinished first traversal uses its entry and forward frontier.
-    //
-    void BeginBranch(double phase, double time)
-    {
-        double floorPhase = std::floor(phase);
-        if (phase == floorPhase)
-        {
-            return;
-        }
-
-        size_t slot = WrapIndex(static_cast<int64_t>(floorPhase));
-        double seed = m_seedPhase.load();
-        bool retained = m_highestWrittenIndex - static_cast<double>(MaxSamples - 1) <= floorPhase
-            && floorPhase <= m_highestWrittenIndex;
-        BeginWrite();
-        if (!retained || !std::isfinite(m_writeHeadInverse[slot].load())
-            || (std::floor(seed) == floorPhase && phase < seed))
-        {
-            SeedCell(phase, time);
-        }
-        else if (std::isfinite(m_fallbackRightTime[slot].load()))
-        {
-            double oldTurn = m_turnPhase[slot].load();
-            bool sameVisit = std::isfinite(oldTurn) && m_frontierPhase.load() <= floorPhase + 1.0;
-            if (!sameVisit || phase < oldTurn)
-            {
-                m_islandReassignments += std::isfinite(oldTurn) && oldTurn < phase;
-                double base = m_writeHeadInverse[slot].load();
-                m_turnPhase[slot].store(phase);
-                m_turnTime[slot].store(static_cast<float>(time - base));
-            }
-
-            // A boundary touch may have stored an endpoint. Reopen against the
-            // live frontier when this confined visit resumes below that edge.
-            //
-            m_currentRightTime[slot].store(static_cast<float>(x_missing));
-        }
-
-        m_frontierPhase.store(phase);
-        m_frontierTime.store(time);
-        EndWrite();
-    }
-
-    // Caller holds the writer revision or validates it after reading. Fallback
-    // and replacement never borrow an endpoint from the neighboring cell.
-    //
-    double ReadPayload(double gridPhase, double cutoff) const
-    {
-        double floorPhase = std::floor(gridPhase);
-        size_t slot = WrapIndex(static_cast<int64_t>(floorPhase));
-        double base = m_writeHeadInverse[slot].load();
-        double seed = m_seedPhase.load();
-        double lowPhase = std::floor(seed) == floorPhase ? seed : floorPhase;
-        double lowTime = base;
-        double highPhase = floorPhase + 1.0;
-        double highTime = m_fallbackRightTime[slot].load();
-        double frontierPhase = m_frontierPhase.load();
-        double frontierTime = m_frontierTime.load();
-        if (gridPhase == frontierPhase && std::isfinite(frontierTime))
-        {
-            return frontierTime <= cutoff ? frontierTime : x_missing;
-        }
-
-        double turn = m_turnPhase[slot].load();
-        if (std::isfinite(turn) && gridPhase >= turn)
-        {
-            lowPhase = turn;
-            lowTime = base + static_cast<double>(m_turnTime[slot].load());
-            highTime = base + static_cast<double>(m_currentRightTime[slot].load());
-        }
-
-        if (!std::isfinite(highTime) && lowPhase <= frontierPhase && frontierPhase < highPhase)
-        {
-            highPhase = frontierPhase;
-            highTime = frontierTime;
-        }
-
-        if (!std::isfinite(lowTime) || lowTime > cutoff || gridPhase < lowPhase)
-        {
-            return x_missing;
-        }
-
-        if (gridPhase == lowPhase)
-        {
-            return lowTime;
-        }
-
-        if (!std::isfinite(highTime) || gridPhase > highPhase || lowPhase >= highPhase)
-        {
-            return x_missing;
-        }
-
-        double alpha = (gridPhase - lowPhase) / (highPhase - lowPhase);
-        double time = lowTime + alpha * (highTime - lowTime);
-        return time <= cutoff ? time : x_missing;
-    }
-
-    void ScatterBufferToInverse(double low, double high, double lowTime, double highTime)
-    {
-        int64_t first = static_cast<int64_t>(std::ceil(low));
-        int64_t last = static_cast<int64_t>(std::floor(high));
-        for (int64_t index = first; index <= last;)
-        {
-            size_t count = static_cast<size_t>(std::min<int64_t>(x_writeBatchSize, last - index + 1));
-            std::array<double, x_writeBatchSize> times;
-            for (size_t i = 0; i < count; ++i)
-            {
-                double alpha = (static_cast<double>(index + static_cast<int64_t>(i)) - low) / (high - low);
-                times[i] = lowTime + alpha * (highTime - lowTime);
-            }
-
-            BeginWrite();
-            if (static_cast<double>(index) > low)
-            {
-                FinishCell(index - 1, times[0]);
-            }
-
-            for (size_t i = 0; i + 1 < count; ++i)
-            {
-                CompleteCell(index + static_cast<int64_t>(i), times[i], times[i + 1]);
-            }
-
-            int64_t finalIndex = index + static_cast<int64_t>(count) - 1;
-            EnterCell(finalIndex, times[count - 1]);
-            m_frontierPhase.store(static_cast<double>(finalIndex));
-            m_frontierTime.store(times[count - 1]);
-            EndWrite();
-            index += static_cast<int64_t>(count);
-        }
-
-        m_highestWrittenIndex = std::max(m_highestWrittenIndex, std::floor(high));
-        m_oldestWarpedTime = (m_highestWrittenIndex - static_cast<double>(MaxSamples - 1)) / m_resolution;
-    }
-
     void Write(double warpedTime, double realTime)
     {
-        assert(std::isfinite(warpedTime) && std::isfinite(realTime));
-        bool previousObservation = m_hasObservation;
-        m_previousObservedRealTime = previousObservation ? m_observedRealTime : realTime;
-        m_previousObservedWarpedTime = previousObservation ? m_observedWarpedTime : warpedTime;
-        m_observedWarpedTime = warpedTime;
-        m_observedRealTime = realTime;
-        m_hasObservation = true;
-        if (previousObservation && warpedTime > m_lastWarpedTime)
-        {
-            double low = m_lastWarpedTime * m_resolution;
-            double high = warpedTime * m_resolution;
-            if (!m_hasForward || m_descending)
-            {
-                BeginBranch(low, m_previousRealTime);
-            }
-
-            ScatterBufferToInverse(low, high, m_previousRealTime, realTime);
-            BeginWrite();
-            m_frontierPhase.store(high);
-            m_frontierTime.store(realTime);
-            EndWrite();
-            m_hasForward = true;
-            m_descending = false;
-        }
-        else if (previousObservation && warpedTime < m_lastWarpedTime)
-        {
-            m_descending = true;
-        }
-
-        m_lastWarpedTime = warpedTime;
-        m_previousRealTime = realTime;
+        Core::Write(*this, warpedTime, realTime);
     }
 
     double ReadInverse(double warpedTime, double latestRealTime) const override
@@ -342,7 +174,7 @@ struct TimeWarpInverter : TimeWarpSource
                 continue;
             }
 
-            double result = ReadPayload(warpedTime * m_resolution, latestRealTime);
+            double result = Core::ReadPayload(*this, warpedTime * m_resolution, latestRealTime);
             if (m_revision.load() == revision)
             {
                 return result;

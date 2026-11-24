@@ -5,6 +5,7 @@ import PhaseTime.AnalysisStability
 import PhaseTime.FixedCell
 import PhaseTime.Concurrency
 import PhaseTime.WriteOptimization
+import PhaseTime.InverseRuntimeProofs
 import Lean.Util.CollectAxioms
 
 open Lean in

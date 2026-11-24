@@ -54,6 +54,7 @@ an existing local JUCE checkout, including any local JUCE edits.
 | `make lean-test` | `build/lean/` |
 | `make lean-dsp-test` | `build/lean/` |
 | `make lean-dsp-codegen` / `make lean-dsp-codegen-test` | `build/lean/generated/`, `build/lean/codegen-test/` |
+| `make lean-inverse-codegen` / `make lean-inverse-test` | `build/lean/generated/`, `build/lean/codegen-test/` |
 | `make lean-dsp-generate` | Updates the headers in `formal/DSP/generated/` from build-tree generation |
 | `make perf-ladder-build` / `make perf-ladder PERF_ARGS="9 4194304"` | Builds/runs the ladder comparison in `build/tools/perf/Release/` |
 | `make perf-comb-build` / `make perf-comb PERF_ARGS="9 8388608"` | Builds/runs only the generated stereo/quad comb benchmark in `build/tools/perf/Release/` |
@@ -157,6 +158,10 @@ generated TPT headers. CMake targets and both Xcode projects include
 `formal/DSP/generated` and compile with `-fno-fast-math -ffp-contract=off`, matching
 the codegen arithmetic contract. Explicit `FusedMultiplyAdd` calls remain fused.
 App builds consume the checked-in C++ headers without invoking Lean.
+
+`make lean-inverse-generate` refreshes the checked-in Theory of Time inverse core.
+`make lean-inverse-test` checks regeneration and compares reads from native Lean,
+the generated C++ core, and the frozen inverse. `make lean-test` includes these checks.
 
 ## Cleanup and completion
 
