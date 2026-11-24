@@ -141,12 +141,18 @@ lean-inverse-codegen:
 	"$(REPO_ROOT)/scripts/lean.sh" build PhaseTime.InverseCodegen
 	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/GenerateTimeWarpInverse.lean"
 
+INVERSE_HEADERS := TimeWarpInverseRead TimeWarpInverseWrite
+
 lean-inverse-generate: lean-inverse-codegen
-	cp "$(REPO_ROOT)/build/lean/generated/TimeWarpInverseCore.hpp" "$(REPO_ROOT)/formal/PhaseTime/generated/TimeWarpInverseCore.hpp"
+	for header in $(INVERSE_HEADERS); do \
+		cp "$(REPO_ROOT)/build/lean/generated/$$header.hpp" "$(REPO_ROOT)/formal/PhaseTime/generated/$$header.hpp" || exit 1; \
+	done
 
 lean-inverse-test: lean-inverse-codegen
-	cmp "$(REPO_ROOT)/build/lean/generated/TimeWarpInverseCore.hpp" "$(REPO_ROOT)/formal/PhaseTime/generated/TimeWarpInverseCore.hpp"
-	"$(REPO_ROOT)/scripts/lean.sh" build PhaseTime.InverseRuntimeProofs time_warp_inverse_reference
+	for header in $(INVERSE_HEADERS); do \
+		cmp "$(REPO_ROOT)/build/lean/generated/$$header.hpp" "$(REPO_ROOT)/formal/PhaseTime/generated/$$header.hpp" || exit 1; \
+	done
+	"$(REPO_ROOT)/scripts/lean.sh" build PhaseTime.InverseIndexProofs PhaseTime.InverseTimestampBounds time_warp_inverse_reference
 	python3 "$(REPO_ROOT)/scripts/test_time_warp_inverse.py"
 
 lean-test:

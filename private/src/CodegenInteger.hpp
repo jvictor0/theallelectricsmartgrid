@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -79,5 +80,26 @@ std::uint64_t ToWord(Number value)
     }
 
     return static_cast<std::uint64_t>(value);
+}
+
+inline int64_t FromFloat(double value)
+{
+    constexpr double x_upperBound = 0x1p63;
+    if (std::isnan(value))
+    {
+        return 0;
+    }
+
+    if (value >= x_upperBound)
+    {
+        return std::numeric_limits<int64_t>::max();
+    }
+
+    if (value <= -x_upperBound)
+    {
+        return std::numeric_limits<int64_t>::min();
+    }
+
+    return static_cast<int64_t>(value);
 }
 }

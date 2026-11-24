@@ -12,17 +12,25 @@
     "private/src/SmartGridOneModulatorHistory.hpp": "8c17b7abd10f07d0d953cf543b425b49a027c2d30fdbf2cba278e28309ee15d6",
     "private/src/SquiggleBoyTrack.hpp": "904975838563f7020bd15a774ed996fdc2cbb28882b68f04485224517d0ef37f",
     "private/src/TapeHead.hpp": "fd7e94c9eca576ba8ed19bc0df9100970657c1683b96c8685ab1283f825a999f",
-    "private/src/TheoryOfTime.hpp": "653250fa379a48326b44439fc57eb5b037654462257a5cab6b04c717905a85e4",
+    "private/src/TheoryOfTime.hpp": "ba0776bf99c1b05eb0d66cad077acd4ca08a17992964b32c060c7e563f9dbbb9",
     "private/src/TheoryOfTimeBase.hpp": "753a7ae7c1d173261a46b307c38611c4883f715d4e42cfa4e50d5ad2d227bf9c",
-    "private/src/TimeWarpInverter.hpp": "3dd6212109bf5f333d9a9e615f116ee0d71d36800717c8ef365e838ae2aa3058",
+    "private/src/TimeWarpInverter.hpp": "133b6402ca0c9b4d69e8bb73964c1867c0f0aba88a3e2c9fbe5d204699a44ac4",
     "private/src/TimeWarpView.hpp": "d6787c25d2229d1437c57fa96d99302542508654c925c3a7192c909c0ae178e4",
     "JUCE/SmartGridOne/Source/ScopeComponent.hpp": "f751407a789ebf9e8a4dd6b765f99c00bcb7935e67af1bfd882157a0f327f39a",
     "private/src/Resynthesis.hpp": "af0a131cec7de3ac5f75f516175b1eb7fe7158d3f9f75a62d62f4fffa691915e",
     "private/src/SquiggleBoy.hpp": "e0e404d66f6bb352a7e3de377cbe20fc6fcacd05fdf398e6582a02ba25160a61",
-    "formal/PhaseTime/generated/TimeWarpInverseCore.hpp": "f46f4e56c03aac2b26f0c93d9ac5158335e968f77482a90845f87110ee05092d",
     "formal/DSP/Resynthesis/FrameStorage.lean": "9f9447748830ebb0febe3db876b141769d0dfde5e470236bef02c48efe8598c3",
     "formal/DSP/Resynthesis/SpectrumStorage.lean": "1f88175e10f1458f1ca1c36145cf2742b6cfb24dc4ac361e928dfa4172566caf",
-    "formal/DSP/Resynthesis/Grain.lean": "e6bb1b30c9b9374a6c76af598139a6a85736b87dfbeb4e3db5d7a47ebc05d02c"
+    "formal/DSP/Resynthesis/Grain.lean": "e6bb1b30c9b9374a6c76af598139a6a85736b87dfbeb4e3db5d7a47ebc05d02c",
+    "formal/PhaseTime/InverseStorage.lean": "d774ee778c3f52a1c242a888982dab84ebc4be79cef39ea7f1feae8d9cfa4075",
+    "formal/PhaseTime/InverseRuntime.lean": "1b98c4824a1d0eb0d581fa1e960991669d15baa32ac4b873ac750b1adc5fa275",
+    "formal/PhaseTime/generated/TimeWarpInverseRead.hpp": "c5b84648a8afebe4ce294aea5f4104692433f1644e63f275889a364bd979ba33",
+    "formal/PhaseTime/generated/TimeWarpInverseWrite.hpp": "121d209c0cda2bfe2d9a2fef856208e69b7f10921f2af25a3c47eb8b61715300",
+    "formal/PhaseTime/InverseIndex.lean": "3b90839cd3ad2f0bc43733c952429523ffdcfdea0ff2eb04d3617d2ee548ad80",
+    "formal/PhaseTime/InverseCodegen.lean": "471f376de1ddab821e1be060c2ecb51f3ec6ac76ac9c0c7075e44d0f97453956",
+    "formal/PhaseTime/InverseResolution.lean": "d961fe0b2ab6cf381716340d55940bde48264e91381281779d10451a075441c9",
+    "formal/PhaseTime/InverseTimestampBounds.lean": "abf078c41fe995e345174825b3b36107280252bb3fe4685f6f3001400d07ff00",
+    "formal/DSP/Codegen/Scratch.lean": "7bf073e6b241ec621dd4c8526f0054fe08566c190c0cec5824f767884f1e74f7"
   },
   "anchors": {
     "clock_init": [
@@ -51,8 +59,12 @@
     ],
     "inverse_forward": [
       {
-        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
-        "symbol": "static void ScatterBufferToInverse(Storage& storage,"
+        "path": "formal/PhaseTime/InverseStorage.lean",
+        "symbol": "def scatterM "
+      },
+      {
+        "path": "formal/PhaseTime/generated/TimeWarpInverseWrite.hpp",
+        "symbol": "struct TimeWarpInverseWrite"
       }
     ],
     "inverse_reverse": [
@@ -183,26 +195,46 @@
     ],
     "grid_lookup": [
       {
-        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
-        "symbol": "static double ReadPayload(const Storage& storage,"
+        "path": "formal/PhaseTime/InverseCodegen.lean",
+        "symbol": "def readBoundedM "
+      },
+      {
+        "path": "formal/PhaseTime/generated/TimeWarpInverseRead.hpp",
+        "symbol": "struct TimeWarpInverseRead"
       }
     ],
     "grid_forward": [
       {
-        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
-        "symbol": "static void ScatterBufferToInverse(Storage& storage,"
+        "path": "formal/PhaseTime/InverseIndex.lean",
+        "symbol": "def boundedScatterM "
+      },
+      {
+        "path": "formal/PhaseTime/generated/TimeWarpInverseWrite.hpp",
+        "symbol": "struct TimeWarpInverseWrite"
+      },
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "std::frexp(resolution, &exponent)"
       }
     ],
     "grid_frontier": [
       {
-        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
-        "symbol": "storage.m_frontierPhase.store(high);"
+        "path": "formal/PhaseTime/InverseStorage.lean",
+        "symbol": "storeFrontier right.phase right.time"
       }
     ],
     "grid_codec": [
       {
-        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
-        "symbol": "storage.m_turnTime[slot].store(static_cast<float>(time - base));"
+        "path": "formal/PhaseTime/InverseRuntime.lean",
+        "symbol": "encode base time := (time - base).toFloat32"
+      },
+      {
+        "path": "private/src/TimeWarpInverter.hpp",
+        "symbol": "m_turnTime[slot].store(start);"
+      },
+      {
+        "path": "formal/PhaseTime/InverseRuntime.lean",
+        "symbol": "def decodeTimestamp "
       }
     ],
     "grid_memory": [
@@ -247,26 +279,38 @@
     ],
     "cell_select": [
       {
-        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
-        "symbol": "static double ReadPayload(const Storage& storage,"
+        "path": "formal/PhaseTime/InverseStorage.lean",
+        "symbol": "def readPayloadM "
+      },
+      {
+        "path": "formal/PhaseTime/generated/TimeWarpInverseRead.hpp",
+        "symbol": "struct TimeWarpInverseRead"
       }
     ],
     "cell_replace": [
       {
-        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
-        "symbol": "static void BeginBranch(Storage& storage,"
+        "path": "formal/PhaseTime/InverseStorage.lean",
+        "symbol": "def beginBranchM "
+      },
+      {
+        "path": "formal/PhaseTime/InverseStorage.lean",
+        "symbol": "def prepareBranchM "
       }
     ],
     "cell_enter": [
       {
+        "path": "formal/PhaseTime/InverseStorage.lean",
+        "symbol": "def assignCellM "
+      },
+      {
         "path": "private/src/TimeWarpInverter.hpp",
-        "symbol": "void EnterCell(int64_t index, double time)"
+        "symbol": "void PutCell("
       }
     ],
     "cell_finish": [
       {
-        "path": "private/src/TimeWarpInverter.hpp",
-        "symbol": "void FinishCell(int64_t index, double time)"
+        "path": "formal/PhaseTime/InverseStorage.lean",
+        "symbol": "def finishCellM "
       }
     ],
     "cell_capacity": [
@@ -277,14 +321,14 @@
     ],
     "inverse_reassign": [
       {
-        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
-        "symbol": "static void BeginBranch(Storage& storage,"
+        "path": "formal/PhaseTime/InverseStorage.lean",
+        "symbol": "then incrementIslands"
       }
     ],
     "cell_coalesce": [
       {
-        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
-        "symbol": "!TimeWarpInverseKernels::KeepCut("
+        "path": "formal/PhaseTime/InverseStorage.lean",
+        "symbol": "lastEdge.any fun last => keepCut"
       }
     ],
     "snapshot_write": [
@@ -311,14 +355,22 @@
     ],
     "cell_complete": [
       {
-        "path": "private/src/TimeWarpInverter.hpp",
-        "symbol": "void CompleteCell(int64_t index, double leftTime, double rightTime)"
+        "path": "formal/PhaseTime/InverseStorage.lean",
+        "symbol": "def commitBatchM "
       }
     ],
     "write_batch": [
       {
-        "path": "formal/PhaseTime/generated/TimeWarpInverseCore.hpp",
-        "symbol": "static constexpr unsigned x_batchCapacity ="
+        "path": "formal/PhaseTime/InverseRuntime.lean",
+        "symbol": "def batchCapacity : Nat := 8"
+      },
+      {
+        "path": "formal/PhaseTime/InverseStorage.lean",
+        "symbol": "def scatterM "
+      },
+      {
+        "path": "formal/DSP/Codegen/Scratch.lean",
+        "symbol": "def Scratch.ofFn "
       }
     ]
   }

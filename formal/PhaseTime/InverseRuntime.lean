@@ -15,16 +15,19 @@ class Arithmetic (R : Type) extends Add R, Sub R, Mul R, Div R, BEq R where
   encode : R → R → Delta
   decode : R → Delta → Option R
 
+def decodeTimestamp (base : Float) (delta : Float32) : Float :=
+  base + delta.toFloat
+
 instance : Arithmetic Float where
-  lt a b := decide (a < b)
-  le a b := decide (a ≤ b)
+  lt a b := if a < b then true else false
+  le a b := if a ≤ b then true else false
   floor a := a.floor.toInt64.toInt
   ceil a := a.ceil.toInt64.toInt
   ofIndex i := (Int64.ofInt i).toFloat
   Delta := Float32
   encode base time := (time - base).toFloat32
   decode base delta :=
-    let time := base + delta.toFloat
+    let time := decodeTimestamp base delta
     if time.isFinite then some time else none
 
 structure Point (R : Type) where
@@ -58,6 +61,10 @@ structure State (R D : Type) (extraCapacity : Nat) where
   hasForward : Bool := false
   descending : Bool := false
   islandReassignments : Nat := 0
+  resolution : Option R := none
+
+def State.gridResolution {n : Nat} (s : State Float Float32 n) : Float :=
+  s.resolution.getD 1.0
 
 def wrap (extraCapacity : Nat) (index : Int) : Fin (extraCapacity + 1) :=
   let modulus : Int := (extraCapacity : Int) + 1
@@ -69,9 +76,13 @@ def wrap (extraCapacity : Nat) (index : Int) : Fin (extraCapacity + 1) :=
 
 variable {R : Type} [arithmetic : Arithmetic R] {n : Nat}
 
+def interpolateUsing {Value Output : Type} (sub div mul : Value → Value → Value)
+    (add : Value → Value → Output) (left right : Point Value) (query : Value) : Output :=
+  let alpha := div (sub query left.phase) (sub right.phase left.phase)
+  add left.time (mul alpha (sub right.time left.time))
+
 def interpolate (left right : Point R) (query : R) : R :=
-  let alpha := (query - left.phase) / (right.phase - left.phase)
-  left.time + alpha * (right.time - left.time)
+  interpolateUsing (· - ·) (· / ·) (· * ·) (· + ·) left right query
 
 def timeWithinCutoff (time cutoff : R) : Option R :=
   if arithmetic.le time cutoff then some time else none

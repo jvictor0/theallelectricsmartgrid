@@ -6,6 +6,7 @@ import DSP.Filters.LinkwitzRileySplitter
 import DSP.Filters.Capture
 import DSP.Filters.ConservativeReuppingLadder.Response
 import DSP.Filters.MultibandSaturator.Exports
+import DSP.Resynthesis.FrameStorage
 import DSP.Resynthesis.PVDRStorage
 
 #use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
@@ -120,7 +121,42 @@ def staleStorageArgument (_ : Storage.Input) (state : BorrowedPVDR) : PUnit × B
     Storage.setGate 1 .low
     Storage.gate 1 : StateM BorrowedPVDR DSP.Resynthesis.GateState).run state).1)).run state
 
+def staleValueReturn (_ : Storage.Input) (state : BorrowedPVDR) : Float32 × BorrowedPVDR :=
+  let next := ((do
+    Storage.setGate 0 .high
+    Storage.magnitude 0 : StateM BorrowedPVDR Float32).run state)
+  (next.1, state)
+
+structure BorrowedSampleInput where
+  second : Bool
+  replacement : Float
+
+structure BorrowedSampleOutput where
+  previous : Float
+  current : Float
+
+def readBorrowedSample (input : BorrowedSampleInput) :
+    StateM (Resynthesis.FrameStorage.Scene Float Float) Float :=
+  if input.second then Resynthesis.FrameStorage.getSample 0 1
+  else Resynthesis.FrameStorage.getSample 0 0
+
+def replaceBorrowedSample (input : BorrowedSampleInput) :
+    StateM (Resynthesis.FrameStorage.Scene Float Float) BorrowedSampleOutput := do
+  let previous ← Resynthesis.FrameStorage.getSample 0 0
+  Resynthesis.FrameStorage.putSample 0 0 input.replacement
+  let current ← Resynthesis.FrameStorage.getSample 0 0
+  return ⟨previous, current⟩
+
+def escapingScratch (input : BorrowedSampleInput) :
+    StateM BorrowedPVDR (Codegen.Scratch Float 4 (fun i => i < 2)) :=
+  pure (Codegen.Scratch.ofFn 4 2 (by decide) fun _ => input.replacement)
+
 end DSP.Tests
+
+#generate_cpp_effect DSP.Tests.readBorrowedSample
+  as ReadBorrowedSample to "build/lean/generated/ReadBorrowedSample.hpp"
+#generate_cpp_effect DSP.Tests.replaceBorrowedSample
+  as ReplaceBorrowedSample to "build/lean/generated/ReplaceBorrowedSample.hpp"
 
 open Lean Elab Command in
 run_cmd liftTermElabM do
@@ -128,17 +164,19 @@ run_cmd liftTermElabM do
       (``DSP.Tests.staleBorrowedBranch, "branch returned an old storage snapshot"),
       (``DSP.Tests.staleEmptyFold, "old storage snapshot"),
       (``DSP.Tests.staleLoopCapture, "effect used an old state snapshot"),
-      (``DSP.Tests.staleStorageArgument, "a storage argument invalidated the current state")] do
+      (``DSP.Tests.staleStorageArgument, "a storage argument invalidated the current state"),
+      (``DSP.Tests.staleValueReturn, "action returned an old state snapshot"),
+      (``DSP.Tests.escapingScratch, "scratch storage must stay local")] do
     let mut rejected := false
     try
       let _ ← DSP.Codegen.generateEffect source "StaleBorrowedStorage"
     catch error =>
       let message ← error.toMessageData.toString
       unless (message.splitOn expected).length > 1 do
-        throwError "unexpected stale storage rejection for {source}: {message}"
+        throwError "unexpected borrowed storage rejection for {source}: {message}"
       rejected := true
-    unless rejected do throwError "C++ codegen accepted outdated borrowed storage in {source}"
-  logInfo "Borrowed storage snapshot rejection checks passed."
+    unless rejected do throwError "C++ codegen accepted an invalid storage operation in {source}"
+  logInfo "Borrowed storage and local scratch rejection checks passed."
 
 #generate_cpp_filter DSP.Tests.zohStepFloat32 response DSP.Tests.zohMagnitudeSquaredFloat32
   as OnePoleZOHLowPass32 to "build/lean/generated/OnePoleZOHLowPass32.hpp"

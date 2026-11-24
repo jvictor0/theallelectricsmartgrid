@@ -28,11 +28,10 @@ std::string Encode(double value)
     return std::to_string(bits);
 }
 
-template<size_t Capacity>
-int Compare(double resolution)
+template<typename Inverter>
+int Compare(Inverter& generated, double resolution)
 {
-    TimeWarpInverter<Capacity> generated(resolution);
-    LandedTimeWarpInverter<Capacity> reference(resolution);
+    LandedTimeWarpInverter<Inverter::x_maxSamples> reference(resolution);
     char operation;
     uint64_t a;
     uint64_t b;
@@ -47,6 +46,10 @@ int Compare(double resolution)
             generated.Write(phase, time);
             reference.Write(phase, time);
             if (generated.m_oldestWarpedTime != reference.m_oldestWarpedTime
+                || generated.m_observedWarpedTime != reference.m_observedWarpedTime
+                || generated.m_observedRealTime != reference.m_observedRealTime
+                || generated.m_previousObservedWarpedTime != reference.m_previousObservedWarpedTime
+                || generated.m_previousObservedRealTime != reference.m_previousObservedRealTime
                 || generated.m_islandReassignments != reference.m_islandReassignments)
             {
                 std::cerr << "Writer state mismatch at row " << row << '\n';
@@ -72,6 +75,20 @@ int Compare(double resolution)
     }
 
     return std::cin.eof() ? 0 : 1;
+}
+
+template<size_t Capacity>
+int Compare(double resolution)
+{
+    constexpr size_t x_fixedResolution = 1 << 18;
+    if (resolution == static_cast<double>(x_fixedResolution))
+    {
+        TimeWarpInverter<Capacity, x_fixedResolution> generated;
+        return Compare(generated, resolution);
+    }
+
+    TimeWarpInverter<Capacity> generated(resolution);
+    return Compare(generated, resolution);
 }
 }
 

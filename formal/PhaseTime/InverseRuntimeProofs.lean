@@ -57,7 +57,7 @@ theorem read_interval_refines (s : Interval ℝ) (q cutoff t : ℝ)
         by_cases outside : rightPhase < q
         · simp [readInterval, readIntervalWith, entryInRange, interiorInRange, early, atLeft, outside] at read
         by_cases width : leftPhase < rightPhase
-        · simp [readInterval, readIntervalWith, entryInRange, interiorInRange, interpolate, early, late,
+        · simp [readInterval, readIntervalWith, entryInRange, interiorInRange, interpolate, interpolateUsing, early, late,
             atLeft, outside, width] at read
           obtain ⟨within, rfl⟩ := read
           refine ⟨⟨le_of_not_gt early, le_of_not_gt outside⟩, within, Or.inr ?_⟩

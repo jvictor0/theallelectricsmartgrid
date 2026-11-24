@@ -164,15 +164,42 @@ with a closed capacity uses indexed storage. `Vector.ofFn` over that field emits
 one counted loop and `Vector.get` reads at a bounded index. Small function-valued
 `Fin n → A` topologies still use the existing unrolled representation.
 
-`#generate_cpp_effect` compiles a `StateM` action over an exclusive native
+For local scalar scratch space, [Scratch.ofFn](Scratch.lean) uses a literal
+capacity and a runtime count with a proof that it fits. The initializer takes
+a `Fin count` and fills those slots in order. A read requires proof of both
+the capacity bound and the slot's initialization. The emitter allocates the
+stack array and initializes only that prefix. It rejects copies and escapes
+of the scratch buffer.
+
+`#generate_cpp_effect` compiles a `StateM` action over a borrowed native
 storage view. Binds sequence native reads and writes. The emitter validates
 that effects use the current storage and that branches retain it. A loop
-threads the latest handle through its step. The
+threads the latest handle through its step. The generated `Process` returns
+the action's value using the same scalar and aggregate layouts as a pure view.
+`PUnit` produces a `void` method. Actions that use const storage methods
+can take a const storage view. The
 [native bindings](NativeBindings.lean) list storage operations and numerical
 primitives used by these actions. Calls to other generated procedures require
 the target definitions to be exported in the same Lean environment first.
 The state and read-only view exports check native index additions, signed
 arithmetic, and signed/unsigned conversions against their machine ranges.
+`Float.toInt64` truncates toward zero, saturates at the signed 64-bit limits,
+and returns zero for NaN, matching Lean. `Int64.ofInt` and `Int64.toInt`
+preserve the integer value in the bounded native dialect.
+
+For index operations with established bounds, use the proof-carrying operations
+in [Index.lean](Index.lean). They lower to native additions, subtractions, and
+casts. Lean checks the proof arguments and the emitter erases them. A borrowed
+storage export that assumes a proof about its input or state must declare
+`#generate_cpp_effect name with_contract as ...`. The native caller must
+establish that contract. Unsigned index operations that rely on the 64-bit
+range emit a compile-time size check.
+
+Add `scalar_inputs` before `as` on a borrowed storage export whose input record
+contains only scalar fields. The Lean function still takes a record. Its C++
+`Process` takes those fields as individual value parameters in declaration
+order. This keeps the caller from creating a temporary record when the native
+compiler keeps the procedure out of line.
 
 `#generate_cpp_state` takes an input-to-`StateM` definition and emits a
 `Process` method over a mutable C++ record with the Lean fields. An input of

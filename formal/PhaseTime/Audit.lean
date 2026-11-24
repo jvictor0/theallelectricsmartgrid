@@ -11,6 +11,9 @@ import PhaseTime.InverseRuntimeCausality
 import PhaseTime.InverseRuntimeStaleCapture
 import PhaseTime.InverseRuntimeStorage
 import PhaseTime.InverseRuntimeVisits
+import PhaseTime.InverseIndexProofs
+import PhaseTime.InverseResolution
+import PhaseTime.InverseTimestampBounds
 import Lean.Util.CollectAxioms
 
 open Lean in

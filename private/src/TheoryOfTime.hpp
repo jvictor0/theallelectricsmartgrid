@@ -29,14 +29,14 @@ struct TheoryOfTime : public TheoryOfTimeBase
     static constexpr size_t x_timeWarpInverterSamples = SampleTimer::x_oversample << 24;
     static constexpr double x_phaseResolution = 1 << 18;
     static constexpr size_t x_phaseHistoryCells = 1 << 20;
-    using Inverter = TimeWarpInverter<x_phaseHistoryCells>;
+    using Inverter = TimeWarpInverter<x_phaseHistoryCells, static_cast<size_t>(x_phaseResolution)>;
     static_assert(Inverter::x_payloadBytes == (32 << 20));
 
     // The unwarped scope needs one period, at most one master cycle. MIDI
     // clock corrections can move backwards, so it also retains branch data.
     // Two cycles with fixed cell storage occupy 16 MiB.
     //
-    using UnmodulatedInverter = TimeWarpInverter<1 << 19>;
+    using UnmodulatedInverter = TimeWarpInverter<1 << 19, static_cast<size_t>(x_phaseResolution)>;
 
     Phasor2Tick m_phasor2Tick;
     SmartGrid::MessageOutBuffer* m_messageOutBuffer;
@@ -125,8 +125,8 @@ struct TheoryOfTime : public TheoryOfTimeBase
 
     TheoryOfTime()
         : m_messageOutBuffer(nullptr)
-        , m_timeWarpInverter(std::make_unique<Inverter>(x_phaseResolution))
-        , m_unmodulatedPhaseInverter(std::make_unique<UnmodulatedInverter>(x_phaseResolution))
+        , m_timeWarpInverter(std::make_unique<Inverter>())
+        , m_unmodulatedPhaseInverter(std::make_unique<UnmodulatedInverter>())
     {
     }
 

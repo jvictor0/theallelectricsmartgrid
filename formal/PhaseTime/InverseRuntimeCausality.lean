@@ -118,7 +118,7 @@ private theorem interpolate_bounded (left right : Point ℝ) (q now : ℝ)
     (hl : left.time ≤ now) (hr : right.time ≤ now)
     (phase : left.phase < right.phase) (lower : left.phase ≤ q) (upper : q ≤ right.phase) :
     interpolate left right q ≤ now := by
-  unfold interpolate
+  unfold interpolate interpolateUsing
   change left.time + (q - left.phase) / (right.phase - left.phase) * (right.time - left.time) ≤ now
   let a := (q - left.phase) / (right.phase - left.phase)
   have width := sub_pos.mpr phase

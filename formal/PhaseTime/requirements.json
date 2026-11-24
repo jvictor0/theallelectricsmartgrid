@@ -521,7 +521,11 @@
       "PhaseTime.InverseRuntime.assign_cell_refines",
       "PhaseTime.InverseRuntime.finish_cell_refines",
       "PhaseTime.InverseRuntime.commit_batch_is_prefix",
-      "PhaseTime.InverseRuntime.coherent_runtime_read"
+      "PhaseTime.InverseRuntime.coherent_runtime_read",
+      "PhaseTime.InverseRuntime.batchTimes_get",
+      "PhaseTime.InverseRuntime.commitBatchM_run",
+      "PhaseTime.InverseRuntime.boundedScatterM_run",
+      "PhaseTime.InverseRuntime.writeBoundedM_run"
     ],
     "anchors": [
       "cell_enter",
@@ -538,13 +542,44 @@
     "theorems": [
       "PhaseTime.InverseRuntime.SampledWrites.read_causal",
       "PhaseTime.InverseRuntime.SampledWrites.read_exact_preimage",
-      "PhaseTime.InverseRuntime.reachable_read_soundness"
+      "PhaseTime.InverseRuntime.reachable_read_soundness",
+      "PhaseTime.InverseRuntime.SampledWrites.observeM",
+      "PhaseTime.InverseRuntime.reachable_readPayloadM_soundness",
+      "PhaseTime.InverseRuntime.readBoundedM_eq"
     ],
     "anchors": [
       "grid_lookup",
       "cell_select",
       "cell_finish",
       "write_batch"
+    ]
+  },
+  {
+    "id": "P39",
+    "status": "proved",
+    "requirement": "Forward scatter has positive rounded phase width when finite binary64 observations increase, the grid scale is a power of two at least one, and both scaled phases stay in the grid range. The rounding map is monotone and fixes representable values.",
+    "theorems": [
+      "PhaseTime.InverseResolution.roundedWidthPositive"
+    ],
+    "anchors": [
+      "grid_forward"
+    ]
+  },
+  {
+    "id": "P40",
+    "status": "proved",
+    "requirement": "Under the sample-time and grid contracts, rounded forward interpolation and delta encoding fit their storage ranges. Decoding present bounded base times and replacement deltas has a finite result and agrees with the checked reader.",
+    "theorems": [
+      "PhaseTime.InverseRuntime.roundedInterpolationBound",
+      "PhaseTime.InverseRuntime.roundedEncodeBound",
+      "PhaseTime.InverseRuntime.roundedDecodeBound",
+      "PhaseTime.InverseRuntime.decodablePayload_of_bounded_atoms",
+      "PhaseTime.InverseRuntime.readPayloadFloat_run"
+    ],
+    "anchors": [
+      "grid_codec",
+      "grid_lookup",
+      "snapshot_read"
     ]
   }
 ]

@@ -115,8 +115,59 @@ the continuity theorem holds those settings fixed.
 bounded ring. Its exact-real instantiation connects the lookup and batch commits
 to the cell and scalar-traversal theorems. Its executable instantiation uses
 `Float` for phases and absolute times and `Float32` for replacement deltas.
-[InverseCodegen.lean](InverseCodegen.lean) lowers the arithmetic and traversal to
-the native atomic ring. Both Theory of Time inverses use the generated core.
+[InverseStorage.lean](InverseStorage.lean) defines the writer, branch entry,
+batched scatter, and payload reader as Lean state actions. [InverseCodegen.lean](InverseCodegen.lean)
+specializes these actions for the common C++ emitter. Both Theory of Time
+inverses use the generated reader and writer. The C++ adapter supplies ring
+addressing, sentinel encoding, atomic storage, and the reader's revision retry.
+
+[InverseStorageProofs.lean](InverseStorageProofs.lean) proves that completed
+writes and payload reads agree with the runtime model. This connects the
+exact-real interpretation of the exported algorithms to the reachable-read
+theorem. The proof projects out the revision counter and the captured view's
+observation bookkeeping.
+
+[InverseIndex.lean](InverseIndex.lean) proves the integer bounds used by the
+generated scatter loop, including the exclusive end cursor, predecessor,
+batch offsets, and ring retention edge. The generated writer loads the
+previous observation, highest edge, capacity, and resolution from storage.
+C++ passes the new phase and time as two scalar arguments. Debug
+assertions check that the current, previous, and queried phases after scaling
+are within ±2⁵². This range gives the floor and ceiling conversions headroom.
+The seed stores its integer cell index with its phase under the same revision.
+Each batch computes its timestamps into an initialized prefix of local scratch
+storage before publishing. Lean checks that the predecessor, interior, and
+final reads all lie in that prefix.
+
+[InverseIndexProofs.lean](InverseIndexProofs.lean) connects the bounded reader
+and writer to the existing Lean state actions under that input contract.
+
+The resolution is a power of two at least one. Both Theory of Time inverses
+specialize their writers for 2¹⁸ grid cells per phase unit. The shared view
+reads the same resolution from its immutable configuration.
+[InverseResolution.lean](InverseResolution.lean)
+proves that the scaled phases are exactly representable in the grid range and
+that forward scatter has a positive interpolation denominator. The proof uses
+the binary64 significand and exponent bounds and assumes monotone rounding
+that preserves representable values, including subnormals. The adapter checks
+the resolution at construction and the phase-width contract at the handoff
+in debug builds.
+
+[InverseTimestampBounds.lean](InverseTimestampBounds.lean) follows the shared
+interpolation, encoding, and decoding arithmetic with monotone binary64 and
+binary32 rounding that fixes representable values. Theory of Time gets
+observed sample times from the 64-bit `SampleTimer` counter, which fits the
+inclusive ±2⁶⁴ observation bound after conversion to double. The proof gives
+headroom for every stored double timestamp (±2⁶⁶), stored float delta (±2⁶⁷),
+and decoded sum (±2⁶⁸). Debug assertions check the observation and native store
+contracts. Seed and frontier writes use observed times, scatter puts the
+interpolated times into base and fallback slots, and replacement stores use
+the bounded encoder. Clearing a slot initializes the inactive start delta to
+zero. Its presence comes from the replacement cut. A coherent read uses the
+same slots, presence tests, and interpolation as the checked Lean reference.
+The generated decoder adds a present delta to its base with no numerical
+guard. NaN represents absent storage and missing lookup results.
+
 `make lean-inverse-test` checks header regeneration and compares native Lean,
 generated C++, and the frozen C++ reference on identical observation and query
 traces.
@@ -135,8 +186,8 @@ of exact preimage existence for retained reads.
 exhibits an older captured view that can select a reused slot. The cutoff
 rejects the read in that trace.
 
-The native traversal lifecycle, floating-point operations, and sequentially consistent atomics are
-validated through source review and native tests. [traceability.json](traceability.json)
+The native floating-point lowerings, storage adapter, and sequentially consistent
+publication protocol are checked through source review and native tests. [traceability.json](traceability.json)
 pins the covered files and identifies correspondence anchors. `check_phase_spec.py`
 rejects drift or missing anchors. Review the matched operations before updating hashes.
 

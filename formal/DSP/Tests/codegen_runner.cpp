@@ -24,6 +24,8 @@
 #include "BoundedEdit.hpp"
 #include "BoundedExit.hpp"
 #include "RecordUpdate.hpp"
+#include "ReadBorrowedSample.hpp"
+#include "ReplaceBorrowedSample.hpp"
 
 #include <array>
 #include <cassert>
@@ -32,6 +34,46 @@
 #include <cstring>
 #include <iostream>
 #include <string>
+
+struct BorrowedSampleStorage
+{
+    std::array<double, 2> m_samples{1.5, 2.75};
+    mutable size_t m_reads = 0;
+
+    double GetSample(size_t lane, size_t sample) const
+    {
+        assert(lane == 0);
+        ++m_reads;
+        return m_samples[sample];
+    }
+
+    void PutSample(size_t lane, size_t sample, double value)
+    {
+        assert(lane == 0);
+        m_samples[sample] = value;
+    }
+};
+
+struct BorrowedSampleInput
+{
+    bool m_second;
+    double m_replacement;
+};
+
+void VerifyBorrowedEffectReturns()
+{
+    const BorrowedSampleStorage readOnly;
+    assert(ReadBorrowedSample::Process(readOnly, BorrowedSampleInput{false, 0}) == 1.5);
+    assert(ReadBorrowedSample::Process(readOnly, BorrowedSampleInput{true, 0}) == 2.75);
+    assert(readOnly.m_reads == 2);
+
+    BorrowedSampleStorage writable;
+    const auto result = ReplaceBorrowedSample::Process(writable, BorrowedSampleInput{false, 4.5});
+    assert(result.m_previous == 1.5);
+    assert(result.m_current == 4.5);
+    assert(writable.m_samples[0] == 4.5);
+    assert(writable.m_reads == 2);
+}
 
 template<typename Value, typename Bits>
 Value FromBits(Bits bits)
@@ -227,6 +269,7 @@ int main()
     const auto restored = RecordUpdate::Process(record, {true, true, 0});
     assert(restored == 11);
     assert(record.m_left == 5 && record.m_right == 6 && record.m_values[0] == 7);
+    VerifyBorrowedEffectReturns();
 
     IndexedStateFold fold{};
     IndexedStateFold::Input indexedInput{};

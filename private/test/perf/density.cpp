@@ -429,7 +429,7 @@ double SafeStart(double time, size_t sample)
 void Correctness(std::ostream& output, const Trace& trace, const std::string& name)
 {
     auto old = std::make_unique<Legacy>();
-    auto current = std::make_unique<Current>(TheoryOfTime::x_phaseResolution);
+    auto current = std::make_unique<Current>();
     auto prior = std::make_unique<Prior>(TheoryOfTime::x_phaseResolution);
     ExactInverse reference(trace.m_phase);
     Errors raw;
@@ -591,7 +591,7 @@ void TimeOne(std::ostream& output, Inverse& inverse, const Trace& trace, const s
 
 void WriteCorrectness(std::ostream& output, const Trace& trace, const std::string& name)
 {
-    auto current = std::make_unique<Current>(TheoryOfTime::x_phaseResolution);
+    auto current = std::make_unique<Current>();
     auto landed = std::make_unique<Landed>(TheoryOfTime::x_phaseResolution);
     size_t queries = 0;
     auto compare = [&](double phase, double cutoff)
@@ -886,7 +886,7 @@ void Inspect(std::ostream& output, const Trace& trace, size_t sample, double q)
     }
 
     auto old = std::make_unique<Legacy>();
-    auto current = std::make_unique<Current>(TheoryOfTime::x_phaseResolution);
+    auto current = std::make_unique<Current>();
     ExactInverse reference(trace.m_phase);
     int64_t index = static_cast<int64_t>(std::floor(q * TheoryOfTime::x_phaseResolution));
     size_t slot = Current::WrapIndex(index);
@@ -1108,7 +1108,7 @@ int RunDensity(int argc, char** argv, std::ostream& output, std::ostream& errors
                     }
                     else
                     {
-                        auto inverse = std::make_unique<Current>(TheoryOfTime::x_phaseResolution);
+                        auto inverse = std::make_unique<Current>();
                         TimeOne(output, *inverse, trace, name, "current", 1.0, repeat);
                     }
                 }
@@ -1118,7 +1118,7 @@ int RunDensity(int argc, char** argv, std::ostream& output, std::ostream& errors
         {
             for (int repeat = 0; repeat < repeats; ++repeat)
             {
-                auto inverse = std::make_unique<Current>(TheoryOfTime::x_phaseResolution);
+                auto inverse = std::make_unique<Current>();
                 TimeOne(output, *inverse, trace, name, "current", 1.0, repeat);
             }
         }
@@ -1141,7 +1141,7 @@ int RunDensity(int argc, char** argv, std::ostream& output, std::ostream& errors
                     }
                     else
                     {
-                        auto inverse = std::make_unique<Current>(TheoryOfTime::x_phaseResolution);
+                        auto inverse = std::make_unique<Current>();
                         TimeOne(output, *inverse, trace, name, "current", 1.0, repeat);
                     }
                 }
@@ -1160,7 +1160,7 @@ int RunDensity(int argc, char** argv, std::ostream& output, std::ostream& errors
                     }
                     else
                     {
-                        auto inverse = std::make_unique<Current>(TheoryOfTime::x_phaseResolution);
+                        auto inverse = std::make_unique<Current>();
                         TimeOne(output, *inverse, trace, name, "current", 1.0, repeat);
                     }
                 }
@@ -1194,7 +1194,7 @@ int RunDensity(int argc, char** argv, std::ostream& output, std::ostream& errors
                     }
                     else
                     {
-                        auto inverse = std::make_unique<Current>(TheoryOfTime::x_phaseResolution);
+                        auto inverse = std::make_unique<Current>();
                         if (mode == "contention")
                         {
                             TimeContended(output, *inverse, trace, name, "current", repeat);

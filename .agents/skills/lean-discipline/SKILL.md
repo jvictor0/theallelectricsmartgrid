@@ -53,6 +53,43 @@ with the caller choosing the addresses and their order in Lean.
 
 For numerical theorems, use the real numbers (`ℝ`) or complex numbers (`ℂ`) as appropriate, unless the task specifies a different numerical model. Interpret transcendental operations using their exact mathematical definitions, such as `Real.sin`, `Real.exp`, and `Real.tanh`. Keep `Float` and `Float32` specializations available for execution and testing where needed. Apply exact algebraic laws only in interpretations that satisfy them.
 
+## Prove bounds for generated hot paths
+
+Prove the preconditions for direct native indexing and arithmetic in Lean.
+Use bounded types such as `Fin` for array indices and carry range proofs for
+signed and unsigned conversions, intermediate sums and differences, and loop
+bounds. Connect those proofs to the actual exports and their entry contracts.
+Lower the proved operations directly and erase the proof arguments. If the
+emitter cannot consume the proof, treat that as a codegen gap. Report any
+remaining generated checks as an interim limitation.
+
+Trust established upstream contracts. A native producer can supply an input
+range before it has a Lean model. State the range as a hypothesis on the values
+the export receives, identify which producer guarantees it, and use a debug
+assertion at the handoff when useful. Keep release-path checks and clamps rare.
+Use them for exceptional inputs with specified handling or for deliberate
+algorithm semantics. Separate intentional modular arithmetic from indices
+whose mathematical values must be preserved.
+
+Prove conservative ranges over exact reals for finite numerical paths. State
+the native assumptions that carry the bounds through rounding, including
+finite inputs, headroom for intermediate results and narrowing conversions,
+and denominators that stay nonzero after rounding. Track missing values or
+nonfinite sentinels through their representation contract.
+
+## Prove initialization and erase the proof
+
+For fixed-capacity local scalar scratch, use
+[Scratch.ofFn](../../../formal/DSP/Codegen/Scratch.lean) to fill a prefix.
+Prove that the count fits the capacity. Give each `Scratch.get` a bounded
+index and a proof that the slot lies in the initialized prefix.
+
+Keep initialization evidence in `Prop`. Lower the scratch to local native
+storage with one loop over the active prefix and lower proved reads directly
+to indexing. Check the generated code for implicit zero-fills, copies of the
+whole buffer, and runtime initialization tracking. Keep the buffer local so
+its unwritten suffix stays unread.
+
 ## Allow approximations in generated code
 
 Code generation may lower exact transcendental operations to lookup tables, rational approximations, or other numerical implementations of those operations. This difference is intentional. For example, prove a recurrence using exact sine or tanh and let the generator emit a sine-table lookup or a rational tanh approximation for the corresponding operation.

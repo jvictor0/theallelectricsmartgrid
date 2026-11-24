@@ -159,9 +159,10 @@ generated TPT headers. CMake targets and both Xcode projects include
 the codegen arithmetic contract. Explicit `FusedMultiplyAdd` calls remain fused.
 App builds consume the checked-in C++ headers without invoking Lean.
 
-`make lean-inverse-generate` refreshes the checked-in Theory of Time inverse core.
-`make lean-inverse-test` checks regeneration and compares reads from native Lean,
-the generated C++ core, and the frozen inverse. `make lean-test` includes these checks.
+`make lean-inverse-generate` refreshes the checked-in Theory of Time inverse
+reader and writer. `make lean-inverse-test` builds their model equivalence
+proofs, checks regeneration, and compares reads from native Lean, generated
+C++, and the frozen inverse. `make lean-test` includes these checks.
 
 ## Cleanup and completion
 

@@ -32,7 +32,7 @@ private theorem captured_ring_selects_wrong_cell :
     rw [scatter]
     simp
   norm_num [stateAt3, stateAt1, write, beginBranch, retained,
-    scatter_two, commitBatch, commitTail, batchCapacity, assignCell, finishCell, edgeAt, interpolate,
+    scatter_two, commitBatch, commitTail, batchCapacity, assignCell, finishCell, edgeAt, interpolate, interpolateUsing,
     selectInterval, retireSeed, toNat_two, wrap_one_two, wrap_one_three, wrap,
     le_simp, lt_simp, floor_simp, ceil_simp, idx_simp]
   change (do

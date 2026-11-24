@@ -1,9 +1,22 @@
 #include "doctest.h"
 #include "TimeWarpInverter.hpp"
 #include <cmath>
+#include <limits>
 #include <memory>
 #include <random>
 #include <vector>
+
+DOCTEST_TEST_CASE("Phase inverse branches: binary scaling preserves a subnormal phase advance")
+{
+    constexpr double x_minStep = std::numeric_limits<double>::denorm_min();
+    for (double resolution : {1.0, static_cast<double>(1 << 18)})
+    {
+        TimeWarpInverter<4> inverse(resolution);
+        inverse.Write(-x_minStep, 100.0);
+        inverse.Write(x_minStep, 102.0);
+        DOCTEST_CHECK(inverse.GetRealTime(0.0) == 101.0);
+    }
+}
 
 DOCTEST_TEST_CASE("Phase inverse branches: two-sided knots prevent interpolation across a rewind")
 {
