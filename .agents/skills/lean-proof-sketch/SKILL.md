@@ -1,20 +1,24 @@
 ---
 name: lean-proof-sketch
-description: Prove a Lean theorem by sketching the argument, giving intermediate lemmas to Sol subagents, and checking that their proofs establish the original statement. Use when a proof has separable mathematical steps or a direct attempt reveals a missing fact.
+description: Prove a Lean theorem by checking a hierarchy of conditional proofs before delegating leaf lemmas to Sol subagents. Use when a proof has separable mathematical steps or a direct attempt reveals a missing fact.
 ---
 
 # Lean proof sketch
 
 Start with the theorem as stated in the project. Read the definitions it uses and look for existing lemmas that do the work. If a short direct proof closes the goal, use it.
 
-For a harder proof, make an informal **sketch** in whatever form helps you reason. Work backward from the conclusion. For each lemma you want, ask where you would use it and why its hypotheses should suffice to prove it. A few lines in your working context are enough.
+## Before delegating
 
-Give each substantial lemma to a Sol subagent. With `spawn_agent`, set `model` to `gpt-6.2-sol` and `fork_turns` to `none`. Point the subagent to the exact statement and give it the relevant idea from your sketch. Send independent lemmas in parallel. A subagent can edit a module it owns directly. When several proofs belong in one module, give each subagent its own scratch `.lean` file in the project environment.
+The lead agent works backward from the conclusion and writes the exact Lean statements of the lemmas it needs. For the original theorem, check a scratch proof in Lean that takes those lemmas as explicit local hypotheses and establishes the original conclusion under its original hypotheses. This checks that the caller can supply every side condition and that the lemmas together suffice.
 
-Let each subagent follow the mathematics. It can search the project and Mathlib, add the imports its proof needs, and prove local helpers. If it discovers a lemma another subagent also needs, ask it to send you the exact statement early. Choose who proves it once and tell the others where to find it. While that proof is open, a subagent can check its own argument with the shared lemma as an explicit local hypothesis and report that dependency.
+Apply the same procedure recursively to any lemma whose proof is too large or whose argument has an unresolved step. Break it into smaller lemmas and check that the parent follows from their exact statements. For each leaf, identify a concrete proof argument from its stated hypotheses and check any uncertain side conditions. Resolve plausible counterexamples and gaps in that argument before delegating. A restatement of an open case with no proof argument needs further decomposition.
 
-While the subagents work, try the rest of your argument in a scratch declaration with the proposed lemmas as local hypotheses. Lean can tell you immediately whether a lemma has the right quantifiers or whether its caller can supply a side condition. This check establishes only the implication. Each hypothetical lemma still needs a proof independent of the target.
+Before spawning any subagent, the lead agent must have checked the conditional proof at every level and confirmed a proof route for every leaf. Keep dependencies acyclic. Use scratch declarations with explicit hypotheses so the check leaves every assumed lemma visible and adds no axioms or `sorry`.
 
-Use a failed attempt to revise the sketch. A subagent may find an existing theorem, a more useful statement, or a counterexample. If you change a lemma, send the revised statement to the affected subagent and recheck each use. If the original claim itself fails, show how the counterexample satisfies its hypotheses and violates its conclusion.
+## Prove and integrate
 
-Have each subagent run Lean and return its file path, declaration name, and any open dependencies. When integrating a scratch proof, bring along the helpers, imports, and local context it uses. Replace temporary hypotheses with the proved lemmas and build the original declaration in the project. Verify its statement is intact and inspect its dependencies with the project's proof audit or `#print axioms` to catch `sorryAx` or newly assumed facts. If a step remains open, name the exact claim and distinguish it from what Lean has checked.
+Give each substantial leaf to a Sol subagent. With `spawn_agent`, set `model` to `gpt-6.2-sol` and `fork_turns` to `none`. Send the exact statement, its proof idea, and any checked dependencies. Send independent leaves in parallel and assign each shared lemma once. A subagent can edit a module it owns directly. When several proofs belong in one module, give each subagent its own scratch `.lean` file in the project environment.
+
+Have each subagent run Lean and return its file path, declaration name, and any open dependencies. If a subagent finds a missing fact or a counterexample, the lead agent revises the affected part of the hierarchy and rechecks its conditional proofs before sending revised tasks. If the original claim fails, show how the counterexample satisfies its hypotheses and violates its conclusion.
+
+Integrate the proved leaves and discharge the local hypotheses from the bottom up. Include the helpers, imports, and local context they use. Build the original declaration in the project, verify its statement is intact, and inspect the project's proof audit or `#print axioms` for `sorryAx` or newly assumed facts. An open integration step calls for another round of decomposition and checking. If a concrete blocker leaves a step open, name the exact claim and distinguish it from what Lean has checked.

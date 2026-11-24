@@ -121,8 +121,21 @@ the native atomic ring. Both Theory of Time inverses use the generated core.
 generated C++, and the frozen C++ reference on identical observation and query
 traces.
 
-The lookup proof assumes the selected interval is certified. The native traversal
-lifecycle, floating-point operations, and sequentially consistent atomics are
+For the exact-real runtime, [InverseRuntimeVisits.lean](InverseRuntimeVisits.lean)
+proves that a successful retained read at or below the latest observed phase
+returns a time within the latest observation and lookup cutoff, with phase
+error at most one grid cell. The trajectory has an exact preimage by the
+latest observation. The write induction tracks the open traversal and the
+completed pieces in retained cells, including a stop at the frontier that a
+later reversal can reopen. [InverseRuntimeCausality.lean](InverseRuntimeCausality.lean)
+proves the timestamp bounds for every successful read.
+[InverseRuntimeAnchors.lean](InverseRuntimeAnchors.lean) gives a separate proof
+of exact preimage existence for retained reads.
+[InverseRuntimeStaleCapture.lean](InverseRuntimeStaleCapture.lean)
+exhibits an older captured view that can select a reused slot. The cutoff
+rejects the read in that trace.
+
+The native traversal lifecycle, floating-point operations, and sequentially consistent atomics are
 validated through source review and native tests. [traceability.json](traceability.json)
 pins the covered files and identifies correspondence anchors. `check_phase_spec.py`
 rejects drift or missing anchors. Review the matched operations before updating hashes.

@@ -530,5 +530,21 @@
       "snapshot_write",
       "snapshot_read"
     ]
+  },
+  {
+    "id": "P38",
+    "status": "proved",
+    "requirement": "After completed exact-arithmetic writes of time-ordered affine samples, successful inverse reads respect the latest observation time and requested cutoff. A successful retained query at or below the latest observed phase has phase error at most one grid cell and has an exact preimage by that observation time.",
+    "theorems": [
+      "PhaseTime.InverseRuntime.SampledWrites.read_causal",
+      "PhaseTime.InverseRuntime.SampledWrites.read_exact_preimage",
+      "PhaseTime.InverseRuntime.reachable_read_soundness"
+    ],
+    "anchors": [
+      "grid_lookup",
+      "cell_select",
+      "cell_finish",
+      "write_batch"
+    ]
   }
 ]
