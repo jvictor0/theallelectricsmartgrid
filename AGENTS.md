@@ -1,3 +1,8 @@
+## Landing to main
+
+Get the user's explicit permission before each landing to `main`. Each approval
+applies only to the specific landing the user authorized.
+
 ## Builds and worktree cleanup
 
 Build inside the existing worktree, under ignored `build/` directories. Use the
@@ -9,9 +14,10 @@ simultaneous builds. A fresh build or output outside the worktree needs a concre
 technical reason; do not create a new `/tmp` build for each edit, review, or retry.
 Keep the core tests' default RelWithDebInfo configuration and enabled assertions.
 
-Finish validation and land first. Preserve unique experiment results and any
-other needed ignored files outside the worktree before archiving/removing it
-through the tool that owns it (Codex managed worktrees use `archive_worktree`).
+Finish validation and any authorized landing first. Preserve unique experiment
+results and any other needed ignored files outside the worktree before
+archiving/removing it through the tool that owns it (Codex managed worktrees use
+`archive_worktree`).
 There is no need to run `make clean` before removing the checkout. When retaining
 the worktree, `make clean` reclaims only the documented canonical build trees;
 keep unique results under `build/results/` or another location outside those
