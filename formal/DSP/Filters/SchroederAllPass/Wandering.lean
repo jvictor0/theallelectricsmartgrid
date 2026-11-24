@@ -1,7 +1,7 @@
 import DSP.Channels.Arithmetic
 import DSP.DelayBuffer.Cubic
 import DSP.Filters.DelayKernels
-import DSP.SmoothRandomLFO.Stream
+import DSP.WanderingRandomLFO
 
 namespace DSP
 
@@ -13,7 +13,7 @@ structure WanderingSchroederAllPassGeneric (capacity channels : Nat) (R : Type) 
   private base : Fin channels → Nat
   private gain : Fin channels → R
   private depth : Nat
-  private lfo : Option (SmoothRandomLFO.FramedStream R)
+  private lfo : Option (WanderingRandomLFO.FramedStream R)
   private output : Fin channels → R
 
 namespace WanderingSchroederAllPassGeneric
@@ -24,17 +24,17 @@ structure WanderSpec where
 
 variable {capacity channels : Nat} {R : Type}
 
-def init [OfNat R 0] [SmoothRandomLFO.SampleValue R] [Sub R] [Div R] [FMA R]
+def init [OfNat R 0] [WanderingRandomLFO.SampleValue R] [Sub R] [Div R] [FMA R]
     (tap : Fin channels → Nat) (gain : Fin channels → R)
     (spec : WanderSpec) (seed : UInt64)
     (_fits : ∀ ch, DelayBuffer.CubicOffsetFits capacity (tap ch) spec.depth)
     (positive : 0 < capacity) :
     WanderingSchroederAllPassGeneric capacity channels R :=
   ⟨DelayBuffer.empty positive, fun ch => tap ch - spec.depth, gain, spec.depth,
-    if spec.depth = 0 then none else some (SmoothRandomLFO.FramedStream.init spec.lambdaSamples seed),
+    if spec.depth = 0 then none else some (WanderingRandomLFO.FramedStream.init spec.lambdaSamples seed),
     fun _ => 0⟩
 
-def uniform [OfNat R 0] [SmoothRandomLFO.SampleValue R] [Sub R] [Div R] [FMA R]
+def uniform [OfNat R 0] [WanderingRandomLFO.SampleValue R] [Sub R] [Div R] [FMA R]
     (tap : Nat) (gain : Fin channels → R) (spec : WanderSpec) (seed : UInt64)
     (fits : DelayBuffer.CubicOffsetFits capacity tap spec.depth) :
     WanderingSchroederAllPassGeneric capacity channels R :=
@@ -51,7 +51,7 @@ def offsetSamples {V : Type} [OfNat V 1] [Add V] [Neg V] [Mul V] [IfLess V]
 
 def step [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3] [OfNat R 4] [OfNat R 5]
     [OfScientific R] [Add R] [Sub R] [Neg R] [Mul R] [Div R] [FMA R] [IfLess R]
-    [DelayMath R] [DelayBuffer.SampleIndex R] [SmoothRandomLFO.SampleValue R]
+    [DelayMath R] [DelayBuffer.SampleIndex R] [WanderingRandomLFO.SampleValue R]
     (filter : WanderingSchroederAllPassGeneric capacity channels R) (input : Sample (Fin channels → R)) :
     WanderingSchroederAllPassGeneric capacity channels R :=
   let (lfo, delayed) := match filter.lfo with
@@ -91,7 +91,7 @@ def y : {capacities : List Nat} → WanderingSchroederAllPassCascade channels R 
 
 def step [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3] [OfNat R 4] [OfNat R 5]
     [OfScientific R] [Add R] [Sub R] [Neg R] [Mul R] [Div R] [FMA R] [IfLess R]
-    [DelayMath R] [DelayBuffer.SampleIndex R] [SmoothRandomLFO.SampleValue R] :
+    [DelayMath R] [DelayBuffer.SampleIndex R] [WanderingRandomLFO.SampleValue R] :
     {capacities : List Nat} → WanderingSchroederAllPassCascade channels R capacities →
     Sample (Fin channels → R) → WanderingSchroederAllPassCascade channels R capacities
   | _, .passthrough _, input => .passthrough input.x

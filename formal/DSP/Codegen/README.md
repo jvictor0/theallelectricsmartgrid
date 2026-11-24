@@ -18,13 +18,18 @@ filter histories across coefficient updates.
 [QuadReverb.lean](QuadReverb.lean) binds the Lean sample schedule to in-place
 storage operations and emits their owning C++ types. The fixed-tap intro model,
 the wandering Lean cascade, and the C++ renderer use the same stage order and
-tap constants from Lean. Each wandering Schroeder stage owns a spline stream
-and its delay ring. A stage shares one smoothly
+tap constants from Lean. Each wandering Schroeder stage owns a
+[wandering random LFO](../WanderingRandomLFO.lean) and its delay ring. A stage shares one smoothly
 varying fractional offset across its lanes. The concrete reverb gives each
 stage a distinct seed and a peak offset of 128 samples. Every 32 samples, the
 stream draws an exponential speed with a mean of one knot per 1,920,000 samples
 and applies a 48,000-sample one-pole to the speed. It evaluates the spline at
 frame boundaries and linearly interpolates between those values.
+The common emitter generates the framed and sample-rate LFO initializers and
+steps. Lean owns both SplitMix64 seed streams, speed updates, knot traversal,
+and interpolation. Normal `StateM` record updates write the phase and countdown
+in place, and separate generated calls handle speed refresh, knots, and frame
+renewal. The C++ wrapper selects the precision and frame mode.
 See the [framed spline proofs](../SmoothRandomLFO/FramedProofs.lean).
 The fixed-tap transfer proofs apply to the separate fixed configuration.
 
@@ -161,6 +166,19 @@ primitives used by these actions. Calls to other generated procedures require
 the target definitions to be exported in the same Lean environment first.
 The state and read-only view exports check native index additions, signed
 arithmetic, and signed/unsigned conversions against their machine ranges.
+
+`#generate_cpp_state` takes an input-to-`StateM` definition and emits a
+`Process` method over a mutable C++ record with the Lean fields. An input of
+type `PUnit` omits the C++ input parameter. `get` saves old values, `set`
+installs a record, and `modify` and `modifyGet` write changed fields within
+the branch that updates them. Finite monadic folds carry the same storage
+through each iteration. A previously exported `#generate_cpp_state` action
+can be called directly from another action. Add `outlined` before `as` to
+keep its code in a separate function.
+
+`#generate_cpp_view_into` writes a pure record result into a compatible output
+view. The emitter snapshots the result before writing, so the input and output
+can refer to the same state record.
 
 For composition, prefer `State × Output`: persistent coefficients and recurrence
 memories belong in `State`; current-sample observations belong in `Output`.

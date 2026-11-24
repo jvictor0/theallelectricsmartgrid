@@ -743,6 +743,14 @@ and temporaries are vectors, literals are splats, and the morph uses
 proofs and code; the exporter is tested rather than verified. See the
 [codegen guide](Codegen/README.md) for the interface and supported operations.
 
+## Wandering random LFO
+
+The quad reverb uses `WanderingRandomLFOGeneric<Number, Framed>`. Each
+wandering stage owns a seeded spline stream and shares its offset across the
+stage's channels. Both variants use the same clock and spline in Lean. The
+framed variant evaluates at 32-sample boundaries and interpolates between
+them. [Wandering random LFO](WanderingRandomLFO.lean)
+
 ## Smooth random LFO
 
 `SmoothRandomLFOGeneric<float, 4> lfo(48000.0, 20.0, seed)` creates four

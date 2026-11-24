@@ -6,7 +6,7 @@
 
 #include "CircularBufferGeneric.hpp"
 #include "SchroederAllPassCoreGeneric.hpp"
-#include "SmoothRandomLFOStreamGeneric.hpp"
+#include "WanderingRandomLFO.hpp"
 #include "TPTBaseWidthGeneric.hpp"
 #include <cassert>
 #include <cstdint>
@@ -183,8 +183,7 @@ private:
         static_assert(x_depth + 3 <= Tap1 && Tap1 + x_depth + 1 <= Capacity);
         static_assert(x_depth + 3 <= Tap2 && Tap2 + x_depth + 1 <= Capacity);
         static_assert(x_depth + 3 <= Tap3 && Tap3 + x_depth + 1 <= Capacity);
-        using Stream = std::conditional_t<Framed, SmoothRandomLFOFramedGeneric<Number>, SmoothRandomLFOStreamGeneric<Number>>;
-        using Modulator = std::conditional_t<Wandering, Stream, FixedTaps>;
+        using Modulator = std::conditional_t<Wandering, WanderingRandomLFOGeneric<Number, Framed>, FixedTaps>;
 
         CircularBufferGeneric<Number, 4, Capacity> m_history;
         Vector m_gain = AllPassGain();

@@ -23,6 +23,43 @@ import DSP.Resynthesis.PVDRStorage
 
 namespace DSP.Tests
 
+structure RecordState where
+  left : Float
+  right : Float
+  values : Vector Float 2
+
+structure RecordInput where
+  swap : Bool
+  reset : Bool
+  index : Fin 2
+
+def recordPairUpdate (swap : Bool) : StateM RecordState Float :=
+  modifyGet fun s => (s.left, if swap then { s with left := s.right, right := s.left }
+    else { s with right := s.right + 1 })
+
+def recordUpdate (input : RecordInput) : StateM RecordState Float := do
+  let before ← get
+  let left ← recordPairUpdate input.swap
+  modify fun state => { state with values := state.values.set input.index state.left }
+  if input.reset then set before
+  return left + (← get : RecordState).right
+
+end DSP.Tests
+
+#generate_cpp_state DSP.Tests.recordPairUpdate outlined as RecordPairUpdate to "build/lean/generated/RecordPairUpdate.hpp"
+#generate_cpp_state DSP.Tests.recordUpdate as RecordUpdate to "build/lean/generated/RecordUpdate.hpp"
+
+open Lean Elab Command in
+run_cmd liftTermElabM do
+  let code ← DSP.Codegen.generateEffect ``DSP.Tests.recordPairUpdate "StateUpdate" (ownRecord := true)
+  let [swap, increment] := code.splitOn "else\n" | throwError "expected one state update branch"
+  if code.contains "state.m_values" || increment.contains "state.m_left = " then
+    throwError "unmodified fields should not be written by an in-place branch"
+  unless swap.contains "state.m_left = " && increment.contains "state.m_right = " do
+    throwError "stores should remain in their own update branch"
+
+namespace DSP.Tests
+
 open DSP.Resynthesis.PVDR
 
 abbrev BorrowedPVDR := Storage Float32 Float Storage.Heap32 Nat 4096

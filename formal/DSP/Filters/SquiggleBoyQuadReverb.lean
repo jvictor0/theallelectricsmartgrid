@@ -80,7 +80,7 @@ abbrev SquiggleBoyWanderingIntroAPFs (R : Type) :=
 
 namespace SquiggleBoyWanderingIntroAPFs
 
-def init {R : Type} [OfNat R 0] [SmoothRandomLFO.SampleValue R] [Sub R] [Div R] [FMA R]
+def init {R : Type} [OfNat R 0] [WanderingRandomLFO.SampleValue R] [Sub R] [Div R] [FMA R]
     (enabled : Bool) (gain : Fin 4 → R) : SquiggleBoyWanderingIntroAPFs R :=
   let spec := squiggleBoyReverbWanderSpec enabled
   let stage (i : Fin 8) : WanderingSchroederAllPassGeneric (squiggleBoyReverbIntroAPFCapacity i) 4 R :=

@@ -5,6 +5,7 @@ import math
 import cmath
 import os
 from pathlib import Path
+import re
 import shlex
 import struct
 import subprocess
@@ -14,7 +15,13 @@ ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build/lean"
 HEADERS = ("CircularBufferGeneric", "SchroederAllPassCoreGeneric", "TunedDecayCombCoreGeneric",
            "TunedDecayCombTuningGeneric", "TunedDecayCombResponseGeneric", "SquiggleBoyQuadReverb",
-           "SmoothRandomLFOStreamGeneric")
+           "WanderingRandomLFOInit32", "WanderingRandomLFOInit64", "WanderingRandomLFOFramedInit32",
+           "WanderingRandomLFOFramedInit64", "WanderingRandomLFO32", "WanderingRandomLFO64",
+           "WanderingRandomLFOFramed32", "WanderingRandomLFOFramed64", "WanderingRandomLFOFramedState",
+           "WanderingRandomLFOState", "WanderingRandomLFORefresh32", "WanderingRandomLFORefresh64",
+           "WanderingRandomLFOWrap32", "WanderingRandomLFOWrap64", "WanderingRandomLFOWrapFramed32",
+           "WanderingRandomLFOWrapFramed64",
+           "WanderingRandomLFORenewFrame32", "WanderingRandomLFORenewFrame64")
 
 
 def number(bits, precision):
@@ -32,6 +39,12 @@ def main():
     for name in HEADERS:
         assert (BUILD / "generated" / (name + ".hpp")).read_bytes() == (
             ROOT / "formal/DSP/generated" / (name + ".hpp")).read_bytes(), f"Stale {name}"
+    for precision in (32, 64):
+        for name, fields in ((f"WanderingRandomLFO{precision}", {"m_phase", "m_frameRemaining"}),
+                             (f"WanderingRandomLFOFramed{precision}", {"m_position"})):
+            code = (BUILD / "generated" / f"{name}.hpp").read_text()
+            stores = set(re.findall(r"\bstate\.(\w+)\s*=(?!=)", code))
+            assert stores == fields, (name, stores)
     reference = subprocess.run([str(BUILD / "artifacts/bin/dsp_delay_codegen_reference")],
                                check=True, capture_output=True, text=True, timeout=120).stdout
     (output / "delay-reference.txt").write_text(reference)

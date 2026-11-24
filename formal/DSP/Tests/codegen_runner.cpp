@@ -23,6 +23,7 @@
 #include "IndexedStateFold.hpp"
 #include "BoundedEdit.hpp"
 #include "BoundedExit.hpp"
+#include "RecordUpdate.hpp"
 
 #include <array>
 #include <cassert>
@@ -208,6 +209,25 @@ bool RunFMA()
 
 int main()
 {
+    struct RecordState
+    {
+        double m_left;
+        double m_right;
+        std::array<double, 2> m_values;
+    };
+
+    RecordState record{1, 2, {3, 4}};
+    const auto swapped = RecordUpdate::Process(record, {true, false, 1});
+    assert(swapped == 2);
+    assert(record.m_left == 2 && record.m_right == 1 && record.m_values[1] == 2);
+    const auto incremented = RecordUpdate::Process(record, {false, false, 0});
+    assert(incremented == 4);
+    assert(record.m_left == 2 && record.m_right == 2 && record.m_values[0] == 2);
+    record = {5, 6, {7, 8}};
+    const auto restored = RecordUpdate::Process(record, {true, true, 0});
+    assert(restored == 11);
+    assert(record.m_left == 5 && record.m_right == 6 && record.m_values[0] == 7);
+
     IndexedStateFold fold{};
     IndexedStateFold::Input indexedInput{};
     fold.m_state = {1, 2};

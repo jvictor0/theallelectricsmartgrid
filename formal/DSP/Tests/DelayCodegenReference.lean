@@ -71,7 +71,7 @@ private def reverbAudio (n : Nat) (ch : Fin 4) : Float :=
 private def reverbRows {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3]
     [OfNat R 4] [OfNat R 5] [OfScientific R] [Add R] [Sub R] [Neg R] [Mul R] [Div R]
     [FMA R] [Tanh R] [IfLess R] [Trig R] [DelayMath R] [DelayBuffer.SampleIndex R]
-    [SmoothRandomLFO.SampleValue R]
+    [WanderingRandomLFO.SampleValue R]
     (out : IO.FS.Stream) (precision : Nat) (wandering : Bool) (cast : Float → R)
     (bits : R → String) : IO Unit := do
   let specAt := fun n =>
@@ -91,18 +91,18 @@ private def reverbRows {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3
     let kind := if wandering then "reverb" else "reverb_fixed"
     out.putStrLn s!"{kind} {precision} {String.intercalate " " values}"
 
-private def splineRows {R : Type} [SmoothRandomLFO.SampleValue R] [FMA R]
+private def splineRows {R : Type} [WanderingRandomLFO.SampleValue R] [FMA R]
     (out : IO.FS.Stream) (precision : Nat) (bits : R → String) : IO Unit := do
-  let mut state := SmoothRandomLFO.Stream.init (R := R) 6 11
+  let mut state := WanderingRandomLFO.Stream.init (R := R) 6 11
   for _ in [:512] do
     let (next, value) := state.step
     out.putStrLn s!"spline {precision} {bits value}"
     state := next
 
-private def framedSplineRows {R : Type} [SmoothRandomLFO.SampleValue R]
+private def framedSplineRows {R : Type} [WanderingRandomLFO.SampleValue R]
     [Sub R] [Div R] [FMA R]
     (out : IO.FS.Stream) (precision : Nat) (bits : R → String) : IO Unit := do
-  let mut state := SmoothRandomLFO.FramedStream.init (R := R) 6 11
+  let mut state := WanderingRandomLFO.FramedStream.init (R := R) 6 11
   for _ in [:512] do
     let (next, value) := state.step
     out.putStrLn s!"spline_framed {precision} {bits value}"

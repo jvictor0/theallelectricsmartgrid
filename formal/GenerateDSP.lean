@@ -1,7 +1,6 @@
 import DSP.Codegen.Cpp
 import DSP.Codegen.DelayBuffer
 import DSP.Codegen.QuadReverb
-import DSP.Codegen.SmoothRandomLFO
 import DSP.Resynthesis.Runtime
 import DSP.Resynthesis.PVDRStorage
 import DSP.Resynthesis.SpectrumStorage
@@ -24,13 +23,31 @@ import DSP.Filters.ConservativeReuppingLadder.Response
 import DSP.Filters.MultibandSaturator.Runtime
 import DSP.Filters.Runtime
 import DSP.SmoothRandomLFO
+import DSP.WanderingRandomLFO
 
 #use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
 
 #generate_cpp_preparation_generic DSP.SmoothRandomLFO.prepare as SmoothRandomLFOPrepareGeneric to "build/lean/generated/SmoothRandomLFOPrepareGeneric.hpp"
 #generate_cpp_function_generic DSP.SmoothRandomLFO.evaluate as SmoothRandomLFOCubicGeneric method Evaluate to "build/lean/generated/SmoothRandomLFOCubicGeneric.hpp"
 
-#generate_cpp_smooth_random_lfo_stream SmoothRandomLFOStreamGeneric to "build/lean/generated/SmoothRandomLFOStreamGeneric.hpp"
+#generate_cpp_record DSP.WanderingRandomLFO.Stream as WanderingRandomLFOState to "build/lean/generated/WanderingRandomLFOState.hpp"
+#generate_cpp_record DSP.WanderingRandomLFO.FramedStream as WanderingRandomLFOFramedState to "build/lean/generated/WanderingRandomLFOFramedState.hpp"
+#generate_cpp_state DSP.WanderingRandomLFO.initialize32 as WanderingRandomLFOInit32 to "build/lean/generated/WanderingRandomLFOInit32.hpp"
+#generate_cpp_state DSP.WanderingRandomLFO.initialize64 as WanderingRandomLFOInit64 to "build/lean/generated/WanderingRandomLFOInit64.hpp"
+#generate_cpp_state DSP.WanderingRandomLFO.refresh32 outlined as WanderingRandomLFORefresh32 to "build/lean/generated/WanderingRandomLFORefresh32.hpp"
+#generate_cpp_state DSP.WanderingRandomLFO.refresh64 outlined as WanderingRandomLFORefresh64 to "build/lean/generated/WanderingRandomLFORefresh64.hpp"
+#generate_cpp_state DSP.WanderingRandomLFO.wrap32 outlined as WanderingRandomLFOWrap32 to "build/lean/generated/WanderingRandomLFOWrap32.hpp"
+#generate_cpp_state DSP.WanderingRandomLFO.wrap64 outlined as WanderingRandomLFOWrap64 to "build/lean/generated/WanderingRandomLFOWrap64.hpp"
+#generate_cpp_state DSP.WanderingRandomLFO.process32 as WanderingRandomLFO32 to "build/lean/generated/WanderingRandomLFO32.hpp"
+#generate_cpp_state DSP.WanderingRandomLFO.process64 as WanderingRandomLFO64 to "build/lean/generated/WanderingRandomLFO64.hpp"
+#generate_cpp_state DSP.WanderingRandomLFO.wrapFramed32 outlined as WanderingRandomLFOWrapFramed32 to "build/lean/generated/WanderingRandomLFOWrapFramed32.hpp"
+#generate_cpp_state DSP.WanderingRandomLFO.wrapFramed64 outlined as WanderingRandomLFOWrapFramed64 to "build/lean/generated/WanderingRandomLFOWrapFramed64.hpp"
+#generate_cpp_state DSP.WanderingRandomLFO.renewFrame32 outlined as WanderingRandomLFORenewFrame32 to "build/lean/generated/WanderingRandomLFORenewFrame32.hpp"
+#generate_cpp_state DSP.WanderingRandomLFO.renewFrame64 outlined as WanderingRandomLFORenewFrame64 to "build/lean/generated/WanderingRandomLFORenewFrame64.hpp"
+#generate_cpp_state DSP.WanderingRandomLFO.initializeFramed32 as WanderingRandomLFOFramedInit32 to "build/lean/generated/WanderingRandomLFOFramedInit32.hpp"
+#generate_cpp_state DSP.WanderingRandomLFO.initializeFramed64 as WanderingRandomLFOFramedInit64 to "build/lean/generated/WanderingRandomLFOFramedInit64.hpp"
+#generate_cpp_state DSP.WanderingRandomLFO.processFramed32 as WanderingRandomLFOFramed32 to "build/lean/generated/WanderingRandomLFOFramed32.hpp"
+#generate_cpp_state DSP.WanderingRandomLFO.processFramed64 as WanderingRandomLFOFramed64 to "build/lean/generated/WanderingRandomLFOFramed64.hpp"
 
 #generate_cpp_delay_buffer CircularBufferGeneric to "build/lean/generated/CircularBufferGeneric.hpp"
 #generate_cpp_quad_reverb SquiggleBoyQuadReverb to "build/lean/generated/SquiggleBoyQuadReverb.hpp"

@@ -92,7 +92,7 @@ def stepDamping {R : Type} [Sub R] [FMA R] (state : TPTBaseWidth (Fin 4 → R))
 def dampedSample {R : Type} (damping : TPTBaseWidth R) : R := damping.lowPass.y
 
 def init {R : Type} [OfNat R 0] [OfNat R 1] [OfScientific R] [Add R] [Mul R] [Div R]
-    [Trig R] [IfLess R] [SmoothRandomLFO.SampleValue R]
+    [Trig R] [IfLess R] [WanderingRandomLFO.SampleValue R]
     [Sub R] [FMA R] (spec : LogicalSpec R)
     (wandering : Bool := true) : SquiggleBoyQuadReverb R :=
   let gain : Fin 4 → R := allPassGain
@@ -114,7 +114,7 @@ def y {R : Type} (state : SquiggleBoyQuadReverb R) : Fin 4 → R := state.second
 
 def step {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3] [OfNat R 4] [OfNat R 5]
     [OfScientific R] [Add R] [Sub R] [Neg R] [Mul R] [Div R] [FMA R] [Tanh R] [IfLess R]
-    [DelayMath R] [DelayBuffer.SampleIndex R] [SmoothRandomLFO.SampleValue R]
+    [DelayMath R] [DelayBuffer.SampleIndex R] [WanderingRandomLFO.SampleValue R]
     (state : SquiggleBoyQuadReverb R) (input : Sample (Fin 4 → R)) : SquiggleBoyQuadReverb R :=
   let diffusion := state.diffusion.step input
   let delay := pushDelay state.delay (sumFeedback diffusion.y state.secondAllPass.y state.feedback)
@@ -126,7 +126,7 @@ def step {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3] [OfNat R 4] 
 
 def process {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3] [OfNat R 4] [OfNat R 5]
     [OfScientific R] [Add R] [Sub R] [Neg R] [Mul R] [Div R] [FMA R] [Tanh R] [IfLess R]
-    [DelayMath R] [DelayBuffer.SampleIndex R] [SmoothRandomLFO.SampleValue R]
+    [DelayMath R] [DelayBuffer.SampleIndex R] [WanderingRandomLFO.SampleValue R]
     (state : SquiggleBoyQuadReverb R) (input : Sample (Fin 4 → R)) :
     SquiggleBoyQuadReverb R × (Fin 4 → R) :=
   let next := state.step input

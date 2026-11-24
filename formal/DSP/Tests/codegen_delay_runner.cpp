@@ -333,19 +333,19 @@ int main()
         }
         else if (kind == "spline" && precision == 32 && width == 1)
         {
-            RunSpline<SmoothRandomLFOStreamGeneric<float>>();
+            RunSpline<WanderingRandomLFOGeneric<float, false>>();
         }
         else if (kind == "spline" && precision == 64 && width == 1)
         {
-            RunSpline<SmoothRandomLFOStreamGeneric<double>>();
+            RunSpline<WanderingRandomLFOGeneric<double, false>>();
         }
         else if (kind == "spline_framed" && precision == 32 && width == 1)
         {
-            RunSpline<SmoothRandomLFOFramedGeneric<float>>();
+            RunSpline<WanderingRandomLFOGeneric<float, true>>();
         }
         else if (kind == "spline_framed" && precision == 64 && width == 1)
         {
-            RunSpline<SmoothRandomLFOFramedGeneric<double>>();
+            RunSpline<WanderingRandomLFOGeneric<double, true>>();
         }
         else if (kind == "address")
         {

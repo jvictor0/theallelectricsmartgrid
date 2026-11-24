@@ -93,7 +93,7 @@ DSP_RUNTIME_MODULES := DSP.Filters.Capture DSP.Filters.OnePoleZOHLowPass.Respons
 	DSP.Filters.MorphingTPTSVF DSP.Filters.TPTSVF4Pole DSP.Filters.TPTLadder \
 	DSP.Filters.LinkwitzRileySplitter DSP.Filters.Coupled \
 	DSP.Filters.ConservativeReuppingLadder.Response DSP.Filters.MultibandSaturator.Runtime DSP.Filters.Runtime \
-	DSP.Filters.DelayKernels.Runtime DSP.Codegen.DelayBuffer DSP.Codegen.QuadReverb DSP.Codegen.SmoothRandomLFO DSP.SmoothRandomLFO \
+	DSP.Filters.DelayKernels.Runtime DSP.Codegen.DelayBuffer DSP.Codegen.QuadReverb DSP.SmoothRandomLFO DSP.WanderingRandomLFO \
 	DSP.Resynthesis.Runtime DSP.Resynthesis.PVDRStorage DSP.Resynthesis.SpectrumStorage DSP.Resynthesis.FrameStorage
 DSP_HEADERS := OnePoleZOHLowPass OnePoleTPTLowPass OnePoleTPTHighPass TPTBaseWidth TPTSVF \
 	MorphingTPTSVF TPTSVF4PoleHighPass TPTSVF4PoleLowPass TPTSVF4PoleBandPass TPTLadder \
@@ -101,10 +101,17 @@ DSP_HEADERS := OnePoleZOHLowPass OnePoleTPTLowPass OnePoleTPTHighPass TPTBaseWid
 
 DSP_GENERIC_HEADERS := $(addsuffix Generic,$(DSP_HEADERS)) LinkwitzRileySplitter4BandGeneric MultibandSaturator4BandCoreGeneric \
 	CircularBufferGeneric SchroederAllPassCoreGeneric TunedDecayCombCoreGeneric \
-	TunedDecayCombTuningGeneric TunedDecayCombResponseGeneric SmoothRandomLFOPrepareGeneric SmoothRandomLFOCubicGeneric SmoothRandomLFOStreamGeneric SquiggleBoyQuadReverb
+	TunedDecayCombTuningGeneric TunedDecayCombResponseGeneric SmoothRandomLFOPrepareGeneric \
+	SmoothRandomLFOCubicGeneric SquiggleBoyQuadReverb
 
 DSP_HEADERS += AnalyzePVDR32 AnalyzePVDR64 SynthesizeSpectrum32 SynthesizeSpectrum64 \
-	ResynthesisFrame32 ResynthesisFrame64 GrainControl32 UnisonBase32 UnisonBase64
+	ResynthesisFrame32 ResynthesisFrame64 GrainControl32 UnisonBase32 UnisonBase64 \
+	WanderingRandomLFOInit32 WanderingRandomLFOInit64 WanderingRandomLFOFramedInit32 \
+	WanderingRandomLFOFramedInit64 WanderingRandomLFO32 WanderingRandomLFO64 \
+	WanderingRandomLFOFramed32 WanderingRandomLFOFramed64 WanderingRandomLFOFramedState \
+	WanderingRandomLFOState WanderingRandomLFORefresh32 WanderingRandomLFORefresh64 \
+	WanderingRandomLFOWrap32 WanderingRandomLFOWrap64 WanderingRandomLFOWrapFramed32 \
+	WanderingRandomLFOWrapFramed64 WanderingRandomLFORenewFrame32 WanderingRandomLFORenewFrame64
 
 lean-dsp-codegen:
 	"$(REPO_ROOT)/scripts/lean.sh" build DSP.Codegen.Cpp $(DSP_RUNTIME_MODULES)

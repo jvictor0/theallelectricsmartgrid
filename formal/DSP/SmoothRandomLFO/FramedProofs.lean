@@ -1,5 +1,5 @@
 import DSP.SmoothRandomLFO.Proofs
-import DSP.SmoothRandomLFO.Stream
+import DSP.WanderingRandomLFO
 import Mathlib.Analysis.Calculus.Deriv.MeanValue
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.MeasureTheory.Measure.MeasureSpace
@@ -9,6 +9,7 @@ import Mathlib.Tactic.NormNum
 namespace DSP.SmoothRandomLFO
 
 open Set MeasureTheory
+open DSP.WanderingRandomLFO (frameSamples)
 open scoped BigOperators ENNReal
 
 noncomputable section
