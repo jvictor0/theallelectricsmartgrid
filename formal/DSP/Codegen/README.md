@@ -145,6 +145,23 @@ def step (state : State) (input : Input) : State := ...
 def process (state : State) (input : Input) : State × Output := ...
 ```
 
+An export can run an ordinary `StateM` action and project its result into either
+form. The evaluator unfolds the state transitions and preserves reads of the
+old value before storing the returned state. A field of type `Vector A n`
+with a closed capacity uses indexed storage. `Vector.ofFn` over that field emits
+one counted loop and `Vector.get` reads at a bounded index. Small function-valued
+`Fin n → A` topologies still use the existing unrolled representation.
+
+`#generate_cpp_effect` compiles a `StateM` action over an exclusive native
+storage view. Binds sequence native reads and writes. The emitter validates
+that effects use the current storage and that branches retain it. A loop
+threads the latest handle through its step. The
+[native bindings](NativeBindings.lean) list storage operations and numerical
+primitives used by these actions. Calls to other generated procedures require
+the target definitions to be exported in the same Lean environment first.
+The state and read-only view exports check native index additions, signed
+arithmetic, and signed/unsigned conversions against their machine ranges.
+
 For composition, prefer `State × Output`: persistent coefficients and recurrence
 memories belong in `State`; current-sample observations belong in `Output`.
 The parent keeps child memories, consumes child outputs locally, and returns
@@ -566,6 +583,29 @@ The array-read/write/clear lowering is an explicit tested compiler boundary.
 It does not unroll or copy the whole delay line for each sample. Capacity must
 be positive; `ReadAge` accepts `[0,Capacity)` and `ReadDelay` accepts
 `[1,Capacity]`. `ReadDelays` gathers independent channel taps.
+
+The phase vocoder uses the common state exporter for `ResynthesisFrame`,
+`AnalyzePVDR`, and `SynthesizeSpectrum`. The exact model uses a cyclic sample
+grid, one-sided spectra, and mathlib's finite DFT with the existing forward
+normalization and inverse grid expansion. The app's storage views expose
+packed transforms, heap operations, phase draws, coefficient access and
+numerical lookups. Lean orders the transform calls, bin visits, phase updates,
+pitch scatter, and window application. Native comparisons check the spectral
+step with the same phase draws, and compare the full grain with the staged
+transform and window calls. The fixed-floor experiments select a Lean
+classifier in the same generated PVDR traversal.
+
+| Export | Native storage and numerical operations |
+| --- | --- |
+| `AnalyzePVDR32/64` | Read coefficient data and graph links, store gates and visits, push and pop heap entries, draw a random phase |
+| `SynthesizeSpectrum32/64` | Read controls and visits, read and store phases and coefficients, clear the spectrum, evaluate polar coefficients and pitch ratios, round bin positions |
+| `ResynthesisFrame32/64` | FFT and IFFT, coefficient magnitude and argument, slew coefficient approximation, Hann coefficients, sample and state field reads and writes, per-field fills |
+
+The frame's `AnalyzeGraph` and `Synthesize` bindings forward to the other
+generated procedures. The common emitter handles standard arithmetic,
+comparisons, numeric casts, square root, floor and the unison exponential.
+The packed FFT, IFFT and numerical leaf implementations use the app's
+[storage adapters](../../../private/src/Resynthesis.hpp).
 
 The general processor exporter still rejects runtime-sized arrays and
 unbounded Nat fields. Its fixed topology vectors retain their 256-element

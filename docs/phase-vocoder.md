@@ -18,24 +18,25 @@ For each launched grain:
    - Previous frame: from `startTime - H`.
    - Both are Hann-windowed in `GrainManager::StartGrain(...)`.
 2. **Prime previous analysis**
-   - `Resynthesizer::PrimeAnalysis(previousWaveTable)` stores previous bin phases/magnitudes.
+   - The generated frame calls the packed FFT for the previous buffer and
+     `FrameStorage.primeCoefficients` stores its bin phases and magnitudes.
 3. **Analyze current frame**
-   - `DFT::Transform(buffer)`
-   - `ProcessPhases()` computes:
-     - `m_analysisMagnitudes[bin]`
+   - The generated frame calls the same FFT for the current buffer.
+   - `FrameStorage.analyzeCoefficients` updates:
+     - `AnalysisMagnitudes()[bin]`
      - `m_analysisPhase[bin]`
      - instantaneous frequency `m_omegaInstantaneous[bin]` via phase-deviation formula:
        - subtract expected `omega_bin * H`
        - wrap with principal argument
        - add correction back to `omega_bin`
 4. **PVDR phase-relationship build**
-   - `PVDR::Analyze()` builds leader/follower bin relationships.
+   - `PVDR.Storage.analyze` builds leader and follower relationships.
 5. **Synthesis phase update**
-   - `Oscillator::FixupPhases(detune, pvdr)` advances synthesis phase per PVDR result.
+   - `SpectrumStorage.fixup` advances synthesis phase in PVDR visit order.
 6. **Synthesize shifted/unison spectrum**
-   - `Oscillator::Synthesize(...)` writes complex bins with shift/unison gains.
+   - `SpectrumStorage.synthesize` accumulates complex bins with shift and unison gains.
 7. **Inverse transform**
-   - `InverseTransform(...)` interpolates the 4096-point spectrum into an `N * x_oversample`-sample engine-rate frame (`SynthesisFrame`), which is Hann-windowed again.
+   - The packed IFFT interpolates the 4096-point spectrum into an `N * x_oversample`-sample engine-rate frame. `FrameStorage.applyWindow` multiplies it by the synthesis Hann window.
    - `GrainManager` overlap-adds the frame into an `OLAGeneric` ring and reads one sample per engine sample, divided by 1.5 (four quarter-window shifts of Hann squared sum to 1.5).
    - Quad Delay selects a 6H ring with H nominal output latency, where H is the engine-rate synthesis hop. It reads each channel at `clock - H + PM` using Catmull-Rom cubic interpolation, with PM bounded to `[-H + 2, H - 2]` engine samples. A fixed cleanup position retires old samples independently of the moving read head. Sample playback retains its 4H ring and existing timing.
 
@@ -53,7 +54,7 @@ This is the "phase vocoder done right" principle in practice: phase propagation 
   - `m_small`: low-energy/randomized handling flag
 - Strong bins become leaders (`bin == parent`), usually using `omega_instantaneous * H`.
 - Neighbor bins can attach to leaders and inherit phase structure through relative phase differences.
-- `PushResult()` recursively flattens ancestry so each result references a stable root parent.
+- `PVDR.Storage.attach` inherits the parent's root and accumulates the relative phase, so each result carries a direct link to its root.
 
 Each channel keeps a three-state Schmitt gate per bin, using the largest
 magnitude across its current and reference analysis frames:
@@ -69,7 +70,7 @@ preserves gate history; channel and full resynthesizer resets rearm the gates.
 
 During synthesis:
 
-- `FixupPhases()` walks PVDR results and updates `m_synthesisPhase[bin]`.
+- `SpectrumStorage.fixup` walks PVDR results and updates `m_synthesisPhase[bin]`.
 - A Triggered leader sets each oscillator's synthesis phase exactly to its current analysis phase.
 - On subsequent High grains, leaders resume phase advance with the oscillator's detune factor.
 - Followers inherit parent phase plus stored delta, including when their own gates trigger.
@@ -83,7 +84,7 @@ Each grain is synthesized by **3 oscillators** (`x_numOscillators = 3`), each ma
 - Oscillator 1: detuned up
 - Oscillator 2: detuned down
 
-For each oscillator, `Synthesize()` mixes two shift layers (`Oscillator::x_numShifts = 2`):
+For each oscillator, `SpectrumStorage.synthesize` mixes two shift layers:
 
 - shift layer A: unshifted (`Q(1,1)`)
 - shift layer B: selected musical ratio (`input.m_shift[0]`)
@@ -91,23 +92,27 @@ For each oscillator, `Synthesize()` mixes two shift layers (`Oscillator::x_numSh
   - `gainA = 1 - fade^4`
   - `gainB = fade^4`
 
-Per-bin magnitude source is `m_synthesisMagnitudes[bin][channel]`, which is slewed to reduce abrupt spectral jumps.
+Per-bin magnitude comes from `SynthesisMagnitudes()[bin][channel]`.
+[FrameStorage](../formal/DSP/Resynthesis/FrameStorage.lean) owns the analysis,
+magnitude slew, transform order, and window application. Its generated frame
+calls the generated [PVDR traversal](../formal/DSP/Resynthesis/PVDRStorage.lean)
+and [spectrum synthesis](../formal/DSP/Resynthesis/SpectrumStorage.lean).
 
 ## Pitch shifting details
 
 Pitch shift is ratio-based (`Q` rational values), selected upstream in `QuadDelayInputSetter` from musical intervals.
 
-`Oscillator::SynthesizeSingleShift()`:
+`SpectrumStorage.accumulate` chooses the synthesis path:
 
 - If shift is `1/1`, bins are synthesized directly.
 - Otherwise:
-  - leader target bin = `BinOmega(omega_instantaneous * shift)`
+  - leader target bin is the rounded and clamped bin for `omega_instantaneous * shift`
   - leader phase = `synthesisPhase * shift`
   - follower bins keep local offsets relative to parent:
     - `targetFollower = targetParent - parent + bin`
     - `phaseFollower = phaseParent + delta`
 - Alias guard:
-  - `WillAlias(...)` rejects bins where frequency mismatch exceeds threshold (`0.5 / H` criterion).
+  - `acceptedBinWith` rejects out-of-range bins and bins where frequency mismatch exceeds `0.5 / H`.
 
 So the shift is not "bin-by-bin naive remap"; it preserves PVDR structural relationships where possible.
 
@@ -150,7 +155,8 @@ From `QuadDelayInputSetter` into `Resynthesizer::Input`:
 - `m_unisonDetune`, `m_unisonGain`
 - `m_slewUp`: partial rise-rate control for spectral bloom
 
-`m_slewDown` exists in the input struct but is not applied in this path: `Synthesize` calls only `SetSlewUp`; there is no corresponding `SetSlewDown` call, so the slew-down value is currently inert here.
+`m_slewDown` is reserved in the input struct. `FrameStorage.analyzeCoefficients`
+uses the rise cutoff for increasing magnitudes and tracks falling magnitudes immediately.
 
 ## Quad Delay integration
 
@@ -167,6 +173,34 @@ This enables:
 - interval pitch-shift choices (`Q` ratios)
 - per-partial slew-up behavior for gradual spectral bloom
 - per-channel output PM through the linear bipolar PM knob on the delay page
+
+## Exact steady-sinusoid result
+
+The [Lean theorem](../formal/DSP/Resynthesis/HannToneVocoder.lean) follows a
+steady sinusoid through the exact one-channel `process` model and the normalized
+four-grain overlap-add sum. The source and shifted frequencies sit on interior
+FFT bins, with both neighboring bins present. With full shift fade, unison off,
+and immediate magnitude tracking, four overlapping grains preserve the input
+amplitude and multiply the pitch by the selected ratio.
+
+Each pair of analysis windows samples the ideal sinusoid at host-rate spacing,
+one analysis hop apart. Their start may move arbitrarily between grains. The
+first grain sets the output phase, and subsequent grains advance it at the
+synthesis hop. The theorem uses exact real arithmetic and assumes the queue
+implements maximum-priority pop and preserves the remaining entries.
+
+Separate correspondence proofs connect the storage-based PVDR traversal to
+the model's gates, graph, and random-source state. The spectrum proofs connect
+phase updates and both coefficient accumulation paths to the model. They apply
+to the real interpretation as well as the executable types.
+
+For one 4096-point channel, the exact interpretation of the generated frame
+agrees with the mathematical spectral step, finite inverse DFT, and supplied
+window at every output sample. The proof also identifies the retained channel
+and random-source state. The packed model's one-channel specialization uses
+that spectral step followed by the inverse transform and Hann window. The
+differential tests exercise the generated packed frame and its floating-point
+primitives. [Frame correspondence](../formal/DSP/Resynthesis/FrameExactProof.lean)
 
 ## Related
 

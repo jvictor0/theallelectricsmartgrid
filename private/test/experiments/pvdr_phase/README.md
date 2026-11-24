@@ -42,11 +42,10 @@ and preserve them outside the checkout before worktree cleanup.
   Conventional output is `tape[n - delay]`. There is no clipping, saturation,
   filtering, shifting, detune, time warp, or magnitude slew. Above-unity feedback
   is rendered for a finite duration, not stabilized.
-- The Schmitt generated header is byte-for-byte production `Resynthesis.hpp`.
-  `variant.py` reconstructs the original −160 dB/no-reset and −60 dB/no-reset
-  controls using checked, narrowly scoped substitutions to generated headers.
-  Changes to source contracts fail
-  generation rather than silently applying an approximate patch.
+- All three variants use production's generated graph traversal. The historical
+  −160 dB and −60 dB variants select the fixed floor in the Lean classifier.
+  The fixed-floor classifier has no triggered state, so it leaves root phase
+  advancement in effect.
 - Schmitt state is per bin and persists across synthesis launches. Low becomes
   Triggered above `maxMagnitude * 0.001`; Triggered becomes High next frame;
   High becomes Low below `maxMagnitude * 10^(-72/20)`. Exact silence is Low.

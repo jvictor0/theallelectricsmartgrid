@@ -20,6 +20,9 @@
 #include "FMAProcessor32.hpp"
 #include "CoupledProcessor.hpp"
 #include "CompactResetProbe.hpp"
+#include "IndexedStateFold.hpp"
+#include "BoundedEdit.hpp"
+#include "BoundedExit.hpp"
 
 #include <array>
 #include <cassert>
@@ -205,6 +208,34 @@ bool RunFMA()
 
 int main()
 {
+    IndexedStateFold fold{};
+    IndexedStateFold::Input indexedInput{};
+    fold.m_state = {1, 2};
+    indexedInput.m_values.back() = 7;
+    fold.Process(indexedInput);
+    assert(fold.m_state.m_left == 2);
+    assert(fold.m_state.m_right == 8);
+    assert(fold.m_output.m_x == 385);
+
+    BoundedEdit edit{};
+    BoundedEdit::Input editInput{256, 2, true};
+    edit.Process(editInput);
+    assert(edit.m_state.m_values[255] == 2);
+    assert(edit.m_state.m_values[256] == 0);
+    editInput = {257, 3, true};
+    edit.Process(editInput);
+    assert(edit.m_state.m_values[255] == 5);
+    assert(edit.m_state.m_values[256] == 3);
+    editInput.m_enabled = false;
+    edit.Process(editInput);
+    assert(edit.m_state.m_values[255] == 5);
+    assert(edit.m_state.m_values[256] == 3);
+
+    BoundedExit exit{};
+    BoundedExit::Input exitInput{257, 2, true};
+    exit.Process(exitInput);
+    assert(exit.m_state.m_x == 8);
+
     CompactResetProbe resetProbe{};
     resetProbe.m_state = {0.25, 3.75};
     resetProbe.m_output.m_x = -7;

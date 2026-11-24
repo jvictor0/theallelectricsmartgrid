@@ -28,8 +28,8 @@ DOCTEST_TEST_CASE("Resynthesizer Schmitt gate triggers once and retains both sid
     using State = Resynthesizer::PVDR::GateState;
     constexpr int x_bin = 200;
     auto synth = std::make_unique<Resynthesizer>();
-    const float trigger = static_cast<float>(Resynthesizer::PVDR::x_triggerMagnitudeRatio);
-    const float low = static_cast<float>(Resynthesizer::PVDR::x_lowMagnitudeRatio);
+    const float trigger = 0.001f;
+    const float low = 0.000251188643150958f;
     struct Frame
     {
         float m_magnitude;
@@ -51,12 +51,12 @@ DOCTEST_TEST_CASE("Resynthesizer Schmitt gate triggers once and retains both sid
         {0, State::Low}
     };
 
-    synth->m_analysisMagnitudes[50] = 1;
+    synth->AnalysisMagnitudes()[50] = 1;
     for (const Frame& frame : frames)
     {
         DOCTEST_CAPTURE(frame.m_magnitude);
         synth->PrimeFromPrevious();
-        synth->m_analysisMagnitudes[x_bin] = frame.m_magnitude;
+        synth->AnalysisMagnitudes()[x_bin] = frame.m_magnitude;
         AnalyzePhaseGraph(*synth);
         const auto& pvdr = synth->m_pvdr[0];
         DOCTEST_CHECK(pvdr.m_gate[x_bin] == frame.m_expected);
@@ -77,8 +77,8 @@ DOCTEST_TEST_CASE("Resynthesizer Schmitt reference includes the previous frame a
     constexpr int x_bin = 200;
     auto synth = std::make_unique<Synth>();
     synth->m_prevAnalysisMagnitudes[50] = Synth::Vector(1.0f, 0.1f);
-    synth->m_analysisMagnitudes[50] = Synth::Vector(0.1f, 0.1f);
-    synth->m_analysisMagnitudes[x_bin] = Synth::Vector(0.0002f, 0.0002f);
+    synth->AnalysisMagnitudes()[50] = Synth::Vector(0.1f, 0.1f);
+    synth->AnalysisMagnitudes()[x_bin] = Synth::Vector(0.0002f, 0.0002f);
     AnalyzePhaseGraph(*synth);
     DOCTEST_CHECK(synth->m_pvdr[0].m_gate[x_bin] == State::Low);
     DOCTEST_CHECK(synth->m_pvdr[1].m_gate[x_bin] == State::Triggered);
@@ -92,9 +92,9 @@ DOCTEST_TEST_CASE("Resynthesizer snaps all oscillator roots and their followers 
 {
     constexpr int x_bin = 64;
     auto synth = std::make_unique<Resynthesizer>();
-    synth->m_analysisMagnitudes[x_bin] = 1;
-    synth->m_analysisMagnitudes[x_bin - 1] = 0.3f;
-    synth->m_analysisMagnitudes[x_bin + 1] = 0.2f;
+    synth->AnalysisMagnitudes()[x_bin] = 1;
+    synth->AnalysisMagnitudes()[x_bin - 1] = 0.3f;
+    synth->AnalysisMagnitudes()[x_bin + 1] = 0.2f;
     synth->m_analysisPhase[x_bin] = 0.2f;
     synth->m_analysisPhase[x_bin - 1] = -0.41f;
     synth->m_analysisPhase[x_bin + 1] = 0.39f;
@@ -147,10 +147,10 @@ DOCTEST_TEST_CASE("Resynthesizer triggered followers retain their existing leade
 {
     constexpr int x_bin = 64;
     auto synth = std::make_unique<Resynthesizer>();
-    synth->m_analysisMagnitudes[x_bin] = 1;
+    synth->AnalysisMagnitudes()[x_bin] = 1;
     synth->m_analysisPhase[x_bin] = 0.1f;
     synth->PrimeFromPrevious();
-    synth->m_analysisMagnitudes[x_bin + 1] = 0.2f;
+    synth->AnalysisMagnitudes()[x_bin + 1] = 0.2f;
     synth->m_analysisPhase[x_bin + 1] = 0.3f;
     synth->m_pvdr[0].m_gate[x_bin] = Resynthesizer::PVDR::GateState::High;
     synth->m_oscillators[0].m_synthesisPhase[x_bin] = 0.4;
@@ -170,14 +170,14 @@ DOCTEST_TEST_CASE("Resynthesizer silence rearms phase reacquisition even when th
 {
     constexpr int x_bin = 64;
     auto synth = std::make_unique<Resynthesizer>();
-    synth->m_analysisMagnitudes[x_bin] = 1;
+    synth->AnalysisMagnitudes()[x_bin] = 1;
     synth->m_analysisPhase[x_bin] = 0.2f;
     AnalyzePhaseGraph(*synth);
     synth->m_oscillators[0].FixupPhases(1.0f, synth->m_pvdr);
     for (int frame = 0; frame < 3; ++frame)
     {
         synth->PrimeFromPrevious();
-        synth->m_analysisMagnitudes[x_bin] = 0;
+        synth->AnalysisMagnitudes()[x_bin] = 0;
         AnalyzePhaseGraph(*synth);
         auto& pvdr = synth->m_pvdr[0];
         for (size_t i = 0; i < pvdr.m_size; ++i)
@@ -190,7 +190,7 @@ DOCTEST_TEST_CASE("Resynthesizer silence rearms phase reacquisition even when th
     }
 
     synth->PrimeFromPrevious();
-    synth->m_analysisMagnitudes[x_bin] = 0.5f;
+    synth->AnalysisMagnitudes()[x_bin] = 0.5f;
     synth->m_analysisPhase[x_bin] = -0.3f;
     synth->m_oscillators[0].m_synthesisPhase[x_bin] = 321.123;
     AnalyzePhaseGraph(*synth);
@@ -205,7 +205,7 @@ DOCTEST_TEST_CASE("Resynthesizer channel and full clears rearm Schmitt state wit
     using State = Synth::PVDR::GateState;
     constexpr int x_bin = 64;
     auto synth = std::make_unique<Synth>();
-    synth->m_analysisMagnitudes[x_bin] = Synth::Vector(1, 1);
+    synth->AnalysisMagnitudes()[x_bin] = Synth::Vector(1, 1);
     synth->m_analysisPhase[x_bin] = Synth::Vector(0.35f, -0.22f);
     AnalyzePhaseGraph(*synth);
     synth->PrimeFromPrevious();
@@ -225,7 +225,7 @@ DOCTEST_TEST_CASE("Resynthesizer channel and full clears rearm Schmitt state wit
         DOCTEST_CHECK(oscillator.m_synthesisPhase[x_bin][1] == 56.78);
     }
 
-    synth->m_analysisMagnitudes[x_bin][0] = 1;
+    synth->AnalysisMagnitudes()[x_bin][0] = 1;
     AnalyzePhaseGraph(*synth);
     DOCTEST_CHECK(synth->m_pvdr[0].m_gate[x_bin] == State::Triggered);
     DOCTEST_CHECK(synth->m_pvdr[1].m_gate[x_bin] == State::High);
@@ -239,7 +239,7 @@ DOCTEST_TEST_CASE("Resynthesizer channel and full clears rearm Schmitt state wit
         }
     }
 
-    synth->m_analysisMagnitudes[x_bin] = Synth::Vector(1, 1);
+    synth->AnalysisMagnitudes()[x_bin] = Synth::Vector(1, 1);
     AnalyzePhaseGraph(*synth);
     DOCTEST_CHECK(synth->m_pvdr[0].m_gate[x_bin] == State::Triggered);
     DOCTEST_CHECK(synth->m_pvdr[1].m_gate[x_bin] == State::Triggered);

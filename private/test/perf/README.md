@@ -15,6 +15,9 @@ make perf-ipad PERF_ARGS='--notes "Initial iPad inverse baseline"'
 # Original plain-double tape versus current, both written at 192 kHz.
 make perf-ipad PERF_ARGS='--notes "Compare tape and phase-grid cost" -- tape-performance 3 16 5'
 
+# Time the full phase vocoder at one, three, and four channels.
+make perf-ipad PERF_ARGS='--case resynthesis -- 5 8'
+
 # Run the already installed build, without rebuilding or installing.
 scripts/.venv-ios/bin/python scripts/ipad_perf.py --skip-install \
   --case inverter --notes 'Heavy reversal case' -- current-performance 16 16 5

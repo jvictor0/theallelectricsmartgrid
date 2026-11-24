@@ -1,6 +1,7 @@
 #include "Cases.hpp"
 #include "../DensityCase.hpp"
 #include "../ResponsesCase.hpp"
+#include "../ResynthesisWorkload.hpp"
 #include "../ReverbWorkload.hpp"
 #include <random>
 #include <sstream>
@@ -97,6 +98,22 @@ void RunQuadReverb(const std::vector<std::string>& arguments, std::ostream& outp
     }
 }
 
+void RunResynthesis(const std::vector<std::string>& arguments, std::ostream& output)
+{
+    Require(arguments.size() <= 2, "Resynthesis: [REPEATS] [AUDIO_SECONDS_PER_CASE]");
+    const int repeats = arguments.empty() ? 5 : Integer(arguments[0].c_str());
+    const double seconds = arguments.size() < 2 ? 8 : PositiveSeconds(arguments[1].c_str());
+    Require(repeats > 0, "Resynthesis repeats must be positive");
+
+    PrepareCPU();
+    for (int repeat = 0; repeat < repeats; ++repeat)
+    {
+        MeasureResynthesis<1>(seconds, output);
+        MeasureResynthesis<3>(seconds, output);
+        MeasureResynthesis<4>(seconds, output);
+    }
+}
+
 const std::vector<BenchmarkCase>& BenchmarkCases()
 {
     static const std::vector<BenchmarkCase> x_cases
@@ -114,7 +131,10 @@ const std::vector<BenchmarkCase>& BenchmarkCases()
             RunTransferResponses},
         {"reverb", "Legacy, generated fixed-tap, and sample-rate and framed wandering reverbs at 192 kHz with shared traces. "
             "Reports thread CPU ms per audio second for all four control modes after a two-second warmup. "
-            "Arguments: [REPEATS] [SECONDS_PER_CASE].", RunQuadReverb}
+            "Arguments: [REPEATS] [SECONDS_PER_CASE].", RunQuadReverb},
+        {"resynthesis", "Process Hann-windowed 48 kHz grains through the full phase vocoder, including packed FFTs, "
+            "pitch shift, unison, and the engine-rate synthesis frame. Reports CPU and wall timing for one, three, and four lanes. "
+            "Arguments: [REPEATS] [AUDIO_SECONDS_PER_CASE].", RunResynthesis}
     };
     return x_cases;
 }

@@ -60,6 +60,8 @@ lean-cache:
 		Mathlib.Analysis.Complex.RealDeriv \
 		Mathlib.Analysis.Normed.Algebra.Exponential \
 		Mathlib.Analysis.Normed.Module.FiniteDimension \
+		Mathlib.Analysis.Fourier.ZMod \
+		Mathlib.Analysis.SpecialFunctions.Complex.Arg \
 		Mathlib.Analysis.SpecialFunctions.ExpDeriv \
 		Mathlib.Analysis.SpecialFunctions.Exponential \
 		Mathlib.Analysis.SpecialFunctions.Pow.Real \
@@ -91,7 +93,8 @@ DSP_RUNTIME_MODULES := DSP.Filters.Capture DSP.Filters.OnePoleZOHLowPass.Respons
 	DSP.Filters.MorphingTPTSVF DSP.Filters.TPTSVF4Pole DSP.Filters.TPTLadder \
 	DSP.Filters.LinkwitzRileySplitter DSP.Filters.Coupled \
 	DSP.Filters.ConservativeReuppingLadder.Response DSP.Filters.MultibandSaturator.Runtime DSP.Filters.Runtime \
-	DSP.Filters.DelayKernels.Runtime DSP.Codegen.DelayBuffer DSP.Codegen.QuadReverb DSP.Codegen.SmoothRandomLFO DSP.SmoothRandomLFO
+	DSP.Filters.DelayKernels.Runtime DSP.Codegen.DelayBuffer DSP.Codegen.QuadReverb DSP.Codegen.SmoothRandomLFO DSP.SmoothRandomLFO \
+	DSP.Resynthesis.Runtime DSP.Resynthesis.PVDRStorage DSP.Resynthesis.SpectrumStorage DSP.Resynthesis.FrameStorage
 DSP_HEADERS := OnePoleZOHLowPass OnePoleTPTLowPass OnePoleTPTHighPass TPTBaseWidth TPTSVF \
 	MorphingTPTSVF TPTSVF4PoleHighPass TPTSVF4PoleLowPass TPTSVF4PoleBandPass TPTLadder \
 	CoupledProcessor ConservativeReuppingLadderCore TPTSVFLowPass TPTSVFHighPass TPTSVFBandPass TPTSVFNotch TPTSVFAllPass
@@ -99,6 +102,9 @@ DSP_HEADERS := OnePoleZOHLowPass OnePoleTPTLowPass OnePoleTPTHighPass TPTBaseWid
 DSP_GENERIC_HEADERS := $(addsuffix Generic,$(DSP_HEADERS)) LinkwitzRileySplitter4BandGeneric MultibandSaturator4BandCoreGeneric \
 	CircularBufferGeneric SchroederAllPassCoreGeneric TunedDecayCombCoreGeneric \
 	TunedDecayCombTuningGeneric TunedDecayCombResponseGeneric SmoothRandomLFOPrepareGeneric SmoothRandomLFOCubicGeneric SmoothRandomLFOStreamGeneric SquiggleBoyQuadReverb
+
+DSP_HEADERS += AnalyzePVDR32 AnalyzePVDR64 SynthesizeSpectrum32 SynthesizeSpectrum64 \
+	ResynthesisFrame32 ResynthesisFrame64 GrainControl32 UnisonBase32 UnisonBase64
 
 lean-dsp-codegen:
 	"$(REPO_ROOT)/scripts/lean.sh" build DSP.Codegen.Cpp $(DSP_RUNTIME_MODULES)
@@ -115,6 +121,7 @@ lean-dsp-codegen-test: lean-dsp-codegen
 	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/TestDSPCodegen.lean"
 	python3 "$(REPO_ROOT)/scripts/test_dsp_codegen.py"
 	python3 "$(REPO_ROOT)/scripts/test_dsp_delay_codegen.py"
+	python3 "$(REPO_ROOT)/scripts/test_dsp_resynthesis_codegen.py"
 
 lean-dsp-test: lean-dsp-codegen-test
 	"$(REPO_ROOT)/scripts/lean.sh" build DSP dsp_filter_smoke

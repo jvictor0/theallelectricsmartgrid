@@ -129,7 +129,14 @@ struct Experiment
         // between analysis and phase fixup to seed phases and measure errors.
         //
         m_synth.PrimeAnalysis(m_previous);
-        m_synth.Analyze(m_synth.m_pvdr, m_current);
+        m_synth.m_analysisDft.Transform(m_current, m_synth.m_workspace);
+        m_synth.ProcessPhases(m_synth.m_analysisDft);
+        m_synth.m_pvdr[0].Clear();
+#ifdef PVDR_EXPERIMENT_FLOOR
+        m_synth.m_pvdr[0].AnalyzeWithFloor(PVDR_EXPERIMENT_FLOOR);
+#else
+        m_synth.m_pvdr[0].Analyze();
+#endif
         auto& oscillator = m_synth.m_oscillators[0];
         if (!m_initialized && energy > 0)
         {
@@ -165,7 +172,7 @@ struct Experiment
         {
             const auto& result = pvdr.m_results[i];
             int bin = result.m_bin;
-            double magnitude = m_synth.m_analysisMagnitudes[bin][0];
+            double magnitude = m_synth.AnalysisMagnitudes()[bin][0];
             double error = Resynth::PrincArg(oscillator.m_synthesisPhase[bin][0] - m_synth.m_analysisPhase[bin][0]);
             double weight = magnitude * magnitude;
             totalEnergy += weight;
@@ -214,7 +221,7 @@ void VerifyContracts()
     for (size_t bin = 1; bin < Resynthesizer::x_maxComponents; ++bin)
     {
         synth->m_analysisPhase[bin] = phases(random);
-        synth->m_analysisMagnitudes[bin] = magnitudes(random);
+        synth->AnalysisMagnitudes()[bin] = magnitudes(random);
         synth->m_oscillators[0].m_synthesisPhase[bin][0] = synth->m_analysisPhase[bin][0];
     }
 
@@ -227,12 +234,16 @@ void VerifyContracts()
         for (size_t bin = 1; bin < Resynthesizer::x_maxComponents; ++bin)
         {
             synth->m_analysisPhase[bin] = phases(random);
-            synth->m_analysisMagnitudes[bin] = magnitudes(random);
+            synth->AnalysisMagnitudes()[bin] = magnitudes(random);
             synth->SetAnalysisOmega(static_cast<int>(bin));
         }
 
         synth->m_pvdr[0].Clear();
+#ifdef PVDR_EXPERIMENT_FLOOR
+        synth->m_pvdr[0].AnalyzeWithFloor(PVDR_EXPERIMENT_FLOOR);
+#else
         synth->m_pvdr[0].Analyze();
+#endif
         synth->m_oscillators[0].FixupPhases(Resynthesizer::Vector::Splat(1), synth->m_pvdr);
         for (size_t bin = 1; bin < Resynthesizer::x_maxComponents; ++bin)
         {
@@ -247,11 +258,11 @@ void VerifyContracts()
     const float levels[] = {0, 0.0005f, 0.00101f, 0.0008f, 0.0002512f, 0.00025f, 0.0009f, 0.0011f};
     const State expected[] = {State::Low, State::Low, State::Triggered, State::High, State::High, State::Low, State::Low, State::Triggered};
     constexpr int x_testBin = 200;
-    synth->m_analysisMagnitudes[50] = 1;
+    synth->AnalysisMagnitudes()[50] = 1;
     for (size_t frame = 0; frame < std::size(levels); ++frame)
     {
         synth->PrimeFromPrevious();
-        synth->m_analysisMagnitudes[x_testBin] = levels[frame];
+        synth->AnalysisMagnitudes()[x_testBin] = levels[frame];
         synth->m_analysisPhase[x_testBin] = 0.37f;
         synth->SetAnalysisOmega(x_testBin);
         synth->m_pvdr[0].Clear();

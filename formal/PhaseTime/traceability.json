@@ -17,9 +17,12 @@
     "private/src/TimeWarpInverter.hpp": "3dd6212109bf5f333d9a9e615f116ee0d71d36800717c8ef365e838ae2aa3058",
     "private/src/TimeWarpView.hpp": "d6787c25d2229d1437c57fa96d99302542508654c925c3a7192c909c0ae178e4",
     "JUCE/SmartGridOne/Source/ScopeComponent.hpp": "f751407a789ebf9e8a4dd6b765f99c00bcb7935e67af1bfd882157a0f327f39a",
-    "private/src/Resynthesis.hpp": "01663ac984d85a5570e024e0a50760471b0c5d7ae20073c5babf66cab1f04e16",
+    "private/src/Resynthesis.hpp": "af0a131cec7de3ac5f75f516175b1eb7fe7158d3f9f75a62d62f4fffa691915e",
     "private/src/SquiggleBoy.hpp": "e0e404d66f6bb352a7e3de377cbe20fc6fcacd05fdf398e6582a02ba25160a61",
-    "formal/PhaseTime/generated/TimeWarpInverseCore.hpp": "f46f4e56c03aac2b26f0c93d9ac5158335e968f77482a90845f87110ee05092d"
+    "formal/PhaseTime/generated/TimeWarpInverseCore.hpp": "f46f4e56c03aac2b26f0c93d9ac5158335e968f77482a90845f87110ee05092d",
+    "formal/DSP/Resynthesis/FrameStorage.lean": "9f9447748830ebb0febe3db876b141769d0dfde5e470236bef02c48efe8598c3",
+    "formal/DSP/Resynthesis/SpectrumStorage.lean": "1f88175e10f1458f1ca1c36145cf2742b6cfb24dc4ac361e928dfa4172566caf",
+    "formal/DSP/Resynthesis/Grain.lean": "e6bb1b30c9b9374a6c76af598139a6a85736b87dfbeb4e3db5d7a47ebc05d02c"
   },
   "anchors": {
     "clock_init": [
@@ -217,13 +220,29 @@
     "analysis_frequency": [
       {
         "path": "private/src/Resynthesis.hpp",
-        "symbol": "void SetAnalysisOmega(int bin)"
+        "symbol": "void Process(Buffer& previousWaveTable, Buffer& buffer, SynthesisFrame& frame, Input* input)"
+      },
+      {
+        "path": "formal/DSP/Resynthesis/FrameStorage.lean",
+        "symbol": "instantaneousFrequency floor center (natPhase 1024) (widen phase) (widen previous)"
+      },
+      {
+        "path": "formal/DSP/Resynthesis/Grain.lean",
+        "symbol": "def instantaneousFrequency "
       }
     ],
     "analysis_steady_step": [
       {
         "path": "private/src/Resynthesis.hpp",
-        "symbol": "void FixupPhases(const Vector& detune, PVDR* pvdr)"
+        "symbol": "void Synthesize(size_t count)"
+      },
+      {
+        "path": "formal/DSP/Resynthesis/SpectrumStorage.lean",
+        "symbol": "setPhase lane osc bin (leaderPhase triggered old (widen analysis) link.delta (widen detune))"
+      },
+      {
+        "path": "formal/DSP/Resynthesis/Grain.lean",
+        "symbol": "def leaderPhase "
       }
     ],
     "cell_select": [

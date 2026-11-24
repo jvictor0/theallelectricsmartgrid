@@ -4,32 +4,22 @@
 #include "AdaptiveWaveTable.hpp"
 #include "Q.hpp"
 #include "Slew.hpp"
-#include "PriorityQueue.hpp"
-#include "NormGen.hpp"
+#include "AnalyzePVDR32.hpp"
+#include "AnalyzePVDR64.hpp"
+#include "SynthesizeSpectrum32.hpp"
+#include "SynthesizeSpectrum64.hpp"
+#include "ResynthesisFrame32.hpp"
+#include "ResynthesisFrame64.hpp"
+#include "GrainControl32.hpp"
+#include "UnisonBase32.hpp"
+#include "UnisonBase64.hpp"
 #include "Math.hpp"
 #include "Array.hpp"
 #include "MultiChannelComplex.hpp"
+#include "NormGen.hpp"
+#include "PriorityQueue.hpp"
 #include "SampleTimer.hpp"
 #include "SpectralModel.hpp"
-
-// Controls for one oscillator of one channel.
-//
-struct ResynthesizerOscillatorInput
-{
-    static constexpr size_t x_numShifts = 2;
-
-    float m_gain[x_numShifts];
-    Q m_shift[x_numShifts];
-
-    ResynthesizerOscillatorInput()
-    {
-        for (size_t i = 0; i < x_numShifts; ++i)
-        {
-            m_gain[i] = i == 0 ? 1.0f : 0.0f;
-            m_shift[i] = Q(1, 1);
-        }
-    }
-};
 
 // Controls for one channel. Every channel count shares this type, and a
 // multichannel resynthesizer takes one per channel.
@@ -37,7 +27,7 @@ struct ResynthesizerOscillatorInput
 struct ResynthesizerInput
 {
     static constexpr float x_immediateSlewUp = 0.5f;
-    static constexpr size_t x_numShifts = ResynthesizerOscillatorInput::x_numShifts;
+    static constexpr size_t x_numShifts = 2;
 
     Q m_shift[x_numShifts - 1];
     float m_fade[x_numShifts - 1];
@@ -50,49 +40,21 @@ struct ResynthesizerInput
     float m_rmsLoud;
     float m_loudShift;
 
-    float GetUnisonGainForOscillator(int index)
+    struct OscillatorControl
     {
-        if (index == 0)
-        {
-            return std::sqrt(1.0f - 2.0f * m_unisonGain * m_unisonGain / 3.0f);
-        }
-        else
-        {
-            return m_unisonGain / std::sqrt(3.0f);
-        }
+        bool m_gain;
+        float m_value;
+        size_t m_oscillator;
+    };
+
+    float GetUnisonGainForOscillator(int index) const
+    {
+        return GrainControl32::Evaluate(OscillatorControl{true, m_unisonGain, static_cast<size_t>(index)});
     }
 
-    ResynthesizerOscillatorInput MakeOscillatorInput(int index)
+    float GetUnisonDetune(int index) const
     {
-        float unisonGain = GetUnisonGainForOscillator(index);
-        ResynthesizerOscillatorInput input;
-        float fade0 = m_fade[0] * m_fade[0] * m_fade[0] * m_fade[0];
-        input.m_gain[0] = std::max(0.0f, 1 - fade0);
-        input.m_gain[1] = std::max(0.0f, fade0);
-        for (size_t i = 0; i < x_numShifts; ++i)
-        {
-            input.m_gain[i] *= unisonGain;
-        }
-
-        input.m_shift[0] = Q(1, 1);
-        input.m_shift[1] = m_shift[0];
-        return input;
-    }
-
-    float GetUnisonDetune(int index)
-    {
-        if (index == 0)
-        {
-            return 1.0;
-        }
-        else if (index == 1)
-        {
-            return m_unisonDetune;
-        }
-        else
-        {
-            return 1.0 / m_unisonDetune;
-        }
+        return GrainControl32::Evaluate(OscillatorControl{false, m_unisonDetune, static_cast<size_t>(index)});
     }
 
     ResynthesizerInput()
@@ -135,18 +97,24 @@ struct ResynthesizerGeneric
     static constexpr size_t x_maxComponents = DFT::x_maxComponents;
     static constexpr size_t x_N = x_tableSize;
     static constexpr size_t x_H = x_N / x_hopDenom;
+    static_assert(x_N == 4096 && x_H == 1024 && Size <= 4);
 
     static Vector GetUnisonBase()
     {
-        if constexpr (Size == 4)
+        struct InputView
         {
-            Vector cents(40, 45, 50, 55);
-            return (cents / static_cast<Number>(1200)).Exp2();
-        }
-        else
+            size_t m_count;
+        };
+
+        using Kernel = std::conditional_t<std::is_same_v<Number, float>, UnisonBase32, UnisonBase64>;
+        const auto values = Kernel::Evaluate(InputView{Size});
+        Vector result;
+        for (size_t lane = 0; lane < Size; ++lane)
         {
-            return Vector::Splat(static_cast<Number>(1.03));
+            result[lane] = values.m_lanes[lane];
         }
+
+        return result;
     }
 
     // Analysis runs on host-rate buffers. Synthesis interpolates the same
@@ -161,8 +129,7 @@ struct ResynthesizerGeneric
     //
     struct PVDR
     {
-        static constexpr double x_triggerMagnitudeRatio = 0.001;
-        static constexpr double x_lowMagnitudeRatio = 0.000251188643150958;
+        using Owner = ResynthesizerGeneric;
 
         enum class GateState : uint8_t
         {
@@ -213,141 +180,142 @@ struct ResynthesizerGeneric
             }
         };
 
-        Entry MakeEntry(int16_t bin, bool isPrev) const
+        template<typename Draw>
+        struct Storage
         {
-            Number magnitude = isPrev ? m_owner->m_prevAnalysisMagnitudes[bin][m_channel] : m_owner->m_analysisMagnitudes[bin][m_channel];
-            return Entry(bin, isPrev, magnitude);
+            struct LinkValue
+            {
+                size_t m_root;
+                double m_delta;
+                bool m_small;
+            };
+
+            struct EntryValue
+            {
+                size_t m_bin;
+                bool m_previous;
+                Number m_magnitude;
+            };
+
+            struct PopResult
+            {
+                bool m_present;
+                EntryValue m_value;
+            };
+
+            PVDR& m_tracker;
+            Draw& m_draw;
+            bool m_computed[x_maxComponents - 1]{};
+            PriorityQueue<Entry, 2 * x_maxComponents> m_queue;
+
+            Number Magnitude(size_t index) const
+            {
+                return m_tracker.m_owner->AnalysisMagnitudes()[index + 1][m_tracker.m_channel];
+            }
+
+            Number PreviousMagnitude(size_t index) const
+            {
+                return m_tracker.m_owner->m_prevAnalysisMagnitudes[index + 1][m_tracker.m_channel];
+            }
+
+            Number Phase(size_t index) const
+            {
+                return m_tracker.m_owner->m_analysisPhase[index + 1][m_tracker.m_channel];
+            }
+
+            double Omega(size_t index) const
+            {
+                return m_tracker.m_owner->m_omegaInstantaneous[index + 1][m_tracker.m_channel];
+            }
+
+            unsigned Gate(size_t index) const
+            {
+                return static_cast<unsigned>(m_tracker.m_gate[index + 1]);
+            }
+
+            void SetGate(size_t index, unsigned gate)
+            {
+                m_tracker.m_gate[index + 1] = static_cast<GateState>(gate);
+            }
+
+            bool Computed(size_t index) const
+            {
+                return m_computed[index];
+            }
+
+            LinkValue Link(size_t index) const
+            {
+                const auto& result = m_tracker.m_results[m_tracker.m_resultIndices[index + 1]];
+                return {static_cast<size_t>(result.m_parent) - 1, result.m_delta, result.m_small};
+            }
+
+            void Put(size_t index, LinkValue link)
+            {
+                const auto bin = index + 1;
+                const auto slot = m_tracker.m_size;
+                auto& result = m_tracker.m_results[slot];
+                result.m_bin = static_cast<int16_t>(bin);
+                result.m_parent = static_cast<int16_t>(link.m_root + 1);
+                result.m_delta = link.m_delta;
+                result.m_small = link.m_small;
+                m_tracker.m_resultIndices[bin] = static_cast<uint16_t>(slot);
+                ++m_tracker.m_size;
+                m_computed[index] = true;
+            }
+
+            void Push(EntryValue entry)
+            {
+                m_queue.Push(Entry(static_cast<int16_t>(entry.m_bin + 1), entry.m_previous, entry.m_magnitude));
+            }
+
+            PopResult Pop()
+            {
+                if (m_queue.IsEmpty())
+                {
+                    return {false, {}};
+                }
+
+                const auto entry = m_queue.Pop();
+                return {true, {static_cast<size_t>(entry.m_bin) - 1, entry.m_isPrev, entry.m_magnitude}};
+            }
+
+            Number NextPhase()
+            {
+                return m_draw();
+            }
+        };
+
+        template<typename Draw>
+        void AnalyzeStorage(Draw draw, bool schmitt, double fixedFloor)
+        {
+            struct InputView
+            {
+                double m_hop;
+                bool m_schmitt;
+                double m_fixedFloor;
+            };
+
+            using Kernel = std::conditional_t<std::is_same_v<Number, float>, AnalyzePVDR32, AnalyzePVDR64>;
+            Storage<Draw> storage{*this, draw, {}, {}};
+            Kernel::Process(storage, InputView{static_cast<double>(x_H), schmitt, fixedFloor});
+        }
+
+        template<typename Draw>
+        void AnalyzeStorage(Draw draw)
+        {
+            AnalyzeStorage(draw, true, 0.0);
+        }
+
+        void AnalyzeWithFloor(double floor)
+        {
+            RGen random;
+            AnalyzeStorage([&]() { return random.UniGenRange(-0.5f, 0.5f); }, false, floor);
         }
 
         void Analyze()
         {
-            PriorityQueue<Entry, x_maxComponents * 2> queue;
-            bool computed[x_maxComponents];
-            Number maxMag = 0.0;
-            for (size_t i = 1; i < x_maxComponents; ++i)
-            {
-                maxMag = std::max(maxMag, m_owner->m_analysisMagnitudes[i][m_channel]);
-                maxMag = std::max(maxMag, m_owner->m_prevAnalysisMagnitudes[i][m_channel]);
-            }
-
-            Number triggerMagnitude = maxMag * x_triggerMagnitudeRatio;
-            Number lowMagnitude = maxMag * x_lowMagnitudeRatio;
-            RGen rgen;
-            for (size_t i = 1; i < x_maxComponents; ++i)
-            {
-                Number mag = m_owner->m_analysisMagnitudes[i][m_channel];
-                GateState& state = m_gate[i];
-                if (state == GateState::Triggered)
-                {
-                    state = GateState::High;
-                }
-
-                if (mag <= 0 || mag < lowMagnitude)
-                {
-                    state = GateState::Low;
-                }
-                else if (state == GateState::Low && mag > triggerMagnitude)
-                {
-                    state = GateState::Triggered;
-                }
-
-                if (state == GateState::Low)
-                {
-                    computed[i] = true;
-                    PushResult(i, i, rgen.UniGenRange(-0.5, 0.5), rgen, true);
-                }
-                else
-                {
-                    computed[i] = false;
-                    queue.Push(MakeEntry(i, true));
-                }
-            }
-
-            constexpr float N = static_cast<float>(x_tableSize);
-            constexpr float H = N / static_cast<float>(x_hopDenom);
-
-            while (!queue.IsEmpty())
-            {
-                Entry entry = queue.Pop();               
-
-                if (entry.m_isPrev)
-                {
-                    if (!computed[entry.m_bin])
-                    {
-                        PushResult(entry.m_bin, entry.m_bin, m_owner->m_omegaInstantaneous[entry.m_bin][m_channel] * H, rgen, false);
-                        computed[entry.m_bin] = true;
-                        queue.Push(MakeEntry(entry.m_bin, false));
-                    }
-                }
-                else
-                {
-                    if (entry.m_bin + 1 < x_maxComponents && !computed[entry.m_bin + 1])
-                    {
-                        PushResult(
-                            entry.m_bin + 1, 
-                            entry.m_bin, 
-                            m_owner->m_analysisPhase[entry.m_bin + 1][m_channel] - m_owner->m_analysisPhase[entry.m_bin][m_channel],
-                            rgen,
-                            false);
-                        computed[entry.m_bin + 1] = true;
-                        queue.Push(MakeEntry(entry.m_bin + 1, false));
-                    }
-
-                    if (0 < entry.m_bin - 1 && !computed[entry.m_bin - 1])
-                    {
-                        PushResult(
-                            entry.m_bin - 1, 
-                            entry.m_bin, 
-                            m_owner->m_analysisPhase[entry.m_bin - 1][m_channel] - m_owner->m_analysisPhase[entry.m_bin][m_channel],
-                            rgen,
-                            false);
-                        computed[entry.m_bin - 1] = true;
-                        queue.Push(MakeEntry(entry.m_bin - 1, false));
-                    }
-                }
-            }
-        }
-
-        void PushResult(int16_t bin, int16_t parent, double delta, RGen& rgen, bool small)
-        {
-            if (parent != bin)
-            {
-                uint16_t parentResultIdx = m_resultIndices[parent];
-                if (m_results[parentResultIdx].m_bin != m_results[parentResultIdx].m_parent)
-                {
-                    delta = delta + m_results[parentResultIdx].m_delta;
-                }
-
-                parent = m_results[parentResultIdx].m_parent;
-                double omegaInstantaneous = m_owner->m_omegaInstantaneous[parent][m_channel];
-                bool willAlias = ResynthesizerGeneric::WillAlias(omegaInstantaneous, bin);
-                if (willAlias && false)
-                {
-                    delta = rgen.UniGenRange(-0.5, 0.5);
-                    parent = bin;
-                    small = true;
-                }
-            }
-
-            m_results[m_size].m_bin = bin;
-            m_results[m_size].m_parent = parent;
-            m_results[m_size].m_delta = delta;
-            m_results[m_size].m_small = small;
-            m_resultIndices[bin] = m_size;
-            ++m_size;
-        }
-
-        void AnalyzeNaive()
-        {
-            constexpr float N = static_cast<float>(x_tableSize);
-            constexpr float H = N / static_cast<float>(x_hopDenom);
-
-            RGen rgen;
-
-            for (size_t i = 1; i < x_maxComponents; ++i)
-            {
-                PushResult(i, i, m_owner->m_omegaInstantaneous[i][m_channel] * H, rgen, false);
-            }
+            RGen random;
+            AnalyzeStorage([&]() { return random.UniGenRange(-0.5f, 0.5f); });
         }
 
         bool IsLeader(int16_t bin)
@@ -374,15 +342,6 @@ struct ResynthesizerGeneric
             m_size = 0;
         }
 
-        void Reset()
-        {
-            Clear();
-            for (size_t bin = 0; bin < x_maxComponents; ++bin)
-            {
-                m_gate[bin] = GateState::Low;
-            }
-        }
-
         GateState m_gate[x_maxComponents]{};
         Result m_results[x_maxComponents];
         uint16_t m_resultIndices[x_maxComponents];
@@ -393,236 +352,414 @@ struct ResynthesizerGeneric
 
     struct Oscillator
     {
-        using Input = ResynthesizerOscillatorInput;
-        static constexpr size_t x_numShifts = Input::x_numShifts;
-
-        Oscillator(ResynthesizerGeneric* owner)
+        explicit Oscillator(ResynthesizerGeneric* owner)
             : m_owner(owner)
         {
-            Clear();
         }
 
-        void Clear()
+        void FixupPhases(const Vector& detune, PVDR* trackers)
         {
-            for (size_t i = 0; i < x_maxComponents; ++i)
-            {
-                m_synthesisPhase[i] = DoubleVector::Splat(0);
-            }
-        }
-
-        // Each channel follows its own propagation order, one PVDR per channel.
-        //
-        void FixupPhases(const Vector& detune, PVDR* pvdr)
-        {
-            for (size_t channel = 0; channel < Size; ++channel)
-            {
-                for (size_t i = 0; i < pvdr[channel].m_size; ++i)
-                {    
-                    typename PVDR::Result result = pvdr[channel].m_results[i];  
-                    double delta = result.m_delta;
-                    if (result.m_bin != result.m_parent)
-                    {
-                        m_owner->m_omegaInstantaneous[result.m_bin][channel] = m_owner->m_omegaInstantaneous[result.m_parent][channel];
-                    }
-                    else
-                    {
-                        delta *= detune[channel];
-                    }
-                    
-                    if (result.m_bin == result.m_parent &&
-                        pvdr[channel].m_gate[result.m_bin] == PVDR::GateState::Triggered)
-                    {
-                        m_synthesisPhase[result.m_bin][channel] = m_owner->m_analysisPhase[result.m_bin][channel];
-                    }
-                    else
-                    {
-                        m_synthesisPhase[result.m_bin][channel] = m_synthesisPhase[result.m_parent][channel] + delta;
-                    }
-                }
-            }
+            m_owner->RunSpectrum(SpectrumStage::Fixup, *this, m_owner->m_synthDft, trackers, nullptr, detune);
         }
 
         void SynthesizeNoShift(DFT& dft, const Vector& gain)
         {
-            for (size_t i = 1; i < x_maxComponents; ++i)
-            {
-                Vector mag = gain * m_owner->m_synthesisMagnitudes[i];
-                dft.m_components[i] += Math::Polar2pi(mag, m_synthesisPhase[i]);
-            }
-        }
-
-        void SynthesizeShiftedChannel(DFT& dft, size_t channel, Number gain, Q shift, PVDR& pvdr)
-        {
-            double shiftDouble = shift.ToDouble();
-            double phases[x_maxComponents];
-            int targetBins[x_maxComponents];
-            for (size_t i = 0; i < pvdr.m_size; ++i)
-            {
-                typename PVDR::Result result = pvdr.m_results[i];
-                if (result.m_small)
-                {
-                    continue;
-                }
-                
-                if (result.m_bin == result.m_parent)
-                {
-                    targetBins[result.m_bin] = BinOmega(m_owner->m_omegaInstantaneous[result.m_bin][channel] * shiftDouble);
-                    phases[result.m_bin] = m_synthesisPhase[result.m_bin][channel] * shiftDouble;    
-                }
-                else
-                {
-                    targetBins[result.m_bin] = targetBins[result.m_parent] - result.m_parent + result.m_bin;
-                    phases[result.m_bin] = phases[result.m_parent] + result.m_delta;
-                }
-
-                if (0 < targetBins[result.m_bin] && 
-                    targetBins[result.m_bin] < x_maxComponents &&
-                    !WillAlias(m_owner->m_omegaInstantaneous[result.m_parent][channel] * shiftDouble, targetBins[result.m_bin]))
-                {
-                    Number mag = gain * m_owner->m_synthesisMagnitudes[result.m_bin][channel];
-                    std::complex<float> component = Math::Polar2pi(mag, phases[result.m_bin]);
-                    ComplexVector& target = dft.m_components[targetBins[result.m_bin]];
-                    target.m_real[channel] += component.real();
-                    target.m_imag[channel] += component.imag();
-                }
-            }
-        }
-
-        static bool IsUnity(Q shift)
-        {
-            return shift.m_num == 1 && shift.m_denom == 1;
-        }
-
-        // Unshifted channels synthesize together. Shifted channels scatter into
-        // their own target bins.
-        //
-        void SynthesizeSingleShift(DFT& dft, const Vector& gain, const Q* shift, PVDR* pvdr)
-        {
-            Vector unshiftedGain = Vector::Splat(0);
-            bool anyUnshifted = false;
-            for (size_t channel = 0; channel < Size; ++channel)
-            {
-                if (IsUnity(shift[channel]))
-                {
-                    unshiftedGain[channel] = gain[channel];
-                    anyUnshifted = true;
-                }
-            }
-
-            if (anyUnshifted)
-            {
-                SynthesizeNoShift(dft, unshiftedGain);
-            }
-
-            for (size_t channel = 0; channel < Size; ++channel)
-            {
-                if (!IsUnity(shift[channel]))
-                {
-                    SynthesizeShiftedChannel(dft, channel, gain[channel], shift[channel], pvdr[channel]);
-                }
-            }
-        }
-
-        static void ApplyShiftCoefficient(DFT& dft, double exactIndex, std::complex<float> coefficient)
-        {
-            static_assert(Size == 1, "ApplyShiftCoefficient is mono only");
-            size_t loIndex = static_cast<size_t>(exactIndex);
-            size_t hiIndex = loIndex + 1;
-            float hiFrac = static_cast<float>(exactIndex - loIndex);
-            float loFrac = 1.0f - hiFrac;
-
-            if (0 < loIndex && loIndex < x_maxComponents)
-            {
-                dft.m_components[loIndex] += coefficient * loFrac;
-            }
-            else if (loIndex == 0)
-            {
-                dft.m_components[hiIndex] += coefficient * loFrac;
-            }
-
-            if (0 < hiIndex && hiIndex < x_maxComponents)
-            {
-                dft.m_components[hiIndex] += coefficient * hiFrac;
-            }
-            else if (hiIndex == x_maxComponents)
-            {
-                dft.m_components[loIndex] += coefficient * hiFrac;
-            }
-        }
-
-        // One input per channel.
-        //
-        void Synthesize(DFT& dft, const Input* input, PVDR* pvdr)
-        {
-            for (size_t i = 0; i < x_numShifts; ++i)
-            {
-                Vector gain;
-                Q shift[Size];
-                for (size_t channel = 0; channel < Size; ++channel)
-                {
-                    gain[channel] = input[channel].m_gain[i];
-                    shift[channel] = input[channel].m_shift[i];
-                }
-
-                SynthesizeSingleShift(dft, gain, shift, pvdr);
-            }
+            m_owner->RunSpectrum(SpectrumStage::Dry, *this, dft, m_owner->m_pvdr, nullptr, gain);
         }
 
         DoubleVector m_synthesisPhase[x_maxComponents];
         ResynthesizerGeneric* m_owner;
     };
 
-    void ClearChannel(size_t channel)
+    struct SpectrumStorage
     {
-        for (size_t i = 0; i < x_maxComponents; ++i)
+        struct PitchValue
         {
-            m_synthesisMagnitudes[i][channel] = 0;
-            m_analysisMagnitudes[i][channel] = 0;
-            m_prevAnalysisMagnitudes[i][channel] = 0;
-            m_omegaInstantaneous[i][channel] = 0;
-            m_analysisPhase[i][channel] = 0;
-            m_prevAnalysisPhase[i][channel] = 0;
-            for (size_t oscillator = 0; oscillator < x_numOscillators; ++oscillator)
+            int64_t m_numerator;
+            int64_t m_denominator;
+        };
+
+        struct ControlValue
+        {
+            PitchValue m_shift;
+            Number m_fade;
+            Number m_unisonGain;
+            Number m_unisonDetune;
+            Number m_slewUp;
+        };
+
+        struct LinkValue
+        {
+            size_t m_root;
+            double m_delta;
+            bool m_small;
+        };
+
+        struct VisitValue
+        {
+            size_t m_bin;
+            LinkValue m_link;
+        };
+
+        struct CoefficientValue
+        {
+            Number m_real;
+            Number m_imag;
+        };
+
+        ResynthesizerGeneric& m_owner;
+        const Input* m_controls;
+        DFT& m_output;
+        PVDR* m_trackers;
+        const Vector& m_drive;
+
+        ControlValue Controls(size_t lane) const
+        {
+            const auto& control = m_controls[lane];
+            return {{control.m_shift[0].m_num, control.m_shift[0].m_denom}, control.m_fade[0],
+                control.m_unisonGain, control.m_unisonDetune, control.m_slewUp};
+        }
+
+        size_t GraphSize(size_t lane) const
+        {
+            return m_trackers[lane].m_size;
+        }
+
+        VisitValue VisitAt(size_t lane, size_t index) const
+        {
+            const auto& result = m_trackers[lane].m_results[index];
+            return {static_cast<size_t>(result.m_bin) - 1,
+                {static_cast<size_t>(result.m_parent) - 1, result.m_delta, result.m_small}};
+        }
+
+        unsigned Gate(size_t lane, size_t bin) const
+        {
+            return static_cast<unsigned>(m_trackers[lane].m_gate[bin + 1]);
+        }
+
+        Number AnalysisPhase(size_t lane, size_t bin) const
+        {
+            return m_owner.m_analysisPhase[bin + 1][lane];
+        }
+
+        double Omega(size_t lane, size_t bin) const
+        {
+            return m_owner.m_omegaInstantaneous[bin + 1][lane];
+        }
+
+        void SetOmega(size_t lane, size_t bin, double omega)
+        {
+            m_owner.m_omegaInstantaneous[bin + 1][lane] = omega;
+        }
+
+        Number SynthesisMagnitude(size_t lane, size_t bin) const
+        {
+            return m_owner.SynthesisMagnitudes()[bin + 1][lane];
+        }
+
+        double Phase(size_t lane, size_t oscillator, size_t bin) const
+        {
+            return m_owner.m_oscillators[oscillator].m_synthesisPhase[bin + 1][lane];
+        }
+
+        void SetPhase(size_t lane, size_t oscillator, size_t bin, double phase)
+        {
+            m_owner.m_oscillators[oscillator].m_synthesisPhase[bin + 1][lane] = phase;
+        }
+
+        void ClearOutput()
+        {
+            m_output.Init();
+        }
+
+        CoefficientValue Coefficient(size_t lane, size_t bin) const
+        {
+            const auto& value = m_output.m_components[bin + 1];
+            return {value.m_real[lane], value.m_imag[lane]};
+        }
+
+        void SetCoefficient(size_t lane, size_t bin, CoefficientValue value)
+        {
+            auto& coefficient = m_output.m_components[bin + 1];
+            coefficient.m_real[lane] = value.m_real;
+            coefficient.m_imag[lane] = value.m_imag;
+        }
+
+        static CoefficientValue Polar(Number radius, double angle)
+        {
+            const auto value = Math::Polar2pi(static_cast<float>(radius), angle);
+            return {value.real(), value.imag()};
+        }
+
+        static int64_t Round(double value)
+        {
+            // The next Lean operation clamps to the positive spectrum bounds.
+            // Saturate before the native integer conversion.
+            //
+            const double extent = static_cast<double>(x_tableSize);
+            const double rounded = std::isnan(value) ? 0.0 : std::round(value);
+            return static_cast<int64_t>(std::clamp(rounded, -extent, extent));
+        }
+
+        Number Drive(size_t lane) const
+        {
+            return m_drive[lane];
+        }
+
+        static double Ratio(PitchValue shift)
+        {
+            return static_cast<double>(shift.m_numerator) / static_cast<double>(shift.m_denominator);
+        }
+    };
+
+    enum class SpectrumStage : unsigned
+    {
+        Spectrum,
+        Fixup,
+        Dry
+    };
+
+    void RunSpectrum(SpectrumStage stage, Oscillator& oscillator, DFT& output, PVDR* trackers,
+        const Input* controls, const Vector& drive)
+    {
+        struct InputView
+        {
+            unsigned m_stage;
+            size_t m_count;
+            size_t m_oscillator;
+        };
+
+        static_assert(Size <= 4);
+        using Kernel = std::conditional_t<std::is_same_v<Number, float>, SynthesizeSpectrum32, SynthesizeSpectrum64>;
+        SpectrumStorage storage{*this, controls, output, trackers, drive};
+        Kernel::Process(storage, InputView{static_cast<unsigned>(stage), Size,
+            static_cast<size_t>(&oscillator - m_oscillators)});
+    }
+
+    struct FramePorts
+    {
+        Buffer* m_previous;
+        Buffer* m_current;
+        DFT* m_dft;
+        SynthesisFrame* m_frame;
+        const Input* m_controls;
+        PVDR* m_trackers;
+    };
+
+    struct FrameStorage
+    {
+        struct MeasurementValue
+        {
+            Number m_magnitude;
+            Number m_phase;
+        };
+
+        ResynthesizerGeneric& m_owner;
+        FramePorts m_ports;
+
+        void FFT(bool previous)
+        {
+            auto& buffer = previous ? *m_ports.m_previous : *m_ports.m_current;
+            m_ports.m_dft->Transform(buffer, m_owner.m_workspace);
+        }
+
+        void IFFT()
+        {
+            m_owner.m_synthDft.InverseTransform(*m_ports.m_frame, x_maxComponents, m_owner.m_workspace);
+        }
+
+        MeasurementValue Measurement(size_t lane, size_t bin) const
+        {
+            const auto component = m_ports.m_dft->m_components[bin + 1][lane];
+            const auto real = component.real();
+            const auto imag = component.imag();
+            return {std::sqrt(real * real + imag * imag),
+                static_cast<Number>(static_cast<double>(std::atan2(imag, real)) / (2.0 * M_PI))};
+        }
+
+        Number PreviousPhase(size_t lane, size_t bin) const
+        {
+            return m_owner.m_prevAnalysisPhase[bin + 1][lane];
+        }
+
+        MeasurementValue Current(size_t lane, size_t bin) const
+        {
+            return {m_owner.AnalysisMagnitudes()[bin + 1][lane], m_owner.m_analysisPhase[bin + 1][lane]};
+        }
+
+        void SetPrevious(size_t lane, size_t bin, MeasurementValue value)
+        {
+            m_owner.m_prevAnalysisMagnitudes[bin + 1][lane] = value.m_magnitude;
+            m_owner.m_prevAnalysisPhase[bin + 1][lane] = value.m_phase;
+        }
+
+        void SetCurrent(size_t lane, size_t bin, MeasurementValue value, double frequency)
+        {
+            m_owner.AnalysisMagnitudes()[bin + 1][lane] = value.m_magnitude;
+            m_owner.m_analysisPhase[bin + 1][lane] = value.m_phase;
+            m_owner.m_omegaInstantaneous[bin + 1][lane] = frequency;
+        }
+
+        Number Magnitude(size_t lane, size_t bin) const
+        {
+            return m_owner.SynthesisMagnitudes()[bin + 1][lane];
+        }
+
+        void SetMagnitude(size_t lane, size_t bin, Number value)
+        {
+            m_owner.SynthesisMagnitudes()[bin + 1][lane] = value;
+        }
+
+        Number SlewCutoff(size_t lane) const
+        {
+            return m_owner.m_slewCutoff[lane];
+        }
+
+        void PrepareSlew(size_t lane)
+        {
+            m_owner.m_slewCutoff[lane] = m_ports.m_controls[lane].m_slewUp;
+        }
+
+        static Number SlewCoefficient(Number cutoff)
+        {
+            using Filter = OPLowPassFilterGeneric<Number, 1>;
+            return Filter::AlphaFromNatFreqApprox(Filter::Vector::Splat(cutoff))[0];
+        }
+
+        Number GetSample(size_t lane, size_t sample) const
+        {
+            return m_ports.m_frame->m_table[sample][lane];
+        }
+
+        void PutSample(size_t lane, size_t sample, Number value)
+        {
+            m_ports.m_frame->m_table[sample][lane] = value;
+        }
+
+        static Number Window(size_t sample)
+        {
+            return MathGeneric<x_synthesisBits>::Hann(sample);
+        }
+
+        void AnalyzeGraph(size_t lane)
+        {
+            auto& tracker = m_ports.m_trackers[lane];
+            tracker.Clear();
+            tracker.Analyze();
+        }
+
+        void Synthesize(size_t count)
+        {
+            assert(count == Size);
+            static_cast<void>(count);
+            m_owner.RunSpectrum(SpectrumStage::Spectrum, m_owner.m_oscillators[0], m_owner.m_synthDft,
+                m_ports.m_trackers, m_ports.m_controls, Vector::Splat(0));
+        }
+
+        template<typename Table>
+        static void FillLane(Table& table, size_t lane)
+        {
+            for (auto& value : table)
             {
-                m_oscillators[oscillator].m_synthesisPhase[i][channel] = 0;
+                value[lane] = 0;
             }
         }
 
-        m_slewUpAlpha[channel] = 0;
-        m_pvdr[channel].Reset();
+        void ClearAnalysisMagnitude(size_t lane)
+        {
+            FillLane(m_owner.AnalysisMagnitudes(), lane);
+        }
+
+        void ClearPreviousMagnitude(size_t lane)
+        {
+            FillLane(m_owner.m_prevAnalysisMagnitudes, lane);
+        }
+
+        void ClearAnalysisPhase(size_t lane)
+        {
+            FillLane(m_owner.m_analysisPhase, lane);
+        }
+
+        void ClearPreviousPhase(size_t lane)
+        {
+            FillLane(m_owner.m_prevAnalysisPhase, lane);
+        }
+
+        void ClearOmega(size_t lane)
+        {
+            FillLane(m_owner.m_omegaInstantaneous, lane);
+        }
+
+        void ClearOscillatorPhase(size_t lane, size_t oscillator)
+        {
+            FillLane(m_owner.m_oscillators[oscillator].m_synthesisPhase, lane);
+        }
+
+        void ClearGates(size_t lane)
+        {
+            std::fill_n(m_ports.m_trackers[lane].m_gate, x_maxComponents, PVDR::GateState::Low);
+        }
+
+        void ClearOrder(size_t lane)
+        {
+            m_ports.m_trackers[lane].Clear();
+        }
+
+        void ClearMagnitude(size_t lane)
+        {
+            FillLane(m_owner.SynthesisMagnitudes(), lane);
+        }
+
+        void SetSlewCutoff(size_t lane, Number cutoff)
+        {
+            m_owner.m_slewCutoff[lane] = cutoff;
+        }
+    };
+
+    enum class FrameStage : unsigned
+    {
+        Process,
+        Synthesize,
+        Analyze,
+        Prime,
+        PrimeSpectrum,
+        Measure,
+        Copy,
+        UpdateFrequency,
+        Clear,
+        ClearChannel,
+        RenderCurrent
+    };
+
+    void RunFrame(FrameStage stage, FramePorts ports, size_t lane, size_t bin)
+    {
+        struct InputView
+        {
+            unsigned m_stage;
+            size_t m_count;
+            size_t m_frameSize;
+            size_t m_lane;
+            size_t m_bin;
+        };
+
+        using Kernel = std::conditional_t<std::is_same_v<Number, float>, ResynthesisFrame32, ResynthesisFrame64>;
+        FrameStorage storage{*this, ports};
+        Kernel::Process(storage, InputView{static_cast<unsigned>(stage), Size, x_synthesisFrameSize, lane, bin});
+    }
+
+    void ClearChannel(size_t channel)
+    {
+        RunFrame(FrameStage::ClearChannel, {nullptr, nullptr, nullptr, nullptr, nullptr, m_pvdr}, channel, 0);
     }
 
     void Clear()
     {
-        for (size_t channel = 0; channel < Size; ++channel)
-        {
-            m_pvdr[channel].Reset();
-        }
-
-        for (size_t i = 0; i < x_numOscillators; ++i)
-        {
-            m_oscillators[i].Clear();
-        }
-
-        for (size_t i = 0; i < x_maxComponents; ++i)
-        {
-            m_analysisPhase[i] = Vector::Splat(0);
-            m_prevAnalysisPhase[i] = Vector::Splat(0);
-            m_analysisMagnitudes[i] = Vector::Splat(0);
-            m_prevAnalysisMagnitudes[i] = Vector::Splat(0);
-            m_omegaInstantaneous[i] = DoubleVector::Splat(0);
-        }
+        RunFrame(FrameStage::Clear, {nullptr, nullptr, nullptr, nullptr, nullptr, m_pvdr}, 0, 0);
     }
 
     ResynthesizerGeneric()
-        : m_oscillators{ Oscillator(this), Oscillator(this), Oscillator(this) }
+        : m_oscillators{Oscillator(this), Oscillator(this), Oscillator(this)}
     {
-        m_slewUpAlpha = Vector::Splat(0);
-        for (size_t i = 0; i < x_maxComponents; ++i)
-        {
-            m_synthesisMagnitudes[i] = Vector::Splat(0);
-        }
-
         for (size_t channel = 0; channel < Size; ++channel)
         {
             m_pvdr[channel].m_owner = this;
@@ -637,258 +774,59 @@ struct ResynthesizerGeneric
 
     void SetSlewUp(const Vector& cyclesPerSample)
     {
-        Vector alpha = OPLowPassFilterGeneric<Number, Size>::AlphaFromNatFreqApprox(cyclesPerSample);
-        for (size_t channel = 0; channel < Size; ++channel)
-        {
-            m_slewUpAlpha[channel] = cyclesPerSample[channel] >= x_immediateSlewUp ? static_cast<Number>(1) : alpha[channel];
-        }
-    }
-
-    // Analysis phase in cycles. Divides in double, as std::arg / (2.0f * M_PI)
-    // did.
-    //
-    static Vector AnalysisPhase(const ComplexVector& component)
-    {
-        return (component.Arg().template Convert<double>() / (2.0 * M_PI)).template Convert<Number>();
+        m_slewCutoff = cyclesPerSample;
     }
 
     void PrimePhases(DFT& dft)
     {
-        for (size_t i = 1; i < x_maxComponents; ++i)
-        {
-            m_prevAnalysisPhase[i] = AnalysisPhase(dft.m_components[i]);
-            m_prevAnalysisMagnitudes[i] = dft.m_components[i].Abs();
-        }
+        RunFrame(FrameStage::PrimeSpectrum, {nullptr, nullptr, &dft, nullptr, nullptr, m_pvdr}, 0, 0);
     }
 
     void PrimeFromPrevious()
     {
-        for (size_t i = 1; i < x_maxComponents; ++i)
-        {
-            m_prevAnalysisPhase[i] = m_analysisPhase[i];
-            m_prevAnalysisMagnitudes[i] = m_analysisMagnitudes[i];
-        }
+        RunFrame(FrameStage::Copy, {nullptr, nullptr, nullptr, nullptr, nullptr, m_pvdr}, 0, 0);
     }
 
     void ProcessPhases(DFT& dft)
     {
-        for (size_t i = 1; i < x_maxComponents; ++i)
-        {
-            m_analysisMagnitudes[i] = dft.m_components[i].Abs();
-            const Vector& source = m_synthesisMagnitudes[i];
-            const Vector& target = m_analysisMagnitudes[i];
-            m_synthesisMagnitudes[i] = Vector::IfLess(source, target, source + (target - source) * m_slewUpAlpha, target);
-            m_analysisPhase[i] = AnalysisPhase(dft.m_components[i]);
-            SetAnalysisOmega(i);
-        }
-    }
-
-    static float OmegaBin(int bin)
-    {
-        return static_cast<float>(bin) / x_tableSize;
-    }
-
-    static int BinOmega(double omega)
-    {
-        return std::min<int>(std::max<int>(1, static_cast<int>(std::round(omega * x_tableSize))), x_tableSize - 1);
-    }
-
-    static bool WillAlias(double omegaInstantaneous, int bin)
-    {
-        bool result = 0.5f / x_H < std::abs(omegaInstantaneous - OmegaBin(bin));
-        return result;
+        RunFrame(FrameStage::Measure, {nullptr, nullptr, &dft, nullptr, nullptr, m_pvdr}, 0, 0);
     }
 
     static double PrincArg(double arg)
     {
-        arg = (arg - std::floor(arg));
-        if (0.5f < arg)
-        {
-            arg -= 1.0f;
-        }
-
-        return arg;
-    }
-
-    static DoubleVector PrincArg(const DoubleVector& arg)
-    {
-        DoubleVector wrapped = arg - arg.Floor();
-        return DoubleVector::IfLess(DoubleVector::Splat(0.5f), wrapped, wrapped - 1.0f, wrapped);
-    }
-
-    static double LerpPhase(double phi1, double phi2, double alpha)
-    {
-        double diff = phi2 - phi1;
-        diff = PrincArg(diff);
-        return phi1 + alpha * diff;
+        double wrapped = arg - std::floor(arg);
+        return 0.5 < wrapped ? wrapped - 1.0 : wrapped;
     }
 
     void SetAnalysisOmega(int bin)
     {
-        double omegaBin = OmegaBin(bin);
-        double deltaPhiExpected = omegaBin * x_H;
-        // Preserve the measured phase difference through wrapping and frequency storage.
-        //
-        DoubleVector deltaPhi = m_analysisPhase[bin].template Convert<double>() - m_prevAnalysisPhase[bin].template Convert<double>();
-        
-        deltaPhi = PrincArg(deltaPhi - deltaPhiExpected);
-        
-        m_omegaInstantaneous[bin] = deltaPhi / x_H + omegaBin;
+        RunFrame(FrameStage::UpdateFrequency, {nullptr, nullptr, nullptr, nullptr, nullptr, m_pvdr},
+            0, static_cast<size_t>(bin - 1));
     }
 
-    void SpectralDistortion(DFT& dft, Input& input)
+    void Analyze(PVDR* trackers, Buffer& buffer)
     {
-        static_assert(Size == 1, "SpectralDistortion is mono only");
-        float rmsTotal = 0.0f;
-        float rmsQuiet = 1e-6f;
-        float rmsLoud = 1e-6f;
-
-        for (size_t i = 1; i < x_maxComponents; ++i)
-        {
-            float rms = dft.m_components[i][0].real() * dft.m_components[i][0].real() + dft.m_components[i][0].imag() * dft.m_components[i][0].imag();
-            if (rms < input.m_rmsQuiet * input.m_rmsThreshold)
-            {
-                rmsQuiet += rms;
-            }
-            
-            if (input.m_rmsLoud * input.m_rmsThreshold < rms)
-            {
-                rmsLoud += rms - input.m_rmsLoud * input.m_rmsThreshold;
-            }
-
-            rmsTotal += rms;
-        }
-
-        if (rmsTotal < input.m_rmsThreshold)
-        {
-            return;
-        }
-
-        float quietReduction = std::max(0.0f, std::sqrt((input.m_rmsThreshold - rmsTotal + rmsQuiet) / rmsQuiet));
-        rmsTotal = rmsTotal + (quietReduction * quietReduction - 1.0f) * rmsQuiet;
-
-        float loudReduction = 1.0;
-        if (input.m_rmsThreshold < rmsTotal)
-        {
-            loudReduction = std::max(0.0f, (input.m_rmsThreshold - rmsTotal + rmsLoud) / rmsLoud);
-        }
-
-        std::complex<float> shiftCoefficient[x_maxComponents];
-        bool anyShift = false;
-        for (size_t i = 1; i < x_maxComponents; ++i)
-        {
-            float rms = dft.m_components[i][0].real() * dft.m_components[i][0].real() + dft.m_components[i][0].imag() * dft.m_components[i][0].imag();
-            shiftCoefficient[i] = std::complex<float>(0, 0);
-            if (rms < input.m_rmsQuiet * input.m_rmsThreshold)
-            {
-                dft.m_components[i] *= quietReduction;
-            }           
-            else if (loudReduction < 1 && input.m_rmsLoud * input.m_rmsThreshold < rms)
-            {
-                float thresh = input.m_rmsLoud * input.m_rmsThreshold;
-                float factor = std::sqrt((thresh + (rms - thresh) * loudReduction) / rms);
-                if (0 < input.m_loudShift)
-                {
-                    anyShift = true;
-                    float mag = std::sqrt(rms);
-                    float shiftMag = mag * (1 - factor) * input.m_loudShift;
-                    shiftCoefficient[i] = std::pow(dft.m_components[i][0] / mag, input.m_shift[0].ToDouble());
-                    shiftCoefficient[i] *= std::complex<float>(shiftMag, 0);
-                }
-
-                dft.m_components[i] *= factor;
-            }
-        }
-
-        if (anyShift)
-        {
-            for (size_t i = 1; i < x_maxComponents; ++i)
-            {
-                float exactIndex = static_cast<double>(i) * input.m_shift[0].ToDouble();
-                Oscillator::ApplyShiftCoefficient(dft, exactIndex, shiftCoefficient[i]);
-            }
-        }
-    }
-
-    // One PVDR per channel.
-    //
-    void Analyze(PVDR* pvdr, Buffer& buffer)
-    {
-        for (size_t channel = 0; channel < Size; ++channel)
-        {
-            pvdr[channel].Clear();
-        }
-
-        m_analysisDft.Transform(buffer, m_workspace);
-        ProcessPhases(m_analysisDft);
-        for (size_t channel = 0; channel < Size; ++channel)
-        {
-            pvdr[channel].Analyze();
-        }
-    }
-
-    void PrimeAndAnalyze(PVDR* pvdr, Buffer& buffer)
-    {
-        PrimeFromPrevious();
-        Analyze(pvdr, buffer);
+        RunFrame(FrameStage::Analyze, {nullptr, &buffer, &m_analysisDft, nullptr, nullptr, trackers}, 0, 0);
     }
 
     void PrimeAnalysis(Buffer& waveTable)
     {
-        m_analysisDft.Transform(waveTable, m_workspace);
-        PrimePhases(m_analysisDft);
-    }        
-
-    // Analyzes a Hann-windowed host-rate buffer and writes the Hann-windowed
-    // engine-rate synthesis frame. One input per channel.
-    //
-    void Synthesize(Buffer& buffer, SynthesisFrame& frame, Input* input)
-    {        
-        Vector slewUp;
-        for (size_t channel = 0; channel < Size; ++channel)
-        {
-            slewUp[channel] = input[channel].m_slewUp;
-        }
-
-        SetSlewUp(slewUp);
-
-        Analyze(m_pvdr, buffer);
-                
-        for (size_t i = 0; i < x_numOscillators; ++i)
-        {
-            Vector detune;
-            for (size_t channel = 0; channel < Size; ++channel)
-            {
-                detune[channel] = input[channel].GetUnisonDetune(i);
-            }
-
-            m_oscillators[i].FixupPhases(detune, m_pvdr);
-        }
-
-        m_synthDft.Init();
-        for (size_t i = 0; i < x_numOscillators; ++i)
-        {
-            typename Oscillator::Input oscillatorInput[Size];
-            for (size_t channel = 0; channel < Size; ++channel)
-            {
-                oscillatorInput[channel] = input[channel].MakeOscillatorInput(i);
-            }
-
-            m_oscillators[i].Synthesize(m_synthDft, oscillatorInput, m_pvdr);        
-        }
-
-        //SpectralDistortion(m_synthDft, input[0]);
-
-        m_synthDft.InverseTransform(frame, x_maxComponents, m_workspace);
-        MathGeneric<x_synthesisBits>::Hann(frame);
+        RunFrame(FrameStage::Prime, {&waveTable, nullptr, &m_analysisDft, nullptr, nullptr, m_pvdr}, 0, 0);
     }
 
-    // One input per channel.
-    //
+    void Synthesize(Buffer& buffer, SynthesisFrame& frame, Input* input)
+    {
+        RunFrame(FrameStage::RenderCurrent, {nullptr, &buffer, &m_analysisDft, &frame, input, m_pvdr}, 0, 0);
+    }
+
+    void SynthesizeSpectrum(const Input* input)
+    {
+        RunFrame(FrameStage::Synthesize, {nullptr, nullptr, nullptr, nullptr, input, m_pvdr}, 0, 0);
+    }
+
     void Process(Buffer& previousWaveTable, Buffer& buffer, SynthesisFrame& frame, Input* input)
     {
-        PrimeAnalysis(previousWaveTable);
-        Synthesize(buffer, frame, input);
+        RunFrame(FrameStage::Process, {&previousWaveTable, &buffer, &m_analysisDft, &frame, input, m_pvdr}, 0, 0);
     }
 
     void PrintTopStuff()
@@ -898,7 +836,7 @@ struct ResynthesizerGeneric
             double maxMag = 0.0;
             for (size_t i = 1; i < x_maxComponents; ++i)
             {
-                maxMag = std::max<double>(maxMag, m_synthesisMagnitudes[i][channel]);
+                maxMag = std::max<double>(maxMag, SynthesisMagnitudes()[i][channel]);
             }
 
             if (maxMag < 1e-4)
@@ -909,10 +847,10 @@ struct ResynthesizerGeneric
             INFO("========================");
             for (size_t i = 1; i < x_maxComponents; ++i)
             {
-                if (m_synthesisMagnitudes[i][channel] > maxMag / 10)
+                if (SynthesisMagnitudes()[i][channel] > maxMag / 10)
                 {
                     INFO("%p channel %zu High bin: %zu, mag: %f, omega instantaneous: %f, an phase: %f, synth phase: %f", 
-                        this, channel, i, m_synthesisMagnitudes[i][channel], 
+                        this, channel, i, SynthesisMagnitudes()[i][channel],
                         m_omegaInstantaneous[i][channel], m_analysisPhase[i][channel], m_oscillators[0].m_synthesisPhase[i][channel]);
                 }
             }
@@ -933,9 +871,29 @@ struct ResynthesizerGeneric
         return x_H * SampleTimer::x_oversample;
     }
 
-    Vector m_synthesisMagnitudes[x_maxComponents];
-    Vector m_slewUpAlpha;
-    Vector m_analysisMagnitudes[x_maxComponents];
+    auto& SynthesisMagnitudes()
+    {
+        return m_synthesisMagnitudes;
+    }
+
+    const auto& SynthesisMagnitudes() const
+    {
+        return m_synthesisMagnitudes;
+    }
+
+    auto& AnalysisMagnitudes()
+    {
+        return m_analysisMagnitudes;
+    }
+
+    const auto& AnalysisMagnitudes() const
+    {
+        return m_analysisMagnitudes;
+    }
+
+    std::array<Vector, x_maxComponents> m_synthesisMagnitudes{};
+    std::array<Vector, x_maxComponents> m_analysisMagnitudes{};
+    Vector m_slewCutoff{};
     Vector m_prevAnalysisMagnitudes[x_maxComponents];
     DoubleVector m_omegaInstantaneous[x_maxComponents];
     Vector m_analysisPhase[x_maxComponents];

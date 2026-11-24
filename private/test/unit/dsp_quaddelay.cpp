@@ -67,7 +67,7 @@ DOCTEST_TEST_CASE("QuadDelay attack is immediate below 0.05 and resumes smoothin
             auto buffer = std::make_unique<Resynthesizer::Buffer>();
             auto frame = std::make_unique<Resynthesizer::SynthesisFrame>();
             buffer->m_table[Resynthesizer::x_N / 2] = 1.0f;
-            for (auto& magnitude : synth->m_synthesisMagnitudes)
+            for (auto& magnitude : synth->SynthesisMagnitudes())
             {
                 magnitude = 0.0f;
             }
@@ -75,8 +75,8 @@ DOCTEST_TEST_CASE("QuadDelay attack is immediate below 0.05 and resumes smoothin
             synth->Synthesize(*buffer, *frame, &delayInput.m_grainManagerInput.m_resynthInput[channel]);
             for (size_t bin : {size_t(1), size_t(85), Resynthesizer::x_maxComponents - 1})
             {
-                const float actual = synth->m_synthesisMagnitudes[bin][0];
-                const float target = synth->m_analysisMagnitudes[bin];
+                const float actual = synth->SynthesisMagnitudes()[bin][0];
+                const float target = synth->AnalysisMagnitudes()[bin];
                 DOCTEST_REQUIRE(target > 0.0f);
                 if (knob < 0.05f)
                 {

@@ -6,6 +6,8 @@ import DSP.Nonlinear
 import DSP.ChannelMean
 import DSP.DelayMath
 import DSP.DelayBuffer.Basic
+import DSP.Codegen.Control
+import DSP.Codegen.NativeBindings
 
 /-! A deliberately small backend for pure processor functions.
 It reads elaborated Lean definitions, resolves their arithmetic instances,
@@ -21,12 +23,17 @@ inductive Shape where
   | scalar (type : String)
   | record (fields : Array (String × Shape))
   | vector (size : Nat) (element : Shape)
+  | indexed (type : String) (element : Shape)
   deriving Inhabited
 
 inductive Value where
   | scalar (type text : String)
   | record (fields : Array Value)
   | vector (elements : Array Value)
+  | indexed (type : String) (element : Shape) (text : String)
+  | indexedWrite (type : String) (element : Shape) (base index : String) (value : Value)
+  | optional (present : String) (payload : Value)
+  | borrowed (text : String) (version : Nat)
   deriving Inhabited
 
 /-- A method or function supplied by a storage backend for a typed Lean
@@ -48,7 +55,10 @@ structure Emission where
   constants : Std.HashMap String (Float32 × Float) := {}
   /-- Only the fixed-capacity storage backend binds bounded indices to size_t. -/
   boundedIndices : Bool := false
+  checkedIndices : Bool := false
   calls : Array CallBinding := #[]
+  stateDialect : Bool := false
+  stateVersion : Nat := 0
   foldVectorConstants : Bool := false
 
 abbrev GenM := StateT Emission MetaM
@@ -65,6 +75,12 @@ initialize recordExports : SimplePersistentEnvExtension (Name × RecordExport) (
     addEntryFn := fun state (name, target) => state.insert name target
     addImportedFn := fun imports => imports.foldl (init := ∅) fun state entries =>
       entries.foldl (init := state) fun state (name, target) => state.insert name target }
+
+initialize compiledActions : SimplePersistentEnvExtension Name NameSet ←
+  registerSimplePersistentEnvExtension {
+    addEntryFn := NameSet.insert
+    addImportedFn := fun imports => imports.foldl (init := {}) fun state entries =>
+      entries.foldl (init := state) NameSet.insert }
 
 def emit (line : String) : GenM Unit := modify fun s => { s with lines := s.lines.push line }
 
@@ -172,7 +188,7 @@ def scheduleStores (lines : Array String) : Array String := Id.run do
   for i in [:body.size] do
     let line := body[i]!.trimAscii.toString
     if line == "{" then depth := depth + 1
-    if line == "}" then depth := depth - 1
+    if line.startsWith "}" then depth := depth - 1
     let next := (body.toList.drop (i+1)).find? (fun s => !s.trimAscii.isEmpty)
     let continues := next.any (fun s => #["else", "{"].contains s.trimAscii.toString)
     boundaries := boundaries.push (depth == 0 && !continues)
@@ -183,20 +199,33 @@ def scheduleStores (lines : Array String) : Array String := Id.run do
       let tokens := body[i]!.splitToList fun c => !(c.isAlphanum || c == '_')
       if (body[i]!.splitOn target).length > 1 || tokens.contains source then
         position := i + 1
-    while !boundaries[position]! do position := position + 1
+    while position < body.size && !boundaries[position]! do position := position + 1
     pending := pending.modify position (·.push line)
   let mut result := pending[0]!
   for i in [:body.size] do
     result := result.push body[i]! ++ pending[i+1]!
   return result
 
+def enumConstructors (name : Name) : MetaM (Option (Array Name)) := do
+  if name == ``Bool then return none
+  let .inductInfo info ← getConstInfo name | return none
+  if info.numParams != 0 || info.numIndices != 0 || info.ctors.length < 2 then return none
+  unless ← info.ctors.allM (fun ctor => return (← getConstInfoCtor ctor).numFields == 0) do
+    return none
+  return some info.ctors.toArray
+
 def scalarType (type : Expr) (numberType : Option Expr) : MetaM String := do
   let type ← whnf type
   if numberType == some type then return "Vector"
+  if type.isAppOfArity ``Fin 1 then return "size_t"
   match type with
   | .const ``Float _ => return "double"
   | .const ``Float32 _ => return "float"
   | .const ``Bool _ => return "bool"
+  | .const ``Int _ => return "std::int64_t"
+  | .const name _ =>
+    if (← enumConstructors name).isSome then return "unsigned"
+    throwError "C++ codegen: unsupported field type {type}; expected Float, Float32 or Bool"
   | _ => throwError "C++ codegen: unsupported field type {type}; expected Float, Float32 or Bool"
 
 def validIdentifier (s : String) : Bool :=
@@ -212,17 +241,35 @@ def finSize (type : Expr) : MetaM Nat := do
   unless n ≤ 256 do throwError "C++ codegen: vector dimension exceeds the 256-element export limit"
   return n
 
+partial def cppElementType (shape : Shape) (packed : Bool := false) : MetaM String := do
+  match shape with
+  | .scalar type | .indexed type _ => return type
+  | .vector n element => return s!"std::array<{← cppElementType element packed}, {n}>"
+  | .record fields =>
+    unless packed do throwError "C++ codegen: an array element needs a nameable C++ type"
+    let types ← fields.toList.mapM fun (_, field) => cppElementType field true
+    return s!"std::tuple<{String.intercalate ", " types}>"
+
 partial def fieldShape (type : Expr) (numberType : Option Expr)
     (numberName : String := "Vector") : MetaM Shape := do
   let type ← whnf type
   if numberType == some type then return .scalar numberName
+  if type.isConstOf ``PUnit then return .record #[]
+  if type.isAppOfArity ``Vector 2 then
+    let args := type.getAppArgs
+    let .lit (.natVal count) ← whnf args[1]!
+      | throwError "C++ codegen: indexed array capacity must be a literal: {args[1]!}"
+    let element ← fieldShape args[0]! numberType numberName
+    return .indexed s!"std::array<{← cppElementType element true}, {count}>" element
   if let .forallE _ domain body _ := type then
     unless !body.hasLooseBVars do throwError "C++ codegen: dependent vector elements are unsupported"
     return .vector (← finSize domain) (← fieldShape body numberType numberName)
-  if type.isConstOf ``Float || type.isConstOf ``Float32 || type.isConstOf ``Bool then
+  if type.isConstOf ``Float || type.isConstOf ``Float32 || type.isConstOf ``Bool || type.isConstOf ``Int ||
+      type.isAppOfArity ``Fin 1 then
     return .scalar (← scalarType type numberType)
   let .const name _ := type.getAppFn
     | throwError "C++ codegen: unsupported field type {type}"
+  if (← enumConstructors name).isSome then return .scalar "unsigned"
   let some info := getStructureInfo? (← getEnv) name
     | throwError "C++ codegen: unsupported field type {type}"
   if !info.parentInfo.isEmpty then
@@ -240,22 +287,37 @@ partial def fieldShape (type : Expr) (numberType : Option Expr)
       fields := fields.push (member, ← fieldShape fieldType numberType numberName)
     return .record fields
 
-partial def readValue (shape : Shape) (base : String) : Value :=
+def memberPlace (base field : String) (index : Nat) (packed : Bool) : String :=
+  if packed then s!"std::get<{index}>({base})" else s!"{base}.{field}"
+
+partial def readValue (shape : Shape) (base : String) (packed : Bool := false) : Value :=
   match shape with
   | .scalar type => .scalar type base
-  | .record fields => .record (fields.map fun (name, shape) => readValue shape s!"{base}.{name}")
-  | .vector n shape => .vector ((List.range n).toArray.map fun i => readValue shape s!"{base}[{i}]")
+  | .record fields => .record (fields.mapIdx fun i (name, shape) =>
+      readValue shape (memberPlace base name i packed) packed)
+  | .vector n shape => .vector ((List.range n).toArray.map fun i => readValue shape s!"{base}[{i}]" packed)
+  | .indexed type element => .indexed type element base
+
+partial def zeroValue : Shape → Value
+  | .scalar type => .scalar type (type ++ "{}")
+  | .record fields => .record (fields.map fun (_, shape) => zeroValue shape)
+  | .vector n element => .vector (Array.replicate n (zeroValue element))
+  | .indexed type element => .indexed type element (type ++ "{}")
 
 def primitive (name : Name) : Bool :=
-  #[``Trig.sinFloat, ``Trig.cosFloat, ``Trig.tanFloat,
+  #[``Vector.ofFn, ``Vector.get, ``Vector.set, ``Fin.foldl, ``Fin.foldlM, ``DSP.foldUntil, ``DSP.foldUntilM,
+    ``Trig.sinFloat, ``Trig.cosFloat, ``Trig.tanFloat,
     ``Trig.sinFloat32, ``Trig.cosFloat32, ``Trig.tanFloat32,
     ``ExpDecay.float, ``ExpDecay.float32, ``FMA.float, ``FMA.float32, ``Float.add, ``Float.sub, ``Float.mul, ``Float.div, ``Float.neg,
     ``Float32.add, ``Float32.sub, ``Float32.mul, ``Float32.div, ``Float32.neg,
+    ``Float32.toFloat, ``Float.toFloat32, ``Int.ofNat, ``Int.toNat,
+    ``Int.add, ``Int.sub, ``Int.lt, ``Int.le, ``Int.decLt, ``Int.decLe, ``Int.decEq,
     ``Float.ofNat, ``Float32.ofNat, ``Float.ofScientific, ``Float32.ofScientific,
-    ``Float.sqrt, ``Float32.sqrt, ``Float.lt, ``Float.le, ``Float32.lt, ``Float32.le,
+    ``Float.sqrt, ``Float32.sqrt, ``Float.floor, ``Float.lt, ``Float.le, ``Float32.lt, ``Float32.le,
     ``Float.beq, ``Float32.beq, ``ite, ``Bool.true, ``Bool.false, ``Eq,
     ``Bool.decEq, ``Float.decLt, ``Float.decLe, ``Float32.decLt, ``Float32.decLe,
-    ``dite, ``Fin.mk, ``Fin.val, ``Nat.lt, ``Nat.le, ``Nat.decLt, ``Nat.decLe,
+    ``dite, ``instDecidableOr, ``instDecidableAnd,
+    ``Fin.mk, ``Fin.val, ``Nat.lt, ``Nat.le, ``Nat.decLt, ``Nat.decLe,
     ``DelayMath.exp2Float, ``DelayMath.floorFloat, ``DelayMath.phaseFloat, ``DelayMath.decayFloat,
     ``DelayMath.exp2Float32, ``DelayMath.floorFloat32, ``DelayMath.phaseFloat32, ``DelayMath.decayFloat32].contains name
 
@@ -320,12 +382,14 @@ partial def expose (expression : Expr) (opaqueCalls : Array Name := #[]) : MetaM
         let a ← expose e.getAppArgs[0]!
         let b ← expose e.getAppArgs[1]!
         if a.isLit && b.isLit then return ← whnf (mkApp2 (mkConst ``Nat.decEq) a b)
+        if !opaqueCalls.isEmpty then return e
         throwError "C++ codegen: natural equality must be statically known"
       if name == ``Nat.beq && e.getAppArgs.size == 2 then
         let a ← expose e.getAppArgs[0]!
         let b ← expose e.getAppArgs[1]!
         if let (.lit (.natVal a), .lit (.natVal b)) := (a,b) then
           return mkConst (if a == b then ``Bool.true else ``Bool.false)
+        if !opaqueCalls.isEmpty then return e
         throwError "C++ codegen: natural equality must be statically known"
       if primitive name then return e
       let env ← getEnv
@@ -345,6 +409,9 @@ partial def expose (expression : Expr) (opaqueCalls : Array Name := #[]) : MetaM
           throwError "C++ codegen: proof transport did not reduce"
         let major ← expose args[info.getMajorIdx]! opaqueCalls
         unless major.isLit || (← isConstructorApp major) do
+          if info.getMajorInduct == ``Prod then return e
+          if info.getMajorInduct == ``Option then return e
+          if (← enumConstructors info.getMajorInduct).isSome then return e
           throwError "C++ codegen: recursion requires a statically known constructor: {name}, {major}"
         let specialized := mkAppN (mkConst name levels) (args.set! info.getMajorIdx major)
         if let some reduced ← reduceRecMatcher? specialized then return ← expose reduced opaqueCalls
@@ -357,6 +424,9 @@ partial def expose (expression : Expr) (opaqueCalls : Array Name := #[]) : MetaM
       | _ => return e
     | .proj .. | .letE .. =>
       let fn ← expose e.getAppFn opaqueCalls
+      if let .letE binder type bound body nondep := fn then
+        let args := e.getAppArgs.map (·.liftLooseBVars 0 1)
+        return .letE binder type bound (mkAppN body args) nondep
       let next := (mkAppN fn e.getAppArgs).headBeta
       if next == e then return e else expose next opaqueCalls
     | _ => return e
@@ -403,6 +473,45 @@ def selectField (value : Value) (index : Nat) : GenM Value := do
   let some field := fields[index]? | throwError "C++ codegen: invalid field index {index}"
   return field
 
+partial def commitValue (shape : Shape) (value : Value) (target : String) (packed : Bool := false) : GenM Unit := do
+  match shape, value with
+  | .scalar type, .scalar type' text =>
+    unless type == type' do throwError "C++ codegen: result field type mismatch"
+    emit s!"{target} = {text};"
+  | .record fields, .record values =>
+    unless fields.size == values.size do throwError "C++ codegen: result shape mismatch"
+    for i in [:fields.size] do
+      commitValue fields[i]!.2 values[i]! (memberPlace target fields[i]!.1 i packed) packed
+  | .vector n element, .vector values =>
+    unless n == values.size do throwError "C++ codegen: result vector size mismatch"
+    for i in [:n] do commitValue element values[i]! s!"{target}[{i}]" packed
+  | .indexed type _, .indexed type' _ text =>
+    unless type == type' do throwError "C++ codegen: result array type mismatch"
+    if target != text then emit s!"{target} = {text};"
+  | .indexed type element, .indexedWrite type' _ base index value =>
+    unless type == type' do throwError "C++ codegen: result array type mismatch"
+    let copy ← fresh
+    emit s!"{type} {copy} = {base};"
+    commitValue element value s!"{copy}[{index}]" true
+    emit s!"{target} = {copy};"
+  | _, _ => throwError "C++ codegen: result shape mismatch"
+
+def materializeArray : Value → GenM Value
+  | .indexedWrite type element base index value => do
+    let copy ← fresh
+    emit s!"{type} {copy} = {base};"
+    commitValue element value s!"{copy}[{index}]" true
+    return .indexed type element copy
+  | value => pure value
+
+def collectLines (action : GenM Unit) : GenM (Array String) := do
+  let before := (← get).lines
+  modify fun s => { s with lines := #[] }
+  action
+  let lines := (← get).lines
+  modify fun s => { s with lines := before }
+  return lines
+
 partial def joinValues (yes no : Value) : GenM (Value × Array String × Array String) := do
   match yes, no with
   | .scalar ty a, .scalar ty' b =>
@@ -425,7 +534,58 @@ partial def joinValues (yes no : Value) : GenM (Value × Array String × Array S
     let (result, ys, ns) ← joinValues (.record a) (.record b)
     let .record fields := result | throwError "C++ codegen: invalid vector join"
     return (.vector fields, ys, ns)
+  | .indexed type element _, _ | .indexedWrite type element .., _ =>
+    let name ← fresh
+    emit s!"{type} {name};"
+    let shape := Shape.indexed type element
+    let ys ← collectLines (commitValue shape yes name)
+    let ns ← collectLines (commitValue shape no name)
+    return (.indexed type element name, ys, ns)
+  | .optional a av, .optional b bv =>
+    let (present, ys, ns) ← joinValues (.scalar "bool" a) (.scalar "bool" b)
+    let (_, present) ← scalar present
+    let (payload, yv, nv) ← joinValues av bv
+    return (.optional present payload, ys ++ yv, ns ++ nv)
+  | .borrowed a _, .borrowed b _ =>
+    unless a == b do throwError "C++ codegen: branches must retain the same borrowed state"
+    return (.borrowed a (← get).stateVersion, #[], #[])
   | _, _ => throwError "C++ codegen: branch shape mismatch"
+
+private partial def checkBorrowedVersion (version : Nat) : Value → GenM Unit
+  | .borrowed _ actual =>
+    unless actual == version do throwError "C++ codegen: branch returned an old storage snapshot"
+  | .record fields | .vector fields => fields.forM (checkBorrowedVersion version)
+  | .optional _ payload | .indexedWrite _ _ _ _ payload => checkBorrowedVersion version payload
+  | _ => pure ()
+
+def emitBranch (condition : String) (yes no : GenM Value) : GenM Value := do
+  let checked := fun (branch : GenM Value) => do
+    let value ← branch
+    checkBorrowedVersion (← get).stateVersion value
+    return value
+  if condition == "true" then return ← checked yes
+  if condition == "false" then return ← checked no
+  let before := (← get).lines
+  let version := (← get).stateVersion
+  modify fun s => { s with lines := #[] }
+  let yesValue ← checked yes
+  let yesLines := (← get).lines
+  let yesVersion := (← get).stateVersion
+  modify fun s => { s with lines := #[], stateVersion := version }
+  let noValue ← checked no
+  let noLines := (← get).lines
+  modify fun s => { s with lines := before, stateVersion := max yesVersion s.stateVersion }
+  let (result, yesAssign, noAssign) ← joinValues yesValue noValue
+  emit s!"if ({condition})"
+  emit "{"
+  for line in yesLines ++ yesAssign do emit (if line.isEmpty then "" else "    " ++ line)
+  emit "}"
+  emit "else"
+  emit "{"
+  for line in noLines ++ noAssign do emit (if line.isEmpty then "" else "    " ++ line)
+  emit "}"
+  emit ""
+  return result
 
 def mathIncludes (used : Bool) : Array String :=
   if used then #["#include \"Math.hpp\"", "#include \"MultiChannelNumber.hpp\"", ""] else #[]
@@ -488,10 +648,122 @@ private partial def callArgument : Value → GenM String
   | .scalar _ text => pure text
   | .record fields => return "{" ++ String.intercalate ", " (← fields.toList.mapM callArgument) ++ "}"
   | .vector _ => throwError "C++ codegen: a bound call requires packed vectors"
+  | .indexed _ _ text => pure text
+  | value@(.indexedWrite ..) => do callArgument (← materializeArray value)
+  | .optional .. => throwError "C++ codegen: a bound call needs an explicit option representation"
+  | .borrowed .. => throwError "C++ codegen: a value binding cannot consume borrowed state"
+
+def emitIndexLoop (count : String) (body : String → GenM Unit) : GenM Unit := do
+  if count == "0" then return
+  let index ← fresh
+  let lines ← collectLines (body index)
+  emit s!"for (std::size_t {index} = 0; {index} < {count}; ++{index})"
+  emit "{"
+  for line in lines do emit (if line.isEmpty then "" else "    " ++ line)
+  emit "}"
+  emit ""
+
+def emitBreak (condition : String) : GenM Unit := do
+  if condition == "false" then return
+  if condition == "true" then emit "break;"
+  else
+    emit s!"if ({condition})"
+    emit "{"
+    emit "    break;"
+    emit "}"
+
+partial def renderField (name : String) (shape : Shape) (indent : String) : MetaM (Array String) := do
+  match shape with
+  | .record fields =>
+    let mut lines := #[indent ++ "struct", indent ++ "{"]
+    for (name, shape) in fields do
+      lines := lines ++ (← renderField name shape (indent ++ "    "))
+    return lines ++ #[indent ++ "} " ++ name ++ ";", ""]
+  | .vector n (.record fields) =>
+    let elementName := name ++ "_Element"
+    let mut lines := #[s!"{indent}struct {elementName}", indent ++ "{"]
+    for (field, shape) in fields do
+      lines := lines ++ (← renderField field shape (indent ++ "    "))
+    return lines ++ #[indent ++ "};", "", s!"{indent}std::array<{elementName}, {n}> {name};"]
+  | _ => return #[s!"{indent}{← cppElementType shape} {name};"]
+
+def renderRecord (name : String) (shape : Shape) (indent : String := "    ") : MetaM (Array String) := do
+  let .record fields := shape | throwError "C++ codegen: expected a named State/Input/Output record"
+  let mut lines := #[s!"{indent}struct {name}", indent ++ "{"]
+  for (name, shape) in fields do
+    lines := lines ++ (← renderField name shape (indent ++ "    "))
+  return lines ++ #[indent ++ "};", ""]
+
+/-- Collect changed leaves, capturing projected reads before committing them.
+An identity projection is omitted, including unchanged process coefficients. -/
+partial def changedAssignments (shape : Shape) (value : Value) (target : String)
+    (owned : Bool := false) (packed : Bool := false) : GenM (Array String) := do
+  match shape, value with
+  | .scalar type, .scalar type' text =>
+    unless type == type' do throwError "C++ codegen: updated field type mismatch"
+    if text == target then return #[]
+    let (_, saved) ← scalar (← savedScalar type text)
+    return #[s!"{target} = {saved};"]
+  | .record fields, .record values =>
+    unless fields.size == values.size do throwError "C++ codegen: updated record shape mismatch"
+    let mut lines := #[]
+    for i in [:fields.size] do
+      lines := lines ++ (← changedAssignments fields[i]!.2 values[i]!
+        (memberPlace target fields[i]!.1 i packed) owned packed)
+    return lines
+  | .vector n element, .vector values =>
+    unless n == values.size do throwError "C++ codegen: updated vector shape mismatch"
+    let mut lines := #[]
+    for i in [:n] do
+      lines := lines ++ (← changedAssignments element values[i]! s!"{target}[{i}]" owned packed)
+    return lines
+  | .indexed type _, .indexed type' _ text =>
+    unless type == type' do throwError "C++ codegen: updated array type mismatch"
+    if text == target then return #[]
+    let (_, saved) ← scalar (← savedScalar type text)
+    return #[s!"{target} = {saved};"]
+  | .indexed type element, .indexedWrite type' _ base index next =>
+    unless type == type' do throwError "C++ codegen: updated array type mismatch"
+    if owned && base == target then
+      let (_, index) ← scalar (← savedScalar "size_t" index)
+      return ← changedAssignments element next s!"{target}[{index}]" owned true
+    changedAssignments shape (← materializeArray value) target owned packed
+  | _, _ => throwError "C++ codegen: updated result shape mismatch"
+
+/-- Capture projected leaves while reusing existing saved expression values. -/
+partial def snapshot (value : Value) : GenM Value := do
+  match value with
+  | .scalar type text => savedScalar type text
+  | .record fields => return .record (← fields.mapM snapshot)
+  | .vector fields => return .vector (← fields.mapM snapshot)
+  | .indexed type element text =>
+    let (_, saved) ← scalar (← savedScalar type text)
+    return .indexed type element saved
+  | value@(.indexedWrite ..) => snapshot (← materializeArray value)
+  | .optional present payload =>
+    let (_, present) ← scalar (← savedScalar "bool" present)
+    return .optional present (← snapshot payload)
+  | .borrowed .. => throwError "C++ codegen: borrowed state cannot be saved by value"
+
+def initializeLoopValue (shape : Shape) (initial : Value) : GenM String := do
+  let name := "loop_" ++ (← fresh)
+  let type ← match shape with
+    | .record _ =>
+      let type := name ++ "_Type"
+      for line in ← renderRecord type shape "" do emit line
+      pure type
+    | _ => cppElementType shape
+  emit s!"[[maybe_unused]] {type} {name};"
+  commitValue shape initial name
+  return name
 
 partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
   let calls := (← get).calls
-  let e ← expose expression (calls.map (·.source))
+  let effects := if (← get).stateDialect then stateBindings else #[]
+  let opaqueCalls := calls.map (·.source) ++ effects.map (·.source) ++
+    (if (← get).stateDialect then #[``StateT.get] else #[]) ++
+    (if (← get).boundedIndices then #[``Nat.decEq, ``Nat.beq] else #[])
+  let e ← expose expression opaqueCalls
   if let .proj name index (.fvar instanceId) := e.getAppFn then
     if (← get).arithmetic.contains instanceId then
       let args := e.getAppArgs
@@ -574,6 +846,123 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
     let .const name _ := e.getAppFn
       | throwError "C++ codegen: unsupported expression {e}"
     let args := e.getAppArgs
+    if ((name == ``Fin.foldl || name == ``DSP.foldUntil) && args.size == 4) ||
+        ((name == ``Fin.foldlM || name == ``DSP.foldUntilM) && args.size == 7) then
+      let monadic := name == ``Fin.foldlM || name == ``DSP.foldUntilM
+      let earlyExit := name == ``DSP.foldUntilM
+      let offset := if monadic then 3 else 1
+      let countExpr := args[offset]!
+      let count ← if let .lit (.natVal count) ← expose countExpr (calls.map (·.source)) then
+        pure (toString count)
+      else do
+        let (type, count) ← scalar (← evaluate countExpr locals)
+        unless type == "size_t" do throwError "C++ codegen: finite fold requires a bounded count"
+        let (_, saved) ← scalar (← savedScalar type count)
+        pure saved
+      let accType := args[if monadic then 1 else 0]!
+      let shape ← fieldShape accType (← get).numberType
+      let initial ← evaluate args[offset + 2]! locals
+      let acc ← initializeLoopValue shape initial
+      let accValue := readValue shape acc
+      if name == ``DSP.foldUntil then
+        emitIndexLoop count fun _ => withLocal `acc accType fun accVar => do
+          let .optional done next ← evaluate (mkApp args[2]! accVar) ((accVar.fvarId!, accValue) :: locals)
+            | throwError "C++ codegen: bounded traversal expects a ForInStep result"
+          for line in ← changedAssignments shape next acc true do emit line
+          emitBreak done
+        return accValue
+      let indexType ← mkAppM ``Fin #[countExpr]
+      let state ← if monadic then do
+        let stateType ← inferType args[6]!
+        let monad ← mkAppM ``StateM #[stateType]
+        unless ← isDefEq args[0]! monad do
+          throwError "C++ codegen: monadic finite folds require StateM"
+        let standard ← synthInstance (← mkAppM ``Monad #[monad])
+        unless ← isDefEq args[2]! standard do
+          throwError "C++ codegen: finite fold requires the standard StateM instance"
+        let initial ← evaluate args[6]! locals
+        checkBorrowedVersion (← get).stateVersion initial
+        let owned ← match initial with
+          | .borrowed .. => pure none
+          | _ =>
+            let shape ← fieldShape stateType (← get).numberType
+            let target ← initializeLoopValue shape initial
+            pure (some (shape, target))
+        let value ← match initial, owned with
+          | .borrowed receiver version, _ => do
+            if count == "0" then return initial
+            -- Only the loop-carried handle denotes the state of this iteration.
+            let version := version + 1
+            modify fun s => {s with stateVersion := version}
+            pure (.borrowed receiver version)
+          | _, some (shape, target) => pure (readValue shape target)
+          | _, none => throwError "C++ codegen: missing owned loop storage"
+        pure (some (stateType, value, owned))
+      else pure none
+      emitIndexLoop count fun index =>
+        withLocal `acc accType fun accVar =>
+          withLocal `index indexType fun indexVar => do
+            let locals := (accVar.fvarId!, accValue) :: (indexVar.fvarId!, .scalar "size_t" index) :: locals
+            let step := if earlyExit then mkApp args[offset + 1]! accVar
+              else mkApp2 args[offset + 1]! accVar indexVar
+            if let some (stateType, stateValue, owned) := state then
+              withLocal `state stateType fun stateVar => do
+                let result ← evaluate (mkApp step stateVar)
+                  ((stateVar.fvarId!, stateValue) :: locals)
+                let stepValue ← selectField result 0
+                let (done, nextAcc) ← if earlyExit then do
+                  let .optional done next ← pure stepValue
+                    | throwError "C++ codegen: bounded traversal expects a ForInStep result"
+                  pure (done, next)
+                else pure ("false", stepValue)
+                let accStores ← changedAssignments shape nextAcc acc true
+                let next ← selectField result 1
+                let stateStores ← if let some (stateShape, target) := owned then
+                  changedAssignments stateShape next target true
+                else do
+                  let (.borrowed previous _, .borrowed next version) := (stateValue, next)
+                    | throwError "C++ codegen: expected borrowed loop state"
+                  unless previous == next && version == (← get).stateVersion do
+                    throwError "C++ codegen: effect did not return its current storage handle"
+                  pure #[]
+                for line in accStores ++ stateStores do emit line
+                emitBreak done
+            else
+              for line in ← changedAssignments shape (← evaluate step locals) acc true do emit line
+      if let some (_, stateValue, _) := state then
+        let stateValue ← match stateValue with
+          | .borrowed text _ => pure (.borrowed text (← get).stateVersion)
+          | _ => pure stateValue
+        return .record #[accValue, stateValue]
+      return accValue
+    if name == ``Vector.ofFn && args.size == 3 then
+      let .lit (.natVal count) ← whnf args[0]!
+        | throwError "C++ codegen: indexed array capacity must be a literal: {args[0]!}"
+      let shape ← fieldShape (← inferType e) (← get).numberType
+      let .indexed type element := shape
+        | throwError "C++ codegen: expected an indexed array"
+      let array ← fresh
+      emit s!"{type} {array};"
+      let indexType ← mkAppM ``Fin #[args[0]!]
+      emitIndexLoop (toString count) fun index =>
+        withLocal `index indexType fun var => do
+          let value ← evaluate (mkApp args[2]! var) ((var.fvarId!, .scalar "size_t" index) :: locals)
+          commitValue element value s!"{array}[{index}]" true
+      return .indexed type element array
+    if (name == ``Vector.get && args.size == 4) || (name == ``Vector.set && args.size == 6) then
+      let .indexed type element array ← materializeArray (← evaluate args[2]! locals)
+        | throwError "C++ codegen: expected an indexed array"
+      let indexExpr := args[3]!
+      let indexValue ← if name == ``Vector.get then mkAppM ``Fin.val #[indexExpr] else pure indexExpr
+      let index ← if let .lit (.natVal index) ← expose indexValue (calls.map (·.source)) then
+        pure (toString index)
+      else do
+        let (type, index) ← scalar (← evaluate indexExpr locals)
+        unless type == "size_t" do throwError "C++ codegen: expected a bounded array index"
+        pure index
+      if name == ``Vector.get then return readValue element s!"{array}[{index}]" true
+      let value ← evaluate args[4]! locals
+      return .indexedWrite type element array index value
     if let some call := calls.find? (·.source == name) then
       unless call.arguments ≤ args.size do
         throwError "C++ codegen: missing bound call arguments for {name}"
@@ -588,13 +977,81 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
         emit (code ++ ";")
         return values[0]!
       return ← temporary call.result code
-    if (name == ``ite || name == ``dite) && args.size == 5 then
-      let decision ← expose args[2]!
+    if let some effect := effects.find? (·.source == name) then
+      if let some (single, double) := effect.generated then
+        let exported := compiledActions.getState (← getEnv)
+        unless exported.contains single && exported.contains double do
+          throwError "C++ codegen: generated procedures for {name} must be exported first"
+      unless effect.arguments + 1 ≤ args.size do
+        throwError "C++ codegen: a state operation must be applied to its current state"
+      let state ← evaluate args.back! locals
+      let .borrowed receiver version := state
+        | throwError "C++ codegen: a state binding needs borrowed storage"
+      unless version == (← get).stateVersion do throwError "C++ codegen: effect used an old state snapshot"
+      let arguments ← (args.extract (args.size - effect.arguments - 1) (args.size - 1)).mapM fun arg => do
+        callArgument (← evaluate arg locals)
+      unless version == (← get).stateVersion do
+        throwError "C++ codegen: a storage argument invalidated the current state"
+      let call := s!"{receiver}.{effect.method}({String.intercalate ", " arguments.toList})"
+      let result ← whnf (← inferType e)
+      unless result.isAppOfArity ``Prod 2 do throwError "C++ codegen: invalid state operation result"
+      let output ← whnf result.getAppArgs[0]!
+      let value ← if output.isConstOf ``PUnit then do
+        emit (call ++ ";")
+        pure (.record #[])
+      else if output.isAppOfArity ``Option 1 then do
+        let inner ← fieldShape output.getAppArgs[0]! (← get).numberType
+        let name ← fresh
+        emit s!"[[maybe_unused]] const auto {name} = {call};"
+        pure (.optional s!"{name}.m_present" (readValue inner s!"{name}.m_value"))
+      else do
+        let shape ← fieldShape output (← get).numberType
+        let name ← fresh
+        emit s!"[[maybe_unused]] const auto {name} = {call};"
+        pure (readValue shape name)
+      modify fun s => { s with stateVersion := s.stateVersion + 1 }
+      return .record #[value, .borrowed receiver (← get).stateVersion]
+    if name == ``Option.none && args.size == 1 then
+      return .optional "false" (zeroValue (← fieldShape args[0]! (← get).numberType))
+    if name == ``Option.some && args.size == 2 then
+      return .optional "true" (← evaluate args[1]! locals)
+    if (name == ``ForInStep.done || name == ``ForInStep.yield) && args.size == 2 then
+      return .optional (if name == ``ForInStep.done then "true" else "false") (← evaluate args[1]! locals)
+    if (name == ``ite || name == ``dite) && args.size ≥ 5 then
+      let rest := args.extract 5 args.size
+      let decision ← expose args[2]! opaqueCalls
       let .const decisionName _ := decision.getAppFn
         | throwError "C++ codegen: unsupported conditional decision {decision}"
-      if #[``Nat.decLt, ``Nat.decLe].contains decisionName && !(← get).boundedIndices then
-        throwError "C++ codegen: unsupported external implementation {decisionName}"
       let decisionArgs := decision.getAppArgs
+      let yes := if name == ``dite then
+          withLocal `proof args[1]! fun proof => evaluate (mkAppN (mkApp args[3]! proof) rest) locals
+        else evaluate (mkAppN args[3]! rest) locals
+      let no := if name == ``dite then
+          withLocal `proof (mkApp (mkConst ``Not) args[1]!) fun proof =>
+            evaluate (mkAppN (mkApp args[4]! proof) rest) locals
+        else evaluate (mkAppN args[4]! rest) locals
+      if name == ``dite && decisionName == ``instDecidableAnd && decisionArgs.size == 4 then
+        let test := fun i => mkAppOptM ``ite #[some (mkConst ``Bool), some decisionArgs[i]!,
+          some decisionArgs[i + 2]!, some (mkConst ``Bool.true), some (mkConst ``Bool.false)]
+        let (_, left) ← scalar (← evaluate (← test 0) locals)
+        return ← emitBranch left (do
+          let (_, right) ← scalar (← evaluate (← test 1) locals)
+          emitBranch right yes no) no
+      if name == ``ite && decisionName == ``instDecidableOr && decisionArgs.size == 4 then
+        let inner ← mkAppOptM ``ite #[some args[0]!, some decisionArgs[1]!, some decisionArgs[3]!,
+          some args[3]!, some args[4]!]
+        let outer ← mkAppOptM ``ite #[some args[0]!, some decisionArgs[0]!, some decisionArgs[2]!,
+          some args[3]!, some inner]
+        return ← evaluate (mkAppN outer rest) locals
+      if name == ``ite && decisionName == ``instDecidableAnd && decisionArgs.size == 4 then
+        let inner ← mkAppOptM ``ite #[some args[0]!, some decisionArgs[1]!, some decisionArgs[3]!,
+          some args[3]!, some args[4]!]
+        let outer ← mkAppOptM ``ite #[some args[0]!, some decisionArgs[0]!, some decisionArgs[2]!,
+          some inner, some args[4]!]
+        return ← evaluate (mkAppN outer rest) locals
+      if #[``Nat.decLt, ``Nat.decLe, ``Nat.decEq, ``Int.decLt, ``Int.decLe, ``Int.decEq].contains decisionName &&
+          !(← get).boundedIndices then
+        throwError "C++ codegen: unsupported external implementation {decisionName}"
       unless decisionArgs.size == 2 do
         throwError "C++ codegen: unsupported conditional decision {decision}"
       let conditionExpr ← if decisionName == ``Bool.decEq then
@@ -602,36 +1059,16 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
         else if let some (_, predicate) := #[(``Float.decLt, ``Float.lt),
             (``Float.decLe, ``Float.le), (``Float32.decLt, ``Float32.lt),
             (``Float32.decLe, ``Float32.le), (``Nat.decLt, ``Nat.lt),
-            (``Nat.decLe, ``Nat.le)].find? (fun entry => entry.1 == decisionName) then
+            (``Nat.decLe, ``Nat.le), (``Nat.decEq, ``Nat.beq), (``Int.decLt, ``Int.lt),
+            (``Int.decLe, ``Int.le)].find? (fun entry => entry.1 == decisionName) then
           pure (mkAppN (mkConst predicate) decisionArgs)
+        else if decisionName == ``Int.decEq then
+          pure (mkApp3 (mkConst ``Eq [1]) (mkConst ``Int) decisionArgs[0]! decisionArgs[1]!)
         else throwError "C++ codegen: unsupported conditional decision {decision}"
       let (_, condition) ← scalar (← evaluate conditionExpr locals)
-      if name == ``ite && condition == "true" then return ← evaluate args[3]! locals
-      if name == ``ite && condition == "false" then return ← evaluate args[4]! locals
-      let before := (← get).lines
-      modify fun s => { s with lines := #[] }
-      let yes ← if name == ``dite then
-          withLocal `proof args[1]! fun proof => evaluate (mkApp args[3]! proof) locals
-        else evaluate args[3]! locals
-      let yesLines := (← get).lines
-      modify fun s => { s with lines := #[] }
-      let no ← if name == ``dite then
-          withLocal `proof (mkApp (mkConst ``Not) args[1]!) fun proof => evaluate (mkApp args[4]! proof) locals
-        else evaluate args[4]! locals
-      let noLines := (← get).lines
-      modify fun s => { s with lines := before }
-      let (result, yesAssign, noAssign) ← joinValues yes no
-      emit s!"if ({condition})"
-      emit "{"
-      for line in yesLines ++ yesAssign do emit (if line.isEmpty then "" else "    " ++ line)
-      emit "}"
-      emit "else"
-      emit "{"
-      for line in noLines ++ noAssign do emit (if line.isEmpty then "" else "    " ++ line)
-      emit "}"
-      emit ""
-      return result
-    if name == ``Eq && args.size == 3 && args[0]!.isConstOf ``Bool then
+      return ← emitBranch condition yes no
+    if name == ``Eq && args.size == 3 && (args[0]!.isConstOf ``Bool ||
+        (args[0]!.isConstOf ``Int && (← get).boundedIndices)) then
       let (_, a) ← scalar (← evaluate args[1]! locals)
       let (_, b) ← scalar (← evaluate args[2]! locals)
       if (a == "true" || a == "false") && (b == "true" || b == "false") then
@@ -639,19 +1076,42 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
       return ← temporary "bool" s!"({a} == {b})"
     if name == ``Bool.true then return .scalar "bool" "true"
     if name == ``Bool.false then return .scalar "bool" "false"
+    if name == ``PUnit.unit then return .record #[]
     if name == ``Fin.mk || name == ``Fin.val then
-      unless (← get).boundedIndices do
-        throwError "C++ codegen: runtime Fin values require the bounded buffer backend"
-      return ← evaluate args[1]! locals
-    if #[``Nat.add, ``Nat.sub, ``Nat.lt, ``Nat.le].contains name then
+      let value ← evaluate args[1]! locals
+      let (type, _) ← scalar value
+      unless type == "size_t" do throwError "C++ codegen: expected a bounded index"
+      return value
+    if (name == ``Float32.toFloat || name == ``Float.toFloat32) && args.size == 1 then
+      let (_, value) ← scalar (← evaluate args[0]! locals)
+      let type := if name == ``Float32.toFloat then "double" else "float"
+      return ← temporary type s!"static_cast<{type}>({value})"
+    if name == ``Float.floor && args.size == 1 then
+      let (_, value) ← scalar (← evaluate args[0]! locals)
+      return ← temporary "double" s!"std::floor({value})"
+    if #[``Nat.add, ``Nat.sub, ``Nat.lt, ``Nat.le, ``Nat.beq].contains name then
       unless (← get).boundedIndices do
         throwError "C++ codegen: runtime natural arithmetic requires the bounded buffer backend"
       let (_, a) ← scalar (← evaluate args[0]! locals)
       let (_, b) ← scalar (← evaluate args[1]! locals)
       if name == ``Nat.lt then return ← temporary "bool" s!"({a} < {b})"
       if name == ``Nat.le then return ← temporary "bool" s!"({a} <= {b})"
+      if name == ``Nat.beq then return ← temporary "bool" s!"({a} == {b})"
       if name == ``Nat.sub then return ← temporary "size_t" s!"({a} < {b} ? 0 : {a} - {b})"
+      if (← get).checkedIndices then return ← temporary "size_t" s!"CodegenInteger::Add<size_t>({a}, {b})"
       return ← temporary "size_t" s!"({a} + {b})"
+    if (name == ``Int.ofNat || name == ``Int.toNat) && (← get).boundedIndices then
+      let (_, a) ← scalar (← evaluate args[0]! locals)
+      if name == ``Int.ofNat then return ← temporary "std::int64_t" s!"CodegenInteger::FromIndex({a})"
+      return ← temporary "size_t" s!"CodegenInteger::ToIndex({a})"
+    if let some (_, op) := #[(``Int.add, "+"), (``Int.sub, "-"), (``Int.lt, "<"),
+        (``Int.le, "<=")].find? (fun entry => entry.1 == name) then
+      unless (← get).boundedIndices do throwError "C++ codegen: signed arithmetic requires bounded storage"
+      let (_, a) ← scalar (← evaluate args[0]! locals)
+      let (_, b) ← scalar (← evaluate args[1]! locals)
+      if op == "+" then return ← temporary "std::int64_t" s!"CodegenInteger::Add<std::int64_t>({a}, {b})"
+      if op == "-" then return ← temporary "std::int64_t" s!"CodegenInteger::Subtract({a}, {b})"
+      return ← temporary "bool" s!"({a} {op} {b})"
     if let some index := #[``DelayMath.exp2Float, ``DelayMath.floorFloat,
         ``DelayMath.phaseFloat, ``DelayMath.decayFloat].idxOf? name then
       let pairs ← args.mapM fun arg => do scalar (← evaluate arg locals)
@@ -660,6 +1120,13 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
         ``DelayMath.phaseFloat32, ``DelayMath.decayFloat32].idxOf? name then
       let pairs ← args.mapM fun arg => do scalar (← evaluate arg locals)
       return ← emitDelayMath index pairs[0]!.1 (pairs.map Prod.snd)
+    if (name == ``Float.ofNat || name == ``Float32.ofNat) && args.size == 1 && (← get).boundedIndices then
+      let arg ← expose args[0]! opaqueCalls
+      if (natLiteral arg).isNone then
+        let (source, a) ← scalar (← evaluate arg locals)
+        unless source == "size_t" do throwError "C++ codegen: expected a bounded natural conversion"
+        let type := if name == ``Float.ofNat then "double" else "float"
+        return ← temporary type s!"static_cast<{type}>({a})"
     if #[``Float.ofNat, ``Float32.ofNat, ``Float.ofScientific, ``Float32.ofScientific].contains name then
       return ← floatLiteral name args
     if let some op := (#[(``Float.add, "+"), (``Float.sub, "-"), (``Float.mul, "*"),
@@ -694,39 +1161,47 @@ partial def evaluate (expression : Expr) (locals : Locals) : GenM Value := do
     if name == ``Float.neg || name == ``Float32.neg then
       let (type, value) ← scalar (← evaluate args[0]! locals)
       return ← negativeTemporary type value
-    if let .ctorInfo info ← getConstInfo name then
+    match ← getConstInfo name with
+    | .ctorInfo info =>
+      if args.isEmpty && (← enumConstructors info.induct).isSome then
+        return .scalar "unsigned" s!"{info.cidx}u"
       unless isStructure (← getEnv) info.induct && args.size == info.numParams + info.numFields do
         throwError "C++ codegen: unsupported constructor {name}"
       return .record (← (args.extract info.numParams args.size).mapM (evaluate · locals))
+    | .recInfo info =>
+      if info.getMajorInduct == ``Prod then
+        let major := info.getMajorIdx
+        unless major < args.size do throwError "C++ codegen: missing argument for {name}"
+        let .record #[first, second] ← evaluate args[major]! locals
+          | throwError "C++ codegen: expected a pair for {name}"
+        let arm := args[info.getFirstMinorIdx]!
+        let rest := args.extract (major + 1) args.size
+        return ← withLocal `first args[0]! fun a => withLocal `second args[1]! fun b =>
+          evaluate (mkAppN (mkApp2 arm a b) rest) ((a.fvarId!, first) :: (b.fvarId!, second) :: locals)
+      if info.getMajorInduct == ``Option then
+        let major := info.getMajorIdx
+        unless major < args.size do throwError "C++ codegen: missing argument for {name}"
+        let .optional present payload ← evaluate args[major]! locals
+          | throwError "C++ codegen: expected an option for {name}"
+        let minors := info.getFirstMinorIdx
+        let rest := args.extract (major + 1) args.size
+        let yes := withLocal `payload args[0]! fun value =>
+          evaluate (mkAppN (mkApp args[minors + 1]! value) rest) ((value.fvarId!, payload) :: locals)
+        let no := evaluate (mkAppN args[minors]! rest) locals
+        return ← emitBranch present yes no
+      if let some ctors ← enumConstructors info.getMajorInduct then
+        let major := info.getMajorIdx
+        unless major < args.size do throwError "C++ codegen: missing argument for {name}"
+        let ("unsigned", tag) ← scalar (← evaluate args[major]! locals)
+          | throwError "C++ codegen: expected a constructor tag for {name}"
+        let arm := fun ctor => evaluate (mkAppN e.getAppFn (args.set! major (mkConst ctor))) locals
+        let last := ctors.size - 1
+        let mut branches := arm ctors[last]!
+        for i in (List.range last).reverse do
+          branches := emitBranch s!"{tag} == {i}u" (arm ctors[i]!) branches
+        return ← branches
+    | _ => pure ()
     throwError "C++ codegen: unsupported expression {e}"
-
-partial def cppElementType (shape : Shape) : MetaM String := do
-  match shape with
-  | .scalar type => return type
-  | .vector n element => return s!"std::array<{← cppElementType element}, {n}>"
-  | .record _ => throwError "C++ codegen: vectors of records are unsupported"
-
-partial def renderField (name : String) (shape : Shape) (indent : String) : MetaM (Array String) := do
-  match shape with
-  | .record fields =>
-    let mut lines := #[indent ++ "struct", indent ++ "{"]
-    for (name, shape) in fields do
-      lines := lines ++ (← renderField name shape (indent ++ "    "))
-    return lines ++ #[indent ++ "} " ++ name ++ ";", ""]
-  | .vector n (.record fields) =>
-    let elementName := name ++ "_Element"
-    let mut lines := #[s!"{indent}struct {elementName}", indent ++ "{"]
-    for (field, shape) in fields do
-      lines := lines ++ (← renderField field shape (indent ++ "    "))
-    return lines ++ #[indent ++ "};", "", s!"{indent}std::array<{elementName}, {n}> {name};"]
-  | _ => return #[s!"{indent}{← cppElementType shape} {name};"]
-
-def renderRecord (name : String) (shape : Shape) (indent : String := "    ") : MetaM (Array String) := do
-  let .record fields := shape | throwError "C++ codegen: expected a named State/Input/Output record"
-  let mut lines := #[s!"{indent}struct {name}", indent ++ "{"]
-  for (name, shape) in fields do
-    lines := lines ++ (← renderField name shape (indent ++ "    "))
-  return lines ++ #[indent ++ "};", ""]
 
 /-- A reusable data template, independent of the processor's channel wrapper.
 `Number` may be a scalar or MultiChannelNumber; no arithmetic is generated. -/
@@ -745,50 +1220,6 @@ def generateRecord (record : Name) (cppName : String) : MetaM String := do
     let header := #["#pragma once", "", s!"// Generated from {record}. Do not edit.", "//", "",
       "#include <array>", "", "template<typename Number>"]
     return String.intercalate "\n" (header ++ (← renderRecord cppName fields "")).toList
-
-partial def commitValue (shape : Shape) (value : Value) (target : String) : GenM Unit := do
-  match shape, value with
-  | .scalar type, .scalar type' text =>
-    unless type == type' do throwError "C++ codegen: result field type mismatch"
-    emit s!"{target} = {text};"
-  | .record fields, .record values =>
-    unless fields.size == values.size do throwError "C++ codegen: result shape mismatch"
-    for i in [:fields.size] do
-      commitValue fields[i]!.2 values[i]! s!"{target}.{fields[i]!.1}"
-  | .vector n element, .vector values =>
-    unless n == values.size do throwError "C++ codegen: result vector size mismatch"
-    for i in [:n] do commitValue element values[i]! s!"{target}[{i}]"
-  | _, _ => throwError "C++ codegen: result shape mismatch"
-
-/-- Collect changed leaves, capturing projected reads before committing them.
-An identity projection is omitted, including unchanged process coefficients. -/
-partial def changedAssignments (shape : Shape) (value : Value) (target : String) : GenM (Array String) := do
-  match shape, value with
-  | .scalar type, .scalar type' text =>
-    unless type == type' do throwError "C++ codegen: updated field type mismatch"
-    if text == target then return #[]
-    let (_, saved) ← scalar (← savedScalar type text)
-    return #[s!"{target} = {saved};"]
-  | .record fields, .record values =>
-    unless fields.size == values.size do throwError "C++ codegen: updated record shape mismatch"
-    let mut lines := #[]
-    for i in [:fields.size] do
-      lines := lines ++ (← changedAssignments fields[i]!.2 values[i]! s!"{target}.{fields[i]!.1}")
-    return lines
-  | .vector n element, .vector values =>
-    unless n == values.size do throwError "C++ codegen: updated vector shape mismatch"
-    let mut lines := #[]
-    for i in [:n] do
-      lines := lines ++ (← changedAssignments element values[i]! s!"{target}[{i}]")
-    return lines
-  | _, _ => throwError "C++ codegen: updated result shape mismatch"
-
-/-- Capture projected leaves while reusing existing saved expression values. -/
-partial def snapshot (value : Value) : GenM Value := do
-  match value with
-  | .scalar type text => savedScalar type text
-  | .record fields => return .record (← fields.mapM snapshot)
-  | .vector fields => return .vector (← fields.mapM snapshot)
 
 def renderHeader (function : Name) (cppName : String) (generic : Bool)
     (includes : Array String := #[]) : Array String :=
@@ -1065,6 +1496,72 @@ def generateWithTarget (function : Name) (cppName : String) (generic : Bool)
     (method : Option String) : MetaM String := do
   let (includes, body) ← generateParts function cppName generic method "Input"
   return String.intercalate "\n" (renderHeader function cppName generic includes ++ body ++ #["};", ""]).toList
+
+/-- Export a read-only computation over any compatible storage view. A view
+provides the record members and indexing interface derived from the Lean type. -/
+def generateView (function : Name) (cppName : String) : MetaM String := do
+  unless validIdentifier cppName do throwError "C++ codegen: invalid view export name"
+  let info ← getConstInfo function
+  unless info.levelParams.isEmpty do throwError "C++ codegen: view export needs a specialized function"
+  forallTelescopeReducing info.type fun parameters resultType => do
+    unless parameters.size == 1 do throwError "C++ codegen: view export expects one record input"
+    let input := parameters[0]!
+    let shape ← fieldShape (← inferType input) none
+    let .record _ := shape | throwError "C++ codegen: view export expects one record input"
+    let outputShape ← fieldShape resultType none
+    let result ← match outputShape with
+      | .scalar type => pure type
+      | .record _ => pure "Output"
+      | _ => cppElementType outputShape
+    let declarations ← if let .record _ := outputShape then renderRecord result outputShape else pure #[]
+    let (_, emission) ← (do
+      let value ← evaluate (mkApp (mkConst function) input) [(input.fvarId!, readValue shape "input")]
+      match outputShape with
+      | .scalar type =>
+        let (found, text) ← scalar value
+        unless type == found do throwError "C++ codegen: view result type mismatch"
+        emit s!"return {text};"
+      | _ =>
+        emit s!"{result} output;"
+        commitValue outputShape value "output"
+        emit "return output;").run {boundedIndices := true, checkedIndices := true}
+    let body := (pruneTemporaries emission.lines).map fun line =>
+      if line.isEmpty then "" else "        " ++ line
+    return String.intercalate "\n" (renderHeader function cppName false
+        (#["#include \"CodegenInteger.hpp\""] ++ mathIncludes emission.usesMath) ++ declarations ++
+      #["    template<typename Input>", s!"    static {result} Evaluate([[maybe_unused]] const Input& input)",
+        "    {"] ++ body ++ #["    }", "", "};", ""]).toList
+
+/-- Export a StateM action over an exclusive native storage view. The source
+can observe the storage only through registered state primitives. -/
+def generateEffect (function : Name) (cppName : String) : MetaM String := do
+  unless validIdentifier cppName do throwError "C++ codegen: invalid state view export name"
+  let info ← getConstInfo function
+  unless info.levelParams.isEmpty do throwError "C++ codegen: state export needs a specialized action"
+  forallTelescopeReducing info.type fun parameters resultType => do
+    unless parameters.size == 2 do throwError "C++ codegen: state export expects one input and one state"
+    let input := parameters[0]!
+    let state := parameters[1]!
+    let shape ← fieldShape (← inferType input) none
+    let .record _ := shape | throwError "C++ codegen: state export expects a record input"
+    let resultType ← whnf resultType
+    unless resultType.isAppOfArity ``Prod 2 && resultType.getAppArgs[0]!.isConstOf ``PUnit do
+      throwError "C++ codegen: state export expects a StateM action returning PUnit"
+    let (_, emission) ← (do
+      let result ← evaluate (mkAppN (mkConst function) parameters)
+        [(input.fvarId!, readValue shape "input"), (state.fvarId!, .borrowed "state" 0)]
+      let .borrowed "state" version ← selectField result 1
+        | throwError "C++ codegen: action replaced its borrowed storage"
+      unless version == (← get).stateVersion do
+        throwError "C++ codegen: action returned an old state snapshot").run {
+          stateDialect := true, boundedIndices := true, checkedIndices := true}
+    let body := (pruneTemporaries emission.lines).map fun line =>
+      if line.isEmpty then "" else "        " ++ line
+    return String.intercalate "\n" (renderHeader function cppName false
+        (#["#include \"CodegenInteger.hpp\"", "#include <tuple>"] ++ mathIncludes emission.usesMath) ++
+      #["    template<typename State, typename Input>",
+        "    static void Process(State& state, [[maybe_unused]] const Input& input)", "    {"] ++
+      body ++ #["    }", "", "};", ""]).toList
 
 /-- Assemble processing and response definitions in one enclosing filter.
 They share the same scalar/vector target; each retains its own Lean source. -/
@@ -1346,6 +1843,21 @@ elab "#generate_cpp_function " function:ident " as " cppName:ident " method " me
   if let some parent := output.parent then IO.FS.createDirAll parent
   IO.FS.writeFile output code
   logInfo m!"Generated {output} from {function.getId} as a pure function"
+
+elab "#generate_cpp_view " function:ident " as " cppName:ident " to " path:str : command => do
+  let code ← liftTermElabM <| generateView function.getId cppName.getId.toString
+  let output : System.FilePath := path.getString
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  logInfo m!"Generated {output} from {function.getId} as a read-only view"
+
+elab "#generate_cpp_effect " function:ident " as " cppName:ident " to " path:str : command => do
+  let code ← liftTermElabM <| generateEffect function.getId cppName.getId.toString
+  let output : System.FilePath := path.getString
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  modifyEnv fun env => compiledActions.addEntry env function.getId
+  logInfo m!"Generated {output} from {function.getId} as a state action"
 
 elab "#generate_cpp_preparation_generic " function:ident " as " cppName:ident
     " to " path:str : command => do

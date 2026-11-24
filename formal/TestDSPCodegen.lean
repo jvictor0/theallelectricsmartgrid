@@ -6,16 +6,68 @@ import DSP.Filters.LinkwitzRileySplitter
 import DSP.Filters.Capture
 import DSP.Filters.ConservativeReuppingLadder.Response
 import DSP.Filters.MultibandSaturator.Exports
+import DSP.Resynthesis.PVDRStorage
 
 #use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
 
 #generate_cpp DSP.Tests.swapProcessor as SwapProcessor to "build/lean/generated/SwapProcessor.hpp"
 #generate_cpp DSP.Tests.gainProcessor as GainProcessor to "build/lean/generated/GainProcessor.hpp"
+#generate_cpp DSP.Tests.indexedStateFold as IndexedStateFold to "build/lean/generated/IndexedStateFold.hpp"
+#generate_cpp DSP.Tests.boundedEdit as BoundedEdit to "build/lean/generated/BoundedEdit.hpp"
+#generate_cpp DSP.Tests.boundedExit as BoundedExit to "build/lean/generated/BoundedExit.hpp"
 #generate_cpp DSP.Tests.fmaProcessorFloat as FMAProcessor to "build/lean/generated/FMAProcessor.hpp"
 #generate_cpp DSP.Tests.fmaProcessorFloat32 as FMAProcessor32 to "build/lean/generated/FMAProcessor32.hpp"
 #generate_cpp_generic DSP.Tests.fmaProcessor as FMAProcessorGeneric to "build/lean/generated/FMAProcessorGeneric.hpp"
 
 #generate_cpp_generic DSP.Tests.arithmeticProcessor as ArithmeticProcessorGeneric to "build/lean/generated/ArithmeticProcessorGeneric.hpp"
+
+namespace DSP.Tests
+
+open DSP.Resynthesis.PVDR
+
+abbrev BorrowedPVDR := Storage Float32 Float Storage.Heap32 Nat 4096
+
+def staleBorrowedBranch (input : Storage.Input) (state : BorrowedPVDR) : PUnit × BorrowedPVDR :=
+  if input.schmitt then
+    let next := (Storage.setGate 0 .high).run state
+    (next.1, state)
+  else (⟨⟩, state)
+
+def staleEmptyFold (_ : Storage.Input) (state : BorrowedPVDR) : PUnit × BorrowedPVDR :=
+  let next := (Storage.setGate 0 .high).run state
+  let loop : StateM BorrowedPVDR PUnit := Fin.foldlM 0 (fun _ _ => pure ⟨⟩) ⟨⟩
+  let old := loop.run state
+  (next.1, old.2)
+
+def staleLoopCapture (_ : Storage.Input) (state : BorrowedPVDR) : PUnit × BorrowedPVDR :=
+  let step (_ : PUnit) (_ : Fin 2) : StateM BorrowedPVDR PUnit :=
+    fun _ => (Storage.setGate 0 .high).run state
+  (Fin.foldlM 2 step ⟨⟩).run state
+
+def staleStorageArgument (_ : Storage.Input) (state : BorrowedPVDR) : PUnit × BorrowedPVDR :=
+  (Storage.setGate 0 (((do
+    Storage.setGate 1 .low
+    Storage.gate 1 : StateM BorrowedPVDR DSP.Resynthesis.GateState).run state).1)).run state
+
+end DSP.Tests
+
+open Lean Elab Command in
+run_cmd liftTermElabM do
+  for (source, expected) in #[
+      (``DSP.Tests.staleBorrowedBranch, "branch returned an old storage snapshot"),
+      (``DSP.Tests.staleEmptyFold, "old storage snapshot"),
+      (``DSP.Tests.staleLoopCapture, "effect used an old state snapshot"),
+      (``DSP.Tests.staleStorageArgument, "a storage argument invalidated the current state")] do
+    let mut rejected := false
+    try
+      let _ ← DSP.Codegen.generateEffect source "StaleBorrowedStorage"
+    catch error =>
+      let message ← error.toMessageData.toString
+      unless (message.splitOn expected).length > 1 do
+        throwError "unexpected stale storage rejection for {source}: {message}"
+      rejected := true
+    unless rejected do throwError "C++ codegen accepted outdated borrowed storage in {source}"
+  logInfo "Borrowed storage snapshot rejection checks passed."
 
 #generate_cpp_filter DSP.Tests.zohStepFloat32 response DSP.Tests.zohMagnitudeSquaredFloat32
   as OnePoleZOHLowPass32 to "build/lean/generated/OnePoleZOHLowPass32.hpp"

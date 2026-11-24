@@ -2,6 +2,10 @@ import DSP.Codegen.Cpp
 import DSP.Codegen.DelayBuffer
 import DSP.Codegen.QuadReverb
 import DSP.Codegen.SmoothRandomLFO
+import DSP.Resynthesis.Runtime
+import DSP.Resynthesis.PVDRStorage
+import DSP.Resynthesis.SpectrumStorage
+import DSP.Resynthesis.FrameStorage
 import DSP.Filters.DelayKernels.Runtime
 import DSP.Filters.OnePoleZOHLowPass
 import DSP.Filters.OnePoleZOHLowPass.Response
@@ -30,6 +34,15 @@ import DSP.SmoothRandomLFO
 
 #generate_cpp_delay_buffer CircularBufferGeneric to "build/lean/generated/CircularBufferGeneric.hpp"
 #generate_cpp_quad_reverb SquiggleBoyQuadReverb to "build/lean/generated/SquiggleBoyQuadReverb.hpp"
+#generate_cpp_effect DSP.Resynthesis.PVDR.Storage.analyze32 as AnalyzePVDR32 to "build/lean/generated/AnalyzePVDR32.hpp"
+#generate_cpp_effect DSP.Resynthesis.PVDR.Storage.analyze64 as AnalyzePVDR64 to "build/lean/generated/AnalyzePVDR64.hpp"
+#generate_cpp_effect DSP.Resynthesis.SpectrumStorage.synthesize32 as SynthesizeSpectrum32 to "build/lean/generated/SynthesizeSpectrum32.hpp"
+#generate_cpp_effect DSP.Resynthesis.SpectrumStorage.synthesize64 as SynthesizeSpectrum64 to "build/lean/generated/SynthesizeSpectrum64.hpp"
+#generate_cpp_effect DSP.Resynthesis.FrameStorage.run32 as ResynthesisFrame32 to "build/lean/generated/ResynthesisFrame32.hpp"
+#generate_cpp_effect DSP.Resynthesis.FrameStorage.run64 as ResynthesisFrame64 to "build/lean/generated/ResynthesisFrame64.hpp"
+#generate_cpp_view DSP.Resynthesis.Runtime.oscillatorControl32 as GrainControl32 to "build/lean/generated/GrainControl32.hpp"
+#generate_cpp_view DSP.Resynthesis.Runtime.unisonBase32 as UnisonBase32 to "build/lean/generated/UnisonBase32.hpp"
+#generate_cpp_view DSP.Resynthesis.Runtime.unisonBase64 as UnisonBase64 to "build/lean/generated/UnisonBase64.hpp"
 #generate_cpp_generic DSP.DelayKernels.Runtime.AllPass.process as SchroederAllPassCoreGeneric to "build/lean/generated/SchroederAllPassCoreGeneric.hpp"
 #generate_cpp_generic DSP.DelayKernels.Runtime.Comb.process as TunedDecayCombCoreGeneric to "build/lean/generated/TunedDecayCombCoreGeneric.hpp"
 #generate_cpp_preparation_generic DSP.DelayKernels.Runtime.prepareCoefficients as TunedDecayCombTuningGeneric to "build/lean/generated/TunedDecayCombTuningGeneric.hpp"

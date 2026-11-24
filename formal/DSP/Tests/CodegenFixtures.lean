@@ -2,6 +2,7 @@ import DSP.Filters.OnePoleZOHLowPass
 import DSP.Filters.OnePoleZOHLowPass.Response
 import DSP.Filters.Coupled
 import DSP.IfLess
+import DSP.Codegen.Control
 
 namespace DSP.Tests
 
@@ -83,6 +84,37 @@ structure OversizedState where
 
 def unsupportedSize (_state : OversizedState) (input : DSP.Sample Float) :
     OversizedState := { q := fun _ => input.x }
+
+structure IndexedInput where
+  values : Vector Float 257
+
+/-- The fold carries a result and a separate state. Each iteration needs the
+two old state fields before replacing either of them. -/
+def indexedStateFold (state : SwapState) (input : IndexedInput) : SwapState × Sample Float :=
+  let action : StateM SwapState Float := Fin.foldlM 257 (fun sum bin => do
+    let old ← get
+    set (SwapState.mk old.right (old.left + input.values.get bin))
+    pure (sum + old.left)) 0
+  let result := action.run state
+  (result.2, ⟨result.1⟩)
+
+structure BoundedEditInput where
+  count : Fin 258
+  delta : Float
+  enabled : Bool
+
+def boundedEdit (state : IndexedInput) (input : BoundedEditInput) : IndexedInput :=
+  let delta := match (if input.enabled then some input.delta else none) with
+    | some value => value
+    | none => 0
+  ⟨Fin.foldl input.count.val (fun values i =>
+    let bin : Fin 257 := ⟨i.val, by have := i.isLt; have := input.count.isLt; omega⟩
+    values.set bin.val (values.get bin + delta)) state.values⟩
+
+def boundedExit (state : Sample Float) (input : BoundedEditInput) : Sample Float :=
+  foldUntil input.count.val (fun old =>
+    let next : Sample Float := ⟨old.x + input.delta⟩
+    if old.x < 5 then .yield next else .done next) state
 
 structure ArithmeticState (R : Type) where
   left : R

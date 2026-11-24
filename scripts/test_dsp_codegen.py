@@ -25,6 +25,8 @@ HEADERS = (
 HEADERS += tuple(name.replace(".hpp", "Generic.hpp") for name in HEADERS)
 HEADERS += ("LinkwitzRileySplitter4BandGeneric.hpp", "MultibandSaturator4BandCoreGeneric.hpp")
 HEADERS += ("SmoothRandomLFOPrepareGeneric.hpp", "SmoothRandomLFOCubicGeneric.hpp")
+HEADERS += ("AnalyzePVDR32.hpp", "AnalyzePVDR64.hpp", "SynthesizeSpectrum32.hpp", "SynthesizeSpectrum64.hpp",
+            "ResynthesisFrame32.hpp", "ResynthesisFrame64.hpp", "GrainControl32.hpp", "UnisonBase32.hpp", "UnisonBase64.hpp")
 
 
 def test_response(cases, output):
