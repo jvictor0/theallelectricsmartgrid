@@ -3,7 +3,7 @@ import DSP.Filters.Runtime
 
 namespace DSP.SquiggleBoyQuadReverb.Runtime
 
-open WanderingSchroederAllPass
+open WanderingSchroederAllPass WanderingRandomLFO
 
 abbrev Diffusion (R Clock : Type) (order : List (Fin 8)) :=
   SizedFields (fun capacity => Storage capacity R Clock) (order.map squiggleBoyReverbIntroAPFCapacity)
@@ -78,23 +78,26 @@ private def init {R Clock : Type} [OfNat R 0] [OfNat R 1] [OfScientific R] [Add 
 
 def initializeFramed {R : Type} [OfNat R 0] [OfNat R 1] [OfScientific R] [Add R] [Sub R] [Mul R]
     [Div R] [Trig R] [IfLess R] [FMA R] [WanderingRandomLFO.SampleValue R] (spec : Spec R) :
-    StateM (State R (WanderingRandomLFO.FramedStream R)) PUnit :=
-  init WanderingRandomLFO.FramedStream.initialize spec
+    StateM (State R (QuadClock (FramedStream R))) PUnit :=
+  init (fun lambda seed => QuadClock.initializeLanes fun lane =>
+    FramedStream.initialize lambda (squiggleBoyReverbLaneSeed seed lane)) spec
 
 def initializeSample {R : Type} [OfNat R 0] [OfNat R 1] [OfScientific R] [Add R] [Mul R]
     [Div R] [Trig R] [IfLess R] [FMA R] [WanderingRandomLFO.SampleValue R] (spec : Spec R) :
-    StateM (State R (WanderingRandomLFO.Stream R)) PUnit :=
-  init WanderingRandomLFO.Stream.initialize spec
+    StateM (State R (QuadClock (Stream R))) PUnit :=
+  init (fun lambda seed => QuadClock.initializeLanes fun lane =>
+    Stream.initialize lambda (squiggleBoyReverbLaneSeed seed lane)) spec
 
 def tuneFramed {R : Type} [OfNat R 0] [OfNat R 1] [OfScientific R] [Add R] [Mul R]
     [Div R] [Trig R] [IfLess R] (spec : Spec R) :
-    StateM (State R (WanderingRandomLFO.FramedStream R)) PUnit :=
+    StateM (State R (QuadClock (FramedStream R))) PUnit :=
   tune spec
 
 section Processing
 variable {R Clock : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3]
   [OfNat R 4] [OfNat R 5] [OfScientific R] [Add R] [Sub R] [Neg R] [Mul R]
-  [FMA R] [IfLess R] [DelayMath R] [DelayBuffer.SampleIndex R] [DelayBuffer.Gather R]
+  [FMA R] [IfLess R] [DelayMath R] [DelayBuffer.SampleIndex R] [DelayBuffer.SampleAges R]
+  [DelayBuffer.Gather R]
 
 private def diffuse (tick : StateM Clock R) :
     (order : List (Fin 8)) → R → StateM (Diffusion R Clock order) R
@@ -109,7 +112,7 @@ private def dampingStep (input : R) : StateM (Damping R) R :=
     let (filter, output) := TPTBaseWidth.Runtime.process state.filter ⟨input⟩
     (output.x, { state with filter })
 
-variable [Div R] [Tanh R] [DelayBuffer.SampleAges R] [DelayBuffer.BroadcastLane R]
+variable [Div R] [Tanh R] [DelayBuffer.BroadcastLane R]
 
 def process (tick : StateM Clock R) (input : Sample R) : StateM (State R Clock) R := do
   let diffused ← focus State.diffusion (fun s diffusion => { s with diffusion })
@@ -136,11 +139,11 @@ def process (tick : StateM Clock R) (input : Sample R) : StateM (State R Clock) 
 
 variable [WanderingRandomLFO.SampleValue R]
 
-def processFramed (input : Sample R) : StateM (State R (WanderingRandomLFO.FramedStream R)) R :=
-  process WanderingRandomLFO.FramedStream.nextValue input
+def processFramed (input : Sample R) : StateM (State R (QuadClock (FramedStream R))) R :=
+  process (QuadClock.nextValue FramedStream.nextValue) input
 
-def processSample (input : Sample R) : StateM (State R (WanderingRandomLFO.Stream R)) R :=
-  process WanderingRandomLFO.Stream.nextValue input
+def processSample (input : Sample R) : StateM (State R (QuadClock (Stream R))) R :=
+  process (QuadClock.nextValue Stream.nextValue) input
 
 end Processing
 end DSP.SquiggleBoyQuadReverb.Runtime

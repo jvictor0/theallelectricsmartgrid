@@ -192,6 +192,46 @@ void Run(const std::string& kind)
     std::cout << '\n';
 }
 
+template<bool Framed>
+void CheckReverbClocks()
+{
+    using Core = SquiggleBoyQuadReverb<float, Framed>;
+    using Vector = typename Core::Vector;
+    using Clock = WanderingRandomLFOGeneric<float, Framed>;
+    const auto silence = Vector::Splat(0);
+    const typename Core::LogicalSpec spec{
+        Vector::Splat(32), silence, Vector::Splat(0.125f),
+        Vector::Splat(2), Vector::Splat(1)};
+    const auto core = std::make_unique<Core>(spec);
+    std::array<Clock, 4> first;
+    std::array<Clock, 4> second;
+    for (size_t lane = 0; lane < first.size(); ++lane)
+    {
+        first[lane].Initialize(1920000, 9 + 16 * lane);
+        second[lane].Initialize(1920000, 10 + 16 * lane);
+    }
+
+    // Read copies so only the reverb kernel advances the clocks under test.
+    //
+    const auto checkClocks = [](auto clock, auto& expected)
+    {
+        const std::array actual{
+            clock.m_lane0.Process(), clock.m_lane1.Process(),
+            clock.m_lane2.Process(), clock.m_lane3.Process()};
+        for (size_t lane = 0; lane < actual.size(); ++lane)
+        {
+            assert(actual[lane] == expected[lane].Process());
+        }
+    };
+
+    for (size_t sample = 0; sample < 96; ++sample)
+    {
+        checkClocks(core->m_state.m_first.m_clock, first);
+        checkClocks(core->m_state.m_second.m_clock, second);
+        core->Process(silence);
+    }
+}
+
 template<typename Number>
 void RunReverb()
 {
@@ -334,6 +374,8 @@ void RunSpline()
 
 int main()
 {
+    CheckReverbClocks<false>();
+    CheckReverbClocks<true>();
     std::string kind;
     size_t precision, width;
     while (std::cin >> kind >> precision >> width)

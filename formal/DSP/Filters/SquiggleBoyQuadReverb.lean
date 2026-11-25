@@ -75,6 +75,10 @@ def squiggleBoyReverbIntroSeed (stage : Fin 8) : UInt64 :=
 def squiggleBoyReverbLoopSeed (stage : Fin 2) : UInt64 :=
   UInt64.ofNat (9 + stage.val)
 
+/-- The ten stage seeds occupy disjoint slots in each channel. -/
+def squiggleBoyReverbLaneSeed (stageSeed : UInt64) (lane : Fin 4) : UInt64 :=
+  stageSeed + 16 * UInt64.ofNat lane.val
+
 abbrev SquiggleBoyWanderingIntroAPFs (R : Type) :=
   WanderingSchroederAllPassCascade 4 R (squiggleBoyReverbIntroOrder.map squiggleBoyReverbIntroAPFCapacity)
 
@@ -84,7 +88,7 @@ def init {R : Type} [OfNat R 0] [WanderingRandomLFO.SampleValue R] [Sub R] [Div 
     (gain : Fin 4 → R) : SquiggleBoyWanderingIntroAPFs R :=
   let spec := squiggleBoyReverbWanderSpec
   let stage (i : Fin 8) : WanderingSchroederAllPassGeneric (squiggleBoyReverbIntroAPFCapacity i) 4 R :=
-    .uniform (squiggleBoyReverbIntroAPFsDelayTime i) gain spec (squiggleBoyReverbIntroSeed i)
+    .uniform (squiggleBoyReverbIntroAPFsDelayTime i) gain spec (squiggleBoyReverbLaneSeed (squiggleBoyReverbIntroSeed i))
       (squiggleBoyReverbIntroWanderFits i)
   buildIntroCascade (Cascade := WanderingSchroederAllPassCascade 4 R) (.passthrough (fun _ => 0))
     (fun i {_} tail => .series (stage i) tail) squiggleBoyReverbIntroOrder

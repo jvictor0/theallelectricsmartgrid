@@ -60,17 +60,23 @@ private def interpolateAt {capacity : Nat} {ι R : Type}
   cubicInterpolate (buffer.read (olderAge tap.age) ch) (buffer.read tap.age ch)
     (buffer.read next ch) (buffer.read (newerAge next) ch) tap.fraction
 
-/-- Read a common fractional offset from positive integral base taps. The
-caller provides space for the interpolation neighbors on both sides. -/
-def readCubicOffset {capacity : Nat} {ι R : Type} [OfNat R 2] [OfNat R 3] [OfNat R 4] [OfNat R 5]
+/-- Read fractional offsets from positive integral base taps. The caller
+provides space for the interpolation neighbors on both sides. -/
+def readCubicOffsets {capacity : Nat} {ι R : Type} [OfNat R 2] [OfNat R 3] [OfNat R 4] [OfNat R 5]
     [OfScientific R] [Neg R] [Sub R] [Mul R] [FMA R] [DelayMath R] [SampleIndex R]
-    (buffer : DelayBuffer capacity (ι → R)) (base : ι → Nat) (offset : R) : ι → R :=
-  let (rounded, fraction) := fractionalPosition offset
-  let whole := SampleIndex.toNat rounded
+    (buffer : DelayBuffer capacity (ι → R)) (base : ι → Nat) (offset : ι → R) : ι → R :=
   fun ch =>
+    let (rounded, fraction) := fractionalPosition (offset ch)
+    let whole := SampleIndex.toNat rounded
     let positive := Nat.zero_lt_of_lt buffer.head.isLt
     let age := ⟨(base ch + whole + capacity - 1) % capacity, Nat.mod_lt _ positive⟩
     interpolateAt buffer ⟨age, fraction⟩ ch
+
+/-- Read a shared fractional offset from positive integral base taps. -/
+def readCubicOffset {capacity : Nat} {ι R : Type} [OfNat R 2] [OfNat R 3] [OfNat R 4] [OfNat R 5]
+    [OfScientific R] [Neg R] [Sub R] [Mul R] [FMA R] [DelayMath R] [SampleIndex R]
+    (buffer : DelayBuffer capacity (ι → R)) (base : ι → Nat) (offset : R) : ι → R :=
+  buffer.readCubicOffsets base (fun _ => offset)
 
 /-- Read positive fractional delays in samples after writing the current input.
 The caller supplies delays with enough history for the interpolation neighbors. -/

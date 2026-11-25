@@ -18,6 +18,32 @@ def FramedStream.nextValue {R : Type} [SampleValue R] [Sub R] [Div R] [FMA R] :
 def Stream.nextValue {R : Type} [SampleValue R] [FMA R] : StateM (Stream R) R :=
   modifyGet fun state => let (next, value) := state.step; (value, next)
 
+/-- Four separately updated clocks for a quad processing stage. -/
+structure QuadClock (Clock : Type) where
+  lane0 : Clock
+  lane1 : Clock
+  lane2 : Clock
+  lane3 : Clock
+
+namespace QuadClock
+
+def initializeLanes {Clock : Type} (start : Fin 4 → StateM Clock PUnit) :
+    StateM (QuadClock Clock) PUnit := do
+  focus QuadClock.lane0 (fun s lane0 => { s with lane0 }) (start 0)
+  focus QuadClock.lane1 (fun s lane1 => { s with lane1 }) (start 1)
+  focus QuadClock.lane2 (fun s lane2 => { s with lane2 }) (start 2)
+  focus QuadClock.lane3 (fun s lane3 => { s with lane3 }) (start 3)
+
+def nextValue {R Clock : Type} [DelayBuffer.Gather R] (next : StateM Clock R) :
+    StateM (QuadClock Clock) R := do
+  let lane0 ← focus QuadClock.lane0 (fun s lane0 => { s with lane0 }) next
+  let lane1 ← focus QuadClock.lane1 (fun s lane1 => { s with lane1 }) next
+  let lane2 ← focus QuadClock.lane2 (fun s lane2 => { s with lane2 }) next
+  let lane3 ← focus QuadClock.lane3 (fun s lane3 => { s with lane3 }) next
+  pure (DelayBuffer.Gather.gather ![lane0, lane1, lane2, lane3])
+
+end QuadClock
+
 end DSP.WanderingRandomLFO
 
 namespace DSP.WanderingSchroederAllPass
@@ -45,24 +71,20 @@ def initializeStage {capacity : Nat} {R Clock : Type} [OfNat R 0] (start : State
 
 def step {capacity : Nat} {R Clock : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3]
     [OfNat R 4] [OfNat R 5] [OfScientific R] [Add R] [Sub R] [Neg R] [Mul R] [FMA R] [IfLess R]
-    [DelayMath R] [DelayBuffer.SampleIndex R] [DelayBuffer.Gather R]
+    [DelayMath R] [DelayBuffer.SampleIndex R] [DelayBuffer.SampleAges R] [DelayBuffer.Gather R]
     (spec : TapSpec) (next : StateM Clock R) (input : R) : StateM (Storage capacity R Clock) R := do
   let spline ← focus Storage.clock (fun s clock => { s with clock }) next
   let offset := WanderingSchroederAllPassGeneric.offsetSamples (DelayBuffer.SampleIndex.ofWord spec.depth) spline
   let (rounded, fraction) := DelayBuffer.fractionalPosition offset
-  let whole := DelayBuffer.SampleIndex.toWord rounded
-  -- Each lane starts at its oldest cubic sample. The tap bounds leave room for three newer samples.
-  let first := spec.first + whole - spec.depth
-  let second := spec.second + whole - spec.depth
-  let third := spec.third + whole - spec.depth
-  let fourth := spec.fourth + whole - spec.depth
-  let shared := if spec.first = spec.second ∧ spec.first = spec.third ∧ spec.first = spec.fourth then
-    true else false
+  -- The fit bounds leave three newer samples after each lane's oldest tap.
+  let base := DelayBuffer.Gather.gather ![
+    DelayBuffer.SampleIndex.ofWord (spec.first - spec.depth),
+    DelayBuffer.SampleIndex.ofWord (spec.second - spec.depth),
+    DelayBuffer.SampleIndex.ofWord (spec.third - spec.depth),
+    DelayBuffer.SampleIndex.ofWord (spec.fourth - spec.depth)]
+  let oldest := DelayBuffer.SampleAges.toAges (base + rounded)
   let delayed ← focus Storage.history (fun s history => { s with history })
-    (if shared then
-      DelayBuffer.readCubicAt DelayBuffer.readWrappedAge UInt64.sub first fraction
-    else
-      DelayBuffer.readCubicAges (DelayBuffer.QuadAges.pack first second third fourth) fraction)
+    (DelayBuffer.readCubicAges oldest fraction)
   let result := DelayKernels.allPassStep ⟨SquiggleBoyQuadReverb.allPassGain, 0, 0⟩ ⟨input, delayed⟩
   focus Storage.history (fun s history => { s with history }) (DelayBuffer.pushFrame result.written)
   return result.y

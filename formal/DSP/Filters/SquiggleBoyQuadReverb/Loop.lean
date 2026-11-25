@@ -111,10 +111,12 @@ def init {R : Type} [OfNat R 0] [OfNat R 1] [OfScientific R] [Add R] [Mul R] [Di
     feedback := zero
     saturatorGain := zero
     firstAllPass := WanderingSchroederAllPassGeneric.init (squiggleBoyReverbLoopAPFsDelayTime 0)
-      gain wander (squiggleBoyReverbLoopSeed 0) (squiggleBoyReverbLoopWanderFits 0) (by decide)
+      gain wander (squiggleBoyReverbLaneSeed (squiggleBoyReverbLoopSeed 0))
+      (squiggleBoyReverbLoopWanderFits 0) (by decide)
     damping := ⟨⟨⟨zero, zero, zero⟩, zero⟩, ⟨zero, zero, zero⟩⟩
     secondAllPass := WanderingSchroederAllPassGeneric.init (squiggleBoyReverbLoopAPFsDelayTime 1)
-      gain wander (squiggleBoyReverbLoopSeed 1) (squiggleBoyReverbLoopWanderFits 1) (by decide) }
+      gain wander (squiggleBoyReverbLaneSeed (squiggleBoyReverbLoopSeed 1))
+      (squiggleBoyReverbLoopWanderFits 1) (by decide) }
 
 def y {R : Type} (state : SquiggleBoyQuadReverb R) : Fin 4 → R := state.secondAllPass.y
 

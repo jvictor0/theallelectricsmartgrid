@@ -5,15 +5,15 @@ import DSP.WanderingRandomLFO
 
 namespace DSP
 
-/-- A Schroeder stage with a single fractional offset shared by its channels.
-Each stage owns both its spline generator and its interleaved history. -/
+/-- A Schroeder stage with a spline generator for each channel and an
+interleaved delay history. -/
 structure WanderingSchroederAllPassGeneric (capacity channels : Nat) (R : Type) where
   private mk ::
   private history : DelayBuffer capacity (Fin channels → R)
   private base : Fin channels → Nat
   private gain : Fin channels → R
   private depth : Nat
-  private lfo : WanderingRandomLFO.FramedStream R
+  private lfo : Vector (WanderingRandomLFO.FramedStream R) channels
   private output : Fin channels → R
 
 namespace WanderingSchroederAllPassGeneric
@@ -26,16 +26,16 @@ variable {capacity channels : Nat} {R : Type}
 
 def init [OfNat R 0] [WanderingRandomLFO.SampleValue R] [Sub R] [Div R] [FMA R]
     (tap : Fin channels → Nat) (gain : Fin channels → R)
-    (spec : WanderSpec) (seed : UInt64)
+    (spec : WanderSpec) (seed : Fin channels → UInt64)
     (_fits : ∀ ch, DelayBuffer.CubicOffsetFits capacity (tap ch) spec.depth)
     (positive : 0 < capacity) :
     WanderingSchroederAllPassGeneric capacity channels R :=
   ⟨DelayBuffer.empty positive, fun ch => tap ch - spec.depth, gain, spec.depth,
-    WanderingRandomLFO.FramedStream.init spec.lambdaSamples seed,
+    Vector.ofFn (fun ch => WanderingRandomLFO.FramedStream.init spec.lambdaSamples (seed ch)),
     fun _ => 0⟩
 
 def uniform [OfNat R 0] [WanderingRandomLFO.SampleValue R] [Sub R] [Div R] [FMA R]
-    (tap : Nat) (gain : Fin channels → R) (spec : WanderSpec) (seed : UInt64)
+    (tap : Nat) (gain : Fin channels → R) (spec : WanderSpec) (seed : Fin channels → UInt64)
     (fits : DelayBuffer.CubicOffsetFits capacity tap spec.depth) :
     WanderingSchroederAllPassGeneric capacity channels R :=
   init (fun _ => tap) gain spec seed (fun _ => fits) (by have := fits.2; omega)
@@ -54,15 +54,16 @@ def step [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3] [OfNat R 4] [OfNat R 5]
     [DelayMath R] [DelayBuffer.SampleIndex R] [WanderingRandomLFO.SampleValue R]
     (filter : WanderingSchroederAllPassGeneric capacity channels R) (input : Sample (Fin channels → R)) :
     WanderingSchroederAllPassGeneric capacity channels R :=
-  let (lfo, value) := filter.lfo.step
-  let offset := offsetSamples (DelayBuffer.SampleIndex.ofNat filter.depth) value
-  let delayed := filter.history.readCubicOffset filter.base offset
+  let next := filter.lfo.map WanderingRandomLFO.FramedStream.step
+  let offset := fun ch : Fin channels =>
+    offsetSamples (DelayBuffer.SampleIndex.ofNat filter.depth) next[ch].2
+  let delayed := filter.history.readCubicOffsets filter.base offset
   let result := Vector.ofFn fun ch =>
     DelayKernels.allPassStep ⟨filter.gain ch, 0, 0⟩ ⟨input.x ch, delayed ch⟩
   let written := Vector.ofFn fun (ch : Fin channels) => result[ch].written
   let output := Vector.ofFn fun (ch : Fin channels) => result[ch].y
   { filter with
-    lfo
+    lfo := next.map Prod.fst
     history := filter.history.push (fun ch => written[ch])
     output := fun ch => output[ch] }
 

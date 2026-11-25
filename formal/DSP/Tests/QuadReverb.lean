@@ -15,6 +15,9 @@ private def checkCubicTap : IO Unit := do
   let offset := buffer.readCubicOffset ![2, 2] 0.5
   unless close (offset 0) 12.25 && close (offset 1) 8.5 do
     throw (IO.userError "Reverb fractional offset failed on a wrapped ring")
+  let offsets := buffer.readCubicOffsets ![2, 2] ![0.5, 0.75]
+  unless close (offsets 0) 12.25 && close (offsets 1) 7.75 do
+    throw (IO.userError "Reverb wandering taps failed on separate channel offsets")
   let newest := buffer.readCubic (fun _ => 1)
   unless close (newest 0) 25 && close (newest 1) 13 do
     throw (IO.userError "Integer reverb delay failed at the wrapped write head")
