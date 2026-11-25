@@ -21,9 +21,14 @@ def speedSeedMask : UInt64 := 0xdecafe8ad14b783c
 def frameSamples : Nat := 32
 
 /-- 250 milliseconds at 192 kHz. -/
-def speedSmoothingSamples : Float := 48000
+def speedSmoothingSamples : Nat := 48000
 
-def speedAlpha : Float := Float.exp (-((Float.ofNat frameSamples) / speedSmoothingSamples))
+def speedAlpha : Float :=
+  Float.exp (-(Float.ofNat frameSamples / Float.ofNat speedSmoothingSamples))
+
+def unitFromHighBits {R : Type} [Add R] [Div R] [OfScientific R]
+    [OfNat R 4503599627370496] (bits : R) : R :=
+  (bits + 0.5) / 4503599627370496
 
 /-- SplitMix64 with an open-interval uniform draw from the high 52 bits. -/
 def drawUnit (seed : UInt64) : Float × UInt64 :=
@@ -31,11 +36,17 @@ def drawUnit (seed : UInt64) : Float × UInt64 :=
   let bits := (seed ^^^ (seed >>> 30)) * randomMix1
   let bits := (bits ^^^ (bits >>> 27)) * randomMix2
   let bits := bits ^^^ (bits >>> 31)
-  (((bits >>> 12).toFloat + 0.5) / 4503599627370496, seed)
+  (unitFromHighBits (bits >>> 12).toFloat, seed)
 
 def drawPoint (seed : UInt64) : Float × UInt64 :=
   let (u, next) := drawUnit seed
   (2 * u - 1, next)
+
+def unitSegment {R : Type} [OfNat R 1] (p0 p1 p2 p3 : R) : Segment R :=
+  ⟨p0, p1, p2, p3, 1, 1, 1, 1, 1⟩
+
+def phaseAfter {R : Type} [Add R] [Mul R] (phase speed count : R) : R :=
+  phase + speed * count
 
 structure Stream (R : Type) where
   private mk ::
@@ -62,7 +73,7 @@ def init {R : Type} [SampleValue R] (lambdaSamples : Float) (seed : UInt64) : St
   let (p1, seed) := drawPoint seed
   let (p2, seed) := drawPoint seed
   let (p3, seed) := drawPoint seed
-  let segment := ⟨p0, p1, p2, p3, 1, 1, 1, 1, 1⟩
+  let segment := unitSegment p0 p1 p2 p3
   ⟨segment, castCubic (prepare segment), 0, 1 / rate, rate, 0, seed, speedSeed⟩
 
 def value {R : Type} [SampleValue R] [FMA R] (state : Stream R) : R :=
@@ -85,7 +96,7 @@ private def prepareSpeed {R : Type} (state : Stream R) : Stream R :=
 
 private def advancePhase {R : Type} (state : Stream R) (count : Nat) : Stream R :=
   { state with
-    phase := state.phase + state.phaseIncrement * Float.ofNat count
+    phase := phaseAfter state.phase state.phaseIncrement (Float.ofNat count)
     frameRemaining := ⟨state.frameRemaining.val - count,
       Nat.lt_of_le_of_lt (Nat.sub_le ..) state.frameRemaining.isLt⟩ }
 
@@ -126,6 +137,12 @@ def step {R : Type} [SampleValue R] [FMA R] (state : Stream R) : Stream R × R :
 
 end Stream
 
+def reconstructionSlope {R : Type} [Sub R] [Div R] (left right count : R) : R :=
+  (right - left) / count
+
+def reconstruct {R : Type} [FMA R] (left slope index : R) : R :=
+  FMA.fma slope index left
+
 /-- Linear reconstruction between spline values evaluated on a sample grid. -/
 structure FramedStream (R : Type) where
   private mk ::
@@ -156,7 +173,7 @@ private def renew {R : Type} [SampleValue R] [Sub R] [Div R] [FMA R]
     { state with
       left
       right
-      slope := (right - left) / SampleValue.fromDouble (Float.ofNat frameSamples)
+      slope := reconstructionSlope left right (SampleValue.fromDouble (Float.ofNat frameSamples))
       position := 0 }
 
 def init {R : Type} [SampleValue R] [Sub R] [Div R] [FMA R]
@@ -171,7 +188,7 @@ private def tick {R : Type} [SampleValue R] [FMA R]
       renew
       pure ⟨0, by decide⟩
   modifyGet fun state =>
-    (FMA.fma state.slope (SampleValue.fromDouble (Float.ofNat index.val)) state.left,
+    (reconstruct state.left state.slope (SampleValue.fromDouble (Float.ofNat index.val)),
       { state with position := ⟨index.val + 1, Nat.succ_lt_succ index.isLt⟩ })
 
 /-- The executable model and generated framed processor share the same state action. -/

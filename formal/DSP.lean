@@ -31,6 +31,7 @@ import DSP.Transfer.Channels
 import DSP.Analysis.ParallelMixEnergy
 import DSP.Analysis.ForcedResponse
 import DSP.Analysis.QuarticStability
+import DSP.Analysis.ExpectedAllPass
 import DSP.Filters.Channels
 import DSP.Filters.Responses.Channels
 import DSP.Filters.Tuning.Digital
@@ -53,6 +54,9 @@ import DSP.Filters.SquiggleBoyQuadReverb.Loop
 import DSP.Filters.SquiggleBoyQuadReverb.Runtime
 import DSP.Filters.SquiggleBoyQuadReverb.SmallSignal
 import DSP.Filters.SquiggleBoyQuadReverb.WanderingProofs
+import DSP.Filters.SquiggleBoyQuadReverb.Frozen.SmallSignal
+import DSP.Filters.SquiggleBoyQuadReverb.Frozen.WanderBounds
+import DSP.Filters.SquiggleBoyQuadReverb.Frozen.WanderFactorization
 import DSP.Filters.TunedDecayComb.Proofs
 import DSP.Filters.TunedDecayComb.Realization
 import DSP.Filters.TunedDecayComb.Linearity
@@ -65,6 +69,9 @@ import DSP.Filters.TunedDecayComb.ResponseProofs
 import DSP.Filters.DelayKernelsProofs
 import DSP.Filters.DelayKernels.Runtime
 import DSP.SmoothRandomLFO.FramedProofs
+import DSP.WanderingRandomLFO.Distribution
+import DSP.WanderingRandomLFO.FramedProofs
+import DSP.WanderingRandomLFO.SamplingProofs
 import DSP.Resynthesis.Real
 import DSP.Resynthesis.PVDRProofs
 import DSP.Resynthesis.PVDRRoots

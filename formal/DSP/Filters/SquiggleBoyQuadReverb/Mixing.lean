@@ -6,7 +6,7 @@ import Mathlib.Tactic.Ring
 
 namespace DSP
 
-private def givensPair {R : Type} [Add R] [Sub R] [Mul R] (c s x y : R) : R × R :=
+def givensPair {R : Type} [Add R] [Sub R] [Mul R] (c s x y : R) : R × R :=
   (c * x - s * y, s * x + c * y)
 
 /-- Rotations in planes 01, 23, 02 and 13. The unit complex coefficients are

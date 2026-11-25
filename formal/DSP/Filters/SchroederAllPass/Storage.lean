@@ -69,20 +69,27 @@ def initializeStage {capacity : Nat} {R Clock : Type} [OfNat R 0] (start : State
   focus Storage.history (fun s history => { s with history }) DelayBuffer.clear
   focus Storage.clock (fun s clock => { s with clock }) start
 
+def tapBase {R : Type} [DelayBuffer.SampleIndex R] [DelayBuffer.Gather R] (spec : TapSpec) : R :=
+  DelayBuffer.Gather.gather ![
+    DelayBuffer.SampleIndex.ofWord (spec.first - spec.depth),
+    DelayBuffer.SampleIndex.ofWord (spec.second - spec.depth),
+    DelayBuffer.SampleIndex.ofWord (spec.third - spec.depth),
+    DelayBuffer.SampleIndex.ofWord (spec.fourth - spec.depth)]
+
+def tapPosition {R : Type} [OfNat R 1] [Add R] [Sub R] [Neg R] [Mul R] [IfLess R]
+    [DelayMath R] [DelayBuffer.SampleIndex R] [DelayBuffer.SampleAges R] [DelayBuffer.Gather R]
+    (spec : TapSpec) (spline : R) : DelayBuffer.QuadAges × R :=
+  let offset := WanderingSchroederAllPassGeneric.offsetSamples (DelayBuffer.SampleIndex.ofWord spec.depth) spline
+  let (rounded, fraction) := DelayBuffer.fractionalPosition offset
+  -- The fit bounds leave three newer samples after each lane's oldest tap.
+  (DelayBuffer.SampleAges.toAges (tapBase spec + rounded), fraction)
+
 def step {capacity : Nat} {R Clock : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3]
     [OfNat R 4] [OfNat R 5] [OfScientific R] [Add R] [Sub R] [Neg R] [Mul R] [FMA R] [IfLess R]
     [DelayMath R] [DelayBuffer.SampleIndex R] [DelayBuffer.SampleAges R] [DelayBuffer.Gather R]
     (spec : TapSpec) (next : StateM Clock R) (input : R) : StateM (Storage capacity R Clock) R := do
   let spline ← focus Storage.clock (fun s clock => { s with clock }) next
-  let offset := WanderingSchroederAllPassGeneric.offsetSamples (DelayBuffer.SampleIndex.ofWord spec.depth) spline
-  let (rounded, fraction) := DelayBuffer.fractionalPosition offset
-  -- The fit bounds leave three newer samples after each lane's oldest tap.
-  let base := DelayBuffer.Gather.gather ![
-    DelayBuffer.SampleIndex.ofWord (spec.first - spec.depth),
-    DelayBuffer.SampleIndex.ofWord (spec.second - spec.depth),
-    DelayBuffer.SampleIndex.ofWord (spec.third - spec.depth),
-    DelayBuffer.SampleIndex.ofWord (spec.fourth - spec.depth)]
-  let oldest := DelayBuffer.SampleAges.toAges (base + rounded)
+  let (oldest, fraction) := tapPosition spec spline
   let delayed ← focus Storage.history (fun s history => { s with history })
     (DelayBuffer.readCubicAges oldest fraction)
   let result := DelayKernels.allPassStep ⟨SquiggleBoyQuadReverb.allPassGain, 0, 0⟩ ⟨input, delayed⟩

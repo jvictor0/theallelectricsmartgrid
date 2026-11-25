@@ -28,6 +28,8 @@ A separate time-domain multisine run used the same settings and the real tanh sl
 
 The uniform clock was evaluated by cutting the loop at the damping filter and taking a unity return through the second APF, main delay, mixer, and first APF. The RMS phase chord over approximately one group-delay lag grew from 0.054 to 0.128 at 1 kHz and from 0.146 to 0.359 at 4 kHz. In a matched control-point comparison, redrawing exponential speed on the 32-sample grid, with or without a 250 ms smoothing time, gave nearly the same results as constant speed. These comparisons isolate the phase movement of the linear loop path across eight seed pairs.
 
+The [frozen Quad Reverb analysis](experiments/reverb-frozen/README.md) contains the Lean model links and reproducible wet RMS curves for the per-lane wander implementation.
+
 ## Related
 
 - [Quad Delay](quad-delay.md)

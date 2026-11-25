@@ -33,11 +33,11 @@ structure State (R Clock : Type) where
   second : Storage squiggleBoyReverbSecondCapacity R Clock
   wet : R
 
-private def introTap (stage : Fin 8) : TapSpec :=
+def introTap (stage : Fin 8) : TapSpec :=
   let tap := UInt64.ofNat (squiggleBoyReverbIntroAPFsDelayTime stage)
   ⟨UInt64.ofNat squiggleBoyReverbWanderSpec.depth, tap, tap, tap, tap⟩
 
-private def feedbackTap (stage : Fin 2) : TapSpec :=
+def feedbackTap (stage : Fin 2) : TapSpec :=
   let tap := fun ch => UInt64.ofNat (squiggleBoyReverbLoopAPFsDelayTime stage ch)
   ⟨UInt64.ofNat squiggleBoyReverbWanderSpec.depth, tap 0, tap 1, tap 2, tap 3⟩
 
@@ -99,7 +99,7 @@ variable {R Clock : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfNat R 3]
   [FMA R] [IfLess R] [DelayMath R] [DelayBuffer.SampleIndex R] [DelayBuffer.SampleAges R]
   [DelayBuffer.Gather R]
 
-private def diffuse (tick : StateM Clock R) :
+def diffuse (tick : StateM Clock R) :
     (order : List (Fin 8)) → R → StateM (Diffusion R Clock order) R
   | [], input => pure input
   | stage :: rest, input => do
@@ -107,7 +107,7 @@ private def diffuse (tick : StateM Clock R) :
       (WanderingSchroederAllPass.step (introTap stage) tick input)
     focus Prod.snd (fun s child => (s.1, child)) (diffuse tick rest sample)
 
-private def dampingStep (input : R) : StateM (Damping R) R :=
+def dampingStep (input : R) : StateM (Damping R) R :=
   modifyGet fun state =>
     let (filter, output) := TPTBaseWidth.Runtime.process state.filter ⟨input⟩
     (output.x, { state with filter })
