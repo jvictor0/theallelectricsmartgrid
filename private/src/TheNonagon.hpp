@@ -165,10 +165,11 @@ struct TheNonagonInternal
         {
             for (size_t j = 0; j < x_voicesPerTrio; ++j)
             {
-                input.m_lameJuisInput.m_laneInput[i].m_updateChan[j] = input.m_arpInput.m_input[i * x_voicesPerTrio + j].m_read
-                                                                     || m_indexArp.m_arp[i * x_voicesPerTrio + j].m_triggered;
-                input.m_lameJuisInput.m_laneInput[i].m_chooserInput.m_choiceValue[j] =
-                    m_indexArp.m_arp[i * x_voicesPerTrio + j].m_choiceValue;
+                const size_t voice = i * x_voicesPerTrio + j;
+                const auto& arp = m_indexArp.m_arp[voice];
+                input.m_lameJuisInput.m_laneInput[i].m_updateChan[j] =
+                    input.m_arpInput.m_input[voice].m_read || arp.m_triggered || arp.m_choiceChanged;
+                input.m_lameJuisInput.m_laneInput[i].m_chooserInput.m_choiceValue[j] = arp.m_choiceValue;
             }
         }
     }
@@ -277,10 +278,14 @@ struct TheNonagonInternal
                 if (input.m_arpInput.m_clockSelect[j] < 0)
                 {
                     input.m_arpInput.m_clockPosition[j] = 0;
+                    input.m_arpInput.m_resetCycleCount[j] = 0;
                 }
                 else if (m_theoryOfTime.AnyTick(input.m_arpInput.m_clockSelect[j]))
                 {
                     input.m_arpInput.m_clockPosition[j] = m_theoryOfTime.GetLoopCyclePosition(
+                        input.m_arpInput.m_clockSelect[j],
+                        input.m_arpInput.m_resetSelect[j]);
+                    input.m_arpInput.m_resetCycleCount[j] = m_theoryOfTime.GetResetCycleCount(
                         input.m_arpInput.m_clockSelect[j],
                         input.m_arpInput.m_resetSelect[j]);
                 }

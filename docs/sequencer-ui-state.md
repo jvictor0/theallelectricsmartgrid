@@ -69,10 +69,10 @@ sufficient for this calculation; the UI does not need the parent tree.
 
 `IndexArp::GetCoordinates` supplies rhythm slot, motive position, and enabled-note
 ordinal. `Input::GetChoiceValue` supplies folding, inversion, retro, and range
-mapping. Live processing and the UI reuse those functions. The arp's
-`GetForwardCoordinates` finds the preceding enabled slot during forward rests,
-including across a reset boundary. Its search is bounded to one rhythm length
-without a reset, or at most two rhythm lengths when a reset joins partial
+mapping. Live processing and the UI both use `GetForwardCoordinates` to find
+the preceding enabled slot in forward time during a rest, including across a
+reset boundary. Both directions use that same slot. The search is bounded to
+one rhythm length without a reset, or at most two when a reset joins partial
 motives. No enabled slot reachable under the frozen settings means the reset
 note and motive, both zero. Historical choices from before a parameter edit are
 not reconstructed. A disabled clock also uses the reset choice, including the

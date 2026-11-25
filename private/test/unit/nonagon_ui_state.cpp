@@ -211,14 +211,15 @@ DOCTEST_TEST_CASE("SequencerUI: a disabled arp clock uses its reset choice despi
     DOCTEST_CHECK(rig.m_ui.GetVoicePoint(0, 0).m_choiceValue == doctest::Approx(0.125f));
 }
 
-DOCTEST_TEST_CASE("SequencerUI: leading rests retain the last reachable note across a clock reset")
+DOCTEST_TEST_CASE("SequencerUI: live arp and pitch agree with the preview across a reset in both directions")
 {
     NonagonSnapshotRig rig;
-    auto& input = rig.m_grid->m_state.m_arpInput;
+    auto& state = rig.m_grid->m_state;
+    auto& input = state.m_arpInput;
+    auto& nonagon = rig.m_grid->m_nonagon;
+    auto& time = nonagon.m_theoryOfTime;
     input.m_clockSelect[0] = 0;
     input.m_resetSelect[0] = 4;
-    input.m_clocks[0] = true;
-    input.m_input[0].m_read = true;
     input.m_input[0].m_rhythmLength = 5;
     for (size_t slot = 0; slot < IndexArp::x_rhythmLength; ++slot)
     {
@@ -230,17 +231,26 @@ DOCTEST_TEST_CASE("SequencerUI: leading rests retain the last reachable note acr
     input.m_pageInterval[0] = 0.125f;
     rig.Publish();
     rig.m_ui.Snapshot();
-    constexpr std::array<int64_t, 7> x_positions = {13, 14, 15, 0, 1, 2, 3};
-    constexpr std::array<float, 7> x_choices = {0.25f, 0.25f, 0.25f, 0.25f, 0.25f, 0.25f, 0.0f};
-    for (size_t index = 0; index < x_positions.size(); ++index)
+    constexpr std::array<int64_t, 13> x_cycles = {13, 14, 15, 16, 17, 18, 19, 18, 17, 16, 15, 14, 13};
+    for (int64_t cycle : x_cycles)
     {
-        input.m_clockPosition[0] = x_positions[index];
-        rig.m_grid->m_nonagon.m_indexArp.Process(input);
-        rig.Publish();
-        rig.m_ui.Snapshot();
-        auto point = rig.m_ui.GetVoicePoint(static_cast<int64_t>(index) + 13, 0);
-        DOCTEST_REQUIRE(point.m_loopCyclePosition == x_positions[index]);
-        DOCTEST_CHECK(rig.m_grid->m_nonagon.m_indexArp.m_arp[0].m_choiceValue == doctest::Approx(x_choices[index]));
-        DOCTEST_CHECK(point.m_choiceValue == doctest::Approx(x_choices[index]));
+        DOCTEST_CAPTURE(cycle);
+        state.m_theoryOfTimeInput.m_unmodulatedPhase =
+            (static_cast<double>(cycle) + 0.25) / static_cast<double>(time.GetCycleRatio(0));
+        time.TheoryOfTimeBase::Process(state.m_theoryOfTimeInput);
+        DOCTEST_REQUIRE(time.AnyTick(0));
+        nonagon.SetIndexArpInputs(state);
+        nonagon.m_indexArp.Process(input);
+        nonagon.SetLameJuisInput(state);
+        nonagon.m_lameJuis.Process(state.m_lameJuisInput);
+
+        const auto point = rig.m_ui.GetVoicePoint(time.GetGlobalTickPosition(PhaseDomain::Modulated), 0);
+        const auto& arp = nonagon.m_indexArp.m_arp[0];
+        DOCTEST_CHECK(point.m_loopCyclePosition == cycle % 16);
+        DOCTEST_CHECK(point.m_choiceValue == doctest::Approx(cycle == 19 ? 0.0f : 0.25f));
+        DOCTEST_CHECK(arp.m_choiceValue == doctest::Approx(point.m_choiceValue));
+        DOCTEST_CHECK_FALSE(input.m_input[0].m_read);
+        DOCTEST_CHECK(arp.m_triggered == (cycle == 13 || cycle == 19));
+        DOCTEST_CHECK(nonagon.m_lameJuis.m_lanes[0].m_pitch[0] == point.m_pitch);
     }
 }

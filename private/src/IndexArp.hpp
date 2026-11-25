@@ -15,6 +15,7 @@ struct IndexArp
     int64_t m_rhythmSlotIndex;
     float m_choiceValue;
     bool m_triggered;
+    bool m_choiceChanged;
 
     IndexArp()
         : m_clockPosition(-1)
@@ -23,6 +24,7 @@ struct IndexArp
         , m_rhythmSlotIndex(-1)
         , m_choiceValue(0.0f)
         , m_triggered(false)
+        , m_choiceChanged(false)
     {
     }
     
@@ -33,6 +35,7 @@ struct IndexArp
         bool m_noClock;
 
         int64_t m_clockPosition;
+        int64_t m_resetCycleCount;
 
         float m_offset;
         float m_interval;
@@ -50,6 +53,7 @@ struct IndexArp
             , m_read(false)
             , m_noClock(false)
             , m_clockPosition(0)
+            , m_resetCycleCount(0)
             , m_offset(0)
             , m_interval(0)
             , m_min(0)
@@ -128,38 +132,37 @@ struct IndexArp
         int64_t m_noteIndex;
     };
 
-    void Process(Input& input)
+    void Process(const Input& input)
     {
         m_triggered = false;
+        m_choiceChanged = false;
 
         if (input.m_noClock)
         {
             Reset();
         }
 
-        if (input.m_clock)
+        const bool coordinatesChanged = input.m_clock && ProcessClock(input);
+        if (input.m_read || m_triggered || coordinatesChanged)
         {
-            ProcessClock(input);
-        }
-
-        if (input.m_read || m_triggered)
-        {
-            m_choiceValue = input.GetChoiceValue(m_noteIndex, m_motivePosition);
+            const float choiceValue = input.GetChoiceValue(m_noteIndex, m_motivePosition);
+            m_choiceChanged = choiceValue != m_choiceValue;
+            m_choiceValue = choiceValue;
         }
     }
 
-    void ProcessClock(Input& input)
+    bool ProcessClock(const Input& input)
     {
         m_clockPosition = input.m_clockPosition;
-        Coordinates coordinates = GetCoordinates(input, m_clockPosition);
-        m_rhythmSlotIndex = coordinates.m_rhythmSlotIndex;
-
-        if (input.m_rhythm[m_rhythmSlotIndex])
-        {
-            m_noteIndex = coordinates.m_noteIndex;
-            m_motivePosition = coordinates.m_motivePosition;
-            m_triggered = true;
-        }
+        const Coordinates held = GetForwardCoordinates(input, m_clockPosition, input.m_resetCycleCount);
+        const bool changed = m_rhythmSlotIndex < 0
+            || held.m_noteIndex != m_noteIndex
+            || held.m_motivePosition != m_motivePosition;
+        m_rhythmSlotIndex = PhaseUtils::FloorMod(m_clockPosition, input.m_rhythmLength);
+        m_triggered = input.m_rhythm[m_rhythmSlotIndex];
+        m_noteIndex = held.m_noteIndex;
+        m_motivePosition = held.m_motivePosition;
+        return changed;
     }
 
     static Coordinates GetCoordinates(const Input& input, int64_t clockPosition)
@@ -183,12 +186,17 @@ struct IndexArp
     static Coordinates GetForwardCoordinates(const Input& input, int64_t clockPosition, int64_t resetCycleCount)
     {
         Coordinates current = GetCoordinates(input, clockPosition);
+        if (input.m_rhythm[current.m_rhythmSlotIndex])
+        {
+            return current;
+        }
+
         // A reset can join the trailing and leading rests of two partial motives.
         //
         int64_t lookback = resetCycleCount > 0
             ? std::min<int64_t>(2 * input.m_rhythmLength, resetCycleCount)
             : input.m_rhythmLength;
-        for (int64_t distance = 0; distance < lookback; ++distance)
+        for (int64_t distance = 1; distance < lookback; ++distance)
         {
             Coordinates candidate;
             if (resetCycleCount > 0 && clockPosition < distance)
@@ -359,6 +367,7 @@ struct NonagonIndexArp
         bool m_cycle[x_numVoices];        
 
         int64_t m_clockPosition[x_numTrios];
+        int64_t m_resetCycleCount[x_numTrios];
 
         void SetTrioInputs()
         {
@@ -378,6 +387,7 @@ struct NonagonIndexArp
                     m_input[i * x_voicesPerTrio + j].m_max = m_input[i * x_voicesPerTrio + j].m_min + m_zoneHeight[i * x_voicesPerTrio + j];
 
                     m_input[i * x_voicesPerTrio + j].m_clockPosition = m_clockPosition[i];
+                    m_input[i * x_voicesPerTrio + j].m_resetCycleCount = m_resetCycleCount[i];
                 }
             }
                     
@@ -406,6 +416,7 @@ struct NonagonIndexArp
             , m_retro{}
             , m_cycle{}
             , m_clockPosition{}
+            , m_resetCycleCount{}
         {
             for (size_t i = 0; i < x_numClocks; ++i)
             {

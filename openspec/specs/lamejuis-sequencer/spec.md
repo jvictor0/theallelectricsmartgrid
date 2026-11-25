@@ -1,7 +1,7 @@
 # LameJuis Sequencer Specification
 
 ## Purpose
-LameJuis (`private/src/LameJuis.hpp`, `private/src/HarmonicSheaf.hpp`, `private/src/IndexArp.hpp`) is the stateless pitch engine of the Nonagon. It maps the six time-loop gate bits from the phasor timebase (a point x in I⁶, see phasor-timebase) to just-intonation pitches through a matrix of logic operations feeding interval accumulators (the map M), a per-trio lens defining an equivalence on time slices, the resulting harmonic sheaf of available pitches, and a section choice strategy steered by the index arp. For a fixed accepted configuration and choice argument, pitch selection is deterministic. Requested edits become accepted configuration on the relevant input ticks; each channel retains its selected section until its next scheduled read or arp trigger.
+LameJuis (`private/src/LameJuis.hpp`, `private/src/HarmonicSheaf.hpp`, `private/src/IndexArp.hpp`) is the stateless pitch engine of the Nonagon. It maps the six time-loop gate bits from the phasor timebase (a point x in I⁶, see phasor-timebase) to just-intonation pitches through a matrix of logic operations feeding interval accumulators (the map M), a per-trio lens defining an equivalence on time slices, the resulting harmonic sheaf of available pitches, and a section choice strategy steered by the index arp. For a fixed accepted configuration and choice argument, pitch selection is deterministic. Requested edits become accepted configuration on the relevant input ticks. Each channel holds its selected section until a read, an arp trigger, or a change to the arp choice requests a new selection.
 
 ## Requirements
 
@@ -108,7 +108,7 @@ Each lane also has a base strategy (default None); the chooser first runs the ba
 
 ### Requirement: Index Arp Maps Loop-Cycle Positions to the Choice Value
 The system SHALL run one index arp per voice that converts the trio's signed loop-cycle position, sampled through AnyTick and GetLoopCyclePosition (see phasor-timebase) into a float: rhythmSlotIndex = FloorMod(clockPosition, rhythmLength) and motivePosition = FloorDiv(clockPosition, rhythmLength) (rhythm length 1–8, default `x_rhythmLength` = 8); on a clocked enabled slot, noteIndex becomes the ordinal of the current slot among the enabled slots; the output is `offset + physicalNoteIndex × interval + motivePosition × pageInterval`, wrapped (triangle-folded when cycle is on, otherwise taken mod 1), optionally inverted (1 − value), then scaled to [min, max].
-Retro mode reverses the physical index as `numOnSteps − index`. The output is recomputed on a trigger or a read flag and passed to the lane chooser as the choice argument. Per trio, voice ranges stack: voice 0's min is 0, each later voice's min is the previous voice's max minus `zoneHeight × zoneOverlap`, and each max is min + zoneHeight.
+Retro mode reverses the physical index as `numOnSteps − index`. The output is recomputed on a trigger, a read flag, or a clock crossing that changes the resolved note or motive, and passed to the lane chooser as the choice argument. Per trio, voice ranges stack: voice 0's min is 0, each later voice's min is the previous voice's max minus `zoneHeight × zoneOverlap`, and each max is min + zoneHeight.
 
 #### Scenario: Clock position decomposes into rhythm slot and motive position
 - **WHEN** the trio's clock position is 11 with rhythm length 8
@@ -117,13 +117,14 @@ Retro mode reverses the physical index as `numOnSteps − index`. The output is 
 
 #### Scenario: Off-step produces no trigger
 - **WHEN** the clock advances onto a rhythm step that is off
-- **THEN** the arp does not trigger and its output is only refreshed if the read flag is set
+- **THEN** the arp does not trigger
+- **AND** its choice is refreshed if the read flag is set or the resolved note or motive changes
 
 #### Scenario: Output is scaled into the voice's zone
 - **WHEN** an arp with min 0.25, max 0.75 computes a pre-scale value of 0.5
 - **THEN** the emitted choice argument is 0.25 + 0.5 × 0.5 = 0.5
 
-The signed clock and motive positions SHALL retain signed 64-bit range through decomposition and SHALL NOT narrow to int or float before bounded output reduction. Existing retro, inversion, folding, trigger/read, and voice-zone behavior SHALL remain unchanged.
+The signed clock and motive positions SHALL retain signed 64-bit range through decomposition and SHALL NOT narrow to int or float before bounded output reduction. Enabled destination slots SHALL continue to determine arp sub-triggers. Retro, inversion, folding, and voice-zone mapping SHALL continue to apply to the resolved note and motive.
 
 #### Scenario: Negative step uses the preceding motive
 - **WHEN** clockPosition is -1 and rhythmLength is 8
@@ -139,7 +140,7 @@ The signed clock and motive positions SHALL retain signed 64-bit range through d
 - **AND** its per-voice rhythm is evaluated independently of the loop's gate pattern
 
 ### Requirement: Pitch-Changed Triggers per Lane Channel
-The system SHALL update a lane channel's selection only when that voice's read flag is set or its index arp triggered, and SHALL raise the channel's pitch-changed trigger exactly when the newly chosen section or its evaluated value differs from the previously stored one. Section equality SHALL compare every accumulator's high count and total count, including totals whose high count is zero. A denominator-only change MAY therefore request a new note at the same pitch, subject to the existing trigger and gate controls; it SHALL NOT schedule an additional read or bypass the channel's rhythmic update timing.
+The system SHALL update a lane channel's selection when that voice's read flag is set, its index arp triggered, or its arp choice value changed. It SHALL raise the channel's pitch-changed trigger exactly when the newly chosen section or its evaluated value differs from the previously stored one. Section equality SHALL compare every accumulator's high count and total count, including totals whose high count is zero. A denominator-only change MAY therefore request a new note at the same pitch, subject to the existing trigger and gate controls. It SHALL follow the same selection schedule.
 On lane reset (transport stop, see nonagon-sequencer), stored sections are poisoned so the first selection after restart always registers as changed.
 
 #### Scenario: Unchanged selection does not trigger
@@ -152,7 +153,7 @@ On lane reset (transport stop, see nonagon-sequencer), stored sections are poiso
 
 #### Scenario: Denominator change is observed on the next allowed update
 - **WHEN** a cache rebuild changes an accumulator's total count while its high count and evaluated pitch remain unchanged
-- **THEN** a channel with neither a read nor an arp trigger retains its stored section and emits no pitch-changed trigger
+- **THEN** a channel without a scheduled selection update retains its stored section and emits no pitch-changed trigger
 - **AND** its next allowed selection emits a pitch-changed trigger if the newly selected section differs only in that total count, including a zero-high case such as 0/4 becoming 0/3
 
 ### Requirement: Extra Timbre Coefficients
@@ -205,7 +206,7 @@ HarmonicSheaf::UIState SHALL provide Changed and Snapshot, and its Choose operat
 
 ### Requirement: Published Index-Arp Snapshots
 The system SHALL publish each voice's resolved min/max zone, offset, note interval, motive/page interval, inversion, retro, cycle flag, rhythm length, and all eight rhythm slots, together with each trio's clock and reset selections. UI evaluation SHALL reuse IndexArp's coordinate decomposition and choice-value mapping, including signed and wider-than-32-bit clock positions. Zone stacking and overlap SHALL be resolved using the production input calculation before publication. Snapshot SHALL freeze these inputs, and Changed SHALL observe parameter, rhythm, or routing edits.
-For a forward pitch preview, disabled rhythm slots SHALL retain the note index and motive position from the preceding enabled slot rather than constructing a new motive or negative note ordinal. The lookup SHALL respect the clock reset span, including truncated motives. If no enabled slot is reachable under the frozen rhythm and reset settings, the preview SHALL use reset note index zero and motive position zero. A disabled clock SHALL use the reset choice at note index zero and motive position zero regardless of the rhythm's first slot. These requirements concern the choice value; they do not imply a trigger on a rest.
+Live evaluation and the preview SHALL resolve a disabled rhythm slot to the note index and motive position of the preceding enabled slot in forward time, independent of traversal direction. The lookup SHALL respect the clock reset span, including truncated motives. If no enabled slot is reachable under the rhythm and reset settings, the choice SHALL use reset note index zero and motive position zero. A disabled clock SHALL use the reset choice at note index zero and motive position zero regardless of the rhythm's first slot. Only enabled destination slots produce arp sub-triggers.
 
 #### Scenario: Published overlapping voice zones
 - **WHEN** three voices have zone height 1, overlap 0.5, and choice offset 0.25
@@ -220,6 +221,11 @@ For a forward pitch preview, disabled rhythm slots SHALL retain the note index a
 - **WHEN** a 16-cycle reset truncates a five-slot rhythm with only slot 3 enabled, interval is 0.25, page interval is 0.125, and range is [0,1]
 - **THEN** forward preview and live choices hold 0.25 from clock position 13 through positions 14, 15, 0, 1, and 2
 - **AND** the enabled slot at position 3 changes the choice to zero
+
+#### Scenario: Backward entry into a rest refreshes the choice
+- **WHEN** the arp returns from position 3 to position 2 in the same reset span while its clock bit is co-muted
+- **THEN** live and preview choices both return to 0.25
+- **AND** LameJuis refreshes its selection with that choice and the arp emits no sub-trigger
 
 #### Scenario: No enabled slot is reachable
 - **WHEN** the frozen rhythm and clock reset admit no enabled slot
