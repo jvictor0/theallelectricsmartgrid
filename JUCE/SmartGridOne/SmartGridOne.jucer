@@ -27,6 +27,7 @@
             file="Source/NonagonWrapper.hpp"/>
     </GROUP>
     <GROUP id="{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}" name="Assets">
+      <FILE id="NaiveLadderResponse" name="NaiveReuppingLadderResponse.bin" compile="0" resource="0" xcodeResource="1" file="Assets/NaiveReuppingLadderResponse.bin"/>
       <FILE id="modBadgeLFO" name="mod_badge_LFO.png" compile="0" resource="1"
             file="Assets/mod_badge_LFO.png"/>
       <FILE id="modBadgeADSR" name="mod_badge_ADSR.png" compile="0" resource="1"

@@ -13,17 +13,6 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build/lean"
-HEADERS = ("SchroederAllPassCoreGeneric", "TunedDecayCombCoreGeneric",
-           "TunedDecayCombTuningGeneric", "TunedDecayCombResponseGeneric", "SquiggleBoyQuadReverbFramed",
-           "SquiggleBoyQuadReverbEverySample", "SquiggleBoyQuadReverbInitFramed",
-           "SquiggleBoyQuadReverbInitEverySample", "SquiggleBoyQuadReverbTuning",
-           "WanderingRandomLFOInit32", "WanderingRandomLFOInit64", "WanderingRandomLFOFramedInit32",
-           "WanderingRandomLFOFramedInit64", "WanderingRandomLFO32", "WanderingRandomLFO64",
-           "WanderingRandomLFOFramed32", "WanderingRandomLFOFramed64", "WanderingRandomLFOFramedState",
-           "WanderingRandomLFOState", "WanderingRandomLFORefresh32", "WanderingRandomLFORefresh64",
-           "WanderingRandomLFOWrap32", "WanderingRandomLFOWrap64", "WanderingRandomLFOWrapFramed32",
-           "WanderingRandomLFOWrapFramed64",
-           "WanderingRandomLFORenewFrame32", "WanderingRandomLFORenewFrame64")
 
 
 def number(bits, precision):
@@ -38,9 +27,6 @@ def bits(value):
 def main():
     output = BUILD / "codegen-test"
     output.mkdir(parents=True, exist_ok=True)
-    for name in HEADERS:
-        assert (BUILD / "generated" / (name + ".hpp")).read_bytes() == (
-            ROOT / "formal/DSP/generated" / (name + ".hpp")).read_bytes(), f"Stale {name}"
     for precision in (32, 64):
         for name, fields in ((f"WanderingRandomLFO{precision}", {"m_phase", "m_frameRemaining"}),
                              (f"WanderingRandomLFOFramed{precision}", {"m_position"})):

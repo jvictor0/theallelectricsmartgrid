@@ -14,20 +14,7 @@ from test_dsp_multiband import test_multiband
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build/lean"
 GENERATED = BUILD / "generated"
-HEADERS = (
-    "OnePoleZOHLowPass.hpp", "OnePoleTPTLowPass.hpp", "OnePoleTPTHighPass.hpp",
-    "TPTBaseWidth.hpp", "TPTSVF.hpp", "MorphingTPTSVF.hpp", "TPTSVF4PoleHighPass.hpp",
-    "TPTSVF4PoleLowPass.hpp", "TPTSVF4PoleBandPass.hpp", "TPTLadder.hpp",
-    "CoupledProcessor.hpp",
-    "ConservativeReuppingLadderCore.hpp",
-    "TPTSVFLowPass.hpp", "TPTSVFHighPass.hpp", "TPTSVFBandPass.hpp", "TPTSVFNotch.hpp", "TPTSVFAllPass.hpp",
-)
-HEADERS += tuple(name.replace(".hpp", "Generic.hpp") for name in HEADERS)
-HEADERS += ("LinkwitzRileySplitter4BandGeneric.hpp", "MultibandSaturator4BandCoreGeneric.hpp")
-HEADERS += tuple(f"ButterworthDownsampler{order}{kind}.hpp" for order in (2, 4, 8) for kind in ("Generic", "Prepare"))
-HEADERS += ("SmoothRandomLFOPrepareGeneric.hpp", "SmoothRandomLFOCubicGeneric.hpp")
-HEADERS += ("AnalyzePVDR32.hpp", "AnalyzePVDR64.hpp", "SynthesizeSpectrum32.hpp", "SynthesizeSpectrum64.hpp",
-            "ResynthesisFrame32.hpp", "ResynthesisFrame64.hpp", "GrainControl32.hpp", "UnisonBase32.hpp", "UnisonBase64.hpp")
+FIXTURES = BUILD / "codegen-test/fixtures"
 
 
 def test_response(cases, output):
@@ -103,6 +90,7 @@ def test_channels(cases, compiler, output, input_counts):
     subprocess.run(compiler + [
         "-std=c++17", "-O2", "-fno-fast-math", "-ffp-contract=off",
         "-Wall", "-Wextra", "-Werror", "-I", str(GENERATED), "-I", str(ROOT / "private/src"),
+        "-I", str(FIXTURES),
         str(ROOT / "formal/DSP/Tests/codegen_channels_runner.cpp"), "-o", str(runner),
     ], check=True)
     actual = subprocess.run(
@@ -142,7 +130,7 @@ def test_all_responses(cases, compiler, output):
     assert len(actual) == len(expected), "Different number of TPT response results"
     for label, found, wanted in zip(labels, actual, expected):
         assert found == wanted, f"{label}\nLean: {wanted}\nC++: {found}"
-    print(f"Response codegen: {len(expected)} vector batches, 14 responses each, match native Lean "
+    print(f"Response codegen: {len(expected)} vector batches, 13 responses each, match native Lean "
           "bit for bit in float/double at widths 1, 2, 3, 4; scalar double and independent complex checks pass.")
 
 
@@ -172,7 +160,7 @@ def main():
         "zoh": 3, "tpt": 4, "tptHigh": 5, "baseWidth": 8, "svf": 12, "morph": 16,
         "svf4High": 23, "svf4Low": 23, "svf4Band": 23, "ladder": 15, "splitter": 53,
         "swap": 4, "gain": 2, "coupled": 3, "arithmetic": 3, "fma": 3, "fma32": 3,
-        "conservative": 11, "butterworth2": 6, "butterworth4": 11, "butterworth8": 21,
+        "butterworth2": 6, "butterworth4": 11, "butterworth8": 21,
     }
     # Selected exports use the same full-SVF model as their independent oracle.
     selected_cases = []
@@ -194,7 +182,6 @@ def main():
         "svf4Low": list(range(6)) + list(range(11, 17)) + [17],
         "svf4Band": list(range(6)) + list(range(11, 17)) + [18],
         "ladder": [0, 2, 3, 5, 6, 8, 9, 11, 12, 13],
-        "conservative": list(range(8)) + [9],
     }
     for label, index in zip(("LowPass", "HighPass", "BandPass", "Notch", "AllPass"), (6, 8, 7, 9, 10)):
         projections["svf" + label] = list(range(6)) + [index]
@@ -230,6 +217,7 @@ def main():
     subprocess.run(compiler + [
         "-std=c++17", "-O2", "-fno-fast-math", "-ffp-contract=off",
         "-Wall", "-Wextra", "-Werror", "-I", str(GENERATED), "-I", str(ROOT / "private/src"),
+        "-I", str(FIXTURES),
         str(ROOT / "formal/DSP/Tests/codegen_runner.cpp"), "-o", str(runner),
     ], check=True)
     actual = subprocess.run(
@@ -242,17 +230,12 @@ def main():
             f"Case {index}: {inputs[index]}\nLean: {wanted}\nC++:  {found}"
         )
 
-    for name in HEADERS:
-        snapshot = ROOT / "formal/DSP/generated" / name
-        assert snapshot.read_bytes() == (GENERATED / name).read_bytes(), (
-            f"Generated {name} is stale; run make lean-dsp-generate and review its diff"
-        )
     splitter_header = (GENERATED / "LinkwitzRileySplitter4BandGeneric.hpp").read_text()
     assert "template<typename Number, size_t Size>" in splitter_header
     assert "static Snapshot MakeSnapshot(const LogicalSpec& spec)" in splitter_header
     assert "MagnitudeSquared" not in splitter_header
     assert "std::vector" not in splitter_header
-    print(f"C++ codegen: {len(scalar_cases)} native Lean/C++ cases match bit for bit; snapshot current.")
+    print(f"C++ codegen: {len(scalar_cases)} native Lean/C++ cases match bit for bit.")
     test_channels(cases, compiler, output, input_counts)
     test_response(response_cases, output)
     test_all_responses(all_response_cases, compiler, output)

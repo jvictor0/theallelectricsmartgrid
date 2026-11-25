@@ -54,13 +54,12 @@ The system SHALL run `EncoderBankBank::Process`, which computes encoder cells on
 - **AND** resonance and saturation gain changes apply on the next sample in the same way
 
 ### Requirement: Voice Configuration
-Each voice SHALL be configured by a `SquiggleBoyVoiceConfig` carrying: the source machine selection (`DualWaveShapingVCO`, `PhysicalModeling`, `Thru`, or `Sample`), the filter machine selection (`NaiveReuppingLadder`, `SVF2Pole`, or `ConservativeReuppingLadder`), a source assignment, and an `AudioBufferBank` pointer used by the Sample source machine. The source assignment SHALL be able to represent Silent, Source Left for a source index, and Source Right for a source index. Defaults are `DualWaveShapingVCO`, `NaiveReuppingLadder`, source 0 Left for compatibility, and a null buffer bank. Each track input holds a pointer to each of its voices' configs. Machines are chosen per track: every engine sample, `SquiggleBoyTrack::Input::SetMachines` copies the first voice's source and filter machine into the source, filter, and amp inputs (the UI keeps them equal across a track's voices) and copies each voice's source assignment and buffer bank, so the DSP path follows the live config on the next sample.
+Each voice SHALL be configured by a `SquiggleBoyVoiceConfig` carrying: the source machine selection (`DualWaveShapingVCO`, `PhysicalModeling`, `Thru`, or `Sample`), the filter machine selection (`NaiveReuppingLadder` or `SVF2Pole`), a source assignment, and an `AudioBufferBank` pointer used by the Sample source machine. The source assignment SHALL be able to represent Silent, Source Left for a source index, and Source Right for a source index. Defaults are `DualWaveShapingVCO`, `NaiveReuppingLadder`, source 0 Left for compatibility, and a null buffer bank. Each track input holds a pointer to each of its voices' configs. Machines are chosen per track: every engine sample, `SquiggleBoyTrack::Input::SetMachines` copies the first voice's source and filter machine into the source, filter, and amp inputs (the UI keeps them equal across a track's voices) and copies each voice's source assignment and buffer bank, so the DSP path follows the live config on the next sample.
 
 #### Scenario: Filter machine selection switches the DSP path
 - **WHEN** a voice's config has `m_filterMachine = NaiveReuppingLadder`
 - **THEN** the filter section processes through the 4-pole ladder low-pass, the sample-rate reducer, then the 4-pole SVF high-pass
 - **AND** with `m_filterMachine = SVF2Pole` it instead processes through the saturated 2-pole SVF low-pass, the sample-rate reducer, then the 2-pole SVF high-pass
-- **AND** with `m_filterMachine = ConservativeReuppingLadder` it uses the generated fixed-feedback ladder low-pass with the shared ladder reducer and four-pole high-pass routing
 
 #### Scenario: Thru source pins the filter base frequency
 - **WHEN** a voice's config has `m_sourceMachine = Thru`
@@ -131,7 +130,7 @@ The system SHALL expose per-voice UI state through `SquiggleBoyWithEncoderBank::
 - **THEN** each sampled response is the product of that snapshot's ladder low-pass and SVF4 high-pass responses
 - **AND** the UI draws lower/median/upper magnitude order statistics across the sampled batch
 - **AND** switching to `SVF2Pole` starts a new history of coherent SVF low-pass/high-pass snapshots
-- **AND** switching between either ladder and another machine also starts a new history, using the conservative ladder's generated small-signal response when that machine is selected
+- **AND** switching back to `NaiveReuppingLadder` starts a new history of ladder snapshots
 
 #### Scenario: Sample directory path snapshot
 - **WHEN** voice i uses the Sample source machine with a loaded `AudioBufferBank`

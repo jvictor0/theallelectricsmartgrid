@@ -17,10 +17,13 @@ if(PERF_STATUS)
 endif()
 configure_file(BuildInfo.hpp.in BuildInfo.hpp @ONLY)
 add_executable(SmartGridPerf MACOSX_BUNDLE Main.mm Cases.cpp ButterworthCase.cpp ../density.cpp ../responses.cpp)
+set(LADDER_RESPONSE "${REPO_ROOT}/JUCE/SmartGridOne/Assets/NaiveReuppingLadderResponse.bin")
+target_sources(SmartGridPerf PRIVATE "${LADDER_RESPONSE}")
+set_source_files_properties("${LADDER_RESPONSE}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
 target_include_directories(SmartGridPerf PRIVATE "${REPO_ROOT}/private/src" "${REPO_ROOT}/formal/DSP/generated" "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_options(SmartGridPerf PRIVATE -fno-fast-math -ffp-contract=off -O3 -funroll-loops "$<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>")
 target_compile_definitions(SmartGridPerf PRIVATE NDEBUG=1)
-target_link_libraries(SmartGridPerf PRIVATE "-framework UIKit" "-framework Foundation")
+target_link_libraries(SmartGridPerf PRIVATE "-framework UIKit" "-framework Foundation" "-framework CoreFoundation")
 set_target_properties(SmartGridPerf PROPERTIES
     MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Info.plist.in"
     XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "com.theallelectricsmartgrid.perf"

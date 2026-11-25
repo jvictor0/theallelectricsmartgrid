@@ -1,10 +1,9 @@
 # Naive Reupping Ladder
 
 The **Naive Reupping Ladder** is one of the filter options available per voice
-in the DSP engine. `NaiveReuppingLadderGeneric<Number, Size>` implements the
-low-pass filter; `NaiveReuppingLadderShapeGeneric<Size>` combines it with the
-sample-rate reducer and high-pass filter. The mono and trio filter aliases are
-`NaiveReuppingLadder` and `TrioNaiveReuppingLadder`.
+in the DSP engine. `GeneratedNaiveReuppingLadderGeneric<Number, Size>` wraps the
+Lean-generated low-pass filter. `NaiveReuppingLadderShapeGeneric<Size>` combines
+it with the sample-rate reducer and high-pass filter.
 
 ## Why this topology has this name
 
@@ -23,10 +22,6 @@ tanh doing all the work and later stages merely giving the compressed signal
 
 The name identifies this particular discrete topology so other ladder designs
 can coexist with it.
-
-The handwritten adaptive implementation remains available for A/B testing with
-[Conservative Reupping Ladder](filter-conservative-reupping-ladder.md), which is
-the Lean reupping ladder implementation and uses fixed feedback.
 
 ## Structure
 
@@ -161,12 +156,20 @@ is on the output. The Nyquist guard retains the existing four-stage slope
 heuristic; it does **not** establish stability of the complete nonlinear,
 time-varying system. Debug meters and their periodic print dispatch are removed.
 
-The snapshot still represents the frozen unit-gain linear model with effective
-feedback. It excludes saturation slopes and envelope dynamics. This C++
-refactor does not turn the existing generated `TPTLadder` into a model of the
-app ladder. The conservative shape instead uses its generated core and proved small-signal
-UI response, including saturation slopes. The adaptive implementation and its
-existing approximate plot remain available for comparison.
+## Measured response
+
+The sampled UI snapshot captures the applied cutoff, resonance, and drive. The
+UI decodes the bundled 10 MB table once per captured configuration for each
+paint. The table predicts the wet/dry power ratio of the reset ladder under
+full-band white noise at 192 kHz. The plot spans 23.4375 Hz to 96 kHz. The
+cutoff table spans 20 Hz to 96 kHz and uses the 20 Hz entry for lower cutoffs.
+
+The table was frozen before the 10,240 held-out trials. At 95% confidence, the
+audit certifies at least 92.75% coverage within 0.5 dB whole-curve RMS error and
+at least 95% within 1 dB, measured above the −60 dB display floor. The audit
+covers the ladder under the declared stimulus. The high-pass and sample-rate
+reducer use their existing response drawing logic. See the
+[survey recipe](../formal/SurveyExamples/NaiveReuppingLadderDense.lean).
 
 ## Vector tuning validation and cost
 

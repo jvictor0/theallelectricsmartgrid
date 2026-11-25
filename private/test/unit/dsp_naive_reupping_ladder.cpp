@@ -25,7 +25,7 @@
 #include "../support/Spectral.hpp"
 #include "../support/NanScan.hpp"
 
-#include "NaiveReuppingLadder.hpp"
+#include "../support/NaiveReuppingLadderReference.hpp"
 
 using namespace TestSpectral;
 using namespace TestSignal;

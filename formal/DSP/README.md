@@ -338,21 +338,10 @@ and 1 are exactly lowpass, bandpass and highpass.
 and bandpass variants feed and read the corresponding response. Stages may have
 different gains and dampings.
 
-The [Conservative Reupping Ladder](Filters/ConservativeReuppingLadder/README.md)
-uses four sequential Euler stages, normalized saturation and delayed feedback
-with a fixed coefficient `k = resonance * 0.975 * kCritical / slope^3`.
-Its proofs connect derivatives of
-the actual nonlinear trajectory to an exact digital transfer and establish
-strict pole stability throughout the valid tuning range. Its scalar and
-multichannel generated cores include coefficient snapshots and a proved
-magnitude-squared kernel. The app offers it as a separate shape alongside the
-handwritten adaptive ladder, with shared knob mapping and routing. The nonlinear
-response is proved to approximate its tangent uniformly over all samples for
-sufficiently small bounded inputs. Small sinusoids
-settle to a continuous waveform of phase, and their time-first coherent
-small-signal response equals the transfer. These are local, fixed-parameter,
-exact-real results; global nonlinear attraction and floating-point stability
-are outside their scope.
+The [Naive Reupping Ladder](../../docs/filter-naive-reupping-ladder.md) uses four
+sequential Euler stages, normalized saturation, delayed feedback and an adaptive
+resonance detector. The generated core captures the applied controls for the
+app's measured white-noise power response.
 
 The [Multiband Saturator](Filters/MultibandSaturator/README.md) currently provides
 an executable Lean core: the existing compensated LR splitter, per-band gain
@@ -362,9 +351,9 @@ mono-bass routing. A prepared coefficient bank reuses each crossover's tuning
 across split and compensation sections. Time-first small-signal theorems connect
 the actual scalar and mono-bass processors to the gain-weighted LR responses.
 The common-phase LR factorization gives a proved real magnitude-squared kernel.
-Stable-filter tracking and differentiable static-observation lemmas are reusable;
-tanh calculus and phase facts are shared with the conservative ladder. Native
-scalar/channel and measured-response tests complement the exact-real proofs.
+Stable-filter tracking, differentiable static-observation lemmas, tanh calculus
+and phase facts are reusable. Native scalar/channel and measured-response tests
+complement the exact-real proofs.
 The shared generator emits the four-band core, packed coefficient preparation,
 mono-bass routing and power response. The app wrapper owns metering and sampled
 UI history around that generated core.

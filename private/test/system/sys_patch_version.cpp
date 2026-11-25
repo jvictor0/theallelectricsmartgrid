@@ -64,7 +64,7 @@ DOCTEST_TEST_CASE("sys_patch_version: Shape SRR keeps the legacy rate and saves 
     TrioSquiggleBoyShape::Input input;
     const float x_baseFreq = SampleTimer::HzToCycPerSamp(100.0);
     const float x_legacyRate = x_baseFreq * std::exp2(11 * 0.25);
-    for (auto machine : {FilterMachine::NaiveReuppingLadder, FilterMachine::ConservativeReuppingLadder, FilterMachine::SVF2Pole})
+    for (auto machine : {FilterMachine::NaiveReuppingLadder, FilterMachine::SVF2Pole})
     {
         input.m_filterMachine = machine;
         shape.SetEncoderParams(encoders, input, 0, TrioFloat::Splat(x_baseFreq));

@@ -1,6 +1,6 @@
 #include "Bench.hpp"
 #include "DualWaveShapingVCO.hpp"
-#include "NaiveReuppingLadder.hpp"
+#include "GeneratedNaiveReuppingLadder.hpp"
 #include "PhysicalModelingSource.hpp"
 #include "TPTSVFFilter.hpp"
 #include <cstring>
@@ -36,7 +36,7 @@ template <int Kind, size_t Size, int Mode>
 struct Filters
 {
     using V = MultiChannelNumber<float, Size>;
-    using Core = std::conditional_t<Kind == 0, NaiveReuppingLadderGeneric<float, Size>,
+    using Core = std::conditional_t<Kind == 0, GeneratedNaiveReuppingLadderGeneric<float, Size>,
                                     TPTSVFLowPassFilterGeneric<float, Size>>;
     Signals m_signals{SampleTimer::x_sampleRate};
     Core m_core[3 / Size];

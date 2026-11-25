@@ -2,10 +2,11 @@
 
 #include "../support/GlobalEnv.hpp"
 #include "NaiveReuppingLadderShape.hpp"
-#include "ConservativeReuppingLadderShape.hpp"
 #include "SVF2PoleShape.hpp"
+#include "SquiggleBoyShape.hpp"
 #include <cmath>
 #include <complex>
+#include <fstream>
 
 // The sample rate reducer aliases a high tone down to bass. Both filter
 // machines run the reducer before the high-pass, so an engaged high-pass
@@ -136,7 +137,7 @@ DOCTEST_TEST_CASE("NaiveReuppingLadderShape: stage-corner knob preserves its oct
         const double oldHalfPower = Shape::x_lpTrackingPivot * legacyCutoff.Update(knob)[0];
         input.m_lpCutoffFactor.Update(Vector::Splat(knob));
         shape.Process(input, Vector());
-        const double alpha = shape.m_lpLadder.m_stage4.m_alpha[0];
+        const double alpha = shape.m_lpLadder.m_state.m_alpha[0];
         const double sineHalfPower = std::sqrt((std::pow(2.0, 0.25) - 1) * alpha * alpha / (4 * (1 - alpha)));
         const double actualHalfPower = std::asin(sineHalfPower) / M_PI;
         DOCTEST_CHECK(actualHalfPower == doctest::Approx(oldHalfPower).epsilon(0.001));
@@ -144,7 +145,7 @@ DOCTEST_TEST_CASE("NaiveReuppingLadderShape: stage-corner knob preserves its oct
 
     input.m_lpCutoffFactor.Update(Vector::Splat(1));
     shape.Process(input, Vector());
-    DOCTEST_CHECK(shape.m_lpLadder.m_cutoff == Vector::Splat(0.5f));
+    DOCTEST_CHECK(shape.m_lpLadder.MakeSnapshot().m_controls.m_cutoff == Vector::Splat(0.5f));
     DOCTEST_CHECK(input.m_lpCutoffFactor.m_expParam[0] == doctest::Approx(2354.134).epsilon(0.00001));
 }
 
@@ -163,16 +164,48 @@ DOCTEST_TEST_CASE("NaiveReuppingLadderShape: cutoff retains partial pitch tracki
     for (size_t lane = 0; lane < 3; ++lane)
     {
         const double expected = pivotCutoff * std::pow(2.0, (static_cast<double>(lane) - 1) * 0.707);
-        DOCTEST_CHECK(shape.m_lpLadder.m_cutoff[lane] == doctest::Approx(expected).epsilon(0.00001));
-        DOCTEST_CHECK(shape.m_lpLadder.m_cutoff[lane] > Shape::x_maxCutoff);
+        DOCTEST_CHECK(shape.m_lpLadder.MakeSnapshot().m_controls.m_cutoff[lane] == doctest::Approx(expected).epsilon(0.00001));
+        DOCTEST_CHECK(shape.m_lpLadder.MakeSnapshot().m_controls.m_cutoff[lane] > Shape::x_maxCutoff);
     }
 
     input.m_hpCutoffFactor.m_expParam = Vector::Splat(1);
     shape.Process(input, Vector());
-    DOCTEST_CHECK(shape.m_lpLadder.m_cutoff[1] == doctest::Approx(pivotCutoff / 2).epsilon(0.00001));
+    DOCTEST_CHECK(shape.m_lpLadder.MakeSnapshot().m_controls.m_cutoff[1] == doctest::Approx(pivotCutoff / 2).epsilon(0.00001));
 }
 
-DOCTEST_TEST_CASE("ConservativeReuppingLadderShape: high-pass removes bass created by the sample rate reducer")
+DOCTEST_TEST_CASE("Generated naive ladder plots the audited table using applied per-lane controls")
 {
-    CheckReducerBassRemoved<ConservativeReuppingLadderShapeGeneric<x_lanes>>(x_reducerHz);
+    std::ifstream file(SMARTGRID_REPO_ROOT "/JUCE/SmartGridOne/Assets/NaiveReuppingLadderResponse.bin",
+        std::ios::binary);
+    const std::vector<unsigned char> bytes(std::istreambuf_iterator<char>(file), {});
+    DOCTEST_REQUIRE(bytes.size() == NaiveLadderResponse::x_bytes);
+    struct ScopedTable
+    {
+        ~ScopedTable()
+        {
+            NaiveLadderResponse::s_table.reset();
+        }
+    } installed;
+    const auto& table = NaiveLadderResponse::s_table.emplace(bytes.data(), bytes.size());
+
+    TrioGeneratedNaiveReuppingLadder filter;
+    using Vector = TrioGeneratedNaiveReuppingLadder::Vector;
+    filter.SetCutoffResonanceAndGain(Vector(20.f / 192000, 0.025f, 0.5f),
+        Vector(0, 0.125f, 1), Vector(0.25f, std::sqrt(1.25f), 5.f));
+    TrioSquiggleBoyShape::Snapshot snapshot;
+    snapshot.m_naiveReuppingLadder.m_lp = filter.MakeSnapshot();
+    using Snapshot = decltype(snapshot);
+    Snapshot::PreparedResponse prepared;
+    snapshot.PrepareResponse(prepared);
+    const double configs[3][3] = {{0, 0, 20}, {0.5, 0.5, 4800}, {1, 1, 96000}};
+    for (double hz : {23.4375, 300.0, 23500.0, 48000.0, 96000.0})
+    {
+        const auto frequency = ResponseFrequency::Hz(hz, 192000).Broadcast<Snapshot::DoubleVector>();
+        const auto power = snapshot.PreSrrPower(frequency, prepared);
+        for (size_t lane = 0; lane < 3; ++lane)
+        {
+            DOCTEST_CHECK(10 * std::log10(power[lane])
+                == doctest::Approx(table.DisplayDb(configs[lane], hz)).epsilon(0.00002));
+        }
+    }
 }

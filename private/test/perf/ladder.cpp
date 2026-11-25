@@ -1,6 +1,6 @@
 #include "Bench.hpp"
-#include "NaiveReuppingLadder.hpp"
-#include "ConservativeReuppingLadder.hpp"
+#include "../support/NaiveReuppingLadderReference.hpp"
+#include "GeneratedNaiveReuppingLadder.hpp"
 #include <cstring>
 
 using Vector = MultiChannelNumber<float, 3>;
@@ -58,10 +58,9 @@ const char* ModeName(Mode mode)
     throw std::runtime_error("Unknown benchmark mode");
 }
 
-template<bool Conservative>
+template<typename Core>
 struct Filter
 {
-    using Core = std::conditional_t<Conservative, TrioConservativeReuppingLadder, TrioNaiveReuppingLadder>;
     Core m_core{};
 
     void Tune(const Vector& cutoff, const Vector& resonance, const Vector& gain)
@@ -75,8 +74,8 @@ struct Filter
     }
 };
 
-template<bool Conservative, Mode Work>
-[[gnu::noinline]] void Loop(Filter<Conservative>& filter, const Corpus& corpus,
+template<typename Core, Mode Work>
+[[gnu::noinline]] void Loop(Filter<Core>& filter, const Corpus& corpus,
     std::vector<Vector>& outputs, size_t samples)
 {
     const auto& fixed = corpus.m_values[0];
@@ -113,17 +112,17 @@ template<bool Conservative, Mode Work>
     asm volatile("" : : "g"(outputs.data()), "g"(&filter.m_core) : "memory");
 }
 
-template<bool Conservative, Mode Work>
+template<typename Core, Mode Work>
 uint64_t MeasureCase(const Corpus& corpus, size_t samples, size_t round)
 {
-    Filter<Conservative> filter;
+    Filter<Core> filter;
     const auto& fixed = corpus.m_values[0];
     filter.Tune(fixed.m_cutoff, fixed.m_resonance, fixed.m_gain);
     std::vector<Vector> output(Corpus::x_period);
-    Loop<Conservative, Work>(filter, corpus, output, Corpus::x_period);
+    Loop<Core, Work>(filter, corpus, output, Corpus::x_period);
     const double cpuStart = CPUSeconds();
     const auto wallStart = std::chrono::steady_clock::now();
-    Loop<Conservative, Work>(filter, corpus, output, samples);
+    Loop<Core, Work>(filter, corpus, output, samples);
     const auto wallEnd = std::chrono::steady_clock::now();
     const double cpu = CPUSeconds() - cpuStart;
     const double wall = std::chrono::duration<double>(wallEnd - wallStart).count();
@@ -142,7 +141,7 @@ uint64_t MeasureCase(const Corpus& corpus, size_t samples, size_t round)
 
     std::printf("{\"implementation\":\"%s\",\"mode\":\"%s\",\"round\":%zu,\"samples\":%zu,"
         "\"cpu_ms\":%.6f,\"wall_ms\":%.6f,\"hash\":\"%016llx\"}\n",
-        Conservative ? "conservative" : "naive", ModeName(Work), round, samples,
+        std::is_same_v<Core, TrioNaiveReuppingLadder> ? "naive" : "generated-naive", ModeName(Work), round, samples,
         cpu * 1000, wall * 1000, static_cast<unsigned long long>(hash));
     std::fflush(stdout);
     return hash;
@@ -153,13 +152,13 @@ void Pair(const Corpus& corpus, size_t samples, size_t round)
 {
     if (round % 2 == 0)
     {
-        MeasureCase<false, Work>(corpus, samples, round);
-        MeasureCase<true, Work>(corpus, samples, round);
+        MeasureCase<TrioNaiveReuppingLadder, Work>(corpus, samples, round);
+        MeasureCase<TrioGeneratedNaiveReuppingLadder, Work>(corpus, samples, round);
     }
     else
     {
-        MeasureCase<true, Work>(corpus, samples, round);
-        MeasureCase<false, Work>(corpus, samples, round);
+        MeasureCase<TrioGeneratedNaiveReuppingLadder, Work>(corpus, samples, round);
+        MeasureCase<TrioNaiveReuppingLadder, Work>(corpus, samples, round);
     }
 }
 

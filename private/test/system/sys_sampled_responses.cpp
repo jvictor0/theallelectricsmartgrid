@@ -54,34 +54,6 @@ DOCTEST_TEST_CASE("Sampled response wiring: every displayed filter publishes at 
     DOCTEST_REQUIRE(samples.size() == 1);
     DOCTEST_CHECK(ui.m_voiceFilterUIState[0].m_readSnapshots.front().m_filterMachine
         == VoiceMachine::FilterMachine::SVF2Pole);
-}
-
-DOCTEST_TEST_CASE("Sampled response wiring: conservative ladder selection publishes its generated snapshot")
-{
-    synthrig::SynthRig rig;
-    auto& engine = rig.Internal().m_squiggleBoy;
-    auto& ui = rig.UIState().m_squiggleBoyUIState;
-    for (auto& voice : engine.m_voiceConfig)
-    {
-        voice.m_filterMachine = VoiceMachine::FilterMachine::ConservativeReuppingLadder;
-    }
-
-    rig.RunSamples(4096);
-    for (size_t track = 0; track < SquiggleBoy::x_numTracks; ++track)
-    {
-        auto& response = ui.m_voiceFilterUIState[track];
-        const auto ids = response.Sample();
-        DOCTEST_REQUIRE(ids.size() > 1);
-        DOCTEST_CHECK(response.m_readSnapshots.front().m_filterMachine
-            == VoiceMachine::FilterMachine::ConservativeReuppingLadder);
-        for (size_t lane = 0; lane < 3; ++lane)
-        {
-            const auto power = response.MagnitudeSquaredResponse(ids.front(),
-                ResponseFrequency::CyclesPerSample(0.01), lane);
-            DOCTEST_CHECK(std::isfinite(power));
-            DOCTEST_CHECK(power >= 0);
-        }
-    }
 
     for (auto& voice : engine.m_voiceConfig)
     {

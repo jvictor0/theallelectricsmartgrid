@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <numeric>
 #include <limits>
+#include <type_traits>
 #include <vector>
 
 struct FilterResponseSnapshot
@@ -180,6 +181,34 @@ struct SampledTransferFunction
     }
 };
 
+// Some response readers prepare a curve for every captured configuration on
+// the UI thread. Their working data stays out of the audio snapshot history.
+//
+template<typename Snapshot, typename = void>
+struct SampledResponsePreparation
+{
+    static constexpr bool x_prepares = false;
+
+    void Prepare(const std::vector<Snapshot>&) {}
+};
+
+template<typename Snapshot>
+struct SampledResponsePreparation<Snapshot, std::void_t<typename Snapshot::PreparedResponse>>
+{
+    static constexpr bool x_prepares = true;
+
+    std::vector<typename Snapshot::PreparedResponse> m_values;
+
+    void Prepare(const std::vector<Snapshot>& snapshots)
+    {
+        m_values.resize(snapshots.size());
+        for (size_t i = 0; i < snapshots.size(); ++i)
+        {
+            snapshots[i].PrepareResponse(m_values[i]);
+        }
+    }
+};
+
 template<typename Snapshot>
 struct TransferFunctionGeneric : SampledTransferFunction
 {
@@ -201,6 +230,7 @@ struct TransferFunctionGeneric : SampledTransferFunction
     SampledSnapshotHistory<Snapshot> m_history;
     std::vector<Snapshot> m_readSnapshots;
     std::vector<Snapshot> m_pendingSnapshots;
+    SampledResponsePreparation<Snapshot> m_preparation;
     size_t m_readFirst = 0;
 
     TransferFunctionGeneric()
@@ -328,9 +358,26 @@ struct TransferFunctionGeneric : SampledTransferFunction
         }
     }
 
+    template<typename EvaluateSnapshot>
+    ResponseVector EvaluateSnapshotResponse(SampleId id, EvaluateSnapshot evaluate) const
+    {
+        const auto& snapshot = m_readSnapshots[id];
+        if constexpr (SampledResponsePreparation<Snapshot>::x_prepares)
+        {
+            return evaluate(snapshot, m_preparation.m_values[id]);
+        }
+        else
+        {
+            return evaluate(snapshot);
+        }
+    }
+
     virtual ResponseVector MagnitudeSquaredResponses(SampleId id, const Frequency& frequency) const
     {
-        return m_readSnapshots[id].MagnitudeSquaredResponses(frequency);
+        return EvaluateSnapshotResponse(id, [&](const auto& snapshot, const auto&... prepared)
+        {
+            return snapshot.MagnitudeSquaredResponses(frequency, prepared...);
+        });
     }
 
     void ResponseAll(const std::vector<SampleId>& samples, const ResponseFrequency& frequency,
@@ -423,6 +470,7 @@ struct TransferFunctionGeneric : SampledTransferFunction
             m_readSnapshots.swap(m_pendingSnapshots);
         }
 
+        m_preparation.Prepare(m_readSnapshots);
         std::vector<SampleId> ids(m_readSnapshots.size());
         std::iota(ids.begin(), ids.end(), 0);
         return ids;

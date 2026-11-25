@@ -207,15 +207,15 @@ deadline measurement. `make perf-comb-build` builds only this benchmark target;
 handwritten comb implementation has been removed; native Lean/C++ differential
 checks remain the correctness oracle.
 
-`make perf-ladder PERF_ARGS="9 4194304"` compares the handwritten adaptive
-Naive Reupping Ladder with the generated Conservative Reupping Ladder app
-adapter in one Release/LTO executable. It runs one float trio, alternates
-implementation order, rotates five workloads between rounds, and prints JSONL
-CPU/wall times and output hashes. These are different algorithms: hashes are
-reported for repeatability and are not required to match. Inputs and parameters
+`make perf-ladder PERF_ARGS="9 4194304"` compares the generated Naive Reupping
+Ladder with its handwritten C++ reference in one Release/LTO executable. It
+runs one float trio, alternates implementation order, rotates five workloads
+between rounds, and prints JSONL
+CPU/wall times and output hashes. Compare the generated and handwritten Naive
+hashes to check outputs on the workload. Inputs and parameters
 are precomputed; each case warms up for 32,768 samples before timing. Modes are
 processing alone, unchanged setter calls, drive-only modulation, all-parameter
-modulation, and coefficient preparation alone. Both adapters cache unchanged
+modulation, and coefficient preparation alone. The adapters cache unchanged
 controls. Coefficient-only timing uses a compiler memory barrier to keep writes
 observable. No timing thresholds are imposed.
 

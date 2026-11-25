@@ -5,7 +5,7 @@
 #include "AudioBuffer.hpp"
 #include "DualSampleSource.hpp"
 #include "DualWaveShapingVCO.hpp"
-#include "NaiveReuppingLadder.hpp"
+#include "../support/NaiveReuppingLadderReference.hpp"
 #include "Noise.hpp"
 #include "PhasorPlayHead.hpp"
 #include "PhysicalModelingSource.hpp"

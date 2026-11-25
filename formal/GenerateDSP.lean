@@ -20,7 +20,7 @@ import DSP.Filters.Coupled
 import DSP.Filters.Responses
 import DSP.Filters.LinkwitzRileySplitter
 import DSP.Filters.Capture
-import DSP.Filters.ConservativeReuppingLadder.Response
+import DSP.Filters.NaiveReuppingLadder.Runtime
 import DSP.Filters.MultibandSaturator.Runtime
 import DSP.Filters.Runtime
 import DSP.SmoothRandomLFO
@@ -80,14 +80,9 @@ import DSP.WanderingRandomLFO
 #generate_cpp_preparation DSP.ButterworthDownsampler.prepare8Float
   as ButterworthDownsampler8Prepare to "build/lean/generated/ButterworthDownsampler8Prepare.hpp"
 
-#generate_cpp_sampled_filter DSP.ConservativeReuppingLadder.Runtime.processFloat DSP.ConservativeReuppingLadder.Runtime.prepareCoefficientsFloat
-  resetWith DSP.ConservativeReuppingLadder.Runtime.resetFloat
-  [DSP.ConservativeReuppingLadder.Snapshot.magnitudeSquaredFloat as MagnitudeSquared]
-  as ConservativeReuppingLadderCore to "build/lean/generated/ConservativeReuppingLadderCore.hpp"
-#generate_cpp_sampled_filter_generic DSP.ConservativeReuppingLadder.Runtime.process DSP.ConservativeReuppingLadder.Runtime.prepareCoefficients
-  resetWith DSP.ConservativeReuppingLadder.Runtime.reset
-  [DSP.ConservativeReuppingLadder.Snapshot.magnitudeSquared as MagnitudeSquared]
-  as ConservativeReuppingLadderCoreGeneric to "build/lean/generated/ConservativeReuppingLadderCoreGeneric.hpp"
+#generate_cpp_sampled_processor_generic DSP.NaiveReuppingLadder.Runtime.process DSP.NaiveReuppingLadder.Runtime.prepareCoefficients
+  resetWith DSP.NaiveReuppingLadder.Runtime.reset
+  as NaiveReuppingLadderCoreGeneric to "build/lean/generated/NaiveReuppingLadderCoreGeneric.hpp"
 
 #generate_cpp_sampled_filter DSP.OnePoleZOHLowPass.stepFloat DSP.OnePoleZOHLowPass.prepareCoefficientsFloat
   [DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquaredFloat as MagnitudeSquared]

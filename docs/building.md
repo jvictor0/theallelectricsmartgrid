@@ -147,7 +147,8 @@ that is passed as an argument is included. List additional scratch inputs in
 `SMARTGRID_LEAN_INPUTS` if the check needs them. Standalone Lean commands,
 including `env lean --run`, build their imports on the Studio. Direct checks can
 return compiler outputs under `build/lean/scratch/` or `build/lean/generated/`
-using Lean's output flags.
+using Lean's output flags. For files written by Lean programs, pass a
+`--return-output PATH` option to `lean_studio.py` before `lake` for each file.
 
 The queue runs one submission at a time, including all steps of a Lean Make
 target. The worker reuses its private Studio build workspace and shared caches.
@@ -183,10 +184,11 @@ The filter arithmetic and state updates are shared by the executable cores and
 the real-number proofs;
 the smoke test does not establish floating-point error bounds.
 It also checks the standalone C++ processor generator, compares native Lean/C++
-execution, and verifies the saved generated headers are current. Both scalar
-headers and `Generic<Number, Size>` headers are checked; the latter use the
-app's `MultiChannelNumber` at widths 1, 2, 3 and 4 with `float` and `double`.
-Run
+execution, and compares every header emitted by `GenerateDSP.lean` with its
+checked-in copy. Test-only headers live in `build/lean/codegen-test/fixtures/`.
+The check covers scalar and `Generic<Number, Size>` headers. The generic
+headers use the app's `MultiChannelNumber` at widths 1, 2, 3 and 4 with `float`
+and `double`. Run
 `make lean-dsp-generate` to refresh those headers for review. See the
 [codegen guide](../formal/DSP/Codegen/README.md) for the supported Lean subset and
 the distinction between model proofs and code-generation tests.
@@ -201,6 +203,10 @@ App builds consume the checked-in C++ headers without invoking Lean.
 reader and writer. `make lean-inverse-test` builds their model equivalence
 proofs, checks regeneration, and compares reads from native Lean, generated
 C++, and the frozen inverse. `make lean-test` includes these checks.
+
+## Measuring a Lean processor
+
+Use `make response-survey-plan` to price a finite noise survey and `make response-survey` to train a byte-bounded table and audit its coverage. The [survey guide](../scripts/response_survey/README.md) describes the processor interface, Metal runner, regional queries and replay.
 
 ## Cleanup and completion
 

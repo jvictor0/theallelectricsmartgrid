@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B4847CC20000000000000002 /* NaiveReuppingLadderResponse.bin in Resources */ = {isa = PBXBuildFile; fileRef = B4847CC20000000000000001; };
 		D92700000000000000000001 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D92600000000000000000001; };
 		D92500000000000000000004 /* PublishingArtwork.mm in Sources */ = {isa = PBXBuildFile; fileRef = D92400000000000000000004; settings = {COMPILER_FLAGS = "-fobjc-arc -Wno-deprecated-declarations"; }; };
 		D92500000000000000000001 /* PublishingClient.mm in Sources */ = {isa = PBXBuildFile; fileRef = D92400000000000000000001; settings = {COMPILER_FLAGS = "-fobjc-arc -Wno-deprecated-declarations"; }; };
@@ -57,6 +58,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		B4847CC20000000000000001 /* NaiveReuppingLadderResponse.bin */ = {isa = PBXFileReference; lastKnownFileType = file; name = NaiveReuppingLadderResponse.bin; path = ../../Assets/NaiveReuppingLadderResponse.bin; sourceTree = SOURCE_ROOT; };
 		D92600000000000000000001 /* ImageIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ImageIO.framework; path = System/Library/Frameworks/ImageIO.framework; sourceTree = SDKROOT; };
 		D92400000000000000000006 /* PinnedReceiver.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; name = PinnedReceiver.hpp; path = ../../Source/PinnedReceiver.hpp; sourceTree = SOURCE_ROOT; };
 		D92400000000000000000005 /* PublishingArtwork.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; name = PublishingArtwork.hpp; path = ../../Source/PublishingArtwork.hpp; sourceTree = SOURCE_ROOT; };
@@ -387,6 +389,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B4847CC20000000000000002 /* NaiveReuppingLadderResponse.bin in Resources */,
 				8C680496F0488F834A09D261,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

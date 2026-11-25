@@ -14,20 +14,15 @@ cache the matching response snapshot. `Math4096` supplies the generated trig.
 A selected generated SVF view (LP, BP or HP) has a composable `Snapshot` and a
 `UIState = TransferFunctionGeneric<Snapshot>`. The generated morphing filter
 captures its own LP/BP/HP weights. Four-pole HP snapshots contain both sections.
-App machines own these child snapshots alongside any handwritten child snapshots
-such as the comb or Naive Reupping Ladder low-pass. Cascades multiply power
+App machines own these child snapshots alongside handwritten child snapshots.
+Cascades multiply power
 responses; the morph kernel includes phase-dependent cross terms before its
 magnitude is squared. Linear-filter plots exclude the surrounding saturation,
 envelopes and sample-rate reduction.
 
-The [Conservative Reupping Ladder](filter-conservative-reupping-ladder.md) uses
-the same generated snapshot and UI path. Its power kernel includes the
-normalized saturators' slopes at silence and the feedback delay, and is proved
-to describe the exact-real nonlinear processor's settled small-signal response
-at fixed valid tuning. Its outer shape shares controls and routing with the
-naive ladder and multiplies the LP and HP powers. Neither plot describes
-large-signal distortion or the sample-rate reducer; the naive plot retains its
-existing frozen approximation without saturation slopes.
+The [Naive Reupping Ladder](filter-naive-reupping-ladder.md) uses the same snapshot
+path with a measured white-noise power response. The UI decodes the bundled
+curve for each sampled configuration before it evaluates the plot.
 
 `SampledSnapshotWriter` decides whether to capture at host-sample boundaries,
 after the audio thread has updated coefficients. A capture publishes the whole

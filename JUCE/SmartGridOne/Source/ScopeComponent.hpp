@@ -476,7 +476,10 @@ struct SRRResponsePlot
                 {
                     const auto& snapshot = state.m_readSnapshots[id];
                     auto& powers = m_stagePowers[id];
-                    powers = {snapshot.PreSrrPower(prepared), snapshot.PostSrrPower(prepared)};
+                    powers = {state.EvaluateSnapshotResponse(id, [&](const auto& sample, const auto&... response)
+                    {
+                        return sample.PreSrrPower(prepared, response...);
+                    }), snapshot.PostSrrPower(prepared)};
                     return powers.m_preSrr;
                 });
                 state.EvaluateAll(samples, frequency, m_postSrr[i].data(), [&](auto id, const auto&)

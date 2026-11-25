@@ -49,6 +49,28 @@ class StudioTests(unittest.TestCase):
             worker.run_lake(["env", "lean", str(scratch)])
         self.assertEqual(call.call_args.args[0][1:], ["lean", str(scratch), "--", "--threads=1"])
 
+    def test_lake_program_can_return_a_scratch_file(self):
+        request = worker.SCRATCH / "survey" / "checks.json"
+        result = worker.SCRATCH / "survey" / "decisions.json"
+        (self.root / request).parent.mkdir(parents=True)
+        (self.root / request).write_text("[]")
+        args = ["exe", "survey_check", str(request), str(result)]
+        with patch.object(lean_studio, "REPO", self.root), patch.dict(os.environ, SMARTGRID_LEAN_INPUTS=""):
+            inputs, outputs = lean_studio.inputs_and_outputs(args, [str(self.root / result)])
+            with self.assertRaisesRegex(ValueError, "Direct Lean outputs"):
+                lean_studio.inputs_and_outputs(args, ["scripts/decisions.json"])
+        self.assertEqual(inputs, {request})
+        self.assertEqual(outputs, {result})
+
+        destination = self.queue.workspace / result
+        destination.parent.mkdir(parents=True)
+        destination.write_text("[]")
+        directory = self.queue.job_dir(self.job)
+        self.queue.save_outputs({"kind": "lake", "args": args, "return_paths": [str(result)]}, directory)
+        with tarfile.open(directory / "outputs.tar.gz") as stream:
+            self.assertEqual(stream.getnames(), [str(result)])
+            self.assertEqual(stream.extractfile(str(result)).read(), b"[]")
+
     def test_run_prepares_imports_and_preserves_program_args(self):
         script = str(worker.SCRATCH / "Test.lean")
         args = ["--dir", ".", "-v", "env", "lean", "--run", script, "-o", "program-arg"]

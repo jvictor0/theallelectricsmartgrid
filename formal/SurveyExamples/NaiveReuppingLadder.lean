@@ -1,0 +1,5 @@
+import SurveyExamples.NaiveLadderProcessor
+
+namespace SurveyExamples.NaiveLadder
+#survey_processor SurveyExamples.NaiveLadder.prepare SurveyExamples.NaiveLadder.process using recipe
+end SurveyExamples.NaiveLadder

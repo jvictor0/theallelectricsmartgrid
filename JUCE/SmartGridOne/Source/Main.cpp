@@ -9,6 +9,45 @@
 #include <JuceHeader.h>
 #include "MainComponent.h"
 #include "ThreadId.hpp"
+#include "GeneratedNaiveReuppingLadder.hpp"
+#include <CommonCrypto/CommonDigest.h>
+#include <CoreFoundation/CoreFoundation.h>
+
+static bool LoadNaiveLadderResponse()
+{
+    static_assert(SampleTimer::x_sampleRate == NaiveLadderResponse::x_engineRate);
+    auto url = CFBundleCopyResourceURL(CFBundleGetMainBundle(),
+        CFSTR("NaiveReuppingLadderResponse"), CFSTR("bin"), nullptr);
+    if (url == nullptr)
+    {
+        return false;
+    }
+
+    UInt8 path[4096];
+    const bool havePath = CFURLGetFileSystemRepresentation(url, true, path, sizeof(path));
+    CFRelease(url);
+    if (!havePath)
+    {
+        return false;
+    }
+
+    static const juce::MemoryMappedFile file(juce::File(juce::String::fromUTF8(
+        reinterpret_cast<const char*>(path))), juce::MemoryMappedFile::readOnly);
+    if (file.getData() == nullptr || file.getSize() != NaiveLadderResponse::x_bytes)
+    {
+        return false;
+    }
+
+    unsigned char digest[CC_SHA256_DIGEST_LENGTH];
+    CC_SHA256(file.getData(), static_cast<CC_LONG>(file.getSize()), digest);
+    if (juce::String::toHexString(digest, sizeof(digest), 0) != NaiveLadderResponse::x_sha256)
+    {
+        return false;
+    }
+
+    NaiveLadderResponse::s_table.emplace(file.getData(), file.getSize());
+    return true;
+}
 
 //==============================================================================
 class SmartGridOneApplication  : public juce::JUCEApplication
@@ -26,7 +65,10 @@ public:
     {
         SetCurrentThreadId(ThreadId::Message);
 
-        // This method is where you should put your application's initialisation code..
+        if (!LoadNaiveLadderResponse())
+        {
+            juce::Logger::writeToLog("Naive Reupping Ladder response resource is unavailable or failed validation.");
+        }
 
         mainWindow.reset (new MainWindow (getApplicationName()));
     }

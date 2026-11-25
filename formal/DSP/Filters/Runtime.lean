@@ -1,5 +1,4 @@
 import DSP.Filters.TPTSVF.Runtime
-import DSP.Filters.ConservativeReuppingLadder.Response
 
 /-! Compact representations of the existing proved filter steps. Only memories
 needed by later samples are persistent; observations are projected at export.
@@ -235,63 +234,6 @@ theorem prepare_save {R : Type} [OfNat R 0] [OfNat R 1] [Add R] [Div R] [Trig R]
 def processFloat := process (R := Float)
 def prepareCoefficientsFloat := prepareCoefficients (R := Float)
 end TPTLadder.Runtime
-
-namespace ConservativeReuppingLadder.Runtime
-structure State (R : Type) where
-  alpha : R
-  saturation : NormalizedTanh.Coefficients R
-  k : R
-  stage1 : R
-  stage2 : R
-  stage3 : R
-  stage4 : R
-
-def save {R : Type} (s : ConservativeReuppingLadder R) : State R := ⟨s.alpha,s.saturation,s.k,s.stage1,s.stage2,s.stage3,s.stage4⟩
-
-def restore {R : Type} [OfNat R 0] (s : State R) : ConservativeReuppingLadder R := ⟨s.alpha,s.saturation,s.k,s.stage1,s.stage2,s.stage3,s.stage4,0,0⟩
-
-def observe {R : Type} (s : ConservativeReuppingLadder R) : Sample R := ⟨s.output⟩
-
-section Processing
-variable {R : Type} [OfNat R 0] [OfNat R 1] [Add R] [Sub R] [Mul R] [Div R] [FMA R] [Tanh R]
-
-def model : Processor (ConservativeReuppingLadder R) (Sample R) (Sample R) :=
-  fun state input => let next := ConservativeReuppingLadder.step state input; (next, observe next)
-
-def process : Processor (State R) (Sample R) (Sample R) :=
-  Processor.compact model save restore
-
-@[simp] theorem step_restore (s : ConservativeReuppingLadder R) (x : Sample R) :
-    ConservativeReuppingLadder.step (restore (save s)) x = ConservativeReuppingLadder.step s x := by
-  rfl
-
-theorem simulation : Processor.Simulation (model (R := R)) process (fun s m => m = save s) := by
-  apply Processor.compact_simulation
-  intro s x
-  simp only [model, step_restore]
-
-end Processing
-
-def prepareCoefficients {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfScientific R] [Add R] [Sub R] [Mul R] [Div R] [IfLess R] [Trig R] [SquareRoot R] [Tanh R]
-    (spec : ConservativeReuppingLadder.LogicalSpec R) (s : State R) : State R × ConservativeReuppingLadder.Snapshot R :=
-  let prepared := ConservativeReuppingLadder.prepareCoefficients spec (restore s)
-  (save prepared.1,prepared.2)
-
-theorem prepare_save {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [OfScientific R] [Add R] [Sub R] [Mul R] [Div R] [IfLess R] [Trig R] [SquareRoot R] [Tanh R]
-    (spec : ConservativeReuppingLadder.LogicalSpec R) (s : ConservativeReuppingLadder R) :
-    prepareCoefficients spec (save s) =
-      (save (ConservativeReuppingLadder.prepareCoefficients spec s).1, (ConservativeReuppingLadder.prepareCoefficients spec s).2) := rfl
-
-def processFloat := process (R := Float)
-def prepareCoefficientsFloat := prepareCoefficients (R := Float)
-
-def reset {R : Type} [OfNat R 0] (s : State R) : State R × Sample R :=
-  let next := ConservativeReuppingLadder.reset (restore s)
-  (save next, observe next)
-def resetFloat := reset (R := Float)
-theorem reset_save {R : Type} [OfNat R 0] (s : ConservativeReuppingLadder R) :
-    reset (save s) = (save (ConservativeReuppingLadder.reset s), observe (ConservativeReuppingLadder.reset s)) := rfl
-end ConservativeReuppingLadder.Runtime
 
 namespace TPTSVF4Pole.Runtime
 structure State (R : Type) where

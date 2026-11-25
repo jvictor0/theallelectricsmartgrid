@@ -47,9 +47,9 @@ def normalize(arg):
     return arg
 
 
-def inputs_and_outputs(args):
+def inputs_and_outputs(args, return_outputs=()):
     inputs = set()
-    outputs = set()
+    outputs = {relpath(normalize(path)) for path in return_outputs}
     command = args[lake_command_index(args):]
     if command[:2] == ["env", "lean"] and "--run" in command:
         # Everything after the script file belongs to its main, including -o.
@@ -105,9 +105,9 @@ def lock_outputs():
         yield
 
 
-def submit(kind, args, memory_mib, detach):
+def submit(kind, args, memory_mib, detach, return_outputs=()):
     args = [normalize(arg) for arg in args]
-    inputs, outputs = inputs_and_outputs(args) if kind == "lake" else (set(), set())
+    inputs, outputs = inputs_and_outputs(args, return_outputs) if kind == "lake" else (set(), set())
     request = {
         "kind": kind, "args": args, "memory_mib": memory_mib, "thread": os.environ.get("CODEX_THREAD_ID"),
         "worktree": str(REPO), "return_paths": sorted(p.as_posix() for p in outputs),
@@ -213,6 +213,8 @@ def main():
     parser.add_argument("--memory-mib", type=int,
                         default=os.environ.get("SMARTGRID_LEAN_MEMORY_MIB", DEFAULT_MEMORY_MIB))
     parser.add_argument("--detach", action="store_true")
+    parser.add_argument("--return-output", action="append", default=[], metavar="PATH",
+                        help="request a file written by a Lake command under the generated or scratch directory")
     subparsers = parser.add_subparsers(dest="command", required=True)
     for name in ("lake", "make"):
         subparsers.add_parser(name, add_help=False).add_argument("args", nargs=argparse.REMAINDER)
@@ -222,11 +224,13 @@ def main():
     subparsers.add_parser("unlock").add_argument("--force", action="store_true", required=True)
     subparsers.add_parser("install")
     args = parser.parse_args()
+    if args.return_output and args.command != "lake":
+        parser.error("--return-output requires a Lake command")
     if args.command in ("lake", "make"):
         words = args.args[1:] if args.args[:1] == ["--"] else args.args
         if not words and args.command == "make":
             parser.error("Specify a Lean command or Make target")
-        return submit(args.command, words, args.memory_mib, args.detach)
+        return submit(args.command, words, args.memory_mib, args.detach, args.return_output)
     if args.command == "install":
         install()
     elif args.command == "wait":

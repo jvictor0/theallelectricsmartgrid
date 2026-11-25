@@ -2,7 +2,7 @@
 #include "Filter.hpp"
 #include "TPTBaseWidthFilter.hpp"
 #include "FIR.hpp"
-#include "NaiveReuppingLadder.hpp"
+#include "../support/NaiveReuppingLadderReference.hpp"
 #include "MultibandSaturator.hpp"
 #include "TPTSVFFilter.hpp"
 #include "../support/SVFReference.hpp"

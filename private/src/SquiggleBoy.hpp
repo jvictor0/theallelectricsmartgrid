@@ -8,7 +8,6 @@
 #include "QuadUtils.hpp"
 #include "PhaseUtils.hpp"
 #include "RandomLFO.hpp"
-#include "NaiveReuppingLadder.hpp"
 #include "AHD.hpp"
 #include "BitCrush.hpp"
 #include "Lissajous.hpp"

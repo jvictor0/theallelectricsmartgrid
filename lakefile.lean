@@ -44,3 +44,10 @@ lean_lib Encoder where
 lean_lib PhaseTime where
   globs := #[.submodules `PhaseTime]
   leanOptions := #[⟨`autoImplicit, false⟩, ⟨`warningAsError, true⟩]
+
+lean_lib SurveyExamples where
+  globs := #[.one `SurveyExamples.NaiveLadderProcessor]
+
+lean_exe survey_check where
+  root := `SurveyCheck
+  leanOptions := #[⟨`autoImplicit, false⟩, ⟨`warningAsError, true⟩]

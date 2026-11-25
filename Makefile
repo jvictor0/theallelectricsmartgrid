@@ -98,42 +98,23 @@ DSP_RUNTIME_MODULES := DSP.Filters.Capture DSP.Filters.OnePoleZOHLowPass.Respons
 	DSP.Filters.ButterworthDownsampler \
 	DSP.Filters.MorphingTPTSVF DSP.Filters.TPTSVF4Pole DSP.Filters.TPTLadder \
 	DSP.Filters.LinkwitzRileySplitter DSP.Filters.Coupled \
-	DSP.Filters.ConservativeReuppingLadder.Response DSP.Filters.MultibandSaturator.Runtime DSP.Filters.Runtime \
+	DSP.Filters.NaiveReuppingLadder.Runtime DSP.Filters.MultibandSaturator.Runtime DSP.Filters.Runtime \
 	DSP.Filters.DelayKernels.Runtime DSP.SmoothRandomLFO DSP.WanderingRandomLFO \
 	DSP.Filters.SquiggleBoyQuadReverb.Runtime \
 	DSP.Resynthesis.Runtime DSP.Resynthesis.PVDRStorage DSP.Resynthesis.SpectrumStorage DSP.Resynthesis.FrameStorage
-DSP_HEADERS := OnePoleZOHLowPass OnePoleTPTLowPass OnePoleTPTHighPass TPTBaseWidth TPTSVF \
-	MorphingTPTSVF TPTSVF4PoleHighPass TPTSVF4PoleLowPass TPTSVF4PoleBandPass TPTLadder \
-	CoupledProcessor ConservativeReuppingLadderCore TPTSVFLowPass TPTSVFHighPass TPTSVFBandPass TPTSVFNotch TPTSVFAllPass
-
-DSP_GENERIC_HEADERS := $(addsuffix Generic,$(DSP_HEADERS)) LinkwitzRileySplitter4BandGeneric MultibandSaturator4BandCoreGeneric \
-	ButterworthDownsampler2Generic ButterworthDownsampler4Generic ButterworthDownsampler8Generic \
-	SchroederAllPassCoreGeneric TunedDecayCombCoreGeneric \
-	TunedDecayCombTuningGeneric TunedDecayCombResponseGeneric SmoothRandomLFOPrepareGeneric \
-	SmoothRandomLFOCubicGeneric SquiggleBoyQuadReverbFramed SquiggleBoyQuadReverbEverySample \
-	SquiggleBoyQuadReverbInitFramed SquiggleBoyQuadReverbInitEverySample SquiggleBoyQuadReverbTuning
-
-DSP_HEADERS += ButterworthDownsampler2Prepare ButterworthDownsampler4Prepare ButterworthDownsampler8Prepare \
-	AnalyzePVDR32 AnalyzePVDR64 SynthesizeSpectrum32 SynthesizeSpectrum64 \
-	ResynthesisFrame32 ResynthesisFrame64 GrainControl32 UnisonBase32 UnisonBase64 \
-	WanderingRandomLFOInit32 WanderingRandomLFOInit64 WanderingRandomLFOFramedInit32 \
-	WanderingRandomLFOFramedInit64 WanderingRandomLFO32 WanderingRandomLFO64 \
-	WanderingRandomLFOFramed32 WanderingRandomLFOFramed64 WanderingRandomLFOFramedState \
-	WanderingRandomLFOState WanderingRandomLFORefresh32 WanderingRandomLFORefresh64 \
-	WanderingRandomLFOWrap32 WanderingRandomLFOWrap64 WanderingRandomLFOWrapFramed32 \
-	WanderingRandomLFOWrapFramed64 WanderingRandomLFORenewFrame32 WanderingRandomLFORenewFrame64
+DSP_GENERATED_DIR := $(REPO_ROOT)/build/lean/generated
 
 lean-dsp-codegen:
 	"$(REPO_ROOT)/scripts/lean.sh" build DSP.Codegen.Cpp $(DSP_RUNTIME_MODULES)
+	mkdir -p "$(DSP_GENERATED_DIR)"
+	find "$(DSP_GENERATED_DIR)" -maxdepth 1 -type f -name '*.hpp' -delete
 	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/GenerateDSP.lean"
 
 lean-dsp-generate: lean-dsp-codegen
-	mkdir -p "$(REPO_ROOT)/formal/DSP/generated"
-	for header in $(DSP_HEADERS) $(DSP_GENERIC_HEADERS); do \
-		cp "$(REPO_ROOT)/build/lean/generated/$$header.hpp" "$(REPO_ROOT)/formal/DSP/generated/$$header.hpp" || exit 1; \
-	done
+	python3 "$(REPO_ROOT)/scripts/dsp_generated_headers.py" copy
 
 lean-dsp-codegen-test: lean-dsp-codegen
+	python3 "$(REPO_ROOT)/scripts/dsp_generated_headers.py" check
 	"$(REPO_ROOT)/scripts/lean.sh" build DSP.Tests.CodegenFixtures dsp_codegen_reference dsp_multiband_reference dsp_delay_codegen_reference
 	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/TestDSPCodegen.lean"
 	python3 "$(REPO_ROOT)/scripts/test_dsp_codegen.py"
@@ -227,3 +208,22 @@ perf-ipad:
 
 perf-sgrec: perf-build
 	python3 "$(REPO_ROOT)/private/test/perf/run_sgrec.py" --bin-dir "$(PERF_DIR)" $(SGREC_ARGS)
+
+SURVEY_SOURCE ?= $(REPO_ROOT)/formal/SurveyExamples/OnePole.lean
+SURVEY_OUT ?= $(REPO_ROOT)/build/results/response-survey/$(basename $(notdir $(SURVEY_SOURCE)))
+SURVEY_DEVICE ?= metal
+
+.PHONY: response-survey-plan response-survey response-survey-verify
+response-survey-plan:
+	python3 "$(REPO_ROOT)/scripts/response_survey/run.py" plan "$(SURVEY_SOURCE)" "$(SURVEY_OUT)"
+
+response-survey:
+	python3 "$(REPO_ROOT)/scripts/response_survey/run.py" run "$(SURVEY_SOURCE)" "$(SURVEY_OUT)" --device "$(SURVEY_DEVICE)"
+
+response-survey-verify:
+	python3 "$(REPO_ROOT)/scripts/response_survey/run.py" verify "$(SURVEY_SOURCE)" "$(SURVEY_OUT)"
+
+.PHONY: response-survey-test
+response-survey-test:
+	"$(REPO_ROOT)/scripts/lean.sh" build DSP.Survey.Audit survey_check
+	python3 "$(REPO_ROOT)/scripts/response_survey/test_survey.py"

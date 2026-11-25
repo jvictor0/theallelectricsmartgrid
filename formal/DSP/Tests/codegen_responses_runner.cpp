@@ -14,8 +14,6 @@
 #include "TPTSVF4PoleBandPassGeneric.hpp"
 #include "TPTSVF4PoleHighPass.hpp"
 #include "TPTSVF4PoleHighPassGeneric.hpp"
-#include "ConservativeReuppingLadderCore.hpp"
-#include "ConservativeReuppingLadderCoreGeneric.hpp"
 #include "TPTLadder.hpp"
 #include "TPTLadderGeneric.hpp"
 
@@ -37,7 +35,7 @@ To Bits(From value)
     return result;
 }
 
-std::array<double, 14> ScalarResponses(const std::array<double, 10>& v,
+std::array<double, 13> ScalarResponses(const std::array<double, 10>& v,
     const ResponseFrequencyGeneric<double>& frequency)
 {
     return {
@@ -54,12 +52,11 @@ std::array<double, 14> ScalarResponses(const std::array<double, 10>& v,
         TPTSVF4PoleBandPass::MagnitudeSquared({{v[0], v[4]}, {v[1], v[5]}}, frequency),
         TPTSVF4PoleHighPass::MagnitudeSquared({{v[0], v[4]}, {v[1], v[5]}}, frequency),
         TPTLadder::MagnitudeSquared({v[0], v[1], v[2], v[3], v[4]}, frequency),
-        ConservativeReuppingLadderCore::MagnitudeSquared({v[0], v[1], v[4]}, frequency),
     };
 }
 
 template<typename Number, size_t Size>
-std::array<MultiChannelNumber<Number, Size>, 14> VectorResponses(const std::array<MultiChannelNumber<Number, Size>, 10>& v,
+std::array<MultiChannelNumber<Number, Size>, 13> VectorResponses(const std::array<MultiChannelNumber<Number, Size>, 10>& v,
     const ResponseFrequencyGeneric<MultiChannelNumber<Number, Size>>& frequency)
 {
     return {
@@ -76,14 +73,13 @@ std::array<MultiChannelNumber<Number, Size>, 14> VectorResponses(const std::arra
         TPTSVF4PoleBandPassGeneric<Number, Size>::MagnitudeSquared({{v[0], v[4]}, {v[1], v[5]}}, frequency),
         TPTSVF4PoleHighPassGeneric<Number, Size>::MagnitudeSquared({{v[0], v[4]}, {v[1], v[5]}}, frequency),
         TPTLadderGeneric<Number, Size>::MagnitudeSquared({v[0], v[1], v[2], v[3], v[4]}, frequency),
-        ConservativeReuppingLadderCoreGeneric<Number, Size>::MagnitudeSquared({v[0], v[1], v[4]}, frequency),
     };
 }
 
 // An independent complex transfer calculation uses the digital delay q.
 // It exercises the half-angle bridge, output selection, mixing and cascades.
 //
-std::array<double, 14> ComplexReference(const std::array<double, 10>& v, double cycles)
+std::array<double, 13> ComplexReference(const std::array<double, 10>& v, double cycles)
 {
     using C = std::complex<double>;
     const C q = cycles == 0 ? C(1, 0) : cycles == 0.5 ? C(-1, 0) : std::polar(1.0, -2 * std::acos(-1.0) * cycles);
@@ -112,9 +108,7 @@ std::array<double, 14> ComplexReference(const std::array<double, 10>& v, double 
         std::norm(first[0] - v[4] * first[1] + first[2]),
         std::norm(v[7] * first[0] + v[8] * first[1] + v[9] * first[2]),
         std::norm(first[0] * second[0]), std::norm(first[1] * second[1]), std::norm(first[2] * second[2]),
-        std::norm(cascade / (1.0 + v[4] * cascade)),
-        std::norm((1 + v[4]) * std::pow(v[1], 4)
-            / (std::pow(1.0 + v[0] * (1.0 - q), 4) + v[4] * std::pow(v[1], 3) * q))};
+        std::norm(cascade / (1.0 + v[4] * cascade))};
 }
 
 void CheckComplexReference()

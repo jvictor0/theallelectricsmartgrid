@@ -3,6 +3,7 @@
 #include "../ResponsesCase.hpp"
 #include "../ResynthesisWorkload.hpp"
 #include "../ReverbWorkload.hpp"
+#include <CoreFoundation/CoreFoundation.h>
 #include <random>
 #include <sstream>
 #include <stdexcept>
@@ -52,7 +53,15 @@ void RunTransferResponses(const std::vector<std::string>& arguments, std::ostrea
     }
 
     std::ostringstream errors;
-    if (RunResponses(static_cast<int>(argv.size()), argv.data(), output, errors) != 0)
+    auto url = CFBundleCopyResourceURL(CFBundleGetMainBundle(),
+        CFSTR("NaiveReuppingLadderResponse"), CFSTR("bin"), nullptr);
+    Require(url != nullptr, "Missing bundled ladder response fixture");
+    UInt8 path[4096];
+    const bool havePath = CFURLGetFileSystemRepresentation(url, true, path, sizeof(path));
+    CFRelease(url);
+    Require(havePath, "Could not read path to bundled ladder response");
+    if (RunResponses(static_cast<int>(argv.size()), argv.data(),
+        reinterpret_cast<const char*>(path), output, errors) != 0)
     {
         throw std::runtime_error(errors.str());
     }

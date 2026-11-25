@@ -255,13 +255,12 @@ exposed observation against generated execution.
 
 The original proof models use the first form, with observations stored as fields.
 Production filters export their compact `Runtime.process` adapters. The TPT
-one-poles, base-width filter, morph, four-pole cascades and both Lean ladders use
-the same pattern in [Filters/Runtime.lean](../Filters/Runtime.lean). Their
-`simulation` theorems transfer complete executions through `run_simulation`;
-`prepare_save` identifies both tuned memory and the captured response snapshot.
-The conservative ladder additionally proves `reset_save`, retaining all four
-stage memories and its one-sample feedback semantics. ZOH's output remains
-stored once as true history. Float-specialized wrappers choose executable binary64 arithmetic. [GenerateDSP.lean](../../GenerateDSP.lean)
+one-poles, base-width filter, morph, four-pole cascades and TPT ladder use this
+pattern in [Filters/Runtime.lean](../Filters/Runtime.lean). The
+[Naive Reupping Ladder adapter](../Filters/NaiveReuppingLadder/Runtime.lean)
+uses it as well. Their `simulation` theorems transfer complete executions
+through `run_simulation`. The `prepare_save` theorems identify tuned memory
+and captured snapshots. ZOH's output remains stored once as true history. Float-specialized wrappers choose executable binary64 arithmetic. [GenerateDSP.lean](../../GenerateDSP.lean)
 exports them, for example:
 
 ```lean
@@ -572,8 +571,6 @@ compares every generated state/output field bit for bit. It covers:
   signed-zero initial states and subnormal values.
 - Trajectories of every TPT composite from random coefficients, integrator states
   and stored responses, including both morph halves and ladders with feedback.
-- The nonlinear Conservative Reupping Ladder, including normalized saturation,
-  nonzero histories, fixed feedback and coefficient-preserving reset.
 - A distinct processor that swaps state fields, branches, and emits old-state
   values, so assignment order and independent outputs are exercised.
 - A binary32 processor using division, negation, comparisons and decimal
@@ -696,25 +693,18 @@ not extend the general processor exporter.
 
 ## Fixed topology processors with snapshot capture
 
-The [Conservative Reupping Ladder](../Filters/ConservativeReuppingLadder/README.md)
-adds its proved small-signal response using the same sampled-filter export as
-linear filters, with an optional generated reset:
+The Naive Reupping Ladder uses the sampled-processor export to capture its
+applied controls for the app's measured response table:
 
 ```lean
-#generate_cpp_sampled_filter_generic DSP.ConservativeReuppingLadder.step
-  DSP.ConservativeReuppingLadder.prepareCoefficients
-  resetWith DSP.ConservativeReuppingLadder.reset
-  [DSP.ConservativeReuppingLadder.Snapshot.magnitudeSquared as MagnitudeSquared]
-  as ConservativeReuppingLadderCoreGeneric to "build/lean/generated/ConservativeReuppingLadderCoreGeneric.hpp"
+#generate_cpp_sampled_processor_generic DSP.NaiveReuppingLadder.Runtime.process DSP.NaiveReuppingLadder.Runtime.prepareCoefficients
+  resetWith DSP.NaiveReuppingLadder.Runtime.reset
+  as NaiveReuppingLadderCoreGeneric to "build/lean/generated/NaiveReuppingLadderCoreGeneric.hpp"
 ```
 
-`resetWith` checks the complete state type and preserves the captured response.
-The Lean reset must preserve coefficients, as proved for this ladder. The kernel
-is proved equal to the power of the actual processor's time-first small-signal
-transfer. `Tanh` lowers to clamped cubic rational arithmetic with explicit FMA;
-the real instance is exact tanh, with no rational/transcendental equality claim.
-`SquareRoot` lowers to vector `Sqrt` or scalar `std::sqrt`. Native source and
-independent complex-response comparisons cover both precisions and widths 1–4.
+`resetWith` checks the complete state type and preserves the captured snapshot.
+The Lean reset preserves tuning. `Tanh` lowers to clamped cubic rational
+arithmetic with explicit FMA. The real proof instance uses exact tanh.
 
 The splitter uses a processing/tuning/capture export without a response method:
 

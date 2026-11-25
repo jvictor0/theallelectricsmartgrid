@@ -183,7 +183,7 @@ DOCTEST_TEST_CASE("encoder layout binding: moved controls survive machine change
             bank.MakeSelection(control.m_x, control.m_y, cell);
             for (auto source : {Source::Thru, Source::PhysicalModeling, Source::Sample, Source::DualWaveShapingVCO})
             {
-                for (auto filter : {Filter::SVF2Pole, Filter::NaiveReuppingLadder, Filter::ConservativeReuppingLadder})
+                for (auto filter : {Filter::SVF2Pole, Filter::NaiveReuppingLadder})
                 {
                     encoders.UpdateEncodersForMachine(source, filter);
                     DOCTEST_CHECK(bank.GetBase(control.m_x, control.m_y) == cell);

@@ -1,13 +1,13 @@
 # Filter System Specification
 
 ## Purpose
-Defines the per-voice filter section of the Smart Grid One DSP engine: the three selectable filter machines (Naive Reupping Ladder, SVF and Conservative Reupping Ladder), their pitch-tracking cutoff law, sample-rate reduction between the low-pass and high-pass stages, and the UIState paradigm that separates stateful audio-thread DSP from the stateless transfer functions used by the JUCE filter-response visualizers. The filter section (`SquiggleBoyShape`) sits between the source machine output (source-machine-oscillators) and the amp section (voice-architecture, ahd-envelopes), and processes one engine sample (`SampleTimer::x_sampleRate`) per call for each track's three voices.
+Defines the per-voice filter section of the Smart Grid One DSP engine: the two selectable filter machines (Naive Reupping Ladder and SVF), their pitch-tracking cutoff law, sample-rate reduction between the low-pass and high-pass stages, and the UIState paradigm that separates stateful audio-thread DSP from the stateless transfer functions used by the JUCE filter-response visualizers. The filter section (`SquiggleBoyShape`) sits between the source machine output (source-machine-oscillators) and the amp section (voice-architecture, ahd-envelopes), and processes one engine sample (`SampleTimer::x_sampleRate`) per call for each track's three voices.
 
 ## Requirements
 
 ### Requirement: Per-Voice Filter Machine Selection
-Each voice's filter section SHALL process the source machine's output with exactly one of three filter machines selected by `VoiceConfig::FilterMachine`: NaiveReuppingLadder (`NaiveReuppingLadderShape`), SVF2Pole (`SVF2PoleShape`), or ConservativeReuppingLadder (`ConservativeReuppingLadderShape`).
-`NaiveReuppingLadder` SHALL retain saved machine ID `0`, remain the default, and display as "Naive Reupping Ladder". `SVF2Pole` SHALL retain ID `1`. `ConservativeReuppingLadder` SHALL use appended ID `2` and display as "Conservative Reupping Ladder".
+Each voice's filter section SHALL process the source machine's output with exactly one of the two filter machines selected by `VoiceConfig::FilterMachine`, NaiveReuppingLadder (`NaiveReuppingLadderShape`) or SVF2Pole (`SVF2PoleShape`).
+`NaiveReuppingLadder` SHALL retain saved machine ID `0`, remain the default, and display as "Naive Reupping Ladder". `SVF2Pole` SHALL retain ID `1`.
 Before the selected machine, the input passes a shared DC-blocking one-pole high-pass fixed at 5 Hz at the engine rate (`SampleTimer::HzToCycPerSamp(5)`). All machines consume the same parameter set (cutoff factors, resonances, saturation gain, sample-rate-reducer factor), and the selection is evaluated every engine sample from the track's live voice config (see voice-architecture).
 
 #### Scenario: Filter machine switch redirects processing
@@ -20,7 +20,7 @@ Before the selected machine, the input passes a shared DC-blocking one-pole high
 - **THEN** the 5 Hz one-pole high-pass removes it before the selected filter machine processes the sample
 
 ### Requirement: Naive Reupping Ladder
-The Naive Reupping Ladder SHALL apply the four-stage Euler low-pass (`NaiveReuppingLadder`), then the sample-rate reducer, then a 4-pole SVF high-pass (`TPTSVF4PoleHighPassFilterGeneric`, two cascaded 2-pole SVF high-pass stages).
+The Naive Reupping Ladder SHALL apply the four-stage Euler low-pass (`GeneratedNaiveReuppingLadderGeneric`), then the sample-rate reducer, then a 4-pole SVF high-pass (`TPTSVF4PoleHighPassFilterGeneric`, two cascaded 2-pole SVF high-pass stages).
 The name's "naive" refers to the Euler updates and one-sample feedback delay. "Reupping" refers to applying the drive again at every normalized tanh: low gain approaches an identity saturator, while high gain lets each stage contribute saturation instead of merely trimming the first stage's compressed output.
 The Naive Reupping Ladder is four cascaded Euler one-pole low-pass stages with normalized `TanhSaturator` after each stage. Feedback SHALL use the previous sample's **unsaturated** fourth-stage state. `SetCutoffAndResonance` SHALL use the individual-stage half-power corner, giving -12.0412 dB for the unit-gain, zero-feedback cascade, and map resonance to `feedback = resonance * 3.9`. The ladder cutoff SHALL be capped at engine Nyquist (0.5 cycles per engine sample), allowing it above host Nyquist. Alpha, detector center frequency and critical feedback SHALL be derived from shared cutoff intermediates, without recovering detector tuning from the rounded alpha.
 
@@ -28,7 +28,7 @@ Parameter setters SHALL cache `kSafe = 0.9 / (Cpi + 1e-8)` and `baseFeedback = m
 
 #### Scenario: Feedback respects the cached guard and adaptive damping
 - **WHEN** resonance requests feedback above `kSafe`, or the feedback detector exceeds its input-referenced power
-- **THEN** `m_kEff` is no greater than `min(resonance * 3.9, kSafe)` and the published UIState uses that sample's effective feedback coefficient
+- **THEN** `m_kEff` is no greater than `min(resonance * 3.9, kSafe)`
 
 #### Scenario: Coefficient updates preserve the running filter
 - **WHEN** cutoff, resonance or saturation gain changes, in either setter order
@@ -37,23 +37,6 @@ Parameter setters SHALL cache `kSafe = 0.9 / (Cpi + 1e-8)` and `baseFeedback = m
 #### Scenario: DC gain stays near unity as resonance increases
 - **WHEN** resonance is raised while a low-frequency signal passes the ladder
 - **THEN** the `1 + m_kEff` output compensation counters the resonance-induced passband drop, keeping DC gain approximately 1
-
-### Requirement: Conservative Reupping Ladder
-The Conservative Reupping Ladder SHALL use the generated Lean core through a separate app adapter. It SHALL retain four sequential Euler stages, normalized saturation after every stage, feedback from the previous unsaturated fourth-stage state, and `1+k` output compensation. Its shape SHALL share the naive ladder's controls and routing: low-pass ladder, sample-rate reducer, then generated four-pole SVF high-pass.
-
-For normalized resonance `r` in `[0,1]` and positive drive `g`, coefficient preparation SHALL use `s = g / Tanh(g)` and fixed feedback `k = r * 0.975 * kCritical(alpha) / s^3`. Three saturation slopes belong to the delayed loop. The exact-real coefficient preparation SHALL keep its tangent poles strictly inside the unit circle for every valid cutoff, resonance and drive. The runtime SHALL use the common generated Math4096 tuning and cubic rational saturation implementation; the proof's real transcendental interpretation SHALL remain explicit. The conservative core SHALL contain no adaptive detector or envelope controller. Coefficient updates SHALL preserve history, and reset SHALL preserve tuning.
-
-#### Scenario: Compare ladder feedback policies with the same controls
-- **WHEN** the machine changes from `NaiveReuppingLadder` to `ConservativeReuppingLadder`
-- **THEN** the cutoff, drive, resonance, high-pass and reducer control mappings remain the same
-- **AND** the low-pass uses the generated fixed-feedback policy without extra loudness matching
-- **AND** the next eligible snapshot replaces the previous machine's history with the conservative LP/HP pair
-
-#### Scenario: Plot the proved small-signal response
-- **WHEN** the conservative shape's captured coefficients are evaluated at a prepared frequency
-- **THEN** the UI multiplies the generated conservative low-pass power response by the generated four-pole high-pass power response
-- **AND** the low-pass kernel includes saturation slopes and the one-sample feedback delay
-- **AND** its exact-real identity is backed by the nonlinear processor's time-first coherent small-signal theorem for fixed valid tuning, reset histories and frequencies away from DC and Nyquist
 
 ### Requirement: SVF Filter Machine
 The SVF Filter Machine SHALL apply a 2-pole SVF low-pass, then the sample-rate reducer, then a 2-pole SVF high-pass (generated `TPTSVFLowPassFilterGeneric` and `TPTSVFHighPassFilterGeneric`, with a TPT/trapezoidal structure) with three tanh saturation stages: before the low-pass, between the low-pass and the reducer, and after the high-pass.
@@ -68,8 +51,8 @@ All three stages use one normalized `TanhSaturator`, `Tanh(gain * x) / Tanh(gain
 - **THEN** all three tanh stages run at input gain 5, producing markedly more harmonic saturation than the minimum gain of 0.25
 
 ### Requirement: Pitch-Tracking Cutoff Frequencies
-The filter section SHALL derive both cutoff frequencies from the voice base frequency in cycles per engine sample: `hpFreq = min(maxCutoff, vcoBaseFreq * hpCutoffFactor)` and `lpFreq = min(lpMaxCutoff, pivot * (vcoBaseFreq / pivot)^0.707 * hpCutoffFactor * lpCutoffFactor)`, where `pivot = HzToCycPerSamp(261.6256)`, `maxCutoff = 0.5 / SampleTimer::x_oversample`, and `lpMaxCutoff` is 0.5 for both ladders and `maxCutoff` for the SVF. Both ladder LPs may open above host Nyquist; the high-pass and SVF low-pass retain their host-Nyquist caps.
-`hpCutoffFactor` is an exponential parameter spanning 0.25 to 256. The SVF `lpCutoffFactor` spans 0.25 to 1024. Both ladders SHALL retain that 12-octave span with both endpoints multiplied by `1 / sqrt(2^(1/4)-1)`, approximately 0.574740 to 2354.134, to preserve low-frequency tuning approximately when changing from cascade half-power to stage-corner cutoff. The low-pass tracks 0.707 octaves per VCO octave around middle C (261.6256 Hz), while the high-pass cutoff factor multiplies both cutoffs linearly. The 0.707-octave LP pitch law and the common HP-factor multiplier SHALL be preserved; the LP cutoff is not redefined as a multiple of the clamped HP cutoff. When the voice's source machine is Thru, the tracking base frequency is fixed at 80 Hz (`HzToCycPerSamp(80)`) instead of the voice pitch. Cutoff factors, resonances, and saturation gain are read from the encoders every engine sample without per-parameter slew; the base frequency arrives through the track's portamento one-pole.
+The filter section SHALL derive both cutoff frequencies from the voice base frequency in cycles per engine sample: `hpFreq = min(maxCutoff, vcoBaseFreq * hpCutoffFactor)` and `lpFreq = min(lpMaxCutoff, pivot * (vcoBaseFreq / pivot)^0.707 * hpCutoffFactor * lpCutoffFactor)`, where `pivot = HzToCycPerSamp(261.6256)`, `maxCutoff = 0.5 / SampleTimer::x_oversample`, and `lpMaxCutoff` is 0.5 for the naive ladder and `maxCutoff` for the SVF. The ladder low-pass may open above host Nyquist. The high-pass and SVF low-pass retain their host-Nyquist caps.
+`hpCutoffFactor` is an exponential parameter spanning 0.25 to 256. The SVF `lpCutoffFactor` spans 0.25 to 1024. The naive ladder SHALL retain that 12-octave span with both endpoints multiplied by `1 / sqrt(2^(1/4)-1)`, approximately 0.574740 to 2354.134, to preserve low-frequency tuning approximately when changing from cascade half-power to stage-corner cutoff. The low-pass tracks 0.707 octaves per VCO octave around middle C (261.6256 Hz), while the high-pass cutoff factor multiplies both cutoffs linearly. The 0.707-octave LP pitch law and the common HP-factor multiplier SHALL be preserved; the LP cutoff is not redefined as a multiple of the clamped HP cutoff. When the voice's source machine is Thru, the tracking base frequency is fixed at 80 Hz (`HzToCycPerSamp(80)`) instead of the voice pitch. Cutoff factors, resonances, and saturation gain are read from the encoders every engine sample without per-parameter slew; the base frequency arrives through the track's portamento one-pole.
 
 #### Scenario: Cutoffs follow the played note
 - **WHEN** a voice's base frequency doubles (up one octave) with cutoff factors unchanged
@@ -102,8 +85,8 @@ Because the reduction frequency is proportional to the voice base frequency, the
 
 ### Requirement: Stateless Power Responses
 Generated filters SHALL expose static magnitude-squared functions taking coefficient snapshots and prepared frequency vectors. The SVF app wrappers SHALL retain natural cutoff in cycles per engine sample, clamped at 0.499, and `Q = 0.5 * 11^resonance`. The four-pole high-pass SHALL apply that cutoff and Q independently to both sections. The naive ladder's band-pass envelope followers SHALL use generated SVF sections at Q = 1.
-Composite UI snapshots SHALL multiply section power responses. Physical-modeling snapshots SHALL use the generated morph response, including its cross terms, then multiply by the comb power response. Large-signal distortion, envelope modulation and sample-rate reduction SHALL remain outside these frozen response plots. No executable complex response is required from generated filters.
-The handwritten naive ladder low-pass SHALL retain its frozen response model and effective feedback coefficient. The conservative ladder SHALL use its generated small-signal response, including the normalized saturation slopes at silence.
+Composite UI snapshots SHALL multiply section power responses. Physical-modeling snapshots SHALL use the generated morph response, including its cross terms, then multiply by the comb power response. Linear response kernels SHALL exclude the surrounding saturation, envelope modulation and sample-rate reduction. No executable complex response is required from generated filters.
+The naive ladder low-pass SHALL use its bundled white-noise power response evaluated at the captured cutoff, resonance and drive.
 
 #### Scenario: SVF cutoff convention is preserved
 - **WHEN** a generated LP or HP section is evaluated at its natural cutoff
@@ -124,11 +107,11 @@ The one-pole LP/HP, base-width, ladder, SVF, shape, crossover, FIR, physical-mod
 - **THEN** one sampling decision captures both stages' coefficients from the same audio instant
 - **AND** the UI composes each captured response before computing order statistics
 
-#### Scenario: Frozen response math is preserved
-- **WHEN** a captured filter state is evaluated
-- **THEN** its power response follows the filter's frozen model: the naive ladder's effective feedback or the conservative ladder's proved small-signal transfer
-- **AND** generated children use their emitted magnitude-squared kernels; handwritten children may retain equivalent complex-derived power responses
-- **AND** the display does not measure large-signal saturation or the sample-rate reducer
+#### Scenario: The response follows the captured filter settings
+- **WHEN** the UI evaluates a captured shape snapshot
+- **THEN** it uses the bundled low-pass response for the Naive Reupping Ladder or the generated low-pass kernel for the SVF
+- **AND** it multiplies that response by the generated high-pass power response
+- **AND** the display excludes the sample-rate reducer
 
 ### Requirement: Per-Voice Filter Visualization State
 The UI SHALL hold one three-lane sampled shape response per track. Each snapshot SHALL identify the active filter machine and capture the entire trio's LP/HP coefficient vectors. Per-voice queries SHALL select a lane from the shared evaluated batch. A machine change SHALL invalidate the previous machine's history and seed the replacement at the next eligible host sample. The physical-model source SHALL likewise discard stale history when its source selection changes.

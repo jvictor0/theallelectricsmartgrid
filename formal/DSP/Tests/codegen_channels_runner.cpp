@@ -22,7 +22,6 @@
 #include "TPTSVF4PoleLowPassGeneric.hpp"
 #include "TPTSVF4PoleBandPassGeneric.hpp"
 #include "TPTLadderGeneric.hpp"
-#include "ConservativeReuppingLadderCoreGeneric.hpp"
 #include "CoupledProcessorGeneric.hpp"
 #include "ArithmeticProcessorGeneric.hpp"
 #include "FMAProcessorGeneric.hpp"
@@ -214,14 +213,6 @@ auto StateFields(TPTLadderGeneric<Number, Size>& processor)
     auto& state = processor.m_state;
     return std::tuple_cat(std::tie(state.m_k), LowPassFields(state.m_stage1),
         LowPassFields(state.m_stage2), LowPassFields(state.m_stage3), LowPassFields(state.m_stage4), std::tie(processor.m_output.m_x));
-}
-
-template<typename Number, size_t Size>
-auto StateFields(ConservativeReuppingLadderCoreGeneric<Number, Size>& processor)
-{
-    auto& s = processor.m_state;
-    return std::tie(s.m_alpha, s.m_saturation.m_gain, s.m_saturation.m_tanhGain,
-        s.m_k, s.m_stage1, s.m_stage2, s.m_stage3, s.m_stage4, processor.m_output.m_x);
 }
 
 template<typename State>
@@ -563,11 +554,6 @@ bool RunKind(const std::string& kind, size_t steps)
     if (kind == "ladder")
     {
         return Run<TPTLadderGeneric<Number, Size>, Number, Size>(steps);
-    }
-
-    if (kind == "conservative")
-    {
-        return Run<ConservativeReuppingLadderCoreGeneric<Number, Size>, Number, Size>(steps);
     }
 
     if (kind == "coupled")

@@ -2,7 +2,6 @@
 
 #include "Filter.hpp"
 #include "NaiveReuppingLadderShape.hpp"
-#include "ConservativeReuppingLadderShape.hpp"
 #include "MultiChannelNumber.hpp"
 #include "SampleTimer.hpp"
 #include "SampleTop.hpp"
@@ -24,7 +23,6 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
     using SourceMachine = VoiceMachine::SourceMachine;
     using FilterMachine = VoiceMachine::FilterMachine;
     using NaiveReuppingLadderShape = NaiveReuppingLadderShapeGeneric<Size>;
-    using ConservativeReuppingLadderShape = ConservativeReuppingLadderShapeGeneric<Size>;
     using SVF2PoleShape = SVF2PoleShapeGeneric<Size>;
 
     struct Snapshot : PowerResponseSnapshot<Size>
@@ -34,10 +32,29 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
         using typename Base::ResponseVector;
         FilterMachine m_filterMachine = FilterMachine::NaiveReuppingLadder;
         typename NaiveReuppingLadderShape::Snapshot m_naiveReuppingLadder;
-        typename ConservativeReuppingLadderShape::Snapshot m_conservativeReuppingLadder;
         typename SVF2PoleShape::Snapshot m_svf;
 
         Vector m_srrRate = Vector::Splat(1);
+
+        using PreparedResponse = typename GeneratedNaiveReuppingLadderGeneric<float, Size>::Snapshot::PreparedResponse;
+
+        void PrepareResponse(PreparedResponse& response) const
+        {
+            if (m_filterMachine == FilterMachine::NaiveReuppingLadder)
+            {
+                m_naiveReuppingLadder.m_lp.PrepareResponse(response);
+            }
+        }
+
+        ResponseVector PreSrrPower(const Frequency& frequency, const PreparedResponse& response) const
+        {
+            if (m_filterMachine == FilterMachine::NaiveReuppingLadder)
+            {
+                return m_naiveReuppingLadder.m_lp.MagnitudeSquaredResponses(frequency, response);
+            }
+
+            return PreSrrPower(frequency);
+        }
 
         ResponseVector PreSrrPower(const Frequency& frequency) const
         {
@@ -45,8 +62,6 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
             {
                 case FilterMachine::NaiveReuppingLadder:
                     return m_naiveReuppingLadder.m_lp.MagnitudeSquaredResponses(frequency);
-                case FilterMachine::ConservativeReuppingLadder:
-                    return m_conservativeReuppingLadder.m_lp.MagnitudeSquaredResponses(frequency);
                 case FilterMachine::SVF2Pole:
                 default:
                     return m_svf.m_lp.MagnitudeSquaredResponses(frequency);
@@ -59,8 +74,6 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
             {
                 case FilterMachine::NaiveReuppingLadder:
                     return m_naiveReuppingLadder.m_hp.MagnitudeSquaredResponses(frequency);
-                case FilterMachine::ConservativeReuppingLadder:
-                    return m_conservativeReuppingLadder.m_hp.MagnitudeSquaredResponses(frequency);
                 case FilterMachine::SVF2Pole:
                 default:
                     return m_svf.m_hp.MagnitudeSquaredResponses(frequency);
@@ -70,6 +83,11 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
         ResponseVector MagnitudeSquaredResponses(const Frequency& frequency) const override
         {
             return PreSrrPower(frequency) * PostSrrPower(frequency);
+        }
+
+        ResponseVector MagnitudeSquaredResponses(const Frequency& frequency, const PreparedResponse& response) const
+        {
+            return PreSrrPower(frequency, response) * PostSrrPower(frequency);
         }
     };
 
@@ -83,11 +101,6 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
         {
             snapshot.m_naiveReuppingLadder = m_naiveReuppingLadder.MakeSnapshot();
             snapshot.m_srrRate = m_naiveReuppingLadder.m_sampleRateReducer.m_freq;
-        }
-        else if (machine == FilterMachine::ConservativeReuppingLadder)
-        {
-            snapshot.m_conservativeReuppingLadder = m_conservativeReuppingLadder.MakeSnapshot();
-            snapshot.m_srrRate = m_conservativeReuppingLadder.m_sampleRateReducer.m_freq;
         }
         else
         {
@@ -113,7 +126,6 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
     // Filter machines
     //
     NaiveReuppingLadderShape m_naiveReuppingLadder;
-    ConservativeReuppingLadderShape m_conservativeReuppingLadder;
     SVF2PoleShape m_svf2Pole;
 
     Vector m_output;
@@ -126,7 +138,6 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
         FilterMachine m_filterMachine;
 
         typename NaiveReuppingLadderShape::Input m_naiveReuppingLadderInput;
-        typename ConservativeReuppingLadderShape::Input m_conservativeReuppingLadderInput;
         typename SVF2PoleShape::Input m_svf2PoleInput;
 
         Input()
@@ -156,12 +167,6 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
             case FilterMachine::NaiveReuppingLadder:
             {
                 m_output = m_naiveReuppingLadder.Process(input.m_naiveReuppingLadderInput, dcBlocked);
-                break;
-            }
-
-            case FilterMachine::ConservativeReuppingLadder:
-            {
-                m_output = m_conservativeReuppingLadder.Process(input.m_conservativeReuppingLadderInput, dcBlocked);
                 break;
             }
 
@@ -206,12 +211,6 @@ struct SquiggleBoyShapeGeneric : SquiggleBoyShapeBase
             case FilterMachine::NaiveReuppingLadder:
             {
                 m_naiveReuppingLadder.SetEncoderParams(encoders, input.m_naiveReuppingLadderInput, track, filterBaseFreq);
-                break;
-            }
-
-            case FilterMachine::ConservativeReuppingLadder:
-            {
-                m_conservativeReuppingLadder.SetEncoderParams(encoders, input.m_conservativeReuppingLadderInput, track, filterBaseFreq);
                 break;
             }
 

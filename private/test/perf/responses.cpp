@@ -8,6 +8,7 @@
 #include "TPTBaseWidthFilter.hpp"
 #include "MultibandSaturator.hpp"
 #include <functional>
+#include <fstream>
 #include <iomanip>
 #include <random>
 
@@ -169,7 +170,7 @@ auto GeneratedBW(size_t i)
 template<size_t Size>
 auto Ladder(size_t i)
 {
-    NaiveReuppingLadderGeneric<float, Size> filter;
+    GeneratedNaiveReuppingLadderGeneric<float, Size> filter;
     auto control = Controls<Size>(i);
     auto cutoff = control;
     for (size_t lane = 0; lane < Size; ++lane)
@@ -247,8 +248,15 @@ void AddWidth(std::vector<Case>& cases)
     }
 }
 
-std::vector<Case> Cases()
+std::vector<Case> Cases(const char* tablePath)
 {
+    static const std::vector<unsigned char> ladderResponse = [tablePath]
+    {
+        std::ifstream file(tablePath, std::ios::binary);
+        return std::vector<unsigned char>(std::istreambuf_iterator<char>(file), {});
+    }();
+    Require(ladderResponse.size() == NaiveLadderResponse::x_bytes, "Missing ladder response fixture");
+    NaiveLadderResponse::s_table.emplace(ladderResponse.data(), ladderResponse.size());
     std::vector<Case> cases;
     AddWidth<1>(cases);
     AddWidth<3>(cases);
@@ -287,7 +295,7 @@ std::vector<Case> Cases()
 }
 }
 
-int RunResponses(int argc, char** argv, std::ostream& output, std::ostream& errors)
+int RunResponses(int argc, char** argv, const char* tablePath, std::ostream& output, std::ostream& errors)
 {
     try
     {
@@ -304,7 +312,7 @@ int RunResponses(int argc, char** argv, std::ostream& output, std::ostream& erro
             throw std::runtime_error("repeats must be 1..20");
         }
 
-        auto cases = Cases();
+        auto cases = Cases(tablePath);
         struct Job
         {
             size_t m_case;

@@ -214,8 +214,7 @@ The reusable pieces are deliberately separate from the multiband filter:
   time-first small-signal theorem. Mono bass inserts a linear routing map before
   this observation; it does not require a second nonlinear convergence argument.
 - The tanh calculus facts, phase rotation and digital-frequency/Fourier identity
-  are shared with the conservative ladder and normalized saturator. Their old
-  private copies were removed; the ladder's feedback convergence proof remains.
+  are shared nonlinear proof lemmas.
 
 `DSP.Audit` checks these public results and all DSP dependencies for admissions
 or additional axioms. The generated entry point is connected to the proved independent and mono-bass

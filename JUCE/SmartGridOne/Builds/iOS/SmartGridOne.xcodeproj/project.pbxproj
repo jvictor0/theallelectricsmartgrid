@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B4847CC20000000000000002 /* NaiveReuppingLadderResponse.bin in Resources */ = {isa = PBXBuildFile; fileRef = B4847CC20000000000000001; };
 		D92700000000000000000003 /* UniformTypeIdentifiers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D92600000000000000000003; };
 		D92700000000000000000002 /* PhotosUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D92600000000000000000002; };
 		D92700000000000000000001 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D92600000000000000000001; };
@@ -63,6 +64,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		B4847CC20000000000000001 /* NaiveReuppingLadderResponse.bin */ = {isa = PBXFileReference; lastKnownFileType = file; name = NaiveReuppingLadderResponse.bin; path = ../../Assets/NaiveReuppingLadderResponse.bin; sourceTree = SOURCE_ROOT; };
 		D92600000000000000000003 /* UniformTypeIdentifiers.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UniformTypeIdentifiers.framework; path = System/Library/Frameworks/UniformTypeIdentifiers.framework; sourceTree = SDKROOT; };
 		D92600000000000000000002 /* PhotosUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = PhotosUI.framework; path = System/Library/Frameworks/PhotosUI.framework; sourceTree = SDKROOT; };
 		D92600000000000000000001 /* ImageIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ImageIO.framework; path = System/Library/Frameworks/ImageIO.framework; sourceTree = SDKROOT; };
@@ -413,6 +415,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B4847CC20000000000000002 /* NaiveReuppingLadderResponse.bin in Resources */,
 				01A6C3ADE231674ABE5E01DD /* Images.xcassets in Resources */,
 				AD6AC0BE13A1EEBC73D1CD41 /* LaunchScreen.storyboard in Resources */,
 			);

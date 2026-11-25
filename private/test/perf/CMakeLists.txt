@@ -41,6 +41,8 @@ foreach(kind voices effects extra auxiliary encoders sgrec density audio_diagnos
 endforeach()
 target_sources(perf_density PRIVATE density_main.cpp)
 target_sources(perf_responses PRIVATE responses_main.cpp)
+target_compile_definitions(perf_responses PRIVATE
+    SMARTGRID_LADDER_RESPONSE="${REPO_ROOT}/JUCE/SmartGridOne/Assets/NaiveReuppingLadderResponse.bin")
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/build.json" CONTENT
 "{\"compiler\":\"${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}\",\"configuration\":\"${CMAKE_BUILD_TYPE}\",\"lto\":true,\"flags\":\"${CMAKE_CXX_FLAGS_RELEASE} -fno-fast-math -ffp-contract=off -funroll-loops\"}\n")
 enable_testing()

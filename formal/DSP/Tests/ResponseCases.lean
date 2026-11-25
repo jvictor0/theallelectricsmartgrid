@@ -1,5 +1,4 @@
 import DSP.Filters.Responses
-import DSP.Filters.ConservativeReuppingLadder.Response
 
 namespace DSP.Tests
 
@@ -16,6 +15,5 @@ def responseValues {R : Type} [OfNat R 0] [OfNat R 1] [OfNat R 2] [Add R] [Sub R
    svf.highPassMagnitudeSquared f, svf.notchMagnitudeSquared f, svf.allPassMagnitudeSquared f,
    MorphingTPTSVF.Snapshot.magnitudeSquared ⟨svf, low, band, high⟩ f,
    pair.lowPassMagnitudeSquared f, pair.bandPassMagnitudeSquared f, pair.highPassMagnitudeSquared f,
-   TPTLadder.Snapshot.magnitudeSquared ⟨g1,g2,g3,g4,k1⟩ f,
-   ConservativeReuppingLadder.Snapshot.magnitudeSquared ⟨g1,g2,k1⟩ f]
+   TPTLadder.Snapshot.magnitudeSquared ⟨g1,g2,g3,g4,k1⟩ f]
 end DSP.Tests

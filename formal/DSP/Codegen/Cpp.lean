@@ -2024,7 +2024,7 @@ def generateFilterResponses (step : Name) (responses : Array (Name × String))
     (cppName : String) (generic : Bool) (tuning : Option Name := none)
     (capture : Bool := false) (preparedTuning : Option Name := none)
     (reset : Option Name := none) (preparedBank : Option Name := none)
-    (preparation : Option Name := none) : MetaM String := do
+    (preparation : Option Name := none) (externalResponse : Bool := false) : MetaM String := do
   if preparedBank.isSome && !(generic && capture && tuning.isSome) then
     throwError "C++ codegen: prepared bank requires a generic sampled filter"
   if preparation.isSome && preparedBank.isNone then
@@ -2033,7 +2033,7 @@ def generateFilterResponses (step : Name) (responses : Array (Name × String))
     throwError "C++ codegen: prepared updater requires a sampled filter"
   if #["Snapshot", "Frequency", "LogicalSpec", "PreparedSpec", "Preparation"].contains cppName then
     throwError "C++ codegen: filter name conflicts with a response member"
-  if responses.isEmpty then throwError "C++ codegen: filter needs at least one response"
+  if responses.isEmpty && !externalResponse then throwError "C++ codegen: filter needs at least one response"
   let (stepIncludes, stepBody) ← generateParts step cppName generic none "Input"
   let mut includes := stepIncludes
   let mut body := stepBody
@@ -2044,7 +2044,13 @@ def generateFilterResponses (step : Name) (responses : Array (Name × String))
     let expected ← forallTelescopeReducing info.type fun parameters _ => do
       let type ← inferType parameters[parameters.size - 2]!
       recordSignature type (if generic then some parameters[0]! else none)
-    let snapshotSignature ← if capture then do
+    let snapshotSignature ← if externalResponse then do
+      forallTelescopeReducing (← getConstInfo tuning).type fun parameters result => do
+        let result ← whnf result
+        unless result.isAppOfArity ``Prod 2 do
+          throwError "C++ codegen: external response requires tuning to return State and Snapshot"
+        return some (← recordSignature result.getAppArgs[1]! (if generic then some parameters[0]! else none))
+    else if capture then do
       let responseType := (← getConstInfo responses[0]!.1).type
       forallTelescopeReducing responseType fun parameters _ => do
         let type ← inferType parameters[parameters.size - 2]!
@@ -2053,7 +2059,12 @@ def generateFilterResponses (step : Name) (responses : Array (Name × String))
     let (extraIncludes, tuningBody) ← generateParts tuning cppName generic none "LogicalSpec" true
       (some expected) none snapshotSignature
     includes := includes ++ extraIncludes
-    tuningMembers := #[s!"    // Coefficients generated from {tuning}.", "    //", ""] ++ tuningBody
+    if externalResponse then
+      let fields ← forallTelescopeReducing (← getConstInfo tuning).type fun parameters result => do
+        let result ← whnf result
+        fieldShape result.getAppArgs[1]! (if generic then some parameters[0]! else none)
+      tuningMembers ← renderRecord "Snapshot" fields
+    tuningMembers := tuningMembers ++ #[s!"    // Coefficients generated from {tuning}.", "    //", ""] ++ tuningBody
     if let some prepared := preparedTuning then
       let (extraIncludes, preparedBody) ← generateParts prepared cppName generic none "Snapshot" false
         (some expected) none snapshotSignature "ComputeCoefficientsFromSnapshot"
@@ -2423,5 +2434,16 @@ elab "#generate_cpp_sampled_filter_generic " step:ident tuning:ident
   if let some parent := output.parent then IO.FS.createDirAll parent
   IO.FS.writeFile output code
   logInfo m!"Generated {output} with captured response and sampled UI"
+
+/-- Generate the same sampled processor and snapshot for a response evaluated by
+an external reader, such as an audited response table. -/
+elab "#generate_cpp_sampled_processor_generic " step:ident tuning:ident "resetWith" reset:ident
+    " as " cppName:ident " to " path:str : command => do
+  let code ← liftTermElabM <| generateFilterResponses step.getId #[] cppName.getId.toString true
+    (some tuning.getId) (reset := some reset.getId) (externalResponse := true)
+  let output : System.FilePath := path.getString
+  if let some parent := output.parent then IO.FS.createDirAll parent
+  IO.FS.writeFile output code
+  logInfo m!"Generated {output} with captured response coordinates"
 
 end DSP.Codegen

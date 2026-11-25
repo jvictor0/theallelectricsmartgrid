@@ -4,21 +4,20 @@ import DSP.Tests.CodegenFixtures
 import DSP.Filters.Responses
 import DSP.Filters.LinkwitzRileySplitter
 import DSP.Filters.Capture
-import DSP.Filters.ConservativeReuppingLadder.Response
 import DSP.Filters.MultibandSaturator.Exports
 import DSP.Resynthesis.FrameStorage
 import DSP.Resynthesis.PVDRStorage
 
-#generate_cpp DSP.Tests.swapProcessor as SwapProcessor to "build/lean/generated/SwapProcessor.hpp"
-#generate_cpp DSP.Tests.gainProcessor as GainProcessor to "build/lean/generated/GainProcessor.hpp"
-#generate_cpp DSP.Tests.indexedStateFold as IndexedStateFold to "build/lean/generated/IndexedStateFold.hpp"
-#generate_cpp DSP.Tests.boundedEdit as BoundedEdit to "build/lean/generated/BoundedEdit.hpp"
-#generate_cpp DSP.Tests.boundedExit as BoundedExit to "build/lean/generated/BoundedExit.hpp"
-#generate_cpp DSP.Tests.fmaProcessorFloat as FMAProcessor to "build/lean/generated/FMAProcessor.hpp"
-#generate_cpp DSP.Tests.fmaProcessorFloat32 as FMAProcessor32 to "build/lean/generated/FMAProcessor32.hpp"
-#generate_cpp_generic DSP.Tests.fmaProcessor as FMAProcessorGeneric to "build/lean/generated/FMAProcessorGeneric.hpp"
+#generate_cpp DSP.Tests.swapProcessor as SwapProcessor to "build/lean/codegen-test/fixtures/SwapProcessor.hpp"
+#generate_cpp DSP.Tests.gainProcessor as GainProcessor to "build/lean/codegen-test/fixtures/GainProcessor.hpp"
+#generate_cpp DSP.Tests.indexedStateFold as IndexedStateFold to "build/lean/codegen-test/fixtures/IndexedStateFold.hpp"
+#generate_cpp DSP.Tests.boundedEdit as BoundedEdit to "build/lean/codegen-test/fixtures/BoundedEdit.hpp"
+#generate_cpp DSP.Tests.boundedExit as BoundedExit to "build/lean/codegen-test/fixtures/BoundedExit.hpp"
+#generate_cpp DSP.Tests.fmaProcessorFloat as FMAProcessor to "build/lean/codegen-test/fixtures/FMAProcessor.hpp"
+#generate_cpp DSP.Tests.fmaProcessorFloat32 as FMAProcessor32 to "build/lean/codegen-test/fixtures/FMAProcessor32.hpp"
+#generate_cpp_generic DSP.Tests.fmaProcessor as FMAProcessorGeneric to "build/lean/codegen-test/fixtures/FMAProcessorGeneric.hpp"
 
-#generate_cpp_generic DSP.Tests.arithmeticProcessor as ArithmeticProcessorGeneric to "build/lean/generated/ArithmeticProcessorGeneric.hpp"
+#generate_cpp_generic DSP.Tests.arithmeticProcessor as ArithmeticProcessorGeneric to "build/lean/codegen-test/fixtures/ArithmeticProcessorGeneric.hpp"
 
 namespace DSP.Tests
 
@@ -64,9 +63,9 @@ def focusCapturesParent (_ : PUnit.{1}) : StateM FocusState Float := fun parent 
 
 end DSP.Tests
 
-#generate_cpp_state DSP.Tests.recordPairUpdate outlined as RecordPairUpdate to "build/lean/generated/RecordPairUpdate.hpp"
-#generate_cpp_state DSP.Tests.recordUpdate as RecordUpdate to "build/lean/generated/RecordUpdate.hpp"
-#generate_cpp_state DSP.Tests.readFocusParent outlined as ReadFocusParent to "build/lean/generated/ReadFocusParent.hpp"
+#generate_cpp_state DSP.Tests.recordPairUpdate outlined as RecordPairUpdate to "build/lean/codegen-test/fixtures/RecordPairUpdate.hpp"
+#generate_cpp_state DSP.Tests.recordUpdate as RecordUpdate to "build/lean/codegen-test/fixtures/RecordUpdate.hpp"
+#generate_cpp_state DSP.Tests.readFocusParent outlined as ReadFocusParent to "build/lean/codegen-test/fixtures/ReadFocusParent.hpp"
 
 open Lean Elab Command in
 run_cmd liftTermElabM do
@@ -156,11 +155,11 @@ def escapingScratch (input : BorrowedSampleInput) :
 end DSP.Tests
 
 #generate_cpp_effect DSP.Tests.readBorrowedSample callable
-  as ReadBorrowedSample to "build/lean/generated/ReadBorrowedSample.hpp"
+  as ReadBorrowedSample to "build/lean/codegen-test/fixtures/ReadBorrowedSample.hpp"
 #generate_cpp_effect DSP.Tests.readBorrowedFirstSample callable with_contract scalar_inputs
-  as ReadBorrowedFirstSample to "build/lean/generated/ReadBorrowedFirstSample.hpp"
+  as ReadBorrowedFirstSample to "build/lean/codegen-test/fixtures/ReadBorrowedFirstSample.hpp"
 #generate_cpp_effect DSP.Tests.replaceBorrowedSample
-  as ReplaceBorrowedSample to "build/lean/generated/ReplaceBorrowedSample.hpp"
+  as ReplaceBorrowedSample to "build/lean/codegen-test/fixtures/ReplaceBorrowedSample.hpp"
 
 open Lean Elab Command in
 run_cmd liftTermElabM do
@@ -183,17 +182,17 @@ run_cmd liftTermElabM do
   logInfo "Borrowed storage and local scratch rejection checks passed."
 
 #generate_cpp_filter DSP.Tests.zohStepFloat32 response DSP.Tests.zohMagnitudeSquaredFloat32
-  as OnePoleZOHLowPass32 to "build/lean/generated/OnePoleZOHLowPass32.hpp"
+  as OnePoleZOHLowPass32 to "build/lean/codegen-test/fixtures/OnePoleZOHLowPass32.hpp"
 #generate_cpp_function_generic DSP.Tests.frequencyProbe
-  as FrequencyProbeGeneric method Evaluate to "build/lean/generated/FrequencyProbeGeneric.hpp"
+  as FrequencyProbeGeneric method Evaluate to "build/lean/codegen-test/fixtures/FrequencyProbeGeneric.hpp"
 #generate_cpp_function DSP.Tests.frequencyProbeFloat
-  as FrequencyProbe method Evaluate to "build/lean/generated/FrequencyProbe.hpp"
+  as FrequencyProbe method Evaluate to "build/lean/codegen-test/fixtures/FrequencyProbe.hpp"
 #generate_cpp_function DSP.Tests.frequencyProbeFloat32
-  as FrequencyProbe32 method Evaluate to "build/lean/generated/FrequencyProbe32.hpp"
+  as FrequencyProbe32 method Evaluate to "build/lean/codegen-test/fixtures/FrequencyProbe32.hpp"
 #generate_cpp_function_generic DSP.Tests.constantFunction
-  as ConstantFunctionGeneric method Evaluate to "build/lean/generated/ConstantFunctionGeneric.hpp"
+  as ConstantFunctionGeneric method Evaluate to "build/lean/codegen-test/fixtures/ConstantFunctionGeneric.hpp"
 #generate_cpp_function_generic DSP.Tests.snapshotFunction
-  as SnapshotFunctionGeneric method Evaluate to "build/lean/generated/SnapshotFunctionGeneric.hpp"
+  as SnapshotFunctionGeneric method Evaluate to "build/lean/codegen-test/fixtures/SnapshotFunctionGeneric.hpp"
 
 -- Exact table constants must not become a native transcendental evaluation.
 -- The C++ tuning oracle checks both precisions against Math4096 bit for bit.
@@ -373,7 +372,7 @@ end DSP.Tests
 
 #generate_cpp_tuned_filter DSP.Tests.tptStepFloat32 DSP.Tests.coefficientWrongPrecision
   [DSP.Tests.tptResponseFloat32 as MagnitudeSquared]
-  as OnePoleTPTLowPass32 to "build/lean/generated/OnePoleTPTLowPass32.hpp"
+  as OnePoleTPTLowPass32 to "build/lean/codegen-test/fixtures/OnePoleTPTLowPass32.hpp"
 
 open Lean Elab Command in
 run_cmd liftTermElabM do
@@ -498,16 +497,18 @@ run_cmd liftTermElabM do
 
 def DSP.Tests.unrelatedReset {R : Type} (state : DSP.OnePoleZOHLowPass R) := state
 
+def DSP.Tests.unrelatedResetFloat := DSP.Tests.unrelatedReset (R := Float)
+
 open Lean Elab Command in
 run_cmd liftTermElabM do
   for (resetName, expected) in #[
       (``DSP.Tests.unrelatedReset, "reset must take and return"),
-      (``DSP.ConservativeReuppingLadder.resetFloat, "expects one arithmetic type parameter")] do
+      (``DSP.Tests.unrelatedResetFloat, "expects one arithmetic type parameter")] do
     let mut rejected := false
     try
-      let _ ← DSP.Codegen.generateFilterResponses ``DSP.ConservativeReuppingLadder.step
-        #[(``DSP.ConservativeReuppingLadder.Snapshot.magnitudeSquared, "MagnitudeSquared")]
-        "SampledReset" true (some ``DSP.ConservativeReuppingLadder.prepareCoefficients) true
+      let _ ← DSP.Codegen.generateFilterResponses ``DSP.OnePoleTPTLowPass.step
+        #[(``DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquared, "MagnitudeSquared")]
+        "SampledReset" true (some ``DSP.OnePoleTPTLowPass.prepareCoefficients) true
         (reset := some resetName)
     catch error =>
       let message ← error.toMessageData.toString
@@ -543,8 +544,8 @@ run_cmd liftTermElabM do
 
 namespace DSP.Tests
 
-def wrongCompactReset {R : Type} [OfNat R 0] (s : ConservativeReuppingLadder.Runtime.State R) :
-    ConservativeReuppingLadder.Runtime.State R × TPTSVF.Runtime.Output R :=
+def wrongCompactReset {R : Type} [OfNat R 0] (s : OnePoleTPTLowPass.Runtime.State R) :
+    OnePoleTPTLowPass.Runtime.State R × TPTSVF.Runtime.Output R :=
   (s, ⟨0,0,0,0,0⟩)
 
 def unexpectedResetOutput {R : Type} [OfNat R 0] (s : OnePoleZOHLowPass R) :
@@ -561,13 +562,13 @@ end DSP.Tests
 #generate_cpp_sampled_filter DSP.OnePoleTPTLowPass.Runtime.processFloat DSP.OnePoleTPTLowPass.Runtime.prepareCoefficientsFloat
   resetWith DSP.Tests.resetWithOldMemoryFloat
   [DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquaredFloat as MagnitudeSquared]
-  as CompactResetProbe to "build/lean/generated/CompactResetProbe.hpp"
+  as CompactResetProbe to "build/lean/codegen-test/fixtures/CompactResetProbe.hpp"
 
 open Lean Elab Command in
 run_cmd liftTermElabM do
   for (stepName, tuningName, responseName, resetName, expected) in #[
-      (``DSP.ConservativeReuppingLadder.Runtime.process, ``DSP.ConservativeReuppingLadder.Runtime.prepareCoefficients,
-        ``DSP.ConservativeReuppingLadder.Snapshot.magnitudeSquared, ``DSP.Tests.wrongCompactReset,
+      (``DSP.OnePoleTPTLowPass.Runtime.process, ``DSP.OnePoleTPTLowPass.Runtime.prepareCoefficients,
+        ``DSP.OnePoleTPTLowPass.Snapshot.magnitudeSquared, ``DSP.Tests.wrongCompactReset,
         "reset output differs"),
       (``DSP.OnePoleZOHLowPass.step, ``DSP.OnePoleZOHLowPass.prepareCoefficients,
         ``DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquared, ``DSP.Tests.unexpectedResetOutput,
