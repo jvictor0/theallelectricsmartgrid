@@ -10,6 +10,7 @@ import DSP.Filters.OnePoleZOHLowPass
 import DSP.Filters.OnePoleZOHLowPass.Response
 import DSP.Filters.OnePoleTPTLowPass
 import DSP.Filters.OnePoleTPTHighPass
+import DSP.Filters.ButterworthDownsampler
 import DSP.Filters.TPTBaseWidth
 import DSP.Filters.TPTSVF
 import DSP.Filters.MorphingTPTSVF
@@ -65,6 +66,19 @@ import DSP.WanderingRandomLFO
 #generate_cpp_generic DSP.DelayKernels.Runtime.Comb.process as TunedDecayCombCoreGeneric to "build/lean/generated/TunedDecayCombCoreGeneric.hpp"
 #generate_cpp_preparation_generic DSP.DelayKernels.Runtime.prepareCoefficients as TunedDecayCombTuningGeneric to "build/lean/generated/TunedDecayCombTuningGeneric.hpp"
 #generate_cpp_generic DSP.DelayKernels.response as TunedDecayCombResponseGeneric to "build/lean/generated/TunedDecayCombResponseGeneric.hpp"
+
+#generate_cpp_generic DSP.ButterworthDownsampler.process2 resetWith DSP.ButterworthDownsampler.reset2
+  as ButterworthDownsampler2Generic to "build/lean/generated/ButterworthDownsampler2Generic.hpp"
+#generate_cpp_generic DSP.ButterworthDownsampler.process4 resetWith DSP.ButterworthDownsampler.reset4
+  as ButterworthDownsampler4Generic to "build/lean/generated/ButterworthDownsampler4Generic.hpp"
+#generate_cpp_generic DSP.ButterworthDownsampler.process8 resetWith DSP.ButterworthDownsampler.reset8
+  as ButterworthDownsampler8Generic to "build/lean/generated/ButterworthDownsampler8Generic.hpp"
+#generate_cpp_preparation DSP.ButterworthDownsampler.prepare2Float
+  as ButterworthDownsampler2Prepare to "build/lean/generated/ButterworthDownsampler2Prepare.hpp"
+#generate_cpp_preparation DSP.ButterworthDownsampler.prepare4Float
+  as ButterworthDownsampler4Prepare to "build/lean/generated/ButterworthDownsampler4Prepare.hpp"
+#generate_cpp_preparation DSP.ButterworthDownsampler.prepare8Float
+  as ButterworthDownsampler8Prepare to "build/lean/generated/ButterworthDownsampler8Prepare.hpp"
 
 #generate_cpp_sampled_filter DSP.ConservativeReuppingLadder.Runtime.processFloat DSP.ConservativeReuppingLadder.Runtime.prepareCoefficientsFloat
   resetWith DSP.ConservativeReuppingLadder.Runtime.resetFloat

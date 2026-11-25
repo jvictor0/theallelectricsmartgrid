@@ -10,33 +10,40 @@
 template<typename Number, size_t Size, size_t Order, size_t Ratio>
 struct DownsamplerGeneric
 {
-    static_assert(Ratio >= 1, "Downsampler ratio must be at least 1");
+    static_assert(Ratio > 1);
 
     using Vector = MultiChannelNumber<Number, Size>;
-
-    // Cutoff in cycles per low-rate sample.
-    //
     static constexpr float x_cutoff = 0.40f;
 
-    ButterworthFilterGeneric<Number, Size, Order> m_filter;
-    Vector m_output;
-
-    DownsamplerGeneric()
-    {
-        m_filter.SetCyclesPerSample(x_cutoff / static_cast<float>(Ratio));
-    }
+    ButterworthFilterGeneric<Number, Size, Order> m_filter{x_cutoff / static_cast<float>(Ratio)};
 
     Vector Process(const Vector& input)
     {
-        if constexpr (Ratio == 1)
-        {
-            m_output = input;
-        }
-        else
-        {
-            m_output = m_filter.Process(input);
-        }
+        return m_filter.Process(input);
+    }
 
+    Vector GetOutput() const
+    {
+        return m_filter.GetOutput();
+    }
+
+    void Reset()
+    {
+        m_filter.Reset();
+    }
+};
+
+template<typename Number, size_t Size, size_t Order>
+struct DownsamplerGeneric<Number, Size, Order, 1>
+{
+    using Vector = MultiChannelNumber<Number, Size>;
+    static constexpr float x_cutoff = 0.40f;
+
+    Vector m_output;
+
+    Vector Process(const Vector& input)
+    {
+        m_output = input;
         return m_output;
     }
 
@@ -47,7 +54,6 @@ struct DownsamplerGeneric
 
     void Reset()
     {
-        m_filter.Reset();
         m_output = Vector();
     }
 };
@@ -69,13 +75,12 @@ struct UpsamplerGeneric
 
     ButterworthFilterGeneric<Number, Size, Order> m_filter;
     Vector m_input;
-    Vector m_output;
     bool m_pushed;
 
     UpsamplerGeneric()
-        : m_pushed(false)
+        : m_filter(x_cutoff / static_cast<float>(Ratio))
+        , m_pushed(false)
     {
-        m_filter.SetCyclesPerSample(x_cutoff / static_cast<float>(Ratio));
     }
 
     void Push(const Vector& input)
@@ -86,25 +91,23 @@ struct UpsamplerGeneric
 
     Vector Process()
     {
+        const bool pushed = m_pushed;
+        m_pushed = false;
         if constexpr (Ratio == 1)
         {
-            m_output = m_input;
+            return m_input;
         }
         else
         {
-            Vector sample = m_pushed ? m_input * static_cast<Number>(Ratio) : Vector();
-            m_output = m_filter.Process(sample);
+            Vector sample = pushed ? m_input * static_cast<Number>(Ratio) : Vector();
+            return m_filter.Process(sample);
         }
-
-        m_pushed = false;
-        return m_output;
     }
 
     void Reset()
     {
         m_filter.Reset();
         m_input = Vector();
-        m_output = Vector();
         m_pushed = false;
     }
 };

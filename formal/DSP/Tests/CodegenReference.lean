@@ -5,6 +5,7 @@ import DSP.Tests.Splitter
 import DSP.Tests.ConservativeReuppingLadder
 import DSP.Filters.OnePoleTPTLowPass
 import DSP.Filters.OnePoleTPTHighPass
+import DSP.Filters.ButterworthDownsampler
 import DSP.Filters.TPTBaseWidth
 import DSP.Filters.TPTSVF
 import DSP.Filters.MorphingTPTSVF
@@ -88,6 +89,34 @@ def emit {S : Type} (out : IO.FS.Stream) (kind : String) (line : S → String)
 
 def bits32 (values : List Float32) : String :=
   " ".intercalate (values.map fun v => toString v.toBits)
+
+open DSP.ButterworthDownsampler in
+def emitButterworth {R : Type} [Add R] [Mul R] [FMA R] (out : IO.FS.Stream)
+    (suffix : String) (convert : Float → R) (encode : List R → String) : IO Unit := do
+  let makeSection (c : Coefficients Float) : Section R :=
+    ⟨⟨convert c.gain, convert c.feedback1, convert c.feedback2⟩, convert 0, convert 0⟩
+  let fields (s : Section R) :=
+    [s.coefficients.gain, s.coefficients.feedback1, s.coefficients.feedback2, s.delay1, s.delay2]
+  let fields4 (s : Cascade (Section R)) := fields s.first ++ fields s.second
+  let fields8 (s : FourSections (Section R)) := fields4 s.first ++ fields4 s.second
+  let mut random : UInt64 := 7219
+  for cutoff in ([0.05, 0.075, 0.1, 0.2, 0.0001, 0.45, 0.002, 0.3] : List Float) do
+    let mut state2 := makeSection (prepare2Float cutoff)
+    let mut state4 := (prepare4Float cutoff).map makeSection
+    let mut state8 := (prepare8Float cutoff).map (Cascade.map makeSection)
+    for _ in [:64] do
+      let (value, next) := uniform random (-1) 1
+      random := next
+      let input : ButterworthDownsampler.Sample R := ⟨convert value⟩
+      let (next2, y2) := process2 state2 input
+      let (next4, y4) := process4 state4 input
+      let (next8, y8) := process8 state8 input
+      out.putStrLn s!"butterworth2{suffix} {encode (fields state2 ++ [input.x])} {encode (fields next2 ++ [y2.x])}"
+      out.putStrLn s!"butterworth4{suffix} {encode (fields4 state4 ++ [input.x])} {encode (fields4 next4 ++ [y4.x])}"
+      out.putStrLn s!"butterworth8{suffix} {encode (fields8 state8 ++ [input.x])} {encode (fields8 next8 ++ [y8.x])}"
+      state2 := next2
+      state4 := next4
+      state8 := next8
 
 def lowPass32 (f : OnePoleTPTLowPass Float) : OnePoleTPTLowPass Float32 :=
   ⟨f.G.toFloat32, f.s.toFloat32, f.y.toFloat32⟩
@@ -253,6 +282,8 @@ def main : IO Unit := do
   emitTuningCases out
   emitMagnitudeCases out
   emitAllResponseCases out
+  emitButterworth out "" id bits
+  emitButterworth out "32" Float.toFloat32 bits32
   let coefficients : Array Float := #[0.0, 1.0, 0.5, 0.999, Float.ofBits 0x3fefffffffffffff,
     Float.ofBits 1]
   let seeds : Array Float := #[0.0, -0.0, 1.0, -1.0, 1000.0, Float.ofBits 1,

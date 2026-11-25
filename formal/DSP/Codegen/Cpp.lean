@@ -1828,10 +1828,28 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
     let indexIncludes := if boundedIndices then #["#include \"CodegenInteger.hpp\""] else #[]
     return (indexIncludes ++ mathIncludes emission.usesMath, lines)
 
+private def generateResetParts (step reset : Name) (cppName : String) (generic : Bool) :
+    MetaM (Array String × Array String) := do
+  let (state, output) ← forallTelescopeReducing (← getConstInfo step).type fun parameters result => do
+    let number := if generic then some parameters[0]! else none
+    let state ← recordSignature (← inferType parameters[parameters.size - 2]!) number
+    let result ← whnf result
+    let output ← if result.isAppOfArity ``Prod 2 then
+      some <$> recordSignature result.getAppArgs[1]! number
+      else pure none
+    return (state, output)
+  let (includes, body) ← generateParts reset cppName generic none "Input"
+    (resetState := some state) (resetOutput := output)
+  return (includes, #[s!"    // Reset generated from {reset}.", "    //", ""] ++ body)
+
 def generateWithTarget (function : Name) (cppName : String) (generic : Bool)
-    (method : Option String) : MetaM String := do
+    (method : Option String) (reset : Option Name := none) : MetaM String := do
   let (includes, body) ← generateParts function cppName generic method "Input"
-  return String.intercalate "\n" (renderHeader function cppName generic includes ++ body ++ #["};", ""]).toList
+  let (resetIncludes, resetBody) ← match reset with
+    | none => pure (#[], #[])
+    | some name => generateResetParts function name cppName generic
+  return String.intercalate "\n" (renderHeader function cppName generic (includes ++ resetIncludes) ++
+    body ++ resetBody ++ #["};", ""]).toList
 
 /-- Export a read-only computation over any compatible storage view. A view
 provides the record members and indexing interface derived from the Lean type. -/
@@ -2072,19 +2090,9 @@ def generateFilterResponses (step : Name) (responses : Array (Name × String))
     body := body ++ #[s!"    // Response generated from {response}.", "    //", ""] ++ responseBody
   body := body ++ tuningMembers
   if let some reset := reset then
-    let info ← getConstInfo step
-    let expected ← forallTelescopeReducing info.type fun parameters _ => do
-      let type ← inferType parameters[parameters.size - 2]!
-      recordSignature type (if generic then some parameters[0]! else none)
-    let expectedOutput ← forallTelescopeReducing info.type fun parameters result => do
-      let result ← whnf result
-      if result.isAppOfArity ``Prod 2 then
-        return some (← recordSignature result.getAppArgs[1]! (if generic then some parameters[0]! else none))
-      return none
-    let (resetIncludes, resetBody) ← generateParts reset cppName generic none "Input"
-      (resetState := some expected) (resetOutput := expectedOutput)
+    let (resetIncludes, resetBody) ← generateResetParts step reset cppName generic
     includes := includes ++ resetIncludes
-    body := body ++ #[s!"    // Reset generated from {reset}.", "    //", ""] ++ resetBody
+    body := body ++ resetBody
   if capture then
     unless tuning.isSome do throwError "C++ codegen: sampled filters require coefficient preparation"
     includes := includes.push "#include \"GeneratedFilterUI.hpp\""
@@ -2131,15 +2139,15 @@ def generateFilter (step response : Name) (cppName : String) (generic : Bool) : 
 def generate (function : Name) (cppName : String) : MetaM String :=
   generateWithTarget function cppName false none
 
-def generateGeneric (function : Name) (cppName : String) : MetaM String :=
-  generateWithTarget function cppName true none
+def generateGeneric (function : Name) (cppName : String) (reset : Option Name := none) : MetaM String :=
+  generateWithTarget function cppName true none reset
 
 /-- Export the same pure preparation used by filter banks as a standalone API. -/
-def generatePreparationGeneric (function : Name) (cppName : String) : MetaM String := do
+def generatePreparation (function : Name) (cppName : String) (generic : Bool) : MetaM String := do
   if #["Prepared", "Prepare"].contains cppName then
     throwError "C++ codegen: preparation name conflicts with a nested member"
-  let (includes, body) ← generateParts function cppName true none "Input" (preparation := true)
-  return String.intercalate "\n" (renderHeader function cppName true includes ++ body ++ #["};", ""]).toList
+  let (includes, body) ← generateParts function cppName generic none "Input" (preparation := true)
+  return String.intercalate "\n" (renderHeader function cppName generic includes ++ body ++ #["};", ""]).toList
 
 def generateFunction (function : Name) (cppName method : String) (generic : Bool) : MetaM String :=
   generateWithTarget function cppName generic (some method)
@@ -2244,8 +2252,12 @@ elab "#generate_cpp " function:ident " as " cppName:ident " to " path:str : comm
   IO.FS.writeFile output code
   logInfo m!"Generated {output} from {function.getId}"
 
-elab "#generate_cpp_generic " function:ident " as " cppName:ident " to " path:str : command => do
+syntax cppReset := "resetWith " ident
+
+elab "#generate_cpp_generic " function:ident resetSyntax:(cppReset)?
+    " as " cppName:ident " to " path:str : command => do
   let code ← liftTermElabM <| generateGeneric function.getId cppName.getId.toString
+    (resetSyntax.map (fun p => p.raw[1].getId))
   let output : System.FilePath := path.getString
   if let some parent := output.parent then IO.FS.createDirAll parent
   IO.FS.writeFile output code
@@ -2353,13 +2365,21 @@ elab "#generate_cpp_state_generic " function:ident " as " cppName:ident " to " p
 elab "#generate_cpp_state_generic " function:ident " owning " "as " cppName:ident " to " path:str : command =>
   exportPackedStateAction function.getId cppName.getId.toString path.getString true
 
-elab "#generate_cpp_preparation_generic " function:ident " as " cppName:ident
-    " to " path:str : command => do
-  let code ← liftTermElabM <| generatePreparationGeneric function.getId cppName.getId.toString
-  let output : System.FilePath := path.getString
+private def exportPreparation (function : Name) (cppName path : String) (generic : Bool) :
+    CommandElabM Unit := do
+  let code ← liftTermElabM <| generatePreparation function cppName generic
+  let output : System.FilePath := path
   if let some parent := output.parent then IO.FS.createDirAll parent
   IO.FS.writeFile output code
-  logInfo m!"Generated {output} from {function.getId} as pure coefficient preparation"
+  logInfo m!"Generated {output} from {function} as pure coefficient preparation"
+
+elab "#generate_cpp_preparation " function:ident " as " cppName:ident
+    " to " path:str : command =>
+  exportPreparation function.getId cppName.getId.toString path.getString false
+
+elab "#generate_cpp_preparation_generic " function:ident " as " cppName:ident
+    " to " path:str : command =>
+  exportPreparation function.getId cppName.getId.toString path.getString true
 
 elab "#generate_cpp_function_generic " function:ident " as " cppName:ident " method " methodName:ident
     " to " path:str : command => do
@@ -2370,7 +2390,6 @@ elab "#generate_cpp_function_generic " function:ident " as " cppName:ident " met
   IO.FS.writeFile output code
   logInfo m!"Generated {output} from {function.getId} as a pure function with MultiChannelNumber arithmetic"
 
-syntax cppReset := "resetWith " ident
 syntax cppBank := "preparedBank " ident " prepareWith " ident
 
 elab "#generate_cpp_sampled_filter " step:ident tuning:ident

@@ -51,18 +51,7 @@ struct BufferResampler
         }
 
         float cutoffCycles = 0.45f * static_cast<float>(targetRate / sourceRate);
-        if (cutoffCycles < ButterworthFilter::x_minCyclesPerSample)
-        {
-            cutoffCycles = ButterworthFilter::x_minCyclesPerSample;
-        }
-        else if (ButterworthFilter::x_maxCyclesPerSample < cutoffCycles)
-        {
-            cutoffCycles = ButterworthFilter::x_maxCyclesPerSample;
-        }
-
-        ButterworthFilter filter;
-        filter.SetCyclesPerSample(cutoffCycles);
-        filter.Reset();
+        ButterworthFilter filter(cutoffCycles);
 
         for (size_t i = 0; i < sampleCount; ++i)
         {

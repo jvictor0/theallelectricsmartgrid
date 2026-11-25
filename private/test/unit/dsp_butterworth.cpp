@@ -1,15 +1,13 @@
 // dsp_butterworth.cpp -- unit tests for ButterworthFilter (private/src/ButterworthFilter.hpp)
 //
 // 8th-order Butterworth LP built from four cascaded biquads.
-// The class does NOT expose a static FrequencyResponse, so we use
-// BiquadSection::FrequencyResponse(cosw, sinw, q, freq) to reconstruct
-// the analytic response for comparison.
+// Compare against the independently prewarped Butterworth magnitude.
 //
 // Tests:
 //   1. Passband gain near 0 dB (well below cutoff).
 //   2. -3 dB ± 2 dB near the cutoff frequency.
 //   3. Asymptotic stopband slope ~48 dB/octave (8th-order).
-//   4. Measured response matches the cascaded-biquad analytic model (2.5 dB tol).
+//   4. Measured response matches the analytic Butterworth response (2.5 dB tol).
 //   5. NaN-clean across a cutoff sweep.
 
 #include "doctest.h"
@@ -38,21 +36,8 @@ constexpr std::size_t kN = kFftSize1024;
 //
 double analyticBW8(float fc, double normFreq)
 {
-    float omega = 2.0f * static_cast<float>(M_PI) * fc;
-    float cosw  = std::cos(omega);
-    float sinw  = std::sin(omega);
-
-    float q1 = 1.0f / (2.0f * std::cos(static_cast<float>(M_PI) / 16.0f));
-    float q2 = 1.0f / (2.0f * std::cos(3.0f * static_cast<float>(M_PI) / 16.0f));
-    float q3 = 1.0f / (2.0f * std::cos(5.0f * static_cast<float>(M_PI) / 16.0f));
-    float q4 = 1.0f / (2.0f * std::cos(7.0f * static_cast<float>(M_PI) / 16.0f));
-
-    float f = static_cast<float>(normFreq);
-    double h1 = BiquadSection::FrequencyResponse(cosw, sinw, q1, f, false);
-    double h2 = BiquadSection::FrequencyResponse(cosw, sinw, q2, f, false);
-    double h3 = BiquadSection::FrequencyResponse(cosw, sinw, q3, f, false);
-    double h4 = BiquadSection::FrequencyResponse(cosw, sinw, q4, f, false);
-    return h1 * h2 * h3 * h4;
+    const double normalized = std::tan(M_PI * normFreq) / std::tan(M_PI * fc);
+    return 1.0 / std::sqrt(1.0 + std::pow(normalized, 16));
 }
 
 } // namespace
@@ -67,9 +52,8 @@ DOCTEST_TEST_CASE("ButterworthFilter: passband gain near 0 dB")
 
     // Cutoff at ~4 kHz, passband up to ~1 kHz.
     //
-    ButterworthFilter bw;
     const float cutoffCps = 4000.0f / static_cast<float>(kSR);
-    bw.SetCyclesPerSample(cutoffCps);
+    ButterworthFilter bw(cutoffCps);
 
     std::function<float(float)> proc = [&bw](float x) {
         return bw.Process(x);
@@ -95,8 +79,7 @@ DOCTEST_TEST_CASE("ButterworthFilter: -3 dB near cutoff")
     const float cutoffHz  = 5000.0f;
     const float cutoffCps = cutoffHz / static_cast<float>(kSR);
 
-    ButterworthFilter bw;
-    bw.SetCyclesPerSample(cutoffCps);
+    ButterworthFilter bw(cutoffCps);
 
     std::function<float(float)> proc = [&bw](float x) {
         return bw.Process(x);
@@ -127,8 +110,7 @@ DOCTEST_TEST_CASE("ButterworthFilter: stopband slope >= 40 dB/octave")
     const float cutoffHz  = 1000.0f;
     const float cutoffCps = cutoffHz / static_cast<float>(kSR);
 
-    ButterworthFilter bw;
-    bw.SetCyclesPerSample(cutoffCps);
+    ButterworthFilter bw(cutoffCps);
 
     std::function<float(float)> proc = [&bw](float x) {
         return bw.Process(x);
@@ -168,8 +150,7 @@ DOCTEST_TEST_CASE("ButterworthFilter: measured vs analytic biquad model (2.5 dB)
     const float cutoffHz  = 3000.0f;
     const float cutoffCps = cutoffHz / static_cast<float>(kSR);
 
-    ButterworthFilter bw;
-    bw.SetCyclesPerSample(cutoffCps);
+    ButterworthFilter bw(cutoffCps);
 
     std::function<float(float)> proc = [&bw](float x) {
         return bw.Process(x);
@@ -202,8 +183,7 @@ DOCTEST_TEST_CASE("ButterworthFilter: NaN-clean across cutoff sweep")
     const float cutoffs[] = { 0.001f, 0.01f, 0.05f, 0.1f, 0.25f, 0.45f };
     for (float cps : cutoffs)
     {
-        ButterworthFilter bw;
-        bw.SetCyclesPerSample(cps);
+        ButterworthFilter bw(cps);
         for (std::size_t i = 0; i < nSamples; ++i)
         {
             out[i] = bw.Process(noise.Next());

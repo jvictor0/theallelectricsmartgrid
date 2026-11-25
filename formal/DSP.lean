@@ -15,6 +15,8 @@ import DSP.Step
 import DSP.Transfer.Bilinear
 import DSP.Filters.OnePoleTPTHighPass
 import DSP.Filters.OnePoleTPTHighPass.Proofs
+import DSP.Filters.ButterworthDownsampler.Realization
+import DSP.Filters.ButterworthDownsampler.Response
 import DSP.Filters.TPTBaseWidth
 import DSP.Filters.TPTBaseWidth.Proofs
 import DSP.Filters.TPTSVF

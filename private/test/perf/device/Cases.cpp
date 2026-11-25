@@ -7,6 +7,8 @@
 #include <sstream>
 #include <stdexcept>
 
+void RunButterworth(const std::vector<std::string>& arguments, std::ostream& output);
+
 void RunInverter(const std::vector<std::string>& arguments, std::ostream& output)
 {
     std::vector<std::string> words{"inverter"};
@@ -128,6 +130,9 @@ const std::vector<BenchmarkCase>& BenchmarkCases()
         {"reverb", "Legacy, sample-rate and framed wandering reverbs at 192 kHz with shared traces. "
             "Reports thread CPU ms per audio second for all four control modes after a two-second warmup. "
             "Arguments: [REPEATS] [SECONDS_PER_CASE].", RunQuadReverb},
+        {"butterworth", "Direct form I and Lean transposed direct form II at the engine rate. "
+            "Times 33 quad second-order decimators and eight quad eighth-order decimators on identical inputs. "
+            "Arguments: [REPEATS] [AUDIO_SECONDS_PER_CASE].", RunButterworth},
         {"resynthesis", "Process Hann-windowed 48 kHz grains through the full phase vocoder, including packed FFTs, "
             "pitch shift, unison, and the engine-rate synthesis frame. Reports CPU and wall timing for one, three, and four lanes. "
             "Arguments: [REPEATS] [AUDIO_SECONDS_PER_CASE].", RunResynthesis}

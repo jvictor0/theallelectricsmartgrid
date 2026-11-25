@@ -223,7 +223,7 @@ run_cmd liftTermElabM do
       (``DSP.LinkwitzRileySplitter.prepareSection, "Prepare", "preparation name conflicts")] do
     let mut rejected := false
     try
-      let _ ← DSP.Codegen.generatePreparationGeneric function cppName
+      let _ ← DSP.Codegen.generatePreparation function cppName true
     catch error =>
       let message ← error.toMessageData.toString
       unless (message.splitOn expected).length > 1 do

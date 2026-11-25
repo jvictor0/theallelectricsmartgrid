@@ -24,6 +24,7 @@ HEADERS = (
 )
 HEADERS += tuple(name.replace(".hpp", "Generic.hpp") for name in HEADERS)
 HEADERS += ("LinkwitzRileySplitter4BandGeneric.hpp", "MultibandSaturator4BandCoreGeneric.hpp")
+HEADERS += tuple(f"ButterworthDownsampler{order}{kind}.hpp" for order in (2, 4, 8) for kind in ("Generic", "Prepare"))
 HEADERS += ("SmoothRandomLFOPrepareGeneric.hpp", "SmoothRandomLFOCubicGeneric.hpp")
 HEADERS += ("AnalyzePVDR32.hpp", "AnalyzePVDR64.hpp", "SynthesizeSpectrum32.hpp", "SynthesizeSpectrum64.hpp",
             "ResynthesisFrame32.hpp", "ResynthesisFrame64.hpp", "GrainControl32.hpp", "UnisonBase32.hpp", "UnisonBase64.hpp")
@@ -171,7 +172,7 @@ def main():
         "zoh": 3, "tpt": 4, "tptHigh": 5, "baseWidth": 8, "svf": 12, "morph": 16,
         "svf4High": 23, "svf4Low": 23, "svf4Band": 23, "ladder": 15, "splitter": 53,
         "swap": 4, "gain": 2, "coupled": 3, "arithmetic": 3, "fma": 3, "fma32": 3,
-        "conservative": 11,
+        "conservative": 11, "butterworth2": 6, "butterworth4": 11, "butterworth8": 21,
     }
     # Selected exports use the same full-SVF model as their independent oracle.
     selected_cases = []
@@ -214,7 +215,7 @@ def main():
     inputs, expected = [], []
     scalar_cases = [case for case in cases
                     if (not case.split()[0].endswith("32") or case.split()[0] == "fma32")
-                    and case.split()[0] not in ("arithmetic", "splitter")]
+                    and case.split()[0] not in ("arithmetic", "splitter", "butterworth2", "butterworth4", "butterworth8")]
     for case in scalar_cases:
         columns = case.split()
         split = 1 + input_counts[columns[0]]

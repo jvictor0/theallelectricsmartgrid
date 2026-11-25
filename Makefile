@@ -90,6 +90,7 @@ lean-cache:
 
 DSP_RUNTIME_MODULES := DSP.Filters.Capture DSP.Filters.OnePoleZOHLowPass.Response DSP.Filters.OnePoleTPTLowPass \
 	DSP.Filters.OnePoleTPTHighPass DSP.Filters.TPTBaseWidth DSP.Filters.TPTSVF \
+	DSP.Filters.ButterworthDownsampler \
 	DSP.Filters.MorphingTPTSVF DSP.Filters.TPTSVF4Pole DSP.Filters.TPTLadder \
 	DSP.Filters.LinkwitzRileySplitter DSP.Filters.Coupled \
 	DSP.Filters.ConservativeReuppingLadder.Response DSP.Filters.MultibandSaturator.Runtime DSP.Filters.Runtime \
@@ -101,12 +102,14 @@ DSP_HEADERS := OnePoleZOHLowPass OnePoleTPTLowPass OnePoleTPTHighPass TPTBaseWid
 	CoupledProcessor ConservativeReuppingLadderCore TPTSVFLowPass TPTSVFHighPass TPTSVFBandPass TPTSVFNotch TPTSVFAllPass
 
 DSP_GENERIC_HEADERS := $(addsuffix Generic,$(DSP_HEADERS)) LinkwitzRileySplitter4BandGeneric MultibandSaturator4BandCoreGeneric \
+	ButterworthDownsampler2Generic ButterworthDownsampler4Generic ButterworthDownsampler8Generic \
 	SchroederAllPassCoreGeneric TunedDecayCombCoreGeneric \
 	TunedDecayCombTuningGeneric TunedDecayCombResponseGeneric SmoothRandomLFOPrepareGeneric \
 	SmoothRandomLFOCubicGeneric SquiggleBoyQuadReverbFramed SquiggleBoyQuadReverbEverySample \
 	SquiggleBoyQuadReverbInitFramed SquiggleBoyQuadReverbInitEverySample SquiggleBoyQuadReverbTuning
 
-DSP_HEADERS += AnalyzePVDR32 AnalyzePVDR64 SynthesizeSpectrum32 SynthesizeSpectrum64 \
+DSP_HEADERS += ButterworthDownsampler2Prepare ButterworthDownsampler4Prepare ButterworthDownsampler8Prepare \
+	AnalyzePVDR32 AnalyzePVDR64 SynthesizeSpectrum32 SynthesizeSpectrum64 \
 	ResynthesisFrame32 ResynthesisFrame64 GrainControl32 UnisonBase32 UnisonBase64 \
 	WanderingRandomLFOInit32 WanderingRandomLFOInit64 WanderingRandomLFOFramedInit32 \
 	WanderingRandomLFOFramedInit64 WanderingRandomLFO32 WanderingRandomLFO64 \

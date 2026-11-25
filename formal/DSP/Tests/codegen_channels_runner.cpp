@@ -26,6 +26,9 @@
 #include "CoupledProcessorGeneric.hpp"
 #include "ArithmeticProcessorGeneric.hpp"
 #include "FMAProcessorGeneric.hpp"
+#include "ButterworthDownsampler2Generic.hpp"
+#include "ButterworthDownsampler4Generic.hpp"
+#include "ButterworthDownsampler8Generic.hpp"
 
 #include <cstdint>
 #include <cstring>
@@ -64,6 +67,56 @@ auto SVFFields(State& state)
 {
     return std::tie(state.m_k, state.m_a1, state.m_a2, state.m_a3,
         state.m_ic1, state.m_ic2);
+}
+
+template<typename State>
+auto ButterworthSectionFields(State& state)
+{
+    auto& c = state.m_coefficients;
+    return std::tie(c.m_gain, c.m_feedback1, c.m_feedback2, state.m_delay1, state.m_delay2);
+}
+
+template<typename State>
+auto ButterworthPairFields(State& state)
+{
+    return std::tuple_cat(ButterworthSectionFields(state.m_first), ButterworthSectionFields(state.m_second));
+}
+
+template<typename Number, size_t Size>
+auto StateFields(ButterworthDownsampler2Generic<Number, Size>& processor)
+{
+    return ButterworthSectionFields(processor.m_state);
+}
+
+template<typename Number, size_t Size>
+auto StateFields(ButterworthDownsampler4Generic<Number, Size>& processor)
+{
+    return ButterworthPairFields(processor.m_state);
+}
+
+template<typename Number, size_t Size>
+auto StateFields(ButterworthDownsampler8Generic<Number, Size>& processor)
+{
+    auto& s = processor.m_state;
+    return std::tuple_cat(ButterworthPairFields(s.m_first), ButterworthPairFields(s.m_second));
+}
+
+template<typename Number, size_t Size>
+auto ResultFields(ButterworthDownsampler2Generic<Number, Size>& processor)
+{
+    return std::tuple_cat(StateFields(processor), std::tie(processor.m_output.m_x));
+}
+
+template<typename Number, size_t Size>
+auto ResultFields(ButterworthDownsampler4Generic<Number, Size>& processor)
+{
+    return std::tuple_cat(StateFields(processor), std::tie(processor.m_output.m_x));
+}
+
+template<typename Number, size_t Size>
+auto ResultFields(ButterworthDownsampler8Generic<Number, Size>& processor)
+{
+    return std::tuple_cat(StateFields(processor), std::tie(processor.m_output.m_x));
 }
 
 template<typename Number, size_t Size>
@@ -435,6 +488,21 @@ bool RunKind(const std::string& kind, size_t steps)
     if (kind == "baseWidth")
     {
         return Run<TPTBaseWidthGeneric<Number, Size>, Number, Size>(steps);
+    }
+
+    if (kind == "butterworth2")
+    {
+        return Run<ButterworthDownsampler2Generic<Number, Size>, Number, Size>(steps);
+    }
+
+    if (kind == "butterworth4")
+    {
+        return Run<ButterworthDownsampler4Generic<Number, Size>, Number, Size>(steps);
+    }
+
+    if (kind == "butterworth8")
+    {
+        return Run<ButterworthDownsampler8Generic<Number, Size>, Number, Size>(steps);
     }
 
     if (kind == "svfLowPass")

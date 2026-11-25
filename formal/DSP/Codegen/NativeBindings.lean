@@ -109,6 +109,8 @@ def nativeBindings : Array NativeBinding := #[
   numeric ``Float.isFinite (.libm "isfinite" "bool"),
   numeric ``Float.exp (.libm "exp" "double"),
   numeric ``Float.log (.libm "log" "double"),
+  numeric ``Float.cos (.libm "cos" "double"),
+  numeric ``Float.tan (.libm "tan" "double"),
   .value ``DelayBuffer.SampleIndex.ofWord (.packedStorage (.sampleWord true)),
   .value ``DelayBuffer.SampleIndex.toWord (.packedStorage (.sampleWord false)),
   .value ``DelayBuffer.SampleAges.toAges (.packedStorage .sampleAges),
