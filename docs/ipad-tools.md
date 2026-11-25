@@ -1,9 +1,11 @@
 # iPad Wi-Fi tools
 
-For isolated performance tests, `make perf-ipad` builds and launches the separate
-SmartGrid Perf app, collects arbitrary case metrics and device telemetry into
-`~/Documents/SmartGridOne/perf.sqlite3`, and leaves the iPad on its home screen.
-It initializes no audio. See [the benchmark guide](../private/test/perf/README.md#isolated-benchmarks-on-ipad).
+For isolated performance tests, reserve the iPad for the battery with
+`python3 scripts/ipad_perf.py --lock --wait 600`. `make perf-ipad` builds and
+launches the separate SmartGrid Perf app, collects case metrics and device
+telemetry into `~/Documents/SmartGridOne/perf.sqlite3`, and leaves the iPad on its
+home screen. Release the reservation with `python3 scripts/ipad_perf.py --unlock`
+after the last run. See [the benchmark guide](../private/test/perf/README.md#reserve-the-ipad-for-a-battery).
 
 The repository can build, install, launch, sync, and collect logs from the paired
 SmartGridOne iPad without a USB cable.
@@ -39,7 +41,7 @@ make ios-deploy
 
 This builds a signed Release app for generic iOS, upgrades the installed app
 over Wi-Fi, and launches it. The iPad must be unlocked for launch. Each failure
-stops the command; fix the reported cause and rerun it from the beginning.
+stops the command.
 
 Other targets are `ios-build`, `ios-install`, and the compatibility alias
 `deploy-ios`. `ios-install` installs the existing build without launching it.
@@ -51,6 +53,22 @@ configuration selection, and cleanup.
 ```bash
 make ios-deploy IPAD_HOST=192.168.1.80 IOS_DEVICE=00008122-001439681EA1001C
 ```
+
+### Recording protection
+
+The main app deploy and `make perf-ipad` check SmartGridOne's recording marker
+before installing or launching an app. This also covers `ios-install` and
+benchmark runs with `--skip-install`. Each check uses the current device
+connection and asks the iPad file service once whether
+`/Documents/SmartGridOne/recording-active` exists. SmartGridOne's recording
+writer creates it when it starts handling a take and removes it after closing
+the recording file. A fresh app launch clears a marker left by a crash.
+
+If either tool reports recording activity or a failed recording check, continue
+other work and wait for a human to say it is OK to try the iPad again. Release
+any perf lock held for the blocked battery. Protection is best effort and
+requires a SmartGridOne build that publishes the marker. A take can start after
+the check, and direct Xcode actions are outside the repo's guard.
 
 ## Sync
 

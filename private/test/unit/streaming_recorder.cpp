@@ -2,6 +2,7 @@
 #include "StreamingRecorder.hpp"
 #include "AsyncLogger.hpp"
 #include "StateInterchange.hpp"
+#include "support/TempDir.hpp"
 
 #include <limits>
 #include <fstream>
@@ -392,6 +393,46 @@ DOCTEST_TEST_CASE("streaming recorder: immediate stop and rapid one-frame sessio
         DOCTEST_REQUIRE(memory->m_bytes.size() >= 16);
         DOCTEST_CHECK(ReadLE(memory->m_bytes, memory->m_bytes.size() - 12, 8) == 1);
     }
+}
+
+DOCTEST_TEST_CASE("streaming recorder: activity marker is present through the writer's close")
+{
+    struct MarkerCheckingSink : MemorySink
+    {
+        std::filesystem::path m_marker;
+        bool m_markerAtOpen = false;
+        bool m_markerAtClose = false;
+
+        bool Open(const std::string& path) override
+        {
+            m_markerAtOpen = std::filesystem::exists(m_marker);
+            return MemorySink::Open(path);
+        }
+
+        bool Close(const std::vector<uint8_t>& completion) override
+        {
+            m_markerAtClose = std::filesystem::exists(m_marker);
+            return MemorySink::Close(completion);
+        }
+    };
+
+    synthrig::TempDir directory;
+    DOCTEST_REQUIRE(directory.Valid());
+    StreamingRecorder recorder;
+    auto sink = std::make_unique<MarkerCheckingSink>();
+    auto* memory = sink.get();
+    memory->m_marker = directory.Path() / "recording-active";
+    DOCTEST_REQUIRE(std::ofstream(memory->m_marker).good());
+    recorder.SetActivityMarkerPath(memory->m_marker.string());
+    DOCTEST_CHECK_FALSE(std::filesystem::exists(memory->m_marker));
+    DOCTEST_REQUIRE(recorder.Prepare(Session(), directory.String(), std::move(sink)));
+    DOCTEST_REQUIRE(recorder.Start());
+    DOCTEST_REQUIRE(Await([&]() { return std::filesystem::exists(memory->m_marker); }));
+    recorder.Stop();
+    recorder.Shutdown();
+    DOCTEST_CHECK(memory->m_markerAtOpen);
+    DOCTEST_CHECK(memory->m_markerAtClose);
+    DOCTEST_CHECK_FALSE(std::filesystem::exists(memory->m_marker));
 }
 
 DOCTEST_TEST_CASE("streaming recorder: capture errors enter the async log once with recording context")

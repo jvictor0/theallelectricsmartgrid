@@ -2,23 +2,48 @@
 
 import asyncio
 import os
-from contextlib import asynccontextmanager, suppress
+from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from pathlib import Path
 
+from pymobiledevice3.exceptions import AppNotInstalledError, PyMobileDevice3Exception
 from pymobiledevice3.lockdown import create_using_tcp, create_using_usbmux
 from pymobiledevice3.pair_records import get_usbmux_pairing_record
 from pymobiledevice3.remote import tunnel_service
 from pymobiledevice3.remote.remote_service_discovery import RemoteServiceDiscoveryService
 from pymobiledevice3.remote.tunnel_service import CoreDeviceTunnelProxy
 from pymobiledevice3.remote.userspace_tunnel import UserspaceDialPlane
+from pymobiledevice3.services.house_arrest import HouseArrestService
 from pymobiledevice3.usbmux import list_devices
 
 
+APP_BUNDLE_ID = "com.theallelectricsmartgrid.smartgridone"
+RECORDING_MARKER = "/Documents/SmartGridOne/recording-active"
 DEFAULT_UDID = "00008122-001439681EA1001C"
 DEFAULT_HOST = "192.168.1.53"
 CONNECT_TIMEOUT = 15
 HEARTBEAT_TIMEOUT = 30
 PAIRING_CACHE = Path("/private/tmp/smartgrid-device-pairing-cache")
+
+
+class IpadRecordingGuardError(RuntimeError):
+    pass
+
+
+async def require_ipad_idle(lockdown):
+    wait_for_human = "Continue other work. Do not attempt the iPad again until a human says it is OK."
+    try:
+        async with await HouseArrestService.create(lockdown, APP_BUNDLE_ID, documents_only=False) as afc:
+            # AFC existence is a single stat. The marker has no contents to read.
+            busy = await afc.exists(RECORDING_MARKER)
+    except AppNotInstalledError:
+        return
+    except (PyMobileDevice3Exception, OSError) as error:
+        raise IpadRecordingGuardError(
+            f"Could not check the iPad recording status ({error}). {wait_for_human}"
+        ) from error
+
+    if busy:
+        raise IpadRecordingGuardError(f"SmartGridOne's recording activity marker is present. {wait_for_human}")
 
 
 def device_udid(value=None):
@@ -116,9 +141,11 @@ async def connect_ipad(transport="wifi", udid=None, host=None):
 
 
 @asynccontextmanager
-async def connect_developer(udid=None, host=None):
+async def connect_developer(udid=None, host=None, *, lockdown=None):
     udid = device_udid(udid)
-    async with connect_ipad("wifi", udid=udid, host=host) as lockdown:
+    async with AsyncExitStack() as stack:
+        if lockdown is None:
+            lockdown = await stack.enter_async_context(connect_ipad("wifi", udid=udid, host=host))
         proxy = await CoreDeviceTunnelProxy.create(lockdown)
         previous = tunnel_service.USE_USERSPACE_TUNNEL
         tunnel_service.USE_USERSPACE_TUNNEL = True

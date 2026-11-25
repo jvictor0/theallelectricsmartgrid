@@ -210,7 +210,9 @@ perf-ipad-build:
 		-DCMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM="$(PERF_TEAM)"
 	cmake --build "$(PERF_IPAD_DIR)" --config Release --parallel "$(JOBS)" -- -allowProvisioningUpdates
 
-perf-ipad: perf-ipad-build
+perf-ipad:
+	@python3 "$(REPO_ROOT)/scripts/ipad_perf.py" --check-lock
+	$(MAKE) -f "$(REPO_ROOT)/Makefile" perf-ipad-build
 	@test -x "$(REPO_ROOT)/scripts/.venv-ios/bin/python" || $(MAKE) -C "$(REPO_ROOT)" ios-setup
 	"$(REPO_ROOT)/scripts/.venv-ios/bin/python" "$(REPO_ROOT)/scripts/ipad_perf.py" $(PERF_ARGS)
 

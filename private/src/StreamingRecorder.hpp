@@ -126,6 +126,7 @@ struct StreamingRecorder
 
     RecordingFormat::Session m_session;
     std::string m_directory;
+    std::string m_activityMarkerPath;
     std::unique_ptr<Sink> m_sink;
     std::unique_ptr<Ring> m_ring;
     std::unique_ptr<CircularQueue<ParamEvent, x_queueParamEvents>> m_paramEventsRing;
@@ -169,6 +170,42 @@ struct StreamingRecorder
     ~StreamingRecorder()
     {
         Shutdown();
+    }
+
+    // The app configures this before audio preparation. The writer owns marker
+    // changes during a take and keeps it present until the file is closed.
+    //
+    void SetActivityMarkerPath(std::string path)
+    {
+        assert(!m_prepared);
+        m_activityMarkerPath = std::move(path);
+        UpdateActivityMarker(false);
+    }
+
+    void UpdateActivityMarker(bool active) const
+    {
+        if (m_activityMarkerPath.empty())
+        {
+            return;
+        }
+
+        const char* path = m_activityMarkerPath.c_str();
+        if (active)
+        {
+            const int file = ::open(path, O_WRONLY | O_CREAT | O_EXCL, 0644);
+            if (file >= 0)
+            {
+                ::close(file);
+            }
+            else if (errno != EEXIST)
+            {
+                INFO("Could not create recording activity marker (errno=%d)", errno);
+            }
+        }
+        else if (::unlink(path) != 0 && errno != ENOENT)
+        {
+            INFO("Could not clear recording activity marker (errno=%d)", errno);
+        }
     }
 
     // Preparation and shutdown belong to the owner outside the audio callback.
@@ -675,6 +712,7 @@ struct StreamingRecorder
 
                     active = true;
                     blockFrames = 0;
+                    UpdateActivityMarker(true);
                     const std::string path = SessionPath();
                     opened = m_sink->Open(path);
                     writable = opened;
@@ -792,6 +830,7 @@ struct StreamingRecorder
                     m_pendingParamEvents.clear();
                     m_pendingParamBytes = 0;
                     m_stopRequested = false;
+                    UpdateActivityMarker(false);
                     m_state = m_error == Error::None ? State::Idle : State::Error;
                 }
 

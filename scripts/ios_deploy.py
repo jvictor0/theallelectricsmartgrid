@@ -10,10 +10,9 @@ from pathlib import Path
 from pymobiledevice3.remote.core_device.app_service import AppServiceService
 from pymobiledevice3.services.installation_proxy import InstallationProxyService
 
-from ipad_device import connect_developer, connect_ipad, device_host, device_udid
+from ipad_device import APP_BUNDLE_ID, connect_developer, connect_ipad, device_host, device_udid, require_ipad_idle
 
 
-APP_BUNDLE_ID = "com.theallelectricsmartgrid.smartgridone"
 DEFAULT_APP = (
     Path(__file__).resolve().parents[1]
     / "build"
@@ -41,20 +40,21 @@ def validate_app(app_path):
     )
 
 
-async def install_app(app_path, udid, host):
+async def install_app(app_path, udid, lockdown):
+    await require_ipad_idle(lockdown)
     print(f"Installing upgrade on {udid} over Wi-Fi")
-    async with connect_ipad("wifi", udid=udid, host=host) as lockdown:
-        async with InstallationProxyService(lockdown) as installer:
-            await installer.install_from_local(
-                app_path,
-                cmd="Upgrade",
-                developer=True,
-            )
+    async with InstallationProxyService(lockdown) as installer:
+        await installer.install_from_local(
+            app_path,
+            cmd="Upgrade",
+            developer=True,
+        )
 
 
-async def launch_app(udid, host):
+async def launch_app(udid, lockdown):
+    await require_ipad_idle(lockdown)
     print(f"Launching {APP_BUNDLE_ID}")
-    async with connect_developer(udid=udid, host=host) as rsd:
+    async with connect_developer(udid=udid, lockdown=lockdown) as rsd:
         async with AppServiceService(rsd) as app_service:
             await app_service.launch_application(APP_BUNDLE_ID)
 
@@ -63,14 +63,15 @@ async def deploy(app_path, udid, host, install_only):
     print(f"App: {app_path}")
     print("Packaging signed app for installation")
     validate_app(app_path)
-    await install_app(app_path, udid, host)
-    if install_only:
-        print("Install complete")
-        return
-    try:
-        await launch_app(udid, host)
-    except Exception as error:
-        raise RuntimeError(f"Installed, but could not launch: {error}") from error
+    async with connect_ipad("wifi", udid=udid, host=host) as lockdown:
+        await install_app(app_path, udid, lockdown)
+        if install_only:
+            print("Install complete")
+            return
+        try:
+            await launch_app(udid, lockdown)
+        except Exception as error:
+            raise RuntimeError(f"Installed, but could not launch: {error}") from error
     print("Deploy complete")
 
 

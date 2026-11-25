@@ -13,6 +13,8 @@ import sys
 import time
 import uuid
 
+import ipad_perf_lock
+
 
 ROOT = Path(__file__).resolve().parents[1]
 BUNDLE_ID = "com.theallelectricsmartgrid.perf"
@@ -82,7 +84,7 @@ async def run_device(args, request):
     from pymobiledevice3.remote.core_device.app_service import AppServiceService
     from pymobiledevice3.services.house_arrest import HouseArrestService
     from pymobiledevice3.services.installation_proxy import InstallationProxyService
-    from ipad_device import connect_developer, connect_ipad, device_host, device_udid
+    from ipad_device import connect_developer, connect_ipad, device_host, device_udid, require_ipad_idle
 
     udid, host = device_udid(args.udid), device_host(args.host)
     async with connect_ipad("wifi", udid=udid, host=host) as lockdown:
@@ -92,12 +94,14 @@ async def run_device(args, request):
             if info.get("CFBundleIdentifier") != BUNDLE_ID:
                 raise ValueError("Expected the benchmark app, not SmartGridOne")
             subprocess.run(["codesign", "--verify", "--deep", "--strict", str(args.app)], check=True)
+            await require_ipad_idle(lockdown)
             print("Installing SmartGrid Perf", flush=True)
             async with InstallationProxyService(lockdown) as installer:
                 await installer.install_from_local(args.app, cmd="Upgrade", developer=True)
 
+        await require_ipad_idle(lockdown)
         async with await HouseArrestService.create(lockdown, BUNDLE_ID, documents_only=False) as afc:
-            async with connect_developer(udid=udid, host=host) as rsd:
+            async with connect_developer(udid=udid, lockdown=lockdown) as rsd:
                 async with AppServiceService(rsd) as service:
                     await service.launch_application(
                         BUNDLE_ID, arguments=["--request", json.dumps(request)])
@@ -115,6 +119,14 @@ async def run_device(args, request):
 
 def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
+    lock_commands = parser.add_mutually_exclusive_group()
+    lock_commands.add_argument("--lock", action="store_true", help="Claim the iPad for the whole battery using CODEX_THREAD_ID")
+    lock_commands.add_argument("--unlock", action="store_true", help="Release this thread's iPad lock")
+    lock_commands.add_argument("--lock-status", action="store_true", help="Show who holds the iPad lock")
+    lock_commands.add_argument("--check-lock", action="store_true", help="Check ownership without running a case")
+    lock_commands.add_argument("--stop-hook", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--wait", type=int, help="With --lock, wait up to this many seconds for the iPad")
+    parser.add_argument("--force", action="store_true", help="With --unlock, clear a stale lock regardless of owner")
     parser.add_argument("--case", default="inverter")
     parser.add_argument("--notes", default="", help="What this run tests and why; stored alongside case notes")
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
@@ -127,10 +139,49 @@ def build_parser():
     return parser
 
 
+def handle_lock(args):
+    if args.stop_hook:
+        ipad_perf_lock.remind_at_stop(json.load(sys.stdin))
+        return True
+    if args.lock_status:
+        holder = ipad_perf_lock.lock_owner()
+        print(f"iPad perf lock is held by Codex thread {holder}" if holder else "iPad perf lock is free")
+        return True
+    if args.unlock:
+        owner = None if args.force else ipad_perf_lock.thread_id()
+        holder = ipad_perf_lock.release_lock(owner, force=args.force)
+        if args.force and holder:
+            print(f"Cleared iPad perf lock held by Codex thread {holder}")
+        else:
+            print("iPad perf lock is free")
+        return True
+    owner = ipad_perf_lock.thread_id()
+    if args.lock:
+        ipad_perf_lock.acquire_lock(owner, args.wait or 0)
+        print(f"Acquired iPad perf lock for Codex thread {owner}")
+        return True
+    ipad_perf_lock.require_lock(owner)
+    return args.check_lock
+
+
 def main():
-    args = build_parser().parse_args()
+    parser = build_parser()
+    args = parser.parse_args()
+    if args.wait is not None and (not args.lock or args.wait < 0):
+        parser.error("--wait requires --lock and a nonnegative number of seconds")
+    if args.force and not args.unlock:
+        parser.error("--force requires --unlock")
     if not 0 < args.timeout <= 86400:
         raise SystemExit("--timeout must be in 1..86400 seconds")
+    try:
+        if handle_lock(args):
+            return 0
+    except (OSError, ValueError) as error:
+        print(error, file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        return 130
+
     words = args.arguments[1:] if args.arguments[:1] == ["--"] else args.arguments
     request = {"run_id": str(uuid.uuid4()), "case": args.case, "arguments": words,
                "notes": args.notes, "timeout": args.timeout}

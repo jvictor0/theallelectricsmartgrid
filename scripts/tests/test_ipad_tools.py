@@ -5,10 +5,10 @@ import plistlib
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import asynccontextmanager, redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
@@ -16,6 +16,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 import ipad_device
 import ipad_logs
+import ipad_perf
 import ios_deploy
 import sync_ipad
 
@@ -195,6 +196,71 @@ class DeployTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "wrong.bundle"):
                 ios_deploy.validate_app(app)
+
+
+class RecordingGuardTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.lockdown = object()
+
+    @asynccontextmanager
+    async def connect(self, transport, udid, host):
+        yield self.lockdown
+
+    async def test_busy_preflight_uses_one_file_lookup_and_tells_agent_to_wait(self):
+        container = MagicMock()
+        exists = container.__aenter__.return_value.exists = AsyncMock(return_value=True)
+        with patch.object(ipad_device.HouseArrestService, "create", return_value=container) as create:
+            with self.assertRaisesRegex(ipad_device.IpadRecordingGuardError,
+                                        r"Continue other work\. Do not attempt the iPad again until a human"):
+                await ipad_device.require_ipad_idle(self.lockdown)
+        create.assert_awaited_once_with(self.lockdown, ipad_device.APP_BUNDLE_ID, documents_only=False)
+        exists.assert_awaited_once_with("/Documents/SmartGridOne/recording-active")
+
+    async def test_app_absent_allows_first_install_but_a_failed_check_blocks(self):
+        with patch.object(ipad_device.HouseArrestService, "create", side_effect=ipad_device.AppNotInstalledError):
+            await ipad_device.require_ipad_idle(self.lockdown)
+
+        with patch.object(ipad_device.HouseArrestService, "create", side_effect=OSError("unavailable")):
+            with self.assertRaisesRegex(ipad_device.IpadRecordingGuardError, "until a human"):
+                await ipad_device.require_ipad_idle(self.lockdown)
+
+    async def test_main_app_checks_before_install_and_rechecks_before_launch(self):
+        busy = ipad_device.IpadRecordingGuardError("recording")
+        for results, expected_installs in [([busy], 0), ([None, busy], 1)]:
+            with self.subTest(expected_installs=expected_installs):
+                with patch.object(ios_deploy, "connect_ipad", self.connect), \
+                     patch.object(ios_deploy, "validate_app"), \
+                     patch.object(ios_deploy, "require_ipad_idle", side_effect=results) as check, \
+                     patch.object(ios_deploy, "InstallationProxyService") as installer, \
+                     patch.object(ios_deploy, "connect_developer") as launch, \
+                     redirect_stdout(io.StringIO()):
+                    install = installer.return_value.__aenter__.return_value
+                    install.install_from_local = AsyncMock()
+                    with self.assertRaisesRegex(RuntimeError, "recording"):
+                        await ios_deploy.deploy(Path("SmartGridOne.app"), "ipad", "host", False)
+                    self.assertEqual(install.install_from_local.await_count, expected_installs)
+                    self.assertEqual(check.await_count, len(results))
+                    launch.assert_not_called()
+
+    async def test_perf_blocks_install_and_skip_install_launch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            app = Path(directory)
+            with (app / "Info.plist").open("wb") as output:
+                plistlib.dump({"CFBundleIdentifier": ipad_perf.BUNDLE_ID}, output)
+
+            for skip_install in (False, True):
+                with self.subTest(skip_install=skip_install):
+                    args = SimpleNamespace(udid="ipad", host="host", app=app, skip_install=skip_install)
+                    with patch.object(ipad_device, "connect_ipad", self.connect), \
+                         patch.object(ipad_device, "require_ipad_idle", side_effect=ipad_device.IpadRecordingGuardError) as check, \
+                         patch.object(ipad_device, "connect_developer") as launch, \
+                         patch("pymobiledevice3.services.installation_proxy.InstallationProxyService") as installer, \
+                         patch.object(ipad_perf.subprocess, "run"):
+                        with self.assertRaises(ipad_device.IpadRecordingGuardError):
+                            await ipad_perf.run_device(args, {})
+                        check.assert_awaited_once_with(self.lockdown)
+                        installer.assert_not_called()
+                        launch.assert_not_called()
 
 
 class LogWindowTests(unittest.TestCase):

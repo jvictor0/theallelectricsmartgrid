@@ -8,6 +8,21 @@ the main thread displays a static label and records thermal transitions.
 The app saves a report and exits to the home screen after success, failure,
 or its timeout, even if the Mac disconnects. Keep the iPad unlocked for launch.
 
+### Reserve the iPad for a battery
+
+From the repo root, claim the shared iPad once before the first case. Codex
+supplies `CODEX_THREAD_ID`. `--wait` sets the maximum wait in seconds. The
+default is to return immediately if another thread owns the iPad.
+
+```sh
+python3 scripts/ipad_perf.py --lock --wait 600
+```
+
+Continue after acquisition succeeds. Run the battery serially, using `make
+perf-ipad` for the first case or whenever the installed build needs updating.
+Reuse the installed app with `--skip-install` for subsequent cases. Keep the
+same lock through all cases, including pauses and reinstalls.
+
 ```sh
 # Incrementally build, install, and run the current inverter (linear, fast tempo).
 make perf-ipad PERF_ARGS='--notes "Initial iPad inverse baseline"'
@@ -22,6 +37,31 @@ make perf-ipad PERF_ARGS='--case resynthesis -- 5 8'
 scripts/.venv-ios/bin/python scripts/ipad_perf.py --skip-install \
   --case inverter --notes 'Heavy reversal case' -- current-performance 16 16 5
 ```
+
+When the battery finishes, including after a failed case, confirm the iPad has
+finished the last run and release the lock before ending the turn.
+
+```sh
+python3 scripts/ipad_perf.py --unlock
+```
+
+`python3 scripts/ipad_perf.py --lock-status` prints the owning thread ID. The
+owner is stored in `~/.cache/theallelectricsmartgrid/ipad-perf.lock`, shared by
+all worktrees on this Mac regardless of the results database path. For an older
+checkout, build with `make perf-ipad-build` there and pass the built `.app` to
+the current runner with `--app PATH`. The project's Codex Stop hook reminds the
+owner to release the lock. Review and trust the project hook in Codex via
+`/hooks` before its first use.
+
+If Codex crashes, use `--lock-status` to identify the owner. After confirming
+the owner and iPad are idle, clear the stale lock manually. This works from
+a regular terminal without `CODEX_THREAD_ID` and prints which owner was cleared.
+
+```sh
+python3 scripts/ipad_perf.py --unlock --force
+```
+
+### Cases and results
 
 The first registered case is `inverter`. Its arguments are
 `current-performance|tape-performance|write-performance SETTING PERIOD_BITS [REPEATS] [CYCLES]`,

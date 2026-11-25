@@ -9,11 +9,10 @@ from pathlib import Path, PurePosixPath
 
 from pymobiledevice3.services.house_arrest import HouseArrestService
 
-from ipad_device import connect_ipad, device_host, device_udid
+from ipad_device import APP_BUNDLE_ID, connect_ipad, device_host, device_udid
 from recording_export import extract_stereo_recording
 
 
-APP_BUNDLE_ID = "com.theallelectricsmartgrid.smartgridone"
 MAC_SMARTGRID_DIR = Path.home() / "Documents" / "SmartGridOne"
 MAC_PATCHES_DIR = MAC_SMARTGRID_DIR / "patches"
 MAC_RECORDINGS_DIR = MAC_SMARTGRID_DIR / "recordings"

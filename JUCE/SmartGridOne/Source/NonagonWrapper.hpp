@@ -511,6 +511,11 @@ struct NonagonWrapper
         : m_quadLaunchpadTwister(&m_internal, &m_midiSender)
         , m_wrldBldr(&m_internal, &m_midiSender)
     {
+#if JUCE_IOS
+        const auto documents = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory);
+        const auto marker = documents.getChildFile("SmartGridOne/recording-active");
+        m_internal.m_context.m_recorder.SetActivityMarkerPath(marker.getFullPathName().toStdString());
+#endif
         m_internal.m_squiggleBoy.m_ioTaskThread = &m_ioTaskThread;
         m_internal.m_squiggleBoy.m_recordingManager.m_ioTaskThread = &m_ioTaskThread;
         m_internal.m_configGrid.m_ioTaskThread = &m_ioTaskThread;
