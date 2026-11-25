@@ -138,11 +138,15 @@ def readBorrowedSample (input : BorrowedSampleInput) :
   if input.second then Resynthesis.FrameStorage.getSample 0 1
   else Resynthesis.FrameStorage.getSample 0 0
 
+def readBorrowedFirstSample (input : BorrowedSampleInput) (_first : input.second = false) :
+    StateM (Resynthesis.FrameStorage.Scene Float Float) Float :=
+  readBorrowedSample input
+
 def replaceBorrowedSample (input : BorrowedSampleInput) :
     StateM (Resynthesis.FrameStorage.Scene Float Float) BorrowedSampleOutput := do
-  let previous ← Resynthesis.FrameStorage.getSample 0 0
+  let previous ← readBorrowedSample { input with second := false }
   Resynthesis.FrameStorage.putSample 0 0 input.replacement
-  let current ← Resynthesis.FrameStorage.getSample 0 0
+  let current ← readBorrowedFirstSample { input with second := false } rfl
   return ⟨previous, current⟩
 
 def escapingScratch (input : BorrowedSampleInput) :
@@ -151,8 +155,10 @@ def escapingScratch (input : BorrowedSampleInput) :
 
 end DSP.Tests
 
-#generate_cpp_effect DSP.Tests.readBorrowedSample
+#generate_cpp_effect DSP.Tests.readBorrowedSample callable
   as ReadBorrowedSample to "build/lean/generated/ReadBorrowedSample.hpp"
+#generate_cpp_effect DSP.Tests.readBorrowedFirstSample callable with_contract scalar_inputs
+  as ReadBorrowedFirstSample to "build/lean/generated/ReadBorrowedFirstSample.hpp"
 #generate_cpp_effect DSP.Tests.replaceBorrowedSample
   as ReplaceBorrowedSample to "build/lean/generated/ReplaceBorrowedSample.hpp"
 

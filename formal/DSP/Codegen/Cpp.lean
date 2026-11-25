@@ -35,6 +35,10 @@ inductive Value where
   | borrowed (text : String) (version : Nat)
   deriving Inhabited
 
+structure StateExport extends RecordExport where
+  borrowed : Bool := false
+  scalarInputs : Bool := false
+
 structure Emission where
   lines : Array String := #[]
   next : Nat := 0
@@ -52,7 +56,7 @@ structure Emission where
   focusedReceiver : Option String := none
   /-- Saved record leaves still denote their original fields until the next state update. -/
   stateSnapshots : Std.HashMap String (Nat × String) := {}
-  stateCalls : Array (Name × RecordExport) := #[]
+  stateCalls : Array (Name × StateExport) := #[]
   stateHeaders : Array String := #[]
   foldVectorConstants : Bool := false
 
@@ -71,7 +75,7 @@ private def availableRecords (env : Environment) : NameMap RecordExport :=
   nativeRecords.toList.foldl (fun records (name, target) => records.insert name target)
     (recordExports.getState env)
 
-initialize stateExports : SimplePersistentEnvExtension (Name × RecordExport) (NameMap RecordExport) ←
+initialize stateExports : SimplePersistentEnvExtension (Name × StateExport) (NameMap StateExport) ←
   registerSimplePersistentEnvExtension {
     addEntryFn := fun state (name, target) => state.insert name target
     addImportedFn := fun imports => imports.foldl (init := ∅) fun state entries =>
@@ -1189,19 +1193,26 @@ partial def evaluate (expression : Expr) (locals : Locals)
         modify fun s => {s with stateVersion := version + 1}
         return .record #[result, .borrowed receiver (version + 1)]
     if let some (_, call) := stateCalls.find? (·.1 == name) then
-      unless args.size == 2 do throwError "C++ codegen: generated state call expects input and state"
-      let .borrowed receiver version ← evaluate args[1]! locals
+      let values ← args.filterM fun arg => return !(← isProp (← inferType arg))
+      unless values.size == 2 do throwError "C++ codegen: generated state call expects input and state"
+      let .borrowed receiver version ← evaluate values[1]! locals
         | throwError "C++ codegen: generated state call needs the current storage"
       checkFocusedReceiver receiver
       checkBorrowedVersion (← get).stateVersion (.borrowed receiver version)
-      let inputType ← whnf (← inferType args[0]!)
-      let value ← evaluate args[0]! locals
-      let arguments ← if inputType.isConstOf ``PUnit then pure receiver else do
-        let shape ← fieldShape inputType none
-        let input ← fresh
-        emit s!"{call.cppName}::Input {input};"
-        commitValue shape value input
-        pure s!"{receiver}, {input}"
+      let inputType ← whnf (← inferType values[0]!)
+      let value ← evaluate values[0]! locals
+      let arguments ← if inputType.isConstOf ``PUnit then pure receiver
+        else if call.scalarInputs then do
+          let .record fields := value
+            | throwError "C++ codegen: scalar state call requires a record input"
+          let fields ← fields.mapM fun field => return (← scalar field).2
+          pure (String.intercalate ", " (receiver :: fields.toList))
+        else do
+          let shape ← fieldShape inputType none
+          let input ← fresh
+          emit s!"{call.cppName}::Input {input};"
+          commitValue shape value input
+          pure s!"{receiver}, {input}"
       checkBorrowedVersion (← get).stateVersion (.borrowed receiver version)
       let outputType ← whnf (← inferType e)
       unless outputType.isAppOfArity ``Prod 2 do
@@ -1879,7 +1890,7 @@ The action returns its Lean result, with `PUnit` emitted as `void`. -/
 def generateEffect (function : Name) (cppName : String) (ownRecord : Bool := false)
     (outlined : Bool := false) (generic : Bool := false) (declareState : Bool := false)
     (entryContract : Bool := false)
-    (scalarInputs : Bool := false) : MetaM String := do
+    (scalarInputs : Bool := false) (callable : Bool := false) : MetaM String := do
   unless validIdentifier cppName do throwError "C++ codegen: invalid state view export name"
   let info ← getConstInfo function
   unless info.levelParams.isEmpty do throwError "C++ codegen: state export needs a specialized action"
@@ -1900,8 +1911,8 @@ def generateEffect (function : Name) (cppName : String) (ownRecord : Bool := fal
     let state := values.back!
     let inputType ← whnf (← inferType input)
     let shape ← fieldShape inputType numberType
-    let noInput := ownRecord && inputType.isConstOf ``PUnit
-    let viewInput := ownRecord && generic && !noInput && !scalarInputs
+    let noInput := (ownRecord || callable) && inputType.isConstOf ``PUnit
+    let viewInput := (ownRecord && generic || callable) && !noInput && !scalarInputs
     let (inputValue, inputParameters) ← if scalarInputs then do
       let .record fields := shape
         | throwError "C++ codegen: scalar_inputs requires a record"
@@ -1933,8 +1944,8 @@ def generateEffect (function : Name) (cppName : String) (ownRecord : Bool := fal
       | .record _ => pure "Output"
       | _ => cppElementType outputShape
     let env ← getEnv
-    let stateCalls := if ownRecord then
-      (stateExports.getState env).toList.toArray.filter (·.1 != function) else #[]
+    let stateCalls := (stateExports.getState env).toList.toArray.filter fun (source, target) =>
+      source != function && target.borrowed == !ownRecord
     let (_, emission) ← (do
       let destination := recordState.elim Destination.value (Destination.action · "state")
       let result ← evaluate (mkAppN (mkConst function) parameters)
@@ -1958,7 +1969,7 @@ def generateEffect (function : Name) (cppName : String) (ownRecord : Bool := fal
           numberType, arithmetic, foldVectorConstants := generic && ownRecord}
     let body := (pruneTemporaries emission.lines).map fun line =>
       if line.isEmpty then "" else "        " ++ line
-    let inputDeclaration ← if !ownRecord || noInput || scalarInputs then pure #[] else
+    let inputDeclaration ← if !(ownRecord || callable) || noInput || scalarInputs then pure #[] else
       match shape with
       | .record _ => renderRecord "Input" shape
       | _ => pure #[s!"    using Input = {← cppElementType shape};", ""]
@@ -1967,7 +1978,7 @@ def generateEffect (function : Name) (cppName : String) (ownRecord : Bool := fal
       | _ => pure #[]
     let parameters := "State& state" ++ inputParameters
     let template := if viewInput then "    template<typename State, typename InputView>"
-      else if ownRecord || scalarInputs then "    template<typename State>"
+      else if ownRecord || callable || scalarInputs then "    template<typename State>"
       else "    template<typename State, typename Input>"
     let inlineAttribute := if outlined then "[[gnu::noinline]] " else ""
     let headers := (recordState.elim #[] storageHeaders ++ emission.stateHeaders).toList.eraseDups
@@ -2275,15 +2286,33 @@ elab "#generate_cpp_view_into " function:ident " as " cppName:ident " to " path:
   modifyEnv fun env => compiledActions.addEntry env function.getId
   logInfo m!"Generated {output} from {function.getId} into a result view"
 
-elab "#generate_cpp_effect " function:ident contract:(&"with_contract")?
+private def checkStateExport (source : Name) (cppName : String) (output : System.FilePath) :
+    CommandElabM String := do
+  let header := cppName ++ ".hpp"
+  unless output.fileName == some header do
+    throwError "C++ codegen: state header must be named {header}"
+  let exports := stateExports.getState (← getEnv)
+  if exports.contains source || exports.toList.any (fun entry => entry.2.cppName == cppName) then
+    throwError "C++ codegen: state action is already exported or its C++ name is in use"
+  return header
+
+elab "#generate_cpp_effect " function:ident callable:(&"callable")? contract:(&"with_contract")?
     scalarInputs:(&"scalar_inputs")? " as " cppName:ident
     " to " path:str : command => do
-  let code ← liftTermElabM <| generateEffect function.getId cppName.getId.toString
-    (entryContract := contract.isSome) (scalarInputs := scalarInputs.isSome)
+  let source := function.getId
+  let target := cppName.getId.toString
   let output : System.FilePath := path.getString
+  let binding ← if callable.isSome then do
+    let header ← checkStateExport source target output
+    pure (some ({ cppName := target, header, borrowed := true, scalarInputs := scalarInputs.isSome } : StateExport))
+  else pure none
+  let code ← liftTermElabM <| generateEffect function.getId cppName.getId.toString
+    (entryContract := contract.isSome) (scalarInputs := scalarInputs.isSome) (callable := callable.isSome)
   if let some parent := output.parent then IO.FS.createDirAll parent
   IO.FS.writeFile output code
   modifyEnv fun env => compiledActions.addEntry env function.getId
+  if let some binding := binding then
+    modifyEnv fun env => stateExports.addEntry env (source, binding)
   logInfo m!"Generated {output} from {function.getId} as a state action"
 
 elab "#generate_cpp_effect_generic " function:ident " as " cppName:ident " to " path:str : command => do
@@ -2296,16 +2325,11 @@ elab "#generate_cpp_effect_generic " function:ident " as " cppName:ident " to " 
 
 private def exportStateAction (source : Name) (cppName path : String) (outlined : Bool) : CommandElabM Unit := do
   let output : System.FilePath := path
-  let header := cppName ++ ".hpp"
-  unless output.fileName == some header do
-    throwError "C++ codegen: state header must be named {header}"
-  let exports := stateExports.getState (← getEnv)
-  if exports.contains source || exports.toList.any (fun entry => entry.2.cppName == cppName) then
-    throwError "C++ codegen: state action is already exported or its C++ name is in use"
+  let header ← checkStateExport source cppName output
   let code ← liftTermElabM <| generateEffect source cppName (ownRecord := true) (outlined := outlined)
   if let some parent := output.parent then IO.FS.createDirAll parent
   IO.FS.writeFile output code
-  modifyEnv fun env => stateExports.addEntry env (source, ⟨cppName, header⟩)
+  modifyEnv fun env => stateExports.addEntry env (source, { cppName, header })
   logInfo m!"Generated {output} from {source} as an in-place record state action"
 
 elab "#generate_cpp_state " function:ident " as " cppName:ident " to " path:str : command =>

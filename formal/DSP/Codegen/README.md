@@ -177,8 +177,11 @@ that effects use the current storage and that branches retain it. A loop
 threads the latest handle through its step. The generated `Process` returns
 the action's value using the same scalar and aggregate layouts as a pure view.
 `PUnit` produces a `void` method. Actions that use const storage methods
-can take a const storage view. Calls to other generated procedures require
-the target definitions to be exported in the same Lean environment first.
+can take a const storage view. Mark a borrowed-storage effect export
+`callable` before its other modifiers to preserve calls to it from subsequent
+borrowed-storage exports. The caller includes the callee's header, passes
+the current storage by reference, and erases proof arguments. The native
+compiler chooses whether to inline the C++ call.
 The state and read-only view exports check native index additions, signed
 arithmetic, and signed/unsigned conversions against their machine ranges.
 `Float.toInt64` truncates toward zero, saturates at the signed 64-bit limits,
