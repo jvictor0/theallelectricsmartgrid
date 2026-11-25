@@ -14,7 +14,7 @@
 #include <tuple>
 #include "Math.hpp"
 
-#include "CircularBufferGeneric.hpp"
+#include "CircularBuffer.hpp"
 #include "WanderingRandomLFO.hpp"
 #include "MultiChannelNumber.hpp"
 #include <type_traits>

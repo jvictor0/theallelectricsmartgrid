@@ -1,11 +1,4 @@
 import Lean
-import DSP.IfLess
-import DSP.FMA
-import DSP.Transcendental
-import DSP.Nonlinear
-import DSP.ChannelMean
-import DSP.DelayMath
-import DSP.DelayBuffer.Quad
 import DSP.StateFocus
 import DSP.Codegen.Control
 import DSP.Codegen.Index
@@ -42,20 +35,6 @@ inductive Value where
   | borrowed (text : String) (version : Nat)
   deriving Inhabited
 
-/-- A method or function supplied by a storage backend for a typed Lean
-operation. Mutating methods return their receiver as the new state value. -/
-structure CallBinding where
-  source : Name
-  target : String
-  arguments : Nat
-  result : String
-  method : Bool := false
-  mutates : Bool := false
-
-structure RecordExport where
-  cppName : String
-  header : String
-
 structure Emission where
   lines : Array String := #[]
   next : Nat := 0
@@ -67,7 +46,6 @@ structure Emission where
   boundedIndices : Bool := false
   checkedIndices : Bool := false
   usesWideIndices : Bool := false
-  calls : Array CallBinding := #[]
   stateDialect : Bool := false
   stateVersion : Nat := 0
   recordState : Option Shape := none
@@ -88,6 +66,10 @@ initialize recordExports : SimplePersistentEnvExtension (Name × RecordExport) (
     addEntryFn := fun state (name, target) => state.insert name target
     addImportedFn := fun imports => imports.foldl (init := ∅) fun state entries =>
       entries.foldl (init := state) fun state (name, target) => state.insert name target }
+
+private def availableRecords (env : Environment) : NameMap RecordExport :=
+  nativeRecords.toList.foldl (fun records (name, target) => records.insert name target)
+    (recordExports.getState env)
 
 initialize stateExports : SimplePersistentEnvExtension (Name × RecordExport) (NameMap RecordExport) ←
   registerSimplePersistentEnvExtension {
@@ -352,32 +334,24 @@ partial def zeroValue : Shape → Value
   | .indexed type element => .indexed type element (type ++ "{}")
   | .storage type _ => .storage type (type ++ "{}")
 
-def primitive (name : Name) : Bool :=
+private def compilerPrimitive (name : Name) : Bool :=
   #[``Subtype.mk, ``Index.add, ``Index.sub, ``Index.ofNat, ``Index.toNat, ``Index.addNat, ``Index.fromFloat,
     ``Scratch.ofFn, ``Scratch.get,
     ``Vector.ofFn, ``Vector.get, ``Vector.set, ``Fin.foldl, ``Fin.foldlM, ``DSP.foldUntil, ``DSP.foldUntilM,
-    ``Trig.sinFloat, ``Trig.cosFloat, ``Trig.tanFloat,
-    ``Trig.sinFloat32, ``Trig.cosFloat32, ``Trig.tanFloat32,
-    ``ExpDecay.float, ``ExpDecay.float32, ``FMA.float, ``FMA.float32, ``Float.add, ``Float.sub, ``Float.mul, ``Float.div, ``Float.neg,
+    ``Float.add, ``Float.sub, ``Float.mul, ``Float.div, ``Float.neg,
     ``Float32.add, ``Float32.sub, ``Float32.mul, ``Float32.div, ``Float32.neg,
-    ``Float32.toFloat, ``Float.toFloat32, ``Float.exp, ``Float.log,
+    ``Float32.toFloat, ``Float.toFloat32,
     ``UInt64.ofNat, ``UInt64.add, ``UInt64.sub, ``UInt64.mul, ``UInt64.xor, ``UInt64.shiftRight, ``UInt64.toFloat,
-    ``UInt64.decEq, ``DelayBuffer.SampleIndex.ofWord, ``DelayBuffer.SampleIndex.toWord,
-    ``DelayBuffer.SampleAges.toAges, ``DelayBuffer.QuadAges.pack,
-    ``DelayBuffer.BroadcastLane.lane, ``DelayBuffer.Gather.gather,
-    ``Int.ofNat, ``Int.toNat,
+    ``UInt64.decEq, ``Int.ofNat, ``Int.toNat,
     ``Float.toInt64, ``Int64.toInt, ``Int64.ofInt, ``Int64.toFloat,
     ``Int.add, ``Int.sub, ``Int.lt, ``Int.le, ``Int.decLt, ``Int.decLe, ``Int.decEq,
     ``Float.ofNat, ``Float32.ofNat, ``Float.ofScientific, ``Float32.ofScientific,
-    ``Float.sqrt, ``Float32.sqrt, ``Float.floor, ``Float.ceil, ``Float.isFinite,
     ``Float.lt, ``Float.le, ``Float32.lt, ``Float32.le,
     ``Bool.not, ``Bool.and, ``Bool.or, ``Option.isSome, ``Option.isNone,
     ``Float.beq, ``Float32.beq, ``ite, ``Bool.true, ``Bool.false, ``Eq,
     ``Bool.decEq, ``Float.decLt, ``Float.decLe, ``Float32.decLt, ``Float32.decLe,
     ``dite, ``instDecidableOr, ``instDecidableAnd,
-    ``Fin.mk, ``Fin.val, ``Nat.lt, ``Nat.le, ``Nat.decLt, ``Nat.decLe,
-    ``DelayMath.exp2Float, ``DelayMath.floorFloat, ``DelayMath.phaseFloat, ``DelayMath.decayFloat,
-    ``DelayMath.exp2Float32, ``DelayMath.floorFloat32, ``DelayMath.phaseFloat32, ``DelayMath.decayFloat32].contains name
+    ``Fin.mk, ``Fin.val, ``Nat.lt, ``Nat.le, ``Nat.decLt, ``Nat.decLe].contains name
 
 /-- Unfold one pure definition at a time, so unknown external implementations
 cannot silently be replaced with their logical bodies. Value bindings stay
@@ -449,7 +423,7 @@ partial def expose (expression : Expr) (opaqueCalls : Array Name := #[]) : MetaM
           return mkConst (if a == b then ``Bool.true else ``Bool.false)
         if !opaqueCalls.isEmpty then return e
         throwError "C++ codegen: natural equality must be statically known"
-      if primitive name then return e
+      if compilerPrimitive name || valueLowerings.contains name then return e
       let env ← getEnv
       if (getExternAttrData? env name).isSome || (Compiler.getImplementedBy? env name).isSome then
         throwError "C++ codegen: unsupported external implementation {name}"
@@ -688,25 +662,46 @@ def emitTranscendental (operation type value : String) : GenM Value := do
   return ← temporary type (if type == "Vector" then s!"Math4096::{operation}({value})"
     else s!"Math4096::{operation}(MultiChannelNumber<{type}, 1>::Splat({value}))[0]")
 
-def emitDelayMath (index : Nat) (type : String) (values : Array String) : GenM Value := do
-  modify fun s => { s with usesMath := true }
+private def emitNumeric (operation : NumericLowering) (type : String) (values : Array String) :
+    GenM Value := do
   let vector := type == "Vector"
   let literal (single double : String) := if vector then
     s!"Vector::Splat(static_cast<Number>(std::is_same_v<Number, float> ? {single} : {double}))"
     else if type == "float" then single else double
-  let x := values[0]!
-  if index == 0 then
-    return ← temporary type (if vector then s!"{x}.Exp2()" else s!"MultiChannelNumber<{type}, 1>::Splat({x}).Exp2()[0]")
-  if index == 1 then
-    return ← temporary type (if vector then s!"{x}.Floor()" else s!"std::floor({x})")
-  if index == 2 then
-    return ← temporary type s!"(Math::ATan2({x}, {values[1]!}) / {literal "0xC90FDBp-21f" "0x1921FB54442D18p-50"})"
-  if index == 3 then
+  match operation, values with
+  | .trig method, #[x] => emitTranscendental method type x
+  | .expDecay, #[x] => emitTranscendental "ExpNegTwoPi" type x
+  | .exp2, #[x] =>
+    modify fun s => { s with usesMath := true }
+    temporary type (if vector then s!"{x}.Exp2()" else s!"MultiChannelNumber<{type}, 1>::Splat({x}).Exp2()[0]")
+  | .floor, #[x] =>
+    modify fun s => { s with usesMath := true }
+    temporary type (if vector then s!"{x}.Floor()" else s!"std::floor({x})")
+  | .phaseTurns, #[y, x] =>
+    modify fun s => { s with usesMath := true }
+    temporary type s!"(Math::ATan2({y}, {x}) / {literal "0xC90FDBp-21f" "0x1921FB54442D18p-50"})"
+  | .decay, #[x] =>
+    modify fun s => { s with usesMath := true }
     let ln1000f ← hexLiteral (6.907755278982137052053974364053 : Float32).toBits.toNat 23 8 127 "f"
     let ln1000 ← hexLiteral (6.907755278982137052053974364053 : Float).toBits.toNat 52 11 1023 ""
     let (_, arg) ← scalar (← temporary type s!"(-({literal ln1000f ln1000} * {x}))")
-    return ← temporary type (if vector then s!"{arg}.Exp()" else s!"MultiChannelNumber<{type}, 1>::Splat({arg}).Exp()[0]")
-  throwError "C++ codegen: unsupported delay preparation operation"
+    temporary type (if vector then s!"{arg}.Exp()" else s!"MultiChannelNumber<{type}, 1>::Splat({arg}).Exp()[0]")
+  | .sqrt, #[x] => temporary type (if vector then s!"{x}.Sqrt()" else s!"std::sqrt({x})")
+  | .channelMean, #[x] => temporary type s!"{x}.MeanBroadcast()"
+  | .tanh, #[x] =>
+    -- Preserve the multiplication, FMA and ordered clamp of Tanh.rational.
+    let (_, x2) ← scalar (← temporary type s!"({x} * {x})")
+    let (_, numerator) ← scalar (← temporary type s!"({x} * ({x2} + Vector::Splat(27)))")
+    let (_, denominator) ← scalar (← temporary type
+      s!"Vector::FusedMultiplyAdd({x} * Vector::Splat(9), {x}, Vector::Splat(27))")
+    let (_, y) ← scalar (← temporary type s!"({numerator} / {denominator})")
+    temporary type s!"Vector::Min(Vector::Splat(1), Vector::Max(Vector::Splat(-1), {y}))"
+  | .ifLess, #[a, b, yes, no] => temporary type s!"Vector::IfLess({a}, {b}, {yes}, {no})"
+  | .fma, #[a, b, c] =>
+    let method := if vector then "Vector::FusedMultiplyAdd" else "std::fma"
+    temporary type s!"{method}({a}, {b}, {c})"
+  | .libm method result, #[x] => temporary result s!"std::{method}({x})"
+  | _, _ => throwError "C++ codegen: invalid native numeric application"
 
 private partial def callArgument : Value → GenM String
   | .scalar _ text => pure text
@@ -890,10 +885,9 @@ private def focusedField (parentType childType getter setter : Expr) : MetaM Nat
 
 partial def evaluate (expression : Expr) (locals : Locals)
     (destination : Destination := .value) : GenM Value := do
-  let calls := (← get).calls
   let effects := if (← get).stateDialect then stateBindings else #[]
   let stateCalls := (← get).stateCalls
-  let opaqueCalls := calls.map (·.source) ++ effects.map (·.source) ++ stateCalls.map (·.1) ++
+  let opaqueCalls := effects.map (·.source) ++ stateCalls.map (·.1) ++
     (if (← get).stateDialect then #[``StateT.get] else #[]) ++
     (if (← get).recordState.isSome then #[``StateT.bind, ``StateT.set, ``StateT.modifyGet, ``DSP.focus] else #[]) ++
     (if (← get).boundedIndices then #[``Nat.decEq, ``Nat.beq] else #[])
@@ -933,32 +927,8 @@ partial def evaluate (expression : Expr) (locals : Locals)
         let (type, value) ← scalar (← evaluate arg locals)
         unless type == "Vector" do throwError "C++ codegen: generic arithmetic expects Vector operands"
         return value
-      if name == ``DSP.Trig && values.size == 1 && index < 3 then
-        return ← emitTranscendental (#["Sin2pi", "Cos2pi", "TanPi"][index]!) "Vector" values[0]!
-      if name == ``DSP.ExpDecay && values.size == 1 && index == 0 then
-        return ← emitTranscendental "ExpNegTwoPi" "Vector" values[0]!
-      if name == ``DSP.SquareRoot && values.size == 1 && index == 0 then
-        return ← temporary "Vector" s!"{values[0]!}.Sqrt()"
-      if name == ``DSP.ChannelMean && values.size == 1 && index == 0 then
-        return ← temporary "Vector" s!"{values[0]!}.MeanBroadcast()"
-      if name == ``DSP.DelayMath then
-        return ← emitDelayMath index "Vector" values
-      if name == ``DSP.Tanh && values.size == 1 && index == 0 then
-        -- Lower the executable interpretation, Tanh.rational, with exactly its
-        -- multiplication/FMA order and ordered clamp. Native tests cover both.
-        let x := values[0]!
-        let (_, x2) ← scalar (← temporary "Vector" s!"({x} * {x})")
-        let (_, numerator) ← scalar (← temporary "Vector" s!"({x} * ({x2} + Vector::Splat(27)))")
-        let (_, denominator) ← scalar (← temporary "Vector"
-          s!"Vector::FusedMultiplyAdd({x} * Vector::Splat(9), {x}, Vector::Splat(27))")
-        let (_, y) ← scalar (← temporary "Vector" s!"({numerator} / {denominator})")
-        return ← temporary "Vector" s!"Vector::Min(Vector::Splat(1), Vector::Max(Vector::Splat(-1), {y}))"
-      if name == ``DSP.IfLess && values.size == 4 then
-        return ← temporary "Vector"
-          s!"Vector::IfLess({values[0]!}, {values[1]!}, {values[2]!}, {values[3]!})"
-      if name == ``DSP.FMA && values.size == 3 then
-        return ← temporary "Vector"
-          s!"Vector::FusedMultiplyAdd({values[0]!}, {values[1]!}, {values[2]!})"
+      if let some operation := (arithmeticLowerings.find? name).bind (·[index]?) then
+        return ← emitNumeric operation "Vector" values
       if name == ``Neg && values.size == 1 then
         return ← negativeTemporary "Vector" values[0]!
       if let some (_, op) := #[(``Add, "+"), (``Sub, "-"), (``Mul, "*"), (``Div, "/")].find?
@@ -1018,7 +988,7 @@ partial def evaluate (expression : Expr) (locals : Locals)
       let earlyExit := name == ``DSP.foldUntilM
       let offset := if monadic then 3 else 1
       let countExpr := args[offset]!
-      let count ← if let .lit (.natVal count) ← expose countExpr (calls.map (·.source)) then
+      let count ← if let .lit (.natVal count) ← expose countExpr then
         pure (toString count)
       else do
         let (type, count) ← scalar (← evaluate countExpr locals)
@@ -1150,7 +1120,7 @@ partial def evaluate (expression : Expr) (locals : Locals)
         | throwError "C++ codegen: expected an indexed array"
       let indexExpr := args[3]!
       let indexValue ← if name == ``Vector.get then mkAppM ``Fin.val #[indexExpr] else pure indexExpr
-      let index ← if let .lit (.natVal index) ← expose indexValue (calls.map (·.source)) then
+      let index ← if let .lit (.natVal index) ← expose indexValue then
         pure (toString index)
       else do
         let (type, index) ← scalar (← evaluate indexExpr locals)
@@ -1249,20 +1219,6 @@ partial def evaluate (expression : Expr) (locals : Locals)
       modify fun s => {s with stateVersion := version + 1, stateHeaders :=
         if s.stateHeaders.contains call.header then s.stateHeaders else s.stateHeaders.push call.header}
       return .record #[result, .borrowed receiver (version + 1)]
-    if let some call := calls.find? (·.source == name) then
-      unless call.arguments ≤ args.size do
-        throwError "C++ codegen: missing bound call arguments for {name}"
-      let values ← (args.extract (args.size - call.arguments) args.size).mapM (evaluate · locals)
-      let arguments ← values.toList.mapM callArgument
-      let (callee, arguments) ← if call.method then do
-          let (_, receiver) ← scalar values[0]!
-          pure (s!"{receiver}.{call.target}", arguments.drop 1)
-        else pure (call.target, arguments)
-      let code := callee ++ "(" ++ String.intercalate ", " arguments ++ ")"
-      if call.mutates then
-        emit (code ++ ";")
-        return values[0]!
-      return ← temporary call.result code
     if let some effect := effects.find? (·.source == name) then
       if let some (single, double) := effect.generated then
         let exported := compiledActions.getState (← getEnv)
@@ -1404,12 +1360,6 @@ partial def evaluate (expression : Expr) (locals : Locals)
       let (_, value) ← scalar (← evaluate args[0]! locals)
       let type := if name == ``Float32.toFloat then "double" else "float"
       return ← temporary type s!"static_cast<{type}>({value})"
-    if let some (_, method, result) := #[(``Float.floor, "floor", "double"),
-        (``Float.ceil, "ceil", "double"), (``Float.isFinite, "isfinite", "bool")].find?
-        (fun item => item.1 == name) then
-      unless args.size == 1 do throwError "C++ codegen: invalid floating-point application"
-      let (_, value) ← scalar (← evaluate args[0]! locals)
-      return ← temporary result s!"std::{method}({value})"
     if #[``Float.toInt64, ``Int64.toInt, ``Int64.ofInt, ``Int64.toFloat].contains name then
       unless (← get).boundedIndices && args.size == 1 do
         throwError "C++ codegen: signed conversions require bounded storage"
@@ -1429,10 +1379,6 @@ partial def evaluate (expression : Expr) (locals : Locals)
       let right := evaluate args[1]! locals
       if name == ``Bool.and then return ← emitBranch left right (pure (.scalar "bool" "false"))
       return ← emitBranch left (pure (.scalar "bool" "true")) right
-    if name == ``Float.exp || name == ``Float.log then
-      let (_, value) ← scalar (← evaluate args[0]! locals)
-      let operation := if name == ``Float.exp then "exp" else "log"
-      return ← temporary "double" s!"std::{operation}({value})"
     if name == ``UInt64.ofNat then
       let some number := natLiteral (← expose args[0]!)
         | throwError "C++ codegen: UInt64 conversion needs a natural literal"
@@ -1440,35 +1386,40 @@ partial def evaluate (expression : Expr) (locals : Locals)
     if name == ``UInt64.toFloat then
       let (_, value) ← scalar (← evaluate args[0]! locals)
       return ← temporary "double" s!"static_cast<double>({value})"
-    if name == ``DelayBuffer.SampleIndex.ofWord || name == ``DelayBuffer.SampleIndex.toWord then
+    match valueLowerings.find? name with
+    | some (.numeric operation) =>
+      let pairs ← args.mapM fun arg => do scalar (← evaluate arg locals)
+      let some (type, _) := pairs[0]? | throwError "C++ codegen: native numeric operation needs operands"
+      return ← emitNumeric operation type (pairs.map Prod.snd)
+    | some (.packedStorage (.sampleWord fromWord)) =>
       let (type, value) ← scalar (← evaluate args.back! locals)
       unless (← get).numberType == some args[0]! && (← get).checkedIndices do
         throwError "C++ codegen: packed sample index requires the vector number type"
-      if name == ``DelayBuffer.SampleIndex.ofWord then
+      if fromWord then
         unless type == "std::uint64_t" do throwError "C++ codegen: expected an unsigned sample word"
         return ← temporary "Vector" s!"Vector::Splat(static_cast<Number>({value}))"
       unless type == "Vector" do throwError "C++ codegen: expected a packed sample index"
       return ← temporary "std::uint64_t" s!"CodegenInteger::ToWord({value}[0])"
-    if name == ``DelayBuffer.SampleAges.toAges then
+    | some (.packedStorage .sampleAges) =>
       let (type, value) ← scalar (← evaluate args.back! locals)
       unless type == "Vector" && (← get).numberType == some args[0]! do
         throwError "C++ codegen: quad age conversion expects packed sample positions"
       emit "static_assert(Size == 4);"
       return ← temporary quadAgesType s!"{value}.template Convert<std::uint32_t>()"
-    if name == ``DelayBuffer.QuadAges.pack then
+    | some (.packedStorage .packAges) =>
       let lanes ← args.mapM fun arg => do
         let (_, lane) ← scalar (← evaluate arg locals)
         pure s!"static_cast<std::uint32_t>({lane})"
       return ← temporary quadAgesType
         (quadAgesType ++ "{" ++ String.intercalate ", " lanes.toList ++ "}")
-    if name == ``DelayBuffer.BroadcastLane.lane then
+    | some (.packedStorage .broadcastLane) =>
       let (type, sample) ← scalar (← evaluate args[2]! locals)
       let some index := natLiteral (← expose (← mkAppM ``Fin.val #[args[3]!]))
         | throwError "C++ codegen: lane projection expects a static index"
       unless type == "Vector" && (← get).numberType == some args[0]! do
         throwError "C++ codegen: lane projection expects a packed sample"
       return ← temporary "Vector" s!"Vector::Splat({sample}[{index}])"
-    if name == ``DelayBuffer.Gather.gather then
+    | some (.packedStorage .gather) =>
       let .vector lanes ← evaluate args.back! locals
         | throwError "C++ codegen: gather expects four packed sources"
       unless lanes.size == 4 && (← get).numberType == some args[0]! do
@@ -1478,6 +1429,7 @@ partial def evaluate (expression : Expr) (locals : Locals)
         pure s!"{name}[{i}]"
       emit "static_assert(Size == 4);"
       return ← temporary "Vector" ("Vector{" ++ String.intercalate ", " values.toList ++ "}")
+    | none => pure ()
     if let some (_, operation) := #[(``UInt64.add, "+"), (``UInt64.sub, "-"), (``UInt64.mul, "*"),
         (``UInt64.xor, "^"), (``UInt64.shiftRight, ">>")].find? (fun entry => entry.1 == name) then
       let (_, left) ← scalar (← evaluate args[0]! locals)
@@ -1507,14 +1459,6 @@ partial def evaluate (expression : Expr) (locals : Locals)
       if op == "+" then return ← temporary "std::int64_t" s!"CodegenInteger::Add<std::int64_t>({a}, {b})"
       if op == "-" then return ← temporary "std::int64_t" s!"CodegenInteger::Subtract({a}, {b})"
       return ← temporary "bool" s!"({a} {op} {b})"
-    if let some index := #[``DelayMath.exp2Float, ``DelayMath.floorFloat,
-        ``DelayMath.phaseFloat, ``DelayMath.decayFloat].idxOf? name then
-      let pairs ← args.mapM fun arg => do scalar (← evaluate arg locals)
-      return ← emitDelayMath index pairs[0]!.1 (pairs.map Prod.snd)
-    if let some index := #[``DelayMath.exp2Float32, ``DelayMath.floorFloat32,
-        ``DelayMath.phaseFloat32, ``DelayMath.decayFloat32].idxOf? name then
-      let pairs ← args.mapM fun arg => do scalar (← evaluate arg locals)
-      return ← emitDelayMath index pairs[0]!.1 (pairs.map Prod.snd)
     if (name == ``Float.ofNat || name == ``Float32.ofNat) && args.size == 1 && (← get).boundedIndices then
       let arg ← expose args[0]! opaqueCalls
       if (natLiteral arg).isNone then
@@ -1535,24 +1479,6 @@ partial def evaluate (expression : Expr) (locals : Locals)
       let type ← inferType e
       let cppType ← if ← isProp e then pure "bool" else scalarType type (← get).numberType
       return ← binaryTemporary cppType op.2 a b
-    if let some (_, operation) := #[(``Trig.sinFloat, "Sin2pi"), (``Trig.sinFloat32, "Sin2pi"),
-        (``Trig.cosFloat, "Cos2pi"), (``Trig.cosFloat32, "Cos2pi"),
-        (``Trig.tanFloat, "TanPi"), (``Trig.tanFloat32, "TanPi"),
-        (``ExpDecay.float, "ExpNegTwoPi"), (``ExpDecay.float32, "ExpNegTwoPi")].find?
-          (fun item => item.1 == name) then
-      unless args.size == 1 do throwError "C++ codegen: invalid transcendental application"
-      let (type, value) ← scalar (← evaluate args[0]! locals)
-      return ← emitTranscendental operation type value
-    if name == ``FMA.float || name == ``FMA.float32 then
-      unless args.size == 3 do throwError "C++ codegen: invalid FMA application {e}"
-      let (type, a) ← scalar (← evaluate args[0]! locals)
-      let (_, b) ← scalar (← evaluate args[1]! locals)
-      let (_, c) ← scalar (← evaluate args[2]! locals)
-      return ← temporary type s!"std::fma({a}, {b}, {c})"
-    if name == ``Float.sqrt || name == ``Float32.sqrt then
-      unless args.size == 1 do throwError "C++ codegen: invalid square root application"
-      let (type, value) ← scalar (← evaluate args[0]! locals)
-      return ← temporary type s!"std::sqrt({value})"
     if name == ``Float.neg || name == ``Float32.neg then
       let (type, value) ← scalar (← evaluate args[0]! locals)
       return ← negativeTemporary type value
@@ -1641,7 +1567,7 @@ def renderFunction (function : Name) (method : String) (parameters runtime : Arr
   let .record _ := snapshotFields
     | throwError "C++ codegen: function export expects a Snapshot record as its first argument"
   let inputType ← whnf (← inferType runtime[1]!)
-  let exports := recordExports.getState (← getEnv)
+  let exports := availableRecords (← getEnv)
   let inputRecord := inputType.getAppFn.constName?.bind fun name =>
     exports.find? name
   let numericInput := (numberType == some inputType) ||
@@ -1724,7 +1650,7 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
   if #["State", "Input", "Output"].contains cppName ||
       (generic && #["Number", "Size", "Vector"].contains cppName) then
     throwError "C++ codegen: processor name conflicts with a nested record"
-  if (recordExports.getState (← getEnv)).toList.any (fun entry => entry.2.cppName == cppName) then
+  if (availableRecords (← getEnv)).toList.any (fun entry => entry.2.cppName == cppName) then
     throwError "C++ codegen: processor name conflicts with an exported record"
   if let some method := method then
     unless validIdentifier method && method.toList.head!.isUpper do
@@ -1752,8 +1678,9 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
         let name := type.getAppFn.constName?
         let args := type.getAppArgs
         unless args.size ≥ 1 && args[0]! == number &&
-            #[``Add, ``Sub, ``Mul, ``Div, ``Neg, ``OfNat, ``OfScientific, ``DSP.IfLess, ``DSP.FMA, ``DSP.Trig, ``DSP.ExpDecay, ``DSP.Tanh, ``DSP.SquareRoot, ``DSP.ChannelMean, ``DSP.DelayMath].any
-              (fun supported => name == some supported) do
+            (name.any (fun source =>
+              #[``Add, ``Sub, ``Mul, ``Div, ``Neg, ``OfNat, ``OfScientific].contains source ||
+                arithmeticLowerings.contains source)) do
           throwError "C++ codegen: unsupported generic parameter {type}"
         if name == some ``OfNat then
           unless args.size == 2 && (natLiteral (← expose args[1]!)).isSome do
@@ -2206,21 +2133,6 @@ def generatePreparationGeneric (function : Name) (cppName : String) : MetaM Stri
 def generateFunction (function : Name) (cppName method : String) (generic : Bool) : MetaM String :=
   generateWithTarget function cppName generic (some method)
 
-/-- Bind a Lean data record to an existing C++ template with matching fields.
-Compilation and differential tests check this external representation boundary. -/
-elab "#use_cpp_record " record:ident " as " cppName:ident " from " path:str : command => do
-  let recordName := record.getId
-  let targetName := cppName.getId.toString
-  let header := path.getString
-  unless header.endsWith ".hpp" && header.toList.all
-      (fun c => c.isAlphanum || c == '_' || c == '.') do
-    throwError "C++ codegen: external record header must be a simple .hpp filename"
-  let exports := recordExports.getState (← getEnv)
-  if exports.contains recordName || exports.toList.any (fun entry => entry.2.cppName == targetName) then
-    throwError "C++ codegen: shared record is already exported or its C++ name is in use"
-  let _ ← liftTermElabM <| generateRecord recordName targetName
-  modifyEnv fun env => recordExports.addEntry env (recordName, ⟨targetName, header⟩)
-
 elab "#generate_cpp_filter " step:ident " response " response:ident " as " cppName:ident
     " to " path:str : command => do
   let code ← liftTermElabM <| generateFilter step.getId response.getId cppName.getId.toString false
@@ -2305,7 +2217,7 @@ elab "#generate_cpp_record " record:ident " as " cppName:ident " to " path:str :
   let output : System.FilePath := path.getString
   unless output.fileName == some (targetName ++ ".hpp") do
     throwError "C++ codegen: shared record header must be named {targetName}.hpp"
-  let exports := recordExports.getState (← getEnv)
+  let exports := availableRecords (← getEnv)
   if exports.contains recordName || exports.toList.any (fun entry => entry.2.cppName == targetName) then
     throwError "C++ codegen: shared record is already exported or its C++ name is in use"
   let code ← liftTermElabM <| generateRecord recordName targetName

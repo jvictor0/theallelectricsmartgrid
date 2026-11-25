@@ -177,15 +177,19 @@ that effects use the current storage and that branches retain it. A loop
 threads the latest handle through its step. The generated `Process` returns
 the action's value using the same scalar and aggregate layouts as a pure view.
 `PUnit` produces a `void` method. Actions that use const storage methods
-can take a const storage view. The
-[native bindings](NativeBindings.lean) list storage operations and numerical
-primitives used by these actions. Calls to other generated procedures require
+can take a const storage view. Calls to other generated procedures require
 the target definitions to be exported in the same Lean environment first.
 The state and read-only view exports check native index additions, signed
 arithmetic, and signed/unsigned conversions against their machine ranges.
 `Float.toInt64` truncates toward zero, saturates at the signed 64-bit limits,
 and returns zero for NaN, matching Lean. `Int64.ofInt` and `Int64.toInt`
 preserve the integer value in the bounded native dialect.
+
+The [native allowlist](NativeBindings.lean) binds Lean names to storage types
+and methods, existing C++ records, and numerical and packed operations. Both
+scalar calls and packed arithmetic class fields use this list. The common
+emitter handles language constructs such as casts, branches, and finite loops
+and interprets the registered lowerings.
 
 For index operations with established bounds, use the proof-carrying operations
 in [Index.lean](Index.lean). They lower to native additions, subtractions, and
@@ -278,12 +282,10 @@ The generic export uses the same recurrence as `stepFloat` and the lifted
 proofs. It takes no proof arguments and retains the scalar exporter's tested
 compiler boundary.
 
-For a filter with a response, bind the Lean frequency record to the existing
-C++ type, then export processing and response together:
+For a filter with a response, export processing and response together. The
+native allowlist supplies the frequency record binding.
 
 ```lean
-#use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
-
 #generate_cpp_filter_generic DSP.OnePoleZOHLowPass.step
   response DSP.OnePoleZOHLowPass.Snapshot.magnitudeSquared
   as OnePoleZOHLowPassGeneric to "build/lean/generated/OnePoleZOHLowPassGeneric.hpp"
@@ -352,8 +354,8 @@ or inheritance requirement.
 The standalone `#generate_cpp_function` and `#generate_cpp_function_generic`
 forms remain available for other pure kernels. They accept a named snapshot
 and a numeric or registered-record input, returning the same numeric type.
-`#generate_cpp_record` can still emit a new data template where no C++ record
-already exists; `#use_cpp_record` reuses an existing header without writing it.
+`#generate_cpp_record` emits a new data template. Existing C++ templates used
+as Lean records are declared in the native allowlist.
 
 Run from the repository root:
 
@@ -614,7 +616,6 @@ or a floating-point error bound.
 ## Circular storage and delay preparation
 
 ```lean
-#generate_cpp_delay_buffer CircularBufferGeneric to "build/lean/generated/CircularBufferGeneric.hpp"
 #generate_cpp_generic DSP.DelayKernels.Runtime.Comb.process as TunedDecayCombCoreGeneric
   to "build/lean/generated/TunedDecayCombCoreGeneric.hpp"
 #generate_cpp_preparation_generic DSP.DelayKernels.Runtime.prepareCoefficients
@@ -629,19 +630,17 @@ it takes one scalar or record input, returns a record, and exports a stateless
 `static Prepared Prepare(const Input&)` (a vector argument for arithmetic scalar inputs).
 The comb wrapper calls this API when it accepts new parameters.
 
-The buffer command exports a fixed-capacity storage component. It specializes
-the actual `DelayBuffer.address` and `advance` definitions with a template
-capacity, erases their `Fin` proofs and emits checked native indices. Reads
-leave the head unchanged; `Push` performs one array write and advances once.
-For power-of-two capacities no greater than half the native unsigned maximum,
-the buffer-specific renderer emits the modular forms proved by `address_mod`
-and `advance_mod`. `modulo_intermediates_bounded` establishes that their sums
-fit the native index and their subtractions do not saturate. Constant modulo
-then compiles to masking. All other capacities retain the conditional lowering.
-The array-read/write/clear lowering is an explicit tested compiler boundary.
-It does not unroll or copy the whole delay line for each sample. Capacity must
-be positive; `ReadAge` accepts `[0,Capacity)` and `ReadDelay` accepts
-`[1,Capacity]`. `ReadDelays` gathers independent channel taps.
+The allowlisted [circular buffer](../../../private/src/CircularBuffer.hpp)
+implements fixed-capacity storage for `DelayBuffer`. Lean callers supply the
+taps, offsets, and samples, and order the storage operations. Reads preserve
+the head. `Push` writes one slot and advances once. For power-of-two capacities
+no greater than half the native unsigned maximum, the buffer uses the modular
+forms proved by `address_mod` and `advance_mod`. The proof
+`modulo_intermediates_bounded` establishes that the intermediates fit the
+native index. Other capacities use the conditional forms from `address` and
+`advance`. Native comparisons check reads, writes, and gathers against Lean.
+`ReadAge` accepts `[0,Capacity)`, `ReadDelay` accepts `[1,Capacity]`, and
+`ReadDelays` gathers independent channel taps.
 
 The phase vocoder uses the common state exporter for `ResynthesisFrame`,
 `AnalyzePVDR`, and `SynthesizeSpectrum`. The exact model uses a cyclic sample
@@ -666,11 +665,9 @@ comparisons, numeric casts, square root, floor and the unison exponential.
 The packed FFT, IFFT and numerical leaf implementations use the app's
 [storage adapters](../../../private/src/Resynthesis.hpp).
 
-The general processor exporter still rejects runtime-sized arrays and
-unbounded Nat fields. Its fixed topology vectors retain their 256-element
-limit. The buffer-specific renderer binds the bounded cursor values and
-capacity explicitly, allowing natural addition, saturating subtraction and
-proof-dependent comparisons in those definitions.
+The general processor exporter supports fixed topology vectors up to 256
+elements. An allowlisted ring uses its declared capacity through the native
+storage binding.
 
 `DelayMath` adds `exp2`, `floor`, `phaseTurns` and `decay` to preparation.
 `phaseTurns(y,x)` lowers to `Math::ATan2(y,x)/(2*pi)`; `Math::ATan2` delegates to

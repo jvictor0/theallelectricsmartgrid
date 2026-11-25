@@ -1,7 +1,7 @@
 #pragma once
 
 #include "MultiChannelNumber.hpp"
-#include "CircularBufferGeneric.hpp"
+#include "CircularBuffer.hpp"
 #include "SchroederAllPassCoreGeneric.hpp"
 #include <cassert>
 #include <cstddef>

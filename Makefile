@@ -93,7 +93,7 @@ DSP_RUNTIME_MODULES := DSP.Filters.Capture DSP.Filters.OnePoleZOHLowPass.Respons
 	DSP.Filters.MorphingTPTSVF DSP.Filters.TPTSVF4Pole DSP.Filters.TPTLadder \
 	DSP.Filters.LinkwitzRileySplitter DSP.Filters.Coupled \
 	DSP.Filters.ConservativeReuppingLadder.Response DSP.Filters.MultibandSaturator.Runtime DSP.Filters.Runtime \
-	DSP.Filters.DelayKernels.Runtime DSP.Codegen.DelayBuffer DSP.SmoothRandomLFO DSP.WanderingRandomLFO \
+	DSP.Filters.DelayKernels.Runtime DSP.SmoothRandomLFO DSP.WanderingRandomLFO \
 	DSP.Filters.SquiggleBoyQuadReverb.Runtime \
 	DSP.Resynthesis.Runtime DSP.Resynthesis.PVDRStorage DSP.Resynthesis.SpectrumStorage DSP.Resynthesis.FrameStorage
 DSP_HEADERS := OnePoleZOHLowPass OnePoleTPTLowPass OnePoleTPTHighPass TPTBaseWidth TPTSVF \
@@ -101,7 +101,7 @@ DSP_HEADERS := OnePoleZOHLowPass OnePoleTPTLowPass OnePoleTPTHighPass TPTBaseWid
 	CoupledProcessor ConservativeReuppingLadderCore TPTSVFLowPass TPTSVFHighPass TPTSVFBandPass TPTSVFNotch TPTSVFAllPass
 
 DSP_GENERIC_HEADERS := $(addsuffix Generic,$(DSP_HEADERS)) LinkwitzRileySplitter4BandGeneric MultibandSaturator4BandCoreGeneric \
-	CircularBufferGeneric SchroederAllPassCoreGeneric TunedDecayCombCoreGeneric \
+	SchroederAllPassCoreGeneric TunedDecayCombCoreGeneric \
 	TunedDecayCombTuningGeneric TunedDecayCombResponseGeneric SmoothRandomLFOPrepareGeneric \
 	SmoothRandomLFOCubicGeneric SquiggleBoyQuadReverbFramed SquiggleBoyQuadReverbEverySample \
 	SquiggleBoyQuadReverbInitFramed SquiggleBoyQuadReverbInitEverySample SquiggleBoyQuadReverbTuning

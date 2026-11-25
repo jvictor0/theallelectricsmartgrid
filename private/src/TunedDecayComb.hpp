@@ -2,7 +2,7 @@
 
 #include "MultiChannelNumber.hpp"
 #include "SampledTransferFunction.hpp"
-#include "CircularBufferGeneric.hpp"
+#include "CircularBuffer.hpp"
 #include "TunedDecayCombCoreGeneric.hpp"
 #include "TunedDecayCombTuningGeneric.hpp"
 #include "TunedDecayCombResponseGeneric.hpp"

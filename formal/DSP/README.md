@@ -653,16 +653,15 @@ The original rich models remain the native differential-test oracle.
 The tuner exports pure `Prepare(input)` returning `Prepared`, with a definitional
 proof that preparation is independent of previous coefficients.
 
-`CircularBufferGeneric<Number,Size,Capacity>` owns interleaved fixed storage and
-one head. Its generated address and advance calculations come from the Lean
-definitions. Power-of-two capacities at most half the native unsigned maximum
+`CircularBufferGeneric<Number,Size,Capacity>` is the native representation of
+`DSP.DelayBuffer` and owns interleaved fixed storage and one head. Power-of-two
+capacities at most half the native unsigned maximum
 use the equivalent modular expressions from `address_mod` and `advance_mod`;
 `modulo_intermediates_bounded` proves that their intermediate sums and
 subtractions fit without overflow or saturation. The C++ compiler reduces the
-constant power-of-two remainder to a mask. Other capacities retain the general
-conditional arithmetic. The storage lowering implements pure reads, one in-place write
-per push and zero-fill on clear. That translation is tested rather than
-verified. The app's `AllPassFilterGeneric` and `TunedDecayCombGeneric` use it
+constant power-of-two remainder to a mask. Other capacities use the conditional
+arithmetic from the Lean definitions. Native comparisons check reads, pushes
+and gathers against Lean. The app's `AllPassFilterGeneric` and `TunedDecayCombGeneric` use it
 with their existing capacities, calling generated arithmetic cores through
 their existing APIs. The comb wrapper retains parameter comparison, request
 coalescing, crossfade scheduling and UI sampling. These adapter operations are

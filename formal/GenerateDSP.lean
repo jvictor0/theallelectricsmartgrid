@@ -1,5 +1,4 @@
 import DSP.Codegen.Cpp
-import DSP.Codegen.DelayBuffer
 import DSP.Filters.SquiggleBoyQuadReverb.Runtime
 import DSP.Resynthesis.Runtime
 import DSP.Resynthesis.PVDRStorage
@@ -26,8 +25,6 @@ import DSP.Filters.Runtime
 import DSP.SmoothRandomLFO
 import DSP.WanderingRandomLFO
 
-#use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
-
 #generate_cpp_preparation_generic DSP.SmoothRandomLFO.prepare as SmoothRandomLFOPrepareGeneric to "build/lean/generated/SmoothRandomLFOPrepareGeneric.hpp"
 #generate_cpp_function_generic DSP.SmoothRandomLFO.evaluate as SmoothRandomLFOCubicGeneric method Evaluate to "build/lean/generated/SmoothRandomLFOCubicGeneric.hpp"
 
@@ -50,7 +47,6 @@ import DSP.WanderingRandomLFO
 #generate_cpp_state DSP.WanderingRandomLFO.processFramed32 as WanderingRandomLFOFramed32 to "build/lean/generated/WanderingRandomLFOFramed32.hpp"
 #generate_cpp_state DSP.WanderingRandomLFO.processFramed64 as WanderingRandomLFOFramed64 to "build/lean/generated/WanderingRandomLFOFramed64.hpp"
 
-#generate_cpp_delay_buffer CircularBufferGeneric to "build/lean/generated/CircularBufferGeneric.hpp"
 #generate_cpp_state_generic DSP.SquiggleBoyQuadReverb.Runtime.processFramed owning as SquiggleBoyQuadReverbFramed to "build/lean/generated/SquiggleBoyQuadReverbFramed.hpp"
 #generate_cpp_state_generic DSP.SquiggleBoyQuadReverb.Runtime.processSample owning as SquiggleBoyQuadReverbEverySample to "build/lean/generated/SquiggleBoyQuadReverbEverySample.hpp"
 #generate_cpp_state_generic DSP.SquiggleBoyQuadReverb.Runtime.initializeFramed as SquiggleBoyQuadReverbInitFramed to "build/lean/generated/SquiggleBoyQuadReverbInitFramed.hpp"

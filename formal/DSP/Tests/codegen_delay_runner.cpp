@@ -1,4 +1,4 @@
-#include "CircularBufferGeneric.hpp"
+#include "CircularBuffer.hpp"
 #include "SchroederAllPassCoreGeneric.hpp"
 #include "SquiggleBoyQuadReverb.hpp"
 #include "TunedDecayCombCoreGeneric.hpp"

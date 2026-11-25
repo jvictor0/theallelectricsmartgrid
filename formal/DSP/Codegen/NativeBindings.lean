@@ -1,4 +1,8 @@
 import Lean
+import DSP.ChannelMean
+import DSP.DelayBuffer.Quad
+import DSP.DelayMath
+import DSP.Nonlinear
 
 namespace DSP.Codegen
 
@@ -26,17 +30,93 @@ structure StorageBinding where
   sampleArgument : Nat
   parameters : Array StorageParameter
 
+structure RecordExport where
+  cppName : String
+  header : String
+
+inductive NumericLowering where
+  | trig (method : String)
+  | expDecay
+  | exp2
+  | floor
+  | phaseTurns
+  | decay
+  | tanh
+  | sqrt
+  | channelMean
+  | ifLess
+  | fma
+  | libm (method result : String)
+
+inductive PackedStorageLowering where
+  | sampleWord (fromWord : Bool)
+  | sampleAges
+  | packAges
+  | broadcastLane
+  | gather
+
+inductive ValueLowering where
+  | numeric (operation : NumericLowering)
+  | packedStorage (operation : PackedStorageLowering)
+
 inductive NativeBinding where
   | action (binding : StateBinding)
   | storage (binding : StorageBinding)
+  | record (source : Name) (target : RecordExport)
+  | value (source : Name) (lowering : ValueLowering)
+  /-- Correspond to the fields of an arithmetic class in declaration order. -/
+  | arithmetic (source : Name) (fields : Array NumericLowering)
 
 private def native (source : Name) (method : String) (arguments : Nat) : NativeBinding :=
   .action ⟨source, method, arguments, none⟩
 
-/-- The native storage and numeric allowance. Actions marked generated must
+private def numeric (source : Name) (operation : NumericLowering) : NativeBinding :=
+  .value source (.numeric operation)
+
+/-- The native storage and numeric allowlist. Actions marked generated must
 resolve to two emitted Lean procedures, one per sample precision. -/
 def nativeBindings : Array NativeBinding := #[
-  .storage ⟨`DSP.DelayBuffer, "CircularBufferGeneric", "CircularBufferGeneric.hpp", 1,
+  .arithmetic ``Trig #[.trig "Sin2pi", .trig "Cos2pi", .trig "TanPi"],
+  .arithmetic ``ExpDecay #[.expDecay],
+  .arithmetic ``DelayMath #[.exp2, .floor, .phaseTurns, .decay],
+  .arithmetic ``Tanh #[.tanh],
+  .arithmetic ``SquareRoot #[.sqrt],
+  .arithmetic ``ChannelMean #[.channelMean],
+  .arithmetic ``IfLess #[.ifLess],
+  .arithmetic ``FMA #[.fma],
+  numeric ``Trig.sinFloat (.trig "Sin2pi"),
+  numeric ``Trig.sinFloat32 (.trig "Sin2pi"),
+  numeric ``Trig.cosFloat (.trig "Cos2pi"),
+  numeric ``Trig.cosFloat32 (.trig "Cos2pi"),
+  numeric ``Trig.tanFloat (.trig "TanPi"),
+  numeric ``Trig.tanFloat32 (.trig "TanPi"),
+  numeric ``ExpDecay.float .expDecay,
+  numeric ``ExpDecay.float32 .expDecay,
+  numeric ``DelayMath.exp2Float .exp2,
+  numeric ``DelayMath.exp2Float32 .exp2,
+  numeric ``DelayMath.floorFloat .floor,
+  numeric ``DelayMath.floorFloat32 .floor,
+  numeric ``DelayMath.phaseFloat .phaseTurns,
+  numeric ``DelayMath.phaseFloat32 .phaseTurns,
+  numeric ``DelayMath.decayFloat .decay,
+  numeric ``DelayMath.decayFloat32 .decay,
+  numeric ``FMA.float .fma,
+  numeric ``FMA.float32 .fma,
+  numeric ``Float.sqrt .sqrt,
+  numeric ``Float32.sqrt .sqrt,
+  numeric ``Float.floor (.libm "floor" "double"),
+  numeric ``Float.ceil (.libm "ceil" "double"),
+  numeric ``Float.isFinite (.libm "isfinite" "bool"),
+  numeric ``Float.exp (.libm "exp" "double"),
+  numeric ``Float.log (.libm "log" "double"),
+  .value ``DelayBuffer.SampleIndex.ofWord (.packedStorage (.sampleWord true)),
+  .value ``DelayBuffer.SampleIndex.toWord (.packedStorage (.sampleWord false)),
+  .value ``DelayBuffer.SampleAges.toAges (.packedStorage .sampleAges),
+  .value ``DelayBuffer.QuadAges.pack (.packedStorage .packAges),
+  .value ``DelayBuffer.BroadcastLane.lane (.packedStorage .broadcastLane),
+  .value ``DelayBuffer.Gather.gather (.packedStorage .gather),
+  .record `DSP.ResponseFrequency ⟨"ResponseFrequencyGeneric", "ResponseFrequency.hpp"⟩,
+  .storage ⟨`DSP.DelayBuffer, "CircularBufferGeneric", "CircularBuffer.hpp", 1,
     #[.number, .channels, .natural 0]⟩,
   .storage ⟨`DSP.WanderingRandomLFO.Stream, "PackedWanderingRandomLFO", "WanderingRandomLFO.hpp", 0,
     #[.number, .channels, .boolean false]⟩,
@@ -146,10 +226,25 @@ def nativeBindings : Array NativeBinding := #[
 
 def stateBindings : Array StateBinding := nativeBindings.filterMap fun
   | .action binding => some binding
-  | .storage _ => none
+  | _ => none
 
 def storageBindings : Array StorageBinding := nativeBindings.filterMap fun
-  | .action _ => none
   | .storage binding => some binding
+  | _ => none
+
+def nativeRecords : NameMap RecordExport := nativeBindings.foldl (init := ∅) fun records entry =>
+  match entry with
+  | .record source record => records.insert source record
+  | _ => records
+
+def valueLowerings : NameMap ValueLowering := nativeBindings.foldl (init := ∅) fun bindings entry =>
+  match entry with
+  | .value source lowering => bindings.insert source lowering
+  | _ => bindings
+
+def arithmeticLowerings : NameMap (Array NumericLowering) := nativeBindings.foldl (init := ∅) fun bindings entry =>
+  match entry with
+  | .arithmetic source fields => bindings.insert source fields
+  | _ => bindings
 
 end DSP.Codegen

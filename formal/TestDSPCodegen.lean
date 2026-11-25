@@ -9,8 +9,6 @@ import DSP.Filters.MultibandSaturator.Exports
 import DSP.Resynthesis.FrameStorage
 import DSP.Resynthesis.PVDRStorage
 
-#use_cpp_record DSP.ResponseFrequency as ResponseFrequencyGeneric from "ResponseFrequency.hpp"
-
 #generate_cpp DSP.Tests.swapProcessor as SwapProcessor to "build/lean/generated/SwapProcessor.hpp"
 #generate_cpp DSP.Tests.gainProcessor as GainProcessor to "build/lean/generated/GainProcessor.hpp"
 #generate_cpp DSP.Tests.indexedStateFold as IndexedStateFold to "build/lean/generated/IndexedStateFold.hpp"

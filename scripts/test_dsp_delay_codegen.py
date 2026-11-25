@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check generated delay storage and kernels against executable Lean."""
+"""Check native delay storage and generated kernels against executable Lean."""
 
 import math
 import cmath
@@ -13,7 +13,7 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build/lean"
-HEADERS = ("CircularBufferGeneric", "SchroederAllPassCoreGeneric", "TunedDecayCombCoreGeneric",
+HEADERS = ("SchroederAllPassCoreGeneric", "TunedDecayCombCoreGeneric",
            "TunedDecayCombTuningGeneric", "TunedDecayCombResponseGeneric", "SquiggleBoyQuadReverbFramed",
            "SquiggleBoyQuadReverbEverySample", "SquiggleBoyQuadReverbInitFramed",
            "SquiggleBoyQuadReverbInitEverySample", "SquiggleBoyQuadReverbTuning",
