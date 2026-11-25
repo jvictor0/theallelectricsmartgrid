@@ -1,12 +1,12 @@
 """Persistent ownership of the shared iPad across benchmark launches."""
 
-from contextlib import contextmanager
-import fcntl
 import json
 import os
 from pathlib import Path
 import sys
 import time
+
+import resource_lock
 
 
 LOCK_FILE = Path.home() / ".cache/theallelectricsmartgrid/ipad-perf.lock"
@@ -21,35 +21,19 @@ def thread_id():
     return owner
 
 
-@contextmanager
-def edit_lock():
-    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
-    # Keep the inode so all callers synchronize on the same file. The owner
-    # text persists between commands.
-    with LOCK_FILE.open("a+", encoding="utf-8") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        lock.seek(0)
-        yield lock, lock.read().strip()
-
-
 def lock_owner():
-    try:
-        with LOCK_FILE.open(encoding="utf-8") as lock:
-            fcntl.flock(lock, fcntl.LOCK_SH)
-            return lock.read().strip()
-    except FileNotFoundError:
-        return ""
+    return resource_lock.owner(LOCK_FILE)
 
 
 def acquire_lock(owner, wait):
     deadline = time.monotonic() + wait
     previous_holder = None
     while True:
-        with edit_lock() as (lock, holder):
-            if not holder:
-                lock.write(f"{owner}\n")
-            if not holder or holder == owner:
-                return
+        try:
+            resource_lock.claim(LOCK_FILE, owner)
+            return
+        except resource_lock.LockHeld as error:
+            holder = error.holder
 
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -62,11 +46,10 @@ def acquire_lock(owner, wait):
 
 
 def release_lock(owner, *, force=False):
-    with edit_lock() as (lock, holder):
-        if holder and holder != owner and not force:
-            raise ValueError(f"iPad perf lock is held by Codex thread {holder}")
-        lock.truncate(0)
-        return holder
+    try:
+        return resource_lock.release(LOCK_FILE, owner, force=force)
+    except resource_lock.LockHeld as error:
+        raise ValueError(f"iPad perf lock is held by Codex thread {error.holder}") from error
 
 
 def require_lock(owner):

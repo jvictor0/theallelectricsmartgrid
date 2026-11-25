@@ -51,10 +51,9 @@ an existing local JUCE checkout, including any local JUCE edits.
 | `make visualizers-test` | `build/visualizers/Release/` |
 | `make midi-test` | `build/midi/Release/` |
 | `make clang-tidy` | `build/clang-tidy/report.txt` |
-| `make lean-test` | `build/lean/` |
-| `make lean-dsp-test` | `build/lean/` |
-| `make lean-dsp-codegen` / `make lean-dsp-codegen-test` | `build/lean/generated/`, `build/lean/codegen-test/` |
-| `make lean-inverse-codegen` / `make lean-inverse-test` | `build/lean/generated/`, `build/lean/codegen-test/` |
+| `make lean-test` / `make lean-dsp-test` | Studio build workspace, generated headers returned to `build/lean/generated/` |
+| `make lean-dsp-codegen` / `make lean-dsp-codegen-test` | Studio build workspace, generated headers returned to `build/lean/generated/` |
+| `make lean-inverse-codegen` / `make lean-inverse-test` | Studio build workspace, generated headers returned to `build/lean/generated/` |
 | `make lean-dsp-generate` | Updates the headers in `formal/DSP/generated/` from build-tree generation |
 | `make perf-ladder-build` / `make perf-ladder PERF_ARGS="9 4194304"` | Builds/runs the ladder comparison in `build/tools/perf/Release/` |
 | `make perf-comb-build` / `make perf-comb PERF_ARGS="9 8388608"` | Builds/runs only the generated stereo/quad comb benchmark in `build/tools/perf/Release/` |
@@ -124,16 +123,55 @@ for duration limits, serial repeats, output files and interpretation limits.
 
 ## Lean specifications
 
-Run `make lean-setup` once per cache and pinned toolchain version. You can run
-`make lean-cache` to prefetch the pinned Mathlib proof cache. `make lean-test`
-checks the reusable DSP filter proofs, encoder and phase-time Lean/Veil state
-machines, contract proofs, proof axioms, and C++ source references.
-Elan installs the pinned toolchain under `elan/` in the shared cache. Lake's
-artifact cache reuses compiled modules across worktrees when their inputs
-match. Mathlib downloads go into the shared `mathlib/` directory. Dependency
-checkouts and restored outputs live under `build/lean/` in each worktree, and the
-small Lake configuration cache lives at `.lake/`. Setup requirements, model
-coverage and proof boundaries are documented in [formal/DSP/README.md](../formal/DSP/README.md),
+Lean commands from this repository run through the native macOS queue on
+`ssh studio`. Install the worker with `python3 scripts/lean_studio.py install`,
+then run `make lean-setup` and `make lean-cache` to populate its pinned toolchain
+and Mathlib cache. The Studio needs access to the dependency sources or an
+existing cache for the same toolchain and manifest.
+
+From any worktree, use the existing entry points.
+
+```sh
+make lean-test
+scripts/lean.sh build DSP
+scripts/lean.sh env lean -DwarningAsError=true formal/DSP/Audit.lean
+python3 scripts/lean_studio.py --detach make lean-dsp-test
+python3 scripts/lean_studio.py status
+python3 scripts/lean_studio.py wait JOB_ID
+python3 scripts/lean_studio.py cancel JOB_ID
+```
+
+Submissions include the current tracked files and non-ignored new files,
+including uncommitted edits and deletions. A file under `build/lean/scratch/`
+that is passed as an argument is included. List additional scratch inputs in
+`SMARTGRID_LEAN_INPUTS` if the check needs them. Standalone Lean commands,
+including `env lean --run`, build their imports on the Studio. Direct checks can
+return compiler outputs under `build/lean/scratch/` or `build/lean/generated/`
+using Lean's output flags.
+
+The queue runs one submission at a time, including all steps of a Lean Make
+target. The worker reuses its private Studio build workspace and shared caches.
+It starts Lake with 16 workers and passes one thread to project compiler
+invocations. The native watcher samples the process group from source sync
+through build completion. It defaults to a 128 GiB budget and retries once at
+160 GiB after a job-budget stop if system pressure is normal. Set
+`SMARTGRID_LEAN_MEMORY_MIB` for a different initial budget. The watcher pauses
+starts during memory pressure and stops the active group at critical pressure.
+
+The CLI waits for completion by default, forwarding stdout and stderr
+separately. Disconnecting from SSH or interrupting a wait leaves the job on
+the Studio. The job ID and returned files are recorded locally under
+`build/results/lean-studio/`. Generation targets return new and changed headers
+from their `formal/` output directory. If a file changed in the calling worktree
+while a generation job ran, the result directory retains the Studio outputs
+and a patch for review.
+If the worker crashes, check the recorded process group with `status` and
+confirm the old build is idle before running
+`python3 scripts/lean_studio.py unlock --force`.
+
+`make lean-test` checks the reusable DSP filter proofs, encoder and phase-time
+Lean/Veil state machines, contract proofs, proof axioms, and C++ source references.
+Model coverage and proof boundaries are documented in [formal/DSP/README.md](../formal/DSP/README.md),
 [formal/Encoder/README.md](../formal/Encoder/README.md)
 and [formal/PhaseTime/README.md](../formal/PhaseTime/README.md).
 

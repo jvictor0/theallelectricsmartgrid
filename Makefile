@@ -44,8 +44,13 @@ $(eval $(call cmake_targets,core,private/test,CORE_CONFIG))
 $(eval $(call cmake_targets,visualizers,private/test/juce-visualizers,VISUALIZERS_CONFIG,juce))
 $(eval $(call cmake_targets,midi,private/test/juce-midi,MIDI_CONFIG,juce))
 
-.PHONY: lean-setup lean-cache lean-test lean-dsp-test lean-dsp-codegen lean-dsp-generate lean-dsp-codegen-test
-.PHONY: lean-inverse-codegen lean-inverse-generate lean-inverse-test
+LEAN_TARGETS := lean-setup lean-cache lean-test lean-dsp-test lean-dsp-codegen lean-dsp-generate lean-dsp-codegen-test \
+	lean-inverse-codegen lean-inverse-generate lean-inverse-test
+.PHONY: $(LEAN_TARGETS)
+ifneq ($(SMARTGRID_LEAN_STUDIO_WORKER),1)
+$(LEAN_TARGETS):
+	python3 -B "$(REPO_ROOT)/scripts/lean_studio.py" make $@
+else
 lean-setup:
 	"$(REPO_ROOT)/scripts/lean.sh" setup
 
@@ -168,6 +173,7 @@ lean-test:
 	"$(REPO_ROOT)/scripts/lean.sh" env lean -DwarningAsError=true "$(REPO_ROOT)/formal/PhaseTime/Audit.lean"
 	$(MAKE) -f "$(REPO_ROOT)/Makefile" lean-dsp-codegen-test
 	$(MAKE) -f "$(REPO_ROOT)/Makefile" lean-inverse-test
+endif
 
 PERF_DIR := $(REPO_ROOT)/build/tools/perf/Release
 .PHONY: perf-configure perf-build perf-test perf-run perf-sgrec
