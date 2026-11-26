@@ -4,12 +4,14 @@
 #include <cassert>
 #include <cmath>
 
+#include "AHDMemory.hpp"
+#include "AHDProcess.hpp"
 #include "Slew.hpp"
 #include "PhaseUtils.hpp"
 #include "SampleTimer.hpp"
 #include "TheoryOfTimeBase.hpp"
 
-struct AHD
+struct AHD : AHDMemory<double>
 {
     enum class State : int
     {
@@ -18,27 +20,24 @@ struct AHD
         Release,
     };
 
-    enum class Stage
-    {
-        Attack,
-        Hold,
-        Decay,
-    };
-
     struct AHDControl
     {
         double m_phaseRatio;
         double m_envelopePeriodSamples;
         bool m_release;
         bool m_trig;
+        bool m_reverseTrig;
         bool m_voiceCellCrossed;
+        double m_forwardTriggerPhase;
 
         AHDControl()
             : m_phaseRatio(1.0)
             , m_envelopePeriodSamples(SampleTimer::SecondsToSamples(1.0))
             , m_release(false)
             , m_trig(false)
+            , m_reverseTrig(false)
             , m_voiceCellCrossed(false)
+            , m_forwardTriggerPhase(0.0)
         {
         }
 
@@ -46,6 +45,7 @@ struct AHD
         {
             m_release = false;
             m_trig = false;
+            m_reverseTrig = false;
             m_voiceCellCrossed = false;
         }
     };
@@ -69,8 +69,10 @@ struct AHD
         bool m_amplitudePolarity;
 
         bool m_trig;
+        bool m_reverseTrig;
         bool m_release;
         bool m_voiceCellCrossed;
+        float m_forwardStartOutput;
 
         Input()
             : m_startGlobalPhase(0.0)
@@ -84,24 +86,41 @@ struct AHD
             , m_amplitude(1.0f)
             , m_amplitudePolarity(true)
             , m_trig(false)
+            , m_reverseTrig(false)
             , m_release(false)
             , m_voiceCellCrossed(false)
+            , m_forwardStartOutput(0.0f)
         {
         }
 
-        void Set(AHDControl& control)
+        void Set(const AHDControl& control)
+        {
+            Set(control, 0.0f);
+        }
+
+        void Set(const AHDControl& control, float forwardStartOutput)
         {
             if (control.m_trig)
             {
                 m_startGlobalPhase = m_theoryOfTime->GetPhase(
                     TheoryOfTimeBase::x_globalLoop,
                     PhaseDomain::Modulated);
+            }
+            else if (control.m_reverseTrig)
+            {
+                m_startGlobalPhase = control.m_forwardTriggerPhase;
+                m_forwardStartOutput = forwardStartOutput;
+            }
+
+            if (control.m_trig || control.m_reverseTrig)
+            {
                 m_phaseRatio = control.m_phaseRatio;
                 m_envelopePeriodSamples = control.m_envelopePeriodSamples;
             }
 
             m_release = control.m_release;
             m_trig = control.m_trig;
+            m_reverseTrig = control.m_reverseTrig;
             m_voiceCellCrossed = control.m_voiceCellCrossed;
         }
     };
@@ -144,220 +163,67 @@ struct AHD
         }
     };
 
-    State m_state;
-    bool m_changed;
-
-    // Reports the events consumed by the most recent Process call.
-    //
-    bool m_triggered;
-    bool m_voiceCellCrossed;
-    float m_output;
-
-    // Preserve small per-sample decrements throughout long explicit releases.
-    //
-    double m_rawOutput;
-    float m_startOutput;
-    float m_amplitude;
-    Stage m_stage;
-    double m_stagePosition;
-    double m_previousSamples;
+    State m_state = State::Idle;
+    bool m_changed = false;
+    bool m_triggered = false;
+    bool m_voiceCellCrossed = false;
+    float m_output = 0.0f;
+    float m_amplitude = 1.0f;
 
     AHD()
-        : m_state(State::Idle)
-        , m_changed(false)
-        , m_triggered(false)
-        , m_voiceCellCrossed(false)
-        , m_output(0.0f)
-        , m_rawOutput(0.0f)
-        , m_startOutput(0.0f)
-        , m_amplitude(1.0f)
-        , m_stage(Stage::Attack)
-        , m_stagePosition(0.0)
-        , m_previousSamples(0.0)
+        : AHDMemory<double>{}
     {
-    }
-
-    void AdvanceStages(double deltaSamples, const Input& input)
-    {
-        // A step can cross multiple stages in either direction. Only the time
-        // remaining after each boundary is applied to the next stage's rate.
-        //
-        while (deltaSamples != 0.0)
-        {
-            bool forward = deltaSamples > 0.0;
-            double increment = 0.0;
-            switch (m_stage)
-            {
-                case Stage::Attack:
-                {
-                    increment = input.m_attackIncrement;
-                    break;
-                }
-                case Stage::Hold:
-                {
-                    double holdSamples = input.m_holdLoops * input.m_envelopePeriodSamples;
-                    if (holdSamples == 0.0)
-                    {
-                        m_stage = forward ? Stage::Decay : Stage::Attack;
-                        m_stagePosition = forward ? 0.0 : 1.0;
-                        continue;
-                    }
-
-                    increment = 1.0 / holdSamples;
-                    break;
-                }
-                case Stage::Decay:
-                {
-                    increment = input.m_decayIncrement;
-                    break;
-                }
-            }
-
-            if (increment == 0.0)
-            {
-                break;
-            }
-
-            double position = m_stagePosition + deltaSamples * increment;
-            if (!forward && m_stage == Stage::Attack)
-            {
-                m_stagePosition = std::max(static_cast<double>(m_startOutput), position);
-                break;
-            }
-
-            if (forward ? position < 1.0 : position > 0.0)
-            {
-                m_stagePosition = position;
-                break;
-            }
-
-            double boundary = forward ? 1.0 : 0.0;
-            double samplesToBoundary = (boundary - m_stagePosition) / increment;
-            deltaSamples = forward
-                ? std::max(0.0, deltaSamples - samplesToBoundary)
-                : std::min(0.0, deltaSamples - samplesToBoundary);
-            m_stagePosition = forward ? 0.0 : 1.0;
-            switch (m_stage)
-            {
-                case Stage::Attack:
-                {
-                    m_stage = Stage::Hold;
-                    break;
-                }
-                case Stage::Hold:
-                {
-                    m_stage = forward ? Stage::Decay : Stage::Attack;
-                    break;
-                }
-                case Stage::Decay:
-                {
-                    if (forward)
-                    {
-                        m_state = State::Idle;
-                        m_changed = true;
-                        m_rawOutput = 0.0f;
-                        return;
-                    }
-
-                    m_stage = Stage::Hold;
-                    break;
-                }
-            }
-        }
-
-        switch (m_stage)
-        {
-            case Stage::Attack:
-            {
-                m_rawOutput = static_cast<float>(m_stagePosition);
-                break;
-            }
-            case Stage::Hold:
-            {
-                m_rawOutput = 1.0f;
-                break;
-            }
-            case Stage::Decay:
-            {
-                m_rawOutput = static_cast<float>(1.0 - m_stagePosition);
-                break;
-            }
-        }
     }
 
     float Process(Input& input)
     {
-        m_changed = false;
+        const auto before = m_state;
+        const bool triggering = input.m_trig || input.m_reverseTrig;
+        if (before != State::Idle || m_armed || triggering)
+        {
+            const TheoryOfTimeBase* time = input.m_theoryOfTime;
+            assert(time);
+            if (input.m_reverseTrig && !input.m_trig)
+            {
+                assert(std::isfinite(input.m_startGlobalPhase));
+                assert(input.m_attackIncrement > 0 && input.m_decayIncrement > 0);
+                assert(input.m_phaseRatio > 0 && input.m_envelopePeriodSamples > 0);
+                assert(input.m_forwardStartOutput >= 0 && input.m_forwardStartOutput <= 1);
+            }
+
+            const bool releasing = !triggering && (input.m_release || before == State::Release);
+            const double phaseDistance = releasing ? 0.0
+                : time->GetPhase(TheoryOfTimeBase::x_globalLoop, PhaseDomain::Modulated) - input.m_startGlobalPhase;
+            const double basicIncrement = releasing && before != State::Idle
+                ? time->GetUnmodulatedGlobalPhaseIncrement() : 0.0;
+            const auto status = AHDProcess::Process(*this, AHDProcess::Input{
+                phaseDistance,
+                std::abs(phaseDistance),
+                input.m_phaseRatio,
+                input.m_envelopePeriodSamples,
+                input.m_attackIncrement,
+                input.m_holdLoops,
+                input.m_decayIncrement,
+                basicIncrement,
+                input.m_releaseFactor,
+                input.m_trig,
+                input.m_reverseTrig,
+                input.m_forwardStartOutput,
+                input.m_release});
+            m_state = status.m_idle ? State::Idle : (status.m_releasing ? State::Release : State::Running);
+        }
+
+        m_changed = before != m_state;
         m_triggered = input.m_trig;
         m_voiceCellCrossed = input.m_voiceCellCrossed;
-        if (m_triggered)
-        {
-            m_changed = m_state != State::Running;
-            m_state = State::Running;
-            m_startOutput = static_cast<float>(m_rawOutput);
-            m_stage = Stage::Attack;
-            m_stagePosition = m_startOutput;
-            m_previousSamples = 0.0;
-        }
-        else if (input.m_release && m_state != State::Idle)
-        {
-            m_changed = m_state != State::Release;
-            m_state = State::Release;
-        }
+        m_amplitude = input.m_amplitude;
+        const double scaled = m_rawOutput * m_amplitude;
+        m_output = static_cast<float>(input.m_amplitudePolarity ? scaled : (1.0f - m_amplitude) + scaled);
 
-        // Consume the events, including a release superseded by a trigger.
-        //
         input.m_trig = false;
+        input.m_reverseTrig = false;
         input.m_release = false;
         input.m_voiceCellCrossed = false;
-
-        switch (m_state)
-        {
-            case State::Idle:
-            {
-                m_rawOutput = 0.0f;
-                break;
-            }
-            case State::Running:
-            {
-                double phase = input.m_theoryOfTime->GetPhase(
-                    TheoryOfTimeBase::x_globalLoop,
-                    PhaseDomain::Modulated);
-                double samples = std::abs(phase - input.m_startGlobalPhase)
-                    * input.m_phaseRatio * input.m_envelopePeriodSamples;
-                double deltaSamples = samples - m_previousSamples;
-                m_previousSamples = samples;
-                AdvanceStages(deltaSamples, input);
-
-                break;
-            }
-            case State::Release:
-            {
-                assert(input.m_theoryOfTime != nullptr);
-                double deltaSamples = input.m_theoryOfTime->GetUnmodulatedGlobalPhaseIncrement()
-                    * input.m_phaseRatio * input.m_envelopePeriodSamples * input.m_releaseFactor;
-                m_rawOutput -= static_cast<double>(input.m_decayIncrement) * deltaSamples;
-                if (m_rawOutput <= 0.0f)
-                {
-                    m_changed = true;
-                    m_state = State::Idle;
-                    m_rawOutput = 0.0f;
-                }
-
-                break;
-            }
-        }
-
-        m_amplitude = input.m_amplitude;
-        if (input.m_amplitudePolarity)
-        {
-            m_output = static_cast<float>(m_rawOutput * input.m_amplitude);
-        }
-        else
-        {
-            m_output = static_cast<float>((1.0f - input.m_amplitude) + m_rawOutput * input.m_amplitude);
-        }
-
         return m_output;
     }
 };

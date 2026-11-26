@@ -25,6 +25,10 @@ import DSP.Filters.MultibandSaturator.Runtime
 import DSP.Filters.Runtime
 import DSP.SmoothRandomLFO
 import DSP.WanderingRandomLFO
+import DSP.AHD
+
+#generate_cpp_record DSP.AHD.Memory as AHDMemory to "build/lean/generated/AHDMemory.hpp"
+#generate_cpp_state DSP.AHD.processFloat as AHDProcess to "build/lean/generated/AHDProcess.hpp"
 
 #generate_cpp_preparation_generic DSP.SmoothRandomLFO.prepare as SmoothRandomLFOPrepareGeneric to "build/lean/generated/SmoothRandomLFOPrepareGeneric.hpp"
 #generate_cpp_function_generic DSP.SmoothRandomLFO.evaluate as SmoothRandomLFOCubicGeneric method Evaluate to "build/lean/generated/SmoothRandomLFOCubicGeneric.hpp"

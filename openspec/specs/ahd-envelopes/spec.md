@@ -6,7 +6,7 @@ AHD (Attack-Hold-Decay) envelopes (`AHD` in `private/src/AHD.hpp`) shape voice a
 ## Requirements
 
 ### Requirement: Phase-Driven Stage Progression
-At trigger, the envelope SHALL capture its selected source phase's cycle ratio to global phase, the absolute modulated global phase origin, and its envelope period in samples. The trigger producer SHALL supply the ratio; the active envelope SHALL retain no source loop index, winding tracker, or topology-change history. During Running it SHALL compute elapsed samples as abs(currentModulatedGlobalPhase - capturedGlobalPhase) * capturedRatio * capturedEnvelopePeriodSamples and integrate the difference from the previous call using the current stage's rate. The previous elapsed position SHALL reset to zero at each trigger. Only a new trigger SHALL replace the captured timing values. Global phase modulation and reversal SHALL continue to affect progress. Time remaining after a stage boundary SHALL be applied to the following stage in the direction of travel.
+At an ordinary trigger, the envelope SHALL capture its selected source phase's cycle ratio to global phase, the absolute modulated global phase origin, and its envelope period in samples. The trigger producer SHALL supply the ratio. For this envelope, Running SHALL compute elapsed samples as abs(currentModulatedGlobalPhase - capturedGlobalPhase) * capturedRatio * capturedEnvelopePeriodSamples and integrate the difference from the previous call using the current stage's rate. The previous elapsed position SHALL reset to zero at an ordinary trigger. A new ordinary or reverse trigger is required to replace the captured timing values. Global phase modulation and reversal SHALL continue to affect progress. Time remaining after a stage boundary SHALL be applied to the following stage in the direction of travel.
 
 #### Scenario: Topology edit does not change active timing
 - **WHEN** an active envelope captured ratio 4 and the source topology later changes its ratio to 6
@@ -23,14 +23,14 @@ At trigger, the envelope SHALL capture its selected source phase's cycle ratio t
 - **THEN** its phase-derived elapsed position decreases without an accumulated absolute-distance counter
 - **AND** its stage progression reverses through decay, hold, and attack using the current control values
 - **AND** reverse attack does not fall below the level captured at the trigger
-- **AND** moving away on either side of the origin advances progression again; an Idle envelope does not restart
+- **AND** moving away on either side of an ordinary trigger's origin advances progression again
 
 #### Scenario: Slower phase stretches the envelope
 - **WHEN** global phase modulation halves phase advance with captured timing unchanged
 - **THEN** elapsed position advances at half speed
 
 ### Requirement: Trigger and Release via AHDControl
-The system SHALL start an envelope when `AHDControl.m_trig` is true, entering the Running state, and SHALL move a non-Idle envelope to the Release state when `AHDControl.m_release` is true without a trigger. Both flags are produced by the multi-phasor-gate; the envelope consumes no gate signal. A `m_changed` flag SHALL be set on any state transition. Each `Process(Input&)` call SHALL clear both input event flags after reading them, including a release ignored while Idle or superseded by a trigger. It SHALL report the consumed trigger through `m_triggered` for that call; a following call without a trigger SHALL reset `m_triggered` to false. The shared `AHDControl` SHALL remain unchanged so every envelope can receive its own copy. Scope recording SHALL use `m_triggered` to mark starts and `m_changed` with Idle to mark ends.
+The system SHALL start an envelope when `AHDControl.m_trig` is true, entering the Running state, and SHALL move a non-Idle envelope to the Release state when `AHDControl.m_release` is true without a trigger. The multi-phasor-gate supplies these events. A `m_changed` flag SHALL report changes in the outer state between calls. Each `Process(Input&)` call SHALL consume the event flags from its own input, leaving the shared `AHDControl` available to the other envelopes. It SHALL report an ordinary trigger through `m_triggered` on the call that consumes it and a voice cell crossing through `m_voiceCellCrossed`. Scope recording SHALL use `m_triggered` to mark starts and shall mark the end of an open recording when `m_voiceCellCrossed` is true and the envelope is Idle.
 
 #### Scenario: Trigger starts the envelope
 - **WHEN** `m_trig` is true while the envelope is Idle
@@ -39,7 +39,7 @@ The system SHALL start an envelope when `AHDControl.m_trig` is true, entering th
 #### Scenario: Release interrupts a running envelope
 - **WHEN** `m_release` is true and the state is Running
 - **THEN** the state becomes Release and the raw output ramps down from its current value
-- **AND** `m_release` is ignored while the envelope is already Idle
+- **AND** a release while already Idle disarms any remembered decay endpoint and leaves the output at its idle level
 
 #### Scenario: Physical-model events are consumed on their sample
 - **WHEN** physical modeling runs its AHD once per engine sample and trigger and release arrive on the same sample
@@ -73,6 +73,23 @@ The system SHALL ramp the raw output down from 1.0 after the hold ends by accumu
 - **WHEN** a Running envelope with a 1 s decay passes the end of its hold stage
 - **THEN** the raw output falls linearly in phase-derived samples over `SampleTimer::x_sampleRate` samples (192000 at 192 kHz)
 - **AND** on the call where the value reaches or would pass zero, the output is 0.0, the state is Idle, and `m_changed` is true
+
+#### Scenario: Rewind across a natural decay endpoint
+- **WHEN** a sample passes the end of decay and the clock later moves back toward the origin
+- **THEN** the envelope stays idle until it passes the exact elapsed position where decay completed
+- **AND** it resumes Running in Decay from zero, applies the remaining negative travel using the current rates, and reports a state change
+
+### Requirement: Reverse Trigger Positions a Forward Envelope
+A reverse trigger SHALL supply the forward onset phase, timing scale, and starting level. For positive attack and decay increments, the envelope SHALL sum the attack, hold, and decay durations under the current settings to arm a natural decay endpoint in Idle. On that call it SHALL apply any elapsed position already inside the envelope by stepping back from Decay. It SHALL retire below the forward onset and use the supplied starting level at the onset under those settings. An explicit release SHALL disarm the endpoint, including when received while Idle. A reverse trigger SHALL be consumed once by each envelope input, with a regular trigger taking precedence. Scope starts use ordinary trigger events.
+
+#### Scenario: A reverse trigger arrives after the envelope would have ended
+- **WHEN** a reverse trigger supplies a forward onset whose calculated envelope has already completed at the current phase
+- **THEN** the envelope arms in Idle and resumes Decay when the clock moves back through the calculated endpoint
+
+#### Scenario: A reverse trigger arrives during the reconstructed envelope
+- **WHEN** the current phase lies between the supplied onset and the calculated endpoint
+- **THEN** the envelope applies the travel back from the endpoint on that call and plays the resulting stage and level
+- **AND** the envelope retires when the clock crosses below the supplied onset
 
 ### Requirement: Continuous Live Timing Controls
 Changing attack, hold, or decay SHALL preserve the current stage progress and raw output when phase-derived time does not move. Subsequent elapsed time SHALL use the new rate without recalculating past progress. A hold edit SHALL preserve the completed fraction of an active hold and SHALL NOT reposition an active decay. Reversal SHALL use current rates rather than replay historical control values.
@@ -138,12 +155,12 @@ The system SHALL maintain both a raw output (`m_rawOutput`, the pure 0-1 envelop
 - **THEN** `m_output` equals half of `m_rawOutput` at every point, peaking at 0.5 during hold
 
 ### Requirement: Two Envelope Instances Per Voice With Scope Output
-Each voice SHALL host two AHD instances driven by the same `AHDControl` timing — the main amp envelope (`m_ahd`) and the modulation envelope (`m_modulationAHD`) — with independent attack, hold, decay, and amplitude parameters set through separate `InputSetter`s. Their outputs SHALL be written as whole trio vectors on every engine sample to the per-voice scope channels `VoiceScopes::AmpEnvelope` and `VoiceScopes::ModulationEnvelope`, which store every engine sample at level zero and are accepted by the UI before painting, with record-start marked on trigger and record-end marked when the envelope transitions to Idle.
+Each voice SHALL host two AHD instances driven by the same `AHDControl` timing — the main amp envelope (`m_ahd`) and the modulation envelope (`m_modulationAHD`) — with independent attack, hold, decay, and amplitude parameters set through separate `InputSetter`s. Their outputs SHALL be written as whole trio vectors on every engine sample to the per-voice scope channels `VoiceScopes::AmpEnvelope` and `VoiceScopes::ModulationEnvelope`, which store every engine sample at level zero and are accepted by the UI before painting. The trigger marks the start of a recording. A voice cell crossing while the envelope is Idle marks the end of an open recording.
 
 #### Scenario: Independent shapes from shared timing
 - **WHEN** a voice is triggered with the amp envelope set to a short decay and the modulation envelope set to a long decay
 - **THEN** both envelopes enter attack on the same sample, the `AmpEnvelope` scope trace returns to zero first, and the `ModulationEnvelope` trace continues until its own decay completes
 
-#### Scenario: Scope recording brackets the envelope
-- **WHEN** voice i's amp envelope is triggered and later returns to Idle
-- **THEN** the `VoiceScopes::AmpEnvelope` channel records a start mark at the trigger sample and an end mark on the sample `m_changed` is set with state Idle in engine-sample coordinates
+#### Scenario: Scope recording ends on an idle voice cell crossing
+- **WHEN** voice i's amp envelope is triggered and later crosses a voice cell boundary while Idle with the recording open
+- **THEN** the `VoiceScopes::AmpEnvelope` channel records a start mark at the trigger sample and an end mark at the voice cell crossing, in engine-sample coordinates

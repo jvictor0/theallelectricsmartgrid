@@ -99,7 +99,7 @@ DSP_RUNTIME_MODULES := DSP.Filters.Capture DSP.Filters.OnePoleZOHLowPass.Respons
 	DSP.Filters.MorphingTPTSVF DSP.Filters.TPTSVF4Pole DSP.Filters.TPTLadder \
 	DSP.Filters.LinkwitzRileySplitter DSP.Filters.Coupled \
 	DSP.Filters.NaiveReuppingLadder.Runtime DSP.Filters.MultibandSaturator.Runtime DSP.Filters.Runtime \
-	DSP.Filters.DelayKernels.Runtime DSP.SmoothRandomLFO DSP.WanderingRandomLFO \
+	DSP.Filters.DelayKernels.Runtime DSP.SmoothRandomLFO DSP.WanderingRandomLFO DSP.AHD \
 	DSP.Filters.SquiggleBoyQuadReverb.Runtime \
 	DSP.Resynthesis.Runtime DSP.Resynthesis.PVDRStorage DSP.Resynthesis.SpectrumStorage DSP.Resynthesis.FrameStorage
 DSP_GENERATED_DIR := $(REPO_ROOT)/build/lean/generated

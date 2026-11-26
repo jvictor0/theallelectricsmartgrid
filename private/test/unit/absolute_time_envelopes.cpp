@@ -3,6 +3,8 @@
 #include "AHD.hpp"
 #include "MultiPhasorGate.hpp"
 
+#include <array>
+
 namespace
 {
 
@@ -430,8 +432,65 @@ DOCTEST_TEST_CASE("AHD reverses through all stages and across the trigger origin
         DOCTEST_CHECK(rig.Process(65.0) == 0.0f);
         DOCTEST_CHECK(rig.m_envelope.m_state == AHD::State::Idle);
         DOCTEST_CHECK(rig.m_envelope.m_changed);
-        DOCTEST_CHECK(rig.Process(8.0) == 0.0f);
-        DOCTEST_CHECK_FALSE(rig.m_envelope.m_changed);
+        DOCTEST_CHECK(rig.Process(8.0) == doctest::Approx(0.5f));
+        DOCTEST_CHECK(rig.m_envelope.m_state == AHD::State::Running);
+        DOCTEST_CHECK(rig.m_envelope.m_changed);
+        DOCTEST_CHECK_FALSE(rig.m_envelope.m_triggered);
+    }
+}
+
+DOCTEST_TEST_CASE("AHD keeps a fractional decay endpoint on either side of the trigger")
+{
+    for (double direction : {-1.0, 1.0})
+    {
+        IntegratedEnvelopeRig rig;
+        rig.m_input.m_holdLoops = 16.5 / 64.0;
+        DOCTEST_CHECK(rig.Process(direction * 65.25) == 0.0f);
+        DOCTEST_CHECK(rig.m_envelope.m_state == AHD::State::Idle);
+        rig.m_input.m_decayIncrement = 1.0f / 16.0f;
+        DOCTEST_CHECK(rig.Process(direction * 64.75) == 0.0f);
+        DOCTEST_CHECK(rig.Process(direction * 64.5) == 0.0f);
+        DOCTEST_CHECK(rig.Process(direction * 64.25) == 1.0f / 64.0f);
+        DOCTEST_CHECK(rig.Process(direction * 65.0) == 0.0f);
+
+        rig.m_input.m_release = true;
+        DOCTEST_CHECK(rig.Process(0.0) == 0.0f);
+        DOCTEST_CHECK(rig.m_envelope.m_state == AHD::State::Idle);
+    }
+}
+
+DOCTEST_TEST_CASE("AHD reverse trigger reconstructs a forward retrigger with a supplied starting level")
+{
+    IntegratedEnvelopeRig forward;
+    DOCTEST_REQUIRE(forward.Process(8.0) == 0.5f);
+    forward.Trigger();
+    constexpr std::array<double, 8> x_positions = {8.0, 12.0, 16.0, 24.0, 40.0, 63.75, 64.0, 72.0};
+    std::array<float, x_positions.size()> forwardOutput{};
+    for (size_t i = 0; i < x_positions.size(); ++i)
+    {
+        forwardOutput[i] = forward.Process(x_positions[i]);
+    }
+
+    for (size_t first : {x_positions.size() - 1, size_t{4}})
+    {
+        IntegratedEnvelopeRig backward;
+        backward.m_control = TriggerControl(2.0, 48.0);
+        backward.Trigger();
+        AHD::AHDControl control = forward.m_control;
+        control.m_reverseTrig = true;
+        control.m_forwardTriggerPhase = 10.125;
+        backward.m_input.Set(control, 0.5f);
+        for (size_t i = first + 1; i > 0; --i)
+        {
+            DOCTEST_CAPTURE(first);
+            DOCTEST_CAPTURE(i);
+            DOCTEST_CHECK(backward.Process(x_positions[i - 1]) == doctest::Approx(forwardOutput[i - 1]));
+            DOCTEST_CHECK_FALSE(backward.m_input.m_reverseTrig);
+            DOCTEST_CHECK_FALSE(backward.m_envelope.m_triggered);
+        }
+
+        DOCTEST_CHECK(backward.Process(7.75) == 0.0f);
+        DOCTEST_CHECK(backward.m_envelope.m_state == AHD::State::Idle);
     }
 }
 

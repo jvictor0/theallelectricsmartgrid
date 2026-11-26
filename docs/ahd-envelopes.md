@@ -1,6 +1,6 @@
 # Phase-Driven AHD Envelopes
 
-`AHD` in `private/src/AHD.hpp` integrates attack, hold, and decay using changes in phase-derived elapsed time. At a trigger, its input captures:
+`AHD` in `private/src/AHD.hpp` integrates attack, hold, and decay using changes in phase-derived elapsed time. At an ordinary trigger, its input captures:
 
 - the current sample's modulated global phase;
 - the relevant source loop's cycle ratio to the global loop;
@@ -19,7 +19,28 @@ Changing attack, hold, or decay affects subsequent progress without recalculatin
 
 It does not retain a source loop index, track topology edits, or reconstruct winding. A multiplier or parent edit during attack, hold, or decay cannot change the captured timing. Retriggering captures the new timing. In the production voice path the source ratio comes from loop 0; the voice cycle ratio used to calculate the envelope period is a separate quantity. That voice ratio is the undoubled LCM of the selected clock and read loop ratios, and `envelopePeriodSamples = SampleTimer::SecondsToSamples(4.0) / voiceCycleRatio`. This fixed calibration preserves the previous durations at that four-second reference tempo and makes attack and decay fixed fractions of global phase for the captured ratios. Doubling tempo halves their duration, including notes triggered after the tempo change. Hold's phase duration is unchanged because the reference period cancels from its progress calculation. The gate still closes after half a voice cycle; the Theory of Time rhythm advances once per complete loop cycle.
 
-The absolute distance preserves existing reverse behavior: moving back toward the trigger reverses progression through decay, hold, and attack while the envelope is running; moving past the trigger increases distance again. Reversal uses the current control values, without replaying historical knob changes. Reverse attack is bounded by the level captured at the trigger. Once decay reaches idle, moving backward does not restart the envelope. Explicit release integrates the basic, unmodulated clock, including after transport stops:
+A normal trigger uses absolute distance from its origin. Moving toward the
+origin reverses Decay, Hold, and Attack, and moving away on either side advances
+them. Reverse attack is bounded by the captured starting level. On natural
+completion, the envelope stores the fractional elapsed position where decay
+reached zero. It resumes at the zero-output end of Decay when elapsed position
+falls below that endpoint and applies the remaining negative travel using the
+current controls. An explicit release clears the saved endpoint.
+
+A reverse trigger supplies the original forward onset phase, its timing scale,
+and the forward attack's starting level. The envelope computes the natural end
+as the sum of `(1 - startingLevel) / attackIncrement`,
+`holdLoops * envelopePeriodSamples`, and `1 / decayIncrement`. It arms at that
+endpoint in Idle and applies any reverse travel already inside the envelope on
+the receiving sample. Its elapsed position uses signed distance from the
+forward onset, and the envelope retires below that onset. A producer can use
+this event to position the envelope independently of a new note-on or scope
+start. The live Nonagon still supplies ordinary trigger events.
+
+The stage machine is defined in [Lean](../formal/DSP/AHD.lean) and emitted
+through the shared DSP code generator. The native wrapper reads Theory of Time
+and transfers per-envelope events. Explicit release integrates the basic,
+unmodulated clock, including after transport stops.
 
 ```
 clockIncrement = theoryOfTime.GetUnmodulatedGlobalPhaseIncrement()
@@ -29,7 +50,12 @@ rawOutput -= decayIncrement * deltaSamples
 
 The clock increment is `1 / currentGlobalPeriodSamples` global cycles per engine sample. It remains available when transport phase resets to zero. Release follows current tempo, so doubling tempo doubles release speed, including during an existing tail. It ignores phase modulation and reversal; no modulation continues after Stop. Source ratio and envelope period retain their trigger-captured values through release. The double-precision raw output preserves long release durations; rendered output remains float. `input.m_releaseFactor` defaults to 1 engine sample per call and affects only explicit release, leaving phase-driven attack, hold, and running decay unchanged. A factor of 0.25 represents a quarter engine sample at the current basic clock rate. All active envelopes require their Theory of Time pointer during release as well as Running.
 
-Each AHD instance consumes its own input events: `Process` clears both `m_trig` and `m_release`, including an ignored release while idle or a release superseded by a simultaneous trigger. The next call continues the envelope without caller cleanup. `m_triggered` reports whether the most recent call consumed a trigger, so scope consumers can record starts after processing. The shared `AHDControl` is not consumed; amp, modulation, and physical-model envelopes each receive their own input copy.
+Each AHD instance consumes its own input events. `Process` clears `m_trig`,
+`m_reverseTrig`, and `m_release`. A regular trigger takes precedence over the
+other events, and a reverse trigger takes precedence over release.
+`m_triggered` reports ordinary triggers for scope starts. Amp, modulation, and
+physical-model envelopes each consume their own copy of the shared
+`AHDControl`.
 
 The running stage reads the current sample's modulated global phase on every call. Trigger and release are consumed on the sample they arrive.
 

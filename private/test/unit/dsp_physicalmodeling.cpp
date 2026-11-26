@@ -98,13 +98,14 @@ DOCTEST_TEST_CASE("PhysicalModeling: consumes events once and accepts consecutiv
 DOCTEST_TEST_CASE("PhysicalModeling: explicit release integrates the basic clock")
 {
     PhysicalEnvelopeRig rig(0.01f, 0.01f);
-    rig.Envelope().m_state = AHD::State::Running;
-    rig.Envelope().m_rawOutput = 1.0f;
+    rig.Trigger();
+    rig.EnvelopeInput().m_holdLoops = 1.0;
+    rig.SetClock(512.0);
+    rig.ProcessFrame();
+    DOCTEST_REQUIRE(rig.Envelope().m_rawOutput == 1.0);
     rig.EnvelopeInput().m_release = true;
 
-    AHD base;
-    base.m_state = AHD::State::Running;
-    base.m_rawOutput = 1.0f;
+    AHD base = rig.Envelope();
     AHD::Input baseInput = rig.EnvelopeInput();
     baseInput.m_releaseFactor = 1.0f;
     const size_t expectedFrames = 480 / PhysicalEnvelopeRig::x_frameSamples;
@@ -137,8 +138,8 @@ DOCTEST_TEST_CASE("PhysicalModeling: running decay uses phase sample units")
     rig.ProcessFrame();
 
     AHD base;
-    base.m_state = AHD::State::Running;
     AHD::Input input = rig.EnvelopeInput();
+    input.m_trig = true;
     base.Process(input);
     DOCTEST_CHECK(base.m_rawOutput == doctest::Approx(1.0f - (63.0f - 4.8f) / 480.0f).epsilon(0.00001));
     DOCTEST_CHECK(rig.Envelope().m_rawOutput == doctest::Approx(base.m_rawOutput).epsilon(0.00001));

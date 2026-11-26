@@ -103,8 +103,11 @@ DOCTEST_TEST_CASE("Amp muting: copied live timing and raw AHD release close a st
     DOCTEST_CHECK(mutingInput.m_attackIncrement == 0.5f);
     DOCTEST_CHECK(mutingInput.m_decayIncrement == 0.25f);
 
-    rig.m_amp.m_ahd.m_channels[0].m_state = AHD::State::Running;
-    rig.m_amp.m_ahd.m_channels[0].m_rawOutput = 0.75;
+    auto& envelope = rig.m_amp.m_ahd.m_channels[0];
+    rig.m_time.m_sample.m_modulatedPhase = 1.5 / 64.0;
+    input.m_trig = true;
+    envelope.Process(input);
+    DOCTEST_REQUIRE(envelope.m_rawOutput == 0.75);
     rig.m_input.m_mutingASDInput.m_channels[0].m_gate = false;
     rig.m_time.m_sample.m_running = false;
     rig.m_time.m_sample.m_modulatedPhase = 0.0;

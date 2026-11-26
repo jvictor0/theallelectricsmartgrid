@@ -8,6 +8,9 @@ open Lean in
 run_cmd do
   let env ← getEnv
   let required := #[
+    ``DSP.AHD.completionRetainsOvershoot,
+    ``DSP.AHD.reverseEndpoint,
+    ``DSP.AHD.reverseDecayValue,
     ``DSP.Resynthesis.PVDR.analyze_order_nodup,
     ``DSP.Resynthesis.PVDR.analyze_roots,
     ``DSP.Resynthesis.PVDR.analyze_root_precedes_bin,

@@ -22,6 +22,22 @@
 
 #include "AHD.hpp"
 
+namespace
+{
+void StartHeld(AHD& envelope, const AHD::Input& input)
+{
+    AHD::Input trigger = input;
+    trigger.m_startGlobalPhase = 0.0;
+    trigger.m_theoryOfTime->m_sample.m_modulatedPhase =
+        2.0 / (trigger.m_phaseRatio * trigger.m_envelopePeriodSamples);
+    trigger.m_attackIncrement = 1.0f;
+    trigger.m_holdLoops = 1.0;
+    trigger.m_trig = true;
+    envelope.Process(trigger);
+    DOCTEST_REQUIRE(envelope.m_rawOutput == 1.0);
+}
+}
+
 DOCTEST_TEST_CASE("AHD: consumes simultaneous events once and accepts the next trigger")
 {
     TheoryOfTimeBase time;
@@ -67,8 +83,7 @@ DOCTEST_TEST_CASE("AHD: consumes release even while idle")
     DOCTEST_CHECK_FALSE(input.m_release);
     DOCTEST_CHECK(envelope.m_state == AHD::State::Idle);
 
-    envelope.m_state = AHD::State::Running;
-    envelope.m_rawOutput = 1.0f;
+    StartHeld(envelope, input);
     input.m_decayIncrement = 0.125f;
     input.m_release = true;
     DOCTEST_CHECK(envelope.Process(input) == doctest::Approx(0.875f));
@@ -85,10 +100,6 @@ DOCTEST_TEST_CASE("AHD: fractional release calls preserve duration at different 
         TheoryOfTimeBase time;
         AHD base;
         AHD oversampled;
-        base.m_state = AHD::State::Running;
-        oversampled.m_state = AHD::State::Running;
-        base.m_rawOutput = 1.0f;
-        oversampled.m_rawOutput = 1.0f;
         AHD::Input input;
         input.m_theoryOfTime = &time;
         input.m_phaseRatio = 3.0;
@@ -98,6 +109,8 @@ DOCTEST_TEST_CASE("AHD: fractional release calls preserve duration at different 
         input.m_decayIncrement = 1.0f / 8.0f;
         AHD::Input oversampledInput = input;
         oversampledInput.m_releaseFactor = 0.25f;
+        StartHeld(base, input);
+        StartHeld(oversampled, oversampledInput);
         size_t samples = static_cast<size_t>(8.0 / tempoScale);
 
         for (size_t sample = 0; sample < samples; ++sample)
@@ -187,13 +200,12 @@ DOCTEST_TEST_CASE("AHD: ten second explicit release retains precision at unit cl
 {
     TheoryOfTimeBase time;
     AHD envelope;
-    envelope.m_state = AHD::State::Running;
-    envelope.m_rawOutput = 1.0f;
     AHD::Input input;
     input.m_theoryOfTime = &time;
     time.m_globalPeriodSamples = input.m_envelopePeriodSamples;
     AHD::InputSetter setter;
     setter.Set(0.0f, 0.0f, 1.0f, 1.0f, true, input);
+    StartHeld(envelope, input);
     const size_t x_expectedSamples = static_cast<size_t>(SampleTimer::SecondsToSamples(10.0));
     size_t samples = 0;
     float midpoint = 0.0f;
@@ -236,8 +248,8 @@ DOCTEST_TEST_CASE("AHD: release factor leaves phase-driven attack hold and decay
         time.m_sample.m_modulatedPhase = x_phases[stage];
         AHD base;
         AHD oversampled;
-        base.m_state = AHD::State::Running;
-        oversampled.m_state = AHD::State::Running;
+        input.m_trig = true;
+        oversampledInput.m_trig = true;
         DOCTEST_CHECK(base.Process(input) == doctest::Approx(x_outputs[stage]));
         DOCTEST_CHECK(oversampled.Process(oversampledInput) == doctest::Approx(x_outputs[stage]));
     }
