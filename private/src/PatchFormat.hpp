@@ -3,6 +3,8 @@
 #include "JuceSon.hpp"
 #include "SceneManager.hpp"
 #include "SmartGridOneLayout.hpp"
+#include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <string>
 
@@ -12,13 +14,20 @@ struct PatchFormat
 {
     static constexpr int x_shapeSrrPolarityVersion = 2;
     static constexpr int x_physicalModelingSrrPolarityVersion = 3;
-    static constexpr int x_currentVersion = x_physicalModelingSrrPolarityVersion;
+    static constexpr int x_continuousDelayFactorVersion = 4;
+    static constexpr int x_currentVersion = x_continuousDelayFactorVersion;
 
     enum class Scope
     {
         Unknown,
         Voice,
         Shared
+    };
+
+    enum class EncoderMigration
+    {
+        ReverseSrr,
+        ContinuousDelayFactor
     };
 
     static bool IsObject(JSON json)
@@ -255,7 +264,19 @@ struct PatchFormat
         return bipolar ? -value : 1.0f - value;
     }
 
-    static JSON ReverseSrrValues(JsonArena& arena, JSON source, bool bipolar)
+    static bool NeedsDelayFactorUpgrade(const char* name, int64_t version)
+    {
+        return version < x_continuousDelayFactorVersion && strcmp(name, "DelayTimeFactor") == 0;
+    }
+
+    static float ConvertDelayFactorValue(float value)
+    {
+        static constexpr float x_fractions[] = {0.8f, 2.0f / 3.0f, 1.0f, 0.75f, 5.0f / 8.0f};
+        size_t index = static_cast<size_t>(std::round(std::clamp(value, 0.0f, 1.0f) * 4.0f));
+        return x_fractions[index];
+    }
+
+    static JSON MigrateValues(JsonArena& arena, JSON source, bool bipolar, EncoderMigration migration)
     {
         JSON result = arena.Object();
         JSON oldValues = source.Get("values");
@@ -263,7 +284,9 @@ struct PatchFormat
         for (size_t scene = 0; scene < SmartGrid::SceneManager::x_numScenes; ++scene)
         {
             float value = static_cast<float>(oldValues.GetAt(scene).NumberValue());
-            values.AppendNew(arena.Real(ReverseSrrValue(value, bipolar)));
+            float migrated = migration == EncoderMigration::ReverseSrr
+                ? ReverseSrrValue(value, bipolar) : ConvertDelayFactorValue(value);
+            values.AppendNew(arena.Real(migrated));
         }
 
         const size_t oldCount = IsArray(oldValues) ? oldValues.Size() : 0;
@@ -288,7 +311,7 @@ struct PatchFormat
         return result;
     }
 
-    static JSON ReverseSrrCell(JsonArena& arena, JSON cell, bool bipolar)
+    static JSON MigrateCell(JsonArena& arena, JSON cell, bool bipolar, EncoderMigration migration)
     {
         if (!IsObject(cell))
         {
@@ -301,21 +324,19 @@ struct PatchFormat
         {
             const char* key = members[i].m_key;
             JSON value(members[i].m_value);
-            bool modulator = strcmp(key, "modulators") == 0;
+            bool modulator = migration == EncoderMigration::ReverseSrr && strcmp(key, "modulators") == 0;
             if (strcmp(key, "values") == 0 && !value.IsNull())
             {
-                value = ReverseSrrValues(arena, value, bipolar);
+                value = MigrateValues(arena, value, bipolar, migration);
             }
             else if ((modulator || strcmp(key, "gestures") == 0) && IsArray(value))
             {
-                // Modulation depths are signed and gesture targets inherit
-                // their parent's domain. Reversing the whole tree complements
-                // the final knob value even while modulation is active.
+                // Modulation depths are signed and gesture targets inherit their parent's domain.
                 //
                 JSON children = arena.Array();
                 for (size_t child = 0; child < value.Size(); ++child)
                 {
-                    children.AppendNew(ReverseSrrCell(arena, value.GetAt(child), modulator || bipolar));
+                    children.AppendNew(MigrateCell(arena, value.GetAt(child), modulator || bipolar, migration));
                 }
 
                 value = children;
@@ -327,7 +348,7 @@ struct PatchFormat
         return result;
     }
 
-    static JSON ReverseSrrEncoders(JsonArena& arena, JSON encoders, int64_t sourceVersion)
+    static JSON MigrateEncoderValues(JsonArena& arena, JSON encoders, int64_t sourceVersion)
     {
         if (!IsObject(encoders))
         {
@@ -340,7 +361,16 @@ struct PatchFormat
         {
             const char* key = members[i].m_key;
             JSON cell(members[i].m_value);
-            result.SetNew(key, NeedsSrrPolarityUpgrade(key, sourceVersion) ? ReverseSrrCell(arena, cell, false) : cell);
+            if (NeedsSrrPolarityUpgrade(key, sourceVersion))
+            {
+                cell = MigrateCell(arena, cell, false, EncoderMigration::ReverseSrr);
+            }
+            else if (NeedsDelayFactorUpgrade(key, sourceVersion))
+            {
+                cell = MigrateCell(arena, cell, false, EncoderMigration::ContinuousDelayFactor);
+            }
+
+            result.SetNew(key, cell);
         }
 
         return result;
@@ -406,7 +436,7 @@ struct PatchFormat
             encoders = converted;
         }
 
-        encoders = ReverseSrrEncoders(arena, encoders, sourceVersion);
+        encoders = MigrateEncoderValues(arena, encoders, sourceVersion);
 
         JSON result = arena.Object();
         for (uint32_t i = 0; i < MemberCount(patch); ++i)

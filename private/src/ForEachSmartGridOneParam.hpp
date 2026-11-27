@@ -73,7 +73,7 @@ F(LFO2Slope, SLOP, Voice, 0, "LFO 2 Slope", GetModulatorColor(VoiceModulator::LF
 F(LFO2PhaseShift, PHAS, Voice, 1.0, "LFO 2 Phase Shift", GetModulatorColor(VoiceModulator::LFO2), 0, false)
 F(LFO2SampleAndHold, S&H, Voice, 0, "LFO 2 Sample And Hold", GetModulatorColor(VoiceModulator::LFO2), 0, false)
 F(DelayTime, TIME, Quad, 0, "Delay Time", SmartGrid::Color::Pink, 6, false)
-F(DelayTimeFactor, FACT, Quad, 0.75, "Delay Time Factor", SmartGrid::Color::Pink, 5, false)
+F(DelayTimeFactor, FACT, Quad, 0.75, "Delay Time Factor", SmartGrid::Color::Pink, 0, false)
 F(DelayReadSpeed, SPD, Quad, 2.0 / 3.0, "Read Head Speed", SmartGrid::Color::Pink, 16, false)
 F(DelayFeedback, FDBK, Quad, 0.75, "Delay Feedback", SmartGrid::Color::Pink, 0, false)
 F(DelayDampBase, BASE, Quad, 0.4, "Delay Damp Base", SmartGrid::Color::Pink, 0, false)

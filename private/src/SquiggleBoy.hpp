@@ -1097,12 +1097,12 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         {
             delayInputSetterInput.m_loopSelectorSwitchVal[i] =
                 m_encoders.GetSwitchVal(Param::DelayTime, i);
-            delayInputSetterInput.m_delayTimeFactorSwitchVal[i] = m_encoders.GetSwitchVal(Param::DelayTimeFactor, i);
             delayInputSetterInput.m_readHeadSpeedSwitchVal[i] = m_encoders.GetSwitchVal(Param::DelayReadSpeed, i);
             delayInputSetterInput.m_rotateSwitchVal[i] = m_encoders.GetSwitchVal(Param::DelayRotate, i);
             delayInputSetterInput.m_resynthShiftSwitchVal[i] = m_encoders.GetSwitchVal(Param::ResynthShiftInterval, i);
         }
 
+        delayInputSetterInput.m_delayTimeFactorKnob = m_encoders.GetValue<4>(Param::DelayTimeFactor, 0);
         delayInputSetterInput.m_feedbackKnob = m_encoders.GetValue<4>(Param::DelayFeedback, 0);
         delayInputSetterInput.m_dampingBaseKnob = m_encoders.GetValue<4>(Param::DelayDampBase, 0);
         delayInputSetterInput.m_dampingWidthKnob = m_encoders.GetValue<4>(Param::DelayDampWidth, 0);
@@ -1340,6 +1340,13 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             for (auto& lfo : m_quadSquiggleLFO)
             {
                 lfo.PopulateScopeState(*m_theoryOfTime);
+            }
+
+            for (size_t channel = 0; channel < 4; ++channel)
+            {
+                const auto& head = m_delayInputSetter.m_readTapeHead[channel];
+                double period = ReadTapeHead::ComputeLoopPeriod(*m_theoryOfTime, head.m_loopSelector);
+                uiState->m_delayUIState.m_scopeWriter.SetPeriodic(0, channel, {0.0, period});
             }
         }
 

@@ -240,34 +240,73 @@ struct ObservedAudioBuffer
 
 }
 
-DOCTEST_TEST_CASE("DelayWarp: the complete grain and its interpolation support precede the writer")
+DOCTEST_TEST_CASE("DelayWarp: the requested frame end is bounded by the recorded frontier")
 {
     auto storage = std::make_unique<HostLine>();
     auto& line = *storage;
     auto inverter = std::make_unique<HostLine::Inverter>();
     line.m_inverter = inverter.get();
-    inverter->m_writeHeadInverse[10] = 99100.25;
-    double firstRead = 94879;
-    double lastRead = 99998;
-    DOCTEST_SUBCASE("An offset toward the writer is bounded after applying the offset")
+    constexpr double x_frontier = 100000.0;
+    double frameEnd = x_frontier;
+    DOCTEST_SUBCASE("A future request is bounded after applying the offset")
     {
+        inverter->m_writeHeadInverse[10] = 99900.25;
     }
 
-    DOCTEST_SUBCASE("A safe requested start keeps its exact timing")
+    DOCTEST_SUBCASE("A fractional request near the writer stays ahead of the final sample")
     {
-        inverter->m_writeHeadInverse[10] = 90000.25;
-        firstRead = 89476.75;
-        lastRead = 94595.75;
+        inverter->m_writeHeadInverse[10] = 99499.25;
+        frameEnd = 99999.75;
     }
 
     ObservedAudioBuffer observed{&line};
-    auto grains = std::make_unique<GrainManager<ObservedAudioBuffer>>();
-    grains->m_audioBuffer = &observed;
-    GrainManager<ObservedAudioBuffer>::Input input;
-    grains->Process(10, 500.5, input, 100000);
-    DOCTEST_CHECK(observed.m_firstRead == doctest::Approx(firstRead).epsilon(1e-10));
-    DOCTEST_CHECK(observed.m_lastRead == doctest::Approx(lastRead).epsilon(1e-10));
-    DOCTEST_CHECK(std::floor(observed.m_lastRead) + 2 <= 100000);
+    using Grains = GrainManager<ObservedAudioBuffer>;
+    auto grains = std::make_unique<Grains>(&observed);
+    Grains::Input input;
+    grains->Process(10, 500.5, input, x_frontier);
+    DOCTEST_CHECK(observed.m_firstRead == frameEnd - Grains::Resynth::x_N - Grains::Resynth::x_H);
+    DOCTEST_CHECK(observed.m_lastRead == frameEnd - 1.0);
+}
+
+DOCTEST_TEST_CASE("DelayWarp: frame ends advance at the requested speed near the writer")
+{
+    auto line = std::make_unique<HostLine>();
+    auto inverter = std::make_unique<HostLine::Inverter>();
+    line->m_inverter = inverter.get();
+    ObservedAudioBuffer observed{line.get()};
+    using Grains = GrainManager<ObservedAudioBuffer>;
+    auto grains = std::make_unique<Grains>(&observed);
+    Grains::Input input;
+    constexpr double x_hop = Grains::Resynth::x_H;
+    double previousEnd = 0.0;
+    for (size_t launch = 0; launch < 4; ++launch)
+    {
+        double frontier = 100000.0 + launch * x_hop;
+        inverter->m_writeHeadInverse[10] = 99600.0 + launch * x_hop * 1.1;
+        observed.m_lastRead = -std::numeric_limits<double>::infinity();
+        grains->m_samplesToNextGrain = 0;
+        grains->Process(10, 0.0f, input, frontier);
+        if (launch > 0)
+        {
+            DOCTEST_CHECK(observed.m_lastRead - previousEnd == doctest::Approx(x_hop * 1.1));
+        }
+
+        previousEnd = observed.m_lastRead;
+    }
+}
+
+DOCTEST_TEST_CASE("DelayWarp: cubic analysis reads use recorded taps across a ring wrap")
+{
+    DelayLineMovableWriterGeneric<float, 1, 8, 1> line;
+    for (size_t sample = 0; sample < 8; ++sample)
+    {
+        line.Write(static_cast<float>(sample * sample), 65529 + sample);
+    }
+
+    line.m_delayLine[1] = std::numeric_limits<float>::quiet_NaN();
+    line.m_delayLine[2] = std::numeric_limits<float>::quiet_NaN();
+    DOCTEST_CHECK(line.ReadRealTime(65534.5)[0] == doctest::Approx(30.25f));
+    DOCTEST_CHECK(line.ReadRealTime(65535.0)[0] == 36.0f);
 }
 
 DOCTEST_TEST_CASE("DelayWarp: real high-Mult clock retains reversals without losing sustained tone")

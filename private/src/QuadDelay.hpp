@@ -194,12 +194,11 @@ struct QuadDelayInputSetter
     QuadZeroedExpParam m_unisonGain;
     QuadExpParam m_slewUp;
 
-    float m_bufferFrac[4];
     ReadTapeHead m_readTapeHead[4];
 
     struct Input
     {
-        int m_delayTimeFactorSwitchVal[4];
+        QuadFloat m_delayTimeFactorKnob;
         int m_readHeadSpeedSwitchVal[4];
         int m_loopSelectorSwitchVal[4];
         int m_rotateSwitchVal[4];
@@ -216,7 +215,8 @@ struct QuadDelayInputSetter
         TheoryOfTime* m_theoryOfTime;
 
         Input()
-            : m_feedbackKnob()
+            : m_delayTimeFactorKnob(QuadFloat::Splat(0.75f))
+            , m_feedbackKnob()
             , m_dampingBaseKnob()
             , m_dampingWidthKnob()
             , m_resynthShiftFadeKnob()
@@ -227,7 +227,6 @@ struct QuadDelayInputSetter
         {
             for (int i = 0; i < 4; ++i)
             {
-                m_delayTimeFactorSwitchVal[i] = 3;
                 m_readHeadSpeedSwitchVal[i] = 10;
                 m_loopSelectorSwitchVal[i] = 0;
                 m_rotateSwitchVal[i] = 1;
@@ -245,10 +244,6 @@ struct QuadDelayInputSetter
     {
         m_rotateFilter.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(1.0));
         m_feedback.SetBaseByCenter(0.25);
-        for (int i = 0; i < 4; ++i)
-        {
-            m_bufferFrac[i] = 1.0;
-        }
     }
 
     // TheoryOfTime has already advanced continuous phase this sample.
@@ -281,12 +276,6 @@ struct QuadDelayInputSetter
             int totLoopSelector =
                 TheoryOfTimeBase::x_numLoops - input.m_loopSelectorSwitchVal[i] - 1;
 
-            if (input.m_theoryOfTime->CrossedCycleBoundary(m_readTapeHead[i].m_loopSelector, PhaseDomain::Modulated))
-            {
-                float possibleBufferFracs[5] = {0.8, 2.0/3.0, 1.0, 3.0/4.0, 5.0/8.0};
-                m_bufferFrac[i] = possibleBufferFracs[input.m_delayTimeFactorSwitchVal[i]];
-            }
-
             double possibleReadHeadSpeeds[16] =
             {
                 -4.0,
@@ -309,7 +298,10 @@ struct QuadDelayInputSetter
 
             ReadTapeHead::Input readInput;
             readInput.m_theoryOfTime = input.m_theoryOfTime;
-            readInput.m_bufferFraction = m_bufferFrac[i];
+            // Use the same wrapped phase for both ends of the knob's travel.
+            //
+            float fraction = input.m_delayTimeFactorKnob[i];
+            readInput.m_bufferFraction = fraction == 0.0f ? 1.0f : fraction;
             readInput.m_readHeadSpeed = possibleReadHeadSpeeds[input.m_readHeadSpeedSwitchVal[i]];
             readInput.m_requestedLoopSelector = totLoopSelector;
             m_readTapeHead[i].Update(readInput);

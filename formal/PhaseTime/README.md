@@ -103,9 +103,11 @@ span and does not change the composition theorem or LOD/source-span calculation.
 
 Delay read heads project `writePhase * speed - loopPeriod * bufferFraction`,
 then wrap into `[writePhase - loopPeriod, writePhase)`. The general proof allows
-a nonnegative phase gap; production uses zero. Complete analysis-window and
-interpolation-support safety is enforced by the grain manager **after** mapping
-through `G` into real host samples. No tempo-dependent hop length shifts the
+a nonnegative phase gap; production uses zero. After mapping through `G` into
+real host samples, the grain manager caps the current window's exclusive right
+edge at the latest completed host write. The last sample is one host sample
+earlier, leaving the fractional cubic reads with retained taps. Integral reads
+use the recorded sample directly. No tempo-dependent hop length shifts the
 phase coordinate. Changing speed/delay/loop settings can still move a read head;
 the continuity theorem holds those settings fixed.
 

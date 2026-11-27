@@ -1,12 +1,12 @@
 # Quad Delay Specification
 
 ## Purpose
-The Quad Delay (`QuadDelay` and `QuadDelayInputSetter` in `private/src/QuadDelay.hpp`, head logic in `private/src/TapeHead.hpp`, buffers in `private/src/DelayLine.hpp`) is the first of three global quadraphonic send effects. It is a time-warped delay synchronized to the Theory of Time (see phasor-timebase). Its write trajectory F maps real time to continuous master phase, and its chosen forward-history partial inverse G maps phase back to real time. A logical delay d requests `X(G(F(t) - d))` before real-time analysis-window constraints. Playback is resynthesized through phase-vocoder grains (see phase-vocoder) so pitch is preserved while logical time stretches, compresses, or reverses. Per-channel feedback with saturation and band-pass damping, quantized delay ratios and read speeds, pitch shifting with unison, per-partial slew-up, and quadraphonic rotation complete the effect. Send and return routing between the delay, reverb, and partial machine is specified in mixdown-mastering.
+The Quad Delay (`QuadDelay` and `QuadDelayInputSetter` in `private/src/QuadDelay.hpp`, head logic in `private/src/TapeHead.hpp`, buffers in `private/src/DelayLine.hpp`) is the first of three global quadraphonic send effects. It is a time-warped delay synchronized to the Theory of Time (see phasor-timebase). Its write trajectory F maps real time to continuous master phase, and its chosen forward-history partial inverse G maps phase back to real time. A logical delay d requests `X(G(F(t) - d))` before real-time analysis-window constraints. Playback is resynthesized through phase-vocoder grains (see phase-vocoder) so pitch is preserved while logical time stretches, compresses, or reverses. Per-channel feedback with saturation and band-pass damping, a continuous delay factor and quantized read speeds, pitch shifting with unison, per-partial slew-up, and quadraphonic rotation complete the effect. Send and return routing between the delay, reverb, and partial machine is specified in mixdown-mastering.
 
 ## Requirements
 
 ### Requirement: Time-Warped Delay Line with Movable Write Head
-The system SHALL saturate each engine-rate input sample, decimate it through an order-8 Butterworth `DownsamplerGeneric`, and write the decimated sample once per host frame into a `QuadDelayLineMovableWriter` of 2^24 host samples per channel, at the absolute host sample completed by the engine clock. The Theory of Time SHALL own the shared phase-to-real inverse, wire it to the delay at startup, and observe the continuous master phase and absolute `SampleTimer` engine sample every engine sample. The inverse SHALL use a tempo-independent grid of 2^18 cells per master cycle with 2^20 cells spanning four cycles and the compact branch storage specified in warped-scope-history. The caller SHALL supply each real timestamp; the inverter SHALL NOT maintain an independently advancing clock. The delay converts returned real timestamps by division by `x_oversample`, and tracks its actual recorded-audio bounds independently of inverse writes. Audio is stored indexed by wall-clock time; reads first convert a continuous-phase position to wall-clock time through the inverse (`GetRealTime`) and then read the audio buffer at that wall-clock index with cubic interpolation.
+The system SHALL saturate each engine-rate input sample, decimate it through an order-8 Butterworth `DownsamplerGeneric`, and write the decimated sample once per host frame into a `QuadDelayLineMovableWriter` of 2^24 host samples per channel, at the absolute host sample completed by the engine clock. The Theory of Time SHALL own the shared phase-to-real inverse, wire it to the delay at startup, and observe the continuous master phase and absolute `SampleTimer` engine sample every engine sample. The inverse SHALL use a tempo-independent grid of 2^18 cells per master cycle with 2^20 cells spanning four cycles and the compact branch storage specified in warped-scope-history. The caller SHALL supply each real timestamp; the inverter SHALL NOT maintain an independently advancing clock. The delay converts returned real timestamps by division by `x_oversample`, and tracks its actual recorded-audio bounds independently of inverse writes. Audio is stored indexed by wall-clock time; reads first convert a continuous-phase position to wall-clock time through the inverse (`GetRealTime`) and then read the audio buffer using the analysis-window interpolation specified below.
 
 #### Scenario: One write per host frame
 - **WHEN** the delay processes `4096 * x_oversample` engine samples
@@ -50,12 +50,12 @@ The system SHALL only apply a requested delay loop change when the currently sel
 - **WHEN** both the old and the newly requested loop report a modulated cycle boundary on the same engine sample
 - **THEN** the loop selector switches to the requested loop and subsequent delay lengths derive from the new loop's cycle ratio
 
-### Requirement: Quantized Delay Ratio and Read Head Speed
-The system SHALL quantize the delay-time factor per channel to one of {0.8, 2/3, 1.0, 3/4, 5/8}, selected by the delay-time-factor switch and latched into `m_bufferFrac[i]` only when the selected loop is crossing a modulated cycle boundary. The read head speed SHALL be one of sixteen discrete values {-4, -3, -2, -3/2, -4/3, -1, -1/2, -1/4, 1/4, 1/2, 1, 4/3, 3/2, 2, 3, 4}, selected directly by the read-head-speed switch (negative values play the buffer backward).
+### Requirement: Delay Time Factor and Read Head Speed
+The delay-time factor SHALL be continuous per channel on [0, 1], with a default of 3/4. On each engine sample, the current factor SHALL set the read head's offset as a fraction of the selected loop. The endpoints SHALL select the same wrapped phase. The read head speed SHALL be one of sixteen discrete values {-4, -3, -2, -3/2, -4/3, -1, -1/2, -1/4, 1/4, 1/2, 1, 4/3, 3/2, 2, 3, 4}, selected directly by the read-head-speed switch (negative values play the buffer backward).
 
-#### Scenario: Ratio change waits for loop top
-- **WHEN** the delay-time-factor switch moves to a new index mid-loop
-- **THEN** `m_bufferFrac[i]` keeps its previous value until the selected loop next crosses a modulated cycle boundary, at which point it latches the new quantized ratio
+#### Scenario: FACT sweeps within a loop
+- **WHEN** the delay-time factor sweeps between loop boundaries
+- **THEN** the read-head offset follows the current fraction on each engine sample
 
 #### Scenario: Negative speed reverses playback
 - **WHEN** the read-head-speed switch selects -1
@@ -72,7 +72,7 @@ The read head SHALL be computed per channel by `ReadTapeHead` from `projected = 
 #### Scenario: Read head stays behind the write head
 - **WHEN** the read head is computed with any speed and delay ratio
 - **THEN** the wrapped read phase is at least `writePhase - loopPeriod` and strictly less than `writePhase`
-- **AND** the grain manager constrains the inverted real timestamp to a complete pair of analysis windows with cubic interpolation support
+- **AND** the grain manager uses the inverted real timestamp as the current window's exclusive right edge, bounded by the last completed host sample and subject to retained audio for both windows
 
 #### Scenario: Matching controls produce matching read positions
 - **WHEN** channels have the same loop, delay ratio, read speed, and history
@@ -84,16 +84,20 @@ The read head SHALL be computed per channel by `ReadTapeHead` from `projected = 
 - **AND** all remaining parameters retain their names and page positions
 
 ### Requirement: Pitch-Preserving Grain Resynthesis
-The system SHALL read the delay line through one packed four-channel `GrainManagerGeneric` with a shared launch schedule and independent per-channel analysis and synthesis state: every synthesis hop (`Resynthesizer::GetSynthesisHopSamples()`, 1024 * `x_oversample` engine samples, the duration of the 1024-host-sample analysis hop), a new 4096-host-sample Hann-windowed grain is captured starting at the wall-clock time mapped from the current read head warped time, along with a second analysis frame exactly one hop earlier, and resynthesized by the `Resynthesizer` into an engine-rate frame so the original pitch is preserved regardless of read head rate (phase-vocoder internals are specified in phase-vocoder). Frames are overlap-added by `OLAGeneric` and the sum is scaled by 1/1.5.
+The system SHALL read the delay line through one packed four-channel `GrainManagerGeneric` with a shared launch schedule and independent per-channel analysis and synthesis state. Every synthesis hop (`Resynthesizer::GetSynthesisHopSamples()`, 1024 * `x_oversample` engine samples), the exclusive right edge of the current 4096-host-sample Hann window SHALL be at the earlier of the mapped read position and the absolute timestamp of the last completed host write. The current window's last sample SHALL be one host sample before that edge. The previous analysis window SHALL end exactly one hop earlier. Fractional reads SHALL use four-point cubic interpolation. Integral reads SHALL use the recorded sample directly. `Resynthesizer` SHALL produce an engine-rate frame with the original pitch. Frames are overlap-added by `OLAGeneric` and the sum is scaled by 1/1.5.
 
 #### Scenario: Pitch is stable under time warping
 - **WHEN** Theory of Time phase modulation makes the read head move through the buffer at a varying rate
 - **THEN** the delayed signal retains the pitch of the originally recorded audio rather than shifting pitch with the read rate
 
-#### Scenario: Tape heads determine grain start positions
+#### Scenario: Tape heads determine grain end positions
 - **WHEN** a grain launches
-- **THEN** each channel maps its own read head through the shared inverse time map and clamps the result to the latest complete analysis window
+- **THEN** each channel maps its own read head through the shared inverse time map and uses that result as the current frame's exclusive right edge up to the recorded frontier
 - **AND** Quad Delay supplies zero sample offset and has no internal LFO frequency, depth, or phase controls
+
+#### Scenario: A faster read head approaches the recorded frontier
+- **WHEN** a mapped read position advances faster than the writer and remains within recorded history
+- **THEN** the frame end advances at the requested speed even within one frame length of the writer
 
 #### Scenario: Grain storage is bounded
 - **WHEN** grains launch on every synthesis hop
@@ -152,11 +156,11 @@ The system SHALL remix the four delayed channels with a linear rotation (`QuadFl
 - **THEN** each output channel is a linear blend of the two adjacent input channels weighted by the fractional angle
 
 ### Requirement: Delay UI State Observability
-The system SHALL publish per-channel damping filter alphas and continuous master-phase head positions, and expose a common scope of the magnitude of each actual completed delay-line write. Its periodic axis SHALL have origin zero and period one master cycle, without start/end events. The UI SHALL sample through the shared phase-to-real inverse, convert filtered magnitude to dB, and draw symmetrically from negative to positive level about each lane center. Separate min/max envelope buckets and the positional waveform recorder SHALL be removed. Signed delay-return scopes used for spectra SHALL retain their existing signal.
+The system SHALL publish per-channel damping filter alphas and continuous master-phase head positions, and expose a common scope of the magnitude of each actual completed delay-line write. Each channel's periodic axis SHALL have origin zero in continuous master phase and span one cycle of its active Theory of Time loop, without start/end events. The UI SHALL sample through the shared phase-to-real inverse, convert filtered magnitude to dB, and draw symmetrically from negative to positive level about each lane center. Separate min/max envelope buckets and the positional waveform recorder SHALL be removed. Signed delay-return scopes used for spectra SHALL retain their existing signal.
 
 #### Scenario: Head positions track the tape heads
 - **WHEN** the delay publishes its head positions
-- **THEN** markers and waveform use the same explicit master-cycle axis
+- **THEN** each lane's markers and waveform use the same explicit axis for that channel's active loop
 
 #### Scenario: Stopped recording remains visible across the whole display
 - **WHEN** audio is recorded while transport is stopped
@@ -172,7 +176,7 @@ The system SHALL publish per-channel damping filter alphas and continuous master
 - **THEN** its magnitude passes through the existing LOD pipeline before symmetric dB display conversion
 
 ### Requirement: Unavailable Inverse History
-Unwritten inverse history SHALL be unavailable. A lookup SHALL select the cell's fallback or replacement traversal and interpolate only within that traversal's available endpoints, using entry/frontier interpolation for a partial first traversal as specified in warped-scope-history. Grain launch SHALL preserve unavailable status before applying the latest-complete-window clamp. A channel with unavailable inverse history or insufficient retained audio for its previous/current analysis windows and cubic interpolation support SHALL contribute no new grain. Other channels and already scheduled overlap-add tails SHALL continue. Recorded sample-bank playback SHALL retain its unbounded-history behavior.
+Unwritten inverse history SHALL be unavailable. A lookup SHALL select the cell's fallback or replacement traversal and interpolate only within that traversal's available endpoints, using entry/frontier interpolation for a partial first traversal as specified in warped-scope-history. Grain launch SHALL preserve unavailable status before bounding the frame end by the recorded frontier. A channel with unavailable inverse history or insufficient retained audio for both analysis windows and their interpolation support SHALL contribute no new grain. Other channels and already scheduled overlap-add tails SHALL continue. Recorded sample-bank playback SHALL retain its unbounded-history behavior.
 
 #### Scenario: Cold start does not substitute recent audio for missing delay history
 - **WHEN** a one-second delay is requested before that history has been recorded

@@ -6,7 +6,7 @@ DOCTEST_TEST_CASE("patch format: legacy voice trees migrate before load publicat
     StateInterchange interchange;
     JSON patch = interchange.ParseForLoad(R"({"other":{"keep":7},"squiggleBoy":{"Harmonics1":{"values":{"values":[[0.1,0.2,0.3],[0.4,0.5,0.6]]},"modulators":[null,{"values":{"values":[[-0.1,-0.2,-0.3],[0.7,0.8,0.9]]},"gestures":[{"values":{"values":[[0.11,0.12,0.13]]},"active":[false,true,false,false,false,false,false,false,false,false,false,false,false,false,false,false,true,false]}]}]},"HPCutoff":{"values":{"values":[[0.21,0.22,0.23],[0.31,0.32,0.33]]}},"PanRadius":{"values":{"values":[[0.41,0.42,0.43]]}},"LFO1Skew":{"values":{"values":[[0.51,0.52,0.53]]}},"DelayTime":{"values":{"values":[[0.61],[0.62]]}},"UnknownEncoder":{"custom":3}}})");
     DOCTEST_REQUIRE_FALSE(patch.IsNull());
-    DOCTEST_CHECK(patch.Get("version").IntegerValue() == 3);
+    DOCTEST_CHECK(patch.Get("version").IntegerValue() == PatchFormat::x_currentVersion);
     DOCTEST_CHECK(patch.Get("other").Get("keep").IntegerValue() == 7);
     JSON encoders = patch.Get("squiggleBoy");
     DOCTEST_CHECK(encoders.Get("Harmonics1").IsNull());
@@ -48,7 +48,7 @@ DOCTEST_TEST_CASE("patch format: explicit zero replaces version once and shared 
     StateInterchange interchange;
     JSON patch = interchange.ParseForLoad(R"({"version":0,"squiggleBoy":{"DelayTime":{"values":{"values":[[0.31,0.32,0.33]]},"gestures":[{"values":{"values":[[0.41,0.42,0.43]]},"active":[true,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,true]}]}}})");
     DOCTEST_REQUIRE_FALSE(patch.IsNull());
-    DOCTEST_CHECK(patch.Get("version").IntegerValue() == 3);
+    DOCTEST_CHECK(patch.Get("version").IntegerValue() == PatchFormat::x_currentVersion);
     int versionCount = 0;
     const JsonMember* members = static_cast<const JsonMember*>(patch.m_node->m_container.m_entries);
     for (uint32_t i = 0; i < patch.m_node->m_container.m_size; ++i)
@@ -71,13 +71,13 @@ DOCTEST_TEST_CASE("patch format: explicit zero replaces version once and shared 
 DOCTEST_TEST_CASE("patch format: strict version dispatch and collision rejection")
 {
     StateInterchange interchange;
-    for (const char* text : {"[]", "null", R"({"version":null})", R"({"version":3.0})", R"({"version":-1})", R"({"version":4})", R"({"version":"3"})", R"({"version":4294967299})", R"({"squiggleBoy":{"Harmonics1":{},"Harmonics1Fire":{}}})"})
+    for (const char* text : {"[]", "null", R"({"version":null})", R"({"version":4.0})", R"({"version":-1})", R"({"version":5})", R"({"version":"4"})", R"({"version":4294967299})", R"({"squiggleBoy":{"Harmonics1":{},"Harmonics1Fire":{}}})"})
     {
         DOCTEST_CHECK(interchange.ParseForLoad(text).IsNull());
         DOCTEST_CHECK_FALSE(interchange.IsLoadRequested());
     }
 
-    JSON current = interchange.ParseForLoad(R"({"version":3,"other":9})");
+    JSON current = interchange.ParseForLoad(R"({"version":4,"other":9})");
     DOCTEST_REQUIRE_FALSE(current.IsNull());
     DOCTEST_CHECK(current.Get("other").IntegerValue() == 9);
 }
@@ -101,6 +101,34 @@ DOCTEST_TEST_CASE("patch format: SRR polarity migrations compose with legacy tri
     DOCTEST_CHECK(encoders.Get("PMSampleRateReductionFire").Get("values").Get("values").GetAt(0).NumberValue() == doctest::Approx(0.8));
 }
 
+DOCTEST_TEST_CASE("patch format: FACT switch positions migrate to their original loop fractions")
+{
+    StateInterchange interchange;
+    JSON patch = interchange.ParseForLoad(R"({
+        "version":3,
+        "squiggleBoy":{"DelayTimeFactor":{
+            "values":{"values":[0,0.25,0.5,0.75,1]},
+            "gestures":[null,{"values":{"values":[0.24]},"active":[true]}],
+            "modulators":[{"values":{"values":[-0.25]}}]
+        }}
+    })");
+    DOCTEST_REQUIRE_FALSE(patch.IsNull());
+    DOCTEST_CHECK(patch.Get("version").IntegerValue() == PatchFormat::x_currentVersion);
+    JSON factor = patch.Get("squiggleBoy").Get("DelayTimeFactor");
+    JSON values = factor.Get("values").Get("values");
+    const double x_expected[] = {0.8, 2.0 / 3.0, 1.0, 0.75, 0.625};
+    for (size_t scene = 0; scene < std::size(x_expected); ++scene)
+    {
+        DOCTEST_CHECK(values.GetAt(scene).NumberValue() == doctest::Approx(x_expected[scene]));
+    }
+
+    JSON gesture = factor.Get("gestures").GetAt(1);
+    DOCTEST_CHECK(gesture.Get("values").Get("values").GetAt(0).NumberValue() == doctest::Approx(2.0 / 3.0));
+    DOCTEST_CHECK(gesture.Get("active").GetAt(0).BooleanValue());
+    DOCTEST_CHECK(factor.Get("modulators").GetAt(0).Get("values").Get("values").GetAt(0).NumberValue() == -0.25);
+    DOCTEST_CHECK(PatchFormat::Upgrade(interchange.m_loadArena, patch).m_node == patch.m_node);
+}
+
 DOCTEST_TEST_CASE("patch format: Shape SRR reflects gesture targets and negates recursive depths")
 {
     StateInterchange interchange;
@@ -120,7 +148,7 @@ DOCTEST_TEST_CASE("patch format: Shape SRR reflects gesture targets and negates 
         }
     })");
     DOCTEST_REQUIRE_FALSE(patch.IsNull());
-    DOCTEST_CHECK(patch.Get("version").IntegerValue() == 3);
+    DOCTEST_CHECK(patch.Get("version").IntegerValue() == PatchFormat::x_currentVersion);
     JSON encoders = patch.Get("squiggleBoy");
     auto scene = [](JSON cell, size_t i)
     {
@@ -160,10 +188,10 @@ DOCTEST_TEST_CASE("patch format: publication, busy retry, and conversion growth"
     DOCTEST_REQUIRE(interchange.RequestLoadText(legacy, true));
     DOCTEST_CHECK(interchange.m_loadArena.Capacity() > 1024);
     DOCTEST_REQUIRE(interchange.IsLoadRequested());
-    DOCTEST_CHECK(interchange.GetToLoad().Get("version").IntegerValue() == 3);
+    DOCTEST_CHECK(interchange.GetToLoad().Get("version").IntegerValue() == PatchFormat::x_currentVersion);
     DOCTEST_CHECK(interchange.GetToLoad().Get("squiggleBoy").Get("Harmonics1Fire").Get("values").Get("values").GetAt(0).NumberValue() == doctest::Approx(0.2));
-    DOCTEST_REQUIRE(interchange.RequestLoadText(R"({"version":4})", false));
-    DOCTEST_CHECK(interchange.m_pendingLoad == R"({"version":4})");
+    DOCTEST_REQUIRE(interchange.RequestLoadText(R"({"version":5})", false));
+    DOCTEST_CHECK(interchange.m_pendingLoad == R"({"version":5})");
     interchange.AckLoadCompleted();
     interchange.RetryPendingLoad();
     DOCTEST_CHECK_FALSE(interchange.IsLoadRequested());
@@ -187,7 +215,7 @@ DOCTEST_TEST_CASE("patch format: held recorder reader defers and then upgrades p
     interchange.RetryPendingLoad();
     DOCTEST_REQUIRE(interchange.IsLoadRequested());
     JSON upgraded = interchange.GetToLoad();
-    DOCTEST_CHECK(upgraded.Get("version").IntegerValue() == 3);
+    DOCTEST_CHECK(upgraded.Get("version").IntegerValue() == PatchFormat::x_currentVersion);
     DOCTEST_CHECK(upgraded.Get("squiggleBoy").Get("Harmonics1Fire").Get("values").Get("values").GetAt(0).NumberValue() == doctest::Approx(0.2));
     interchange.AckLoadCompleted();
 }

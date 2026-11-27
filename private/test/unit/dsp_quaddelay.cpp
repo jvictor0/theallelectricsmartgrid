@@ -204,9 +204,6 @@ DOCTEST_TEST_CASE("QuadDelay: warmed impulse produces finite nonzero output")
     DelayInverterRig rig(delay.get());
     const int oversample = static_cast<int>(SampleTimer::x_oversample);
 
-    // Delay in host samples; grains cannot start within one analysis window
-    // of the write head, so shorter delays clamp.
-    //
     constexpr double x_delayHostSamples = 8192.0;
     const int impulseSample = (16384 + 317) * oversample;
     double energy = 0;

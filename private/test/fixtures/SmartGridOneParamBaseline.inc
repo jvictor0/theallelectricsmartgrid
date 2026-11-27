@@ -77,7 +77,7 @@ BASELINE_PARAM(LFO2Slope, SLOP, VoiceLFOs, 1, 3, 0, "LFO 2 Slope", SmartGrid::Co
 BASELINE_PARAM(LFO2PhaseShift, PHAS, VoiceLFOs, 2, 3, 1.0, "LFO 2 Phase Shift", SmartGrid::Color(85, 106, 0), 0xFF, 0xFF, 0, false)
 BASELINE_PARAM(LFO2SampleAndHold, S&H, VoiceLFOs, 3, 3, 0, "LFO 2 Sample And Hold", SmartGrid::Color(85, 106, 0), 0xFF, 0xFF, 0, false)
 BASELINE_PARAM(DelayTime, TIME, Delay, 0, 0, 0, "Delay Time", SmartGrid::Color::Pink, 0xFF, 0xFF, 6, false)
-BASELINE_PARAM(DelayTimeFactor, FACT, Delay, 1, 0, 0.75, "Delay Time Factor", SmartGrid::Color::Pink, 0xFF, 0xFF, 5, false)
+BASELINE_PARAM(DelayTimeFactor, FACT, Delay, 1, 0, 0.75, "Delay Time Factor", SmartGrid::Color::Pink, 0xFF, 0xFF, 0, false)
 BASELINE_PARAM(DelayReadSpeed, SPD, Delay, 2, 0, 2.0 / 3.0, "Read Head Speed", SmartGrid::Color::Pink, 0xFF, 0xFF, 16, false)
 BASELINE_PARAM(DelayFeedback, FDBK, Delay, 3, 0, 0.75, "Delay Feedback", SmartGrid::Color::Pink, 0xFF, 0xFF, 0, false)
 BASELINE_PARAM(DelayDampBase, BASE, Delay, 0, 1, 0.4, "Delay Damp Base", SmartGrid::Color::Pink, 0xFF, 0xFF, 0, false)

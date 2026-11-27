@@ -1,5 +1,6 @@
 #include "doctest.h"
 #include "../support/GlobalEnv.hpp"
+#include "../support/SynthRig.hpp"
 #include "../support/TimeRig.hpp"
 #include "QuadDelay.hpp"
 #include <array>
@@ -95,6 +96,40 @@ DOCTEST_TEST_CASE("Delay heads: transport and tempo changes keep the audio align
     }
 }
 
+DOCTEST_TEST_CASE("Delay heads: FACT follows a mid-loop sweep and its endpoints agree")
+{
+    GlobalEnv::ResetPerTest();
+    TheoryOfTime time;
+    TheoryOfTimeBase::Input clock;
+    QuadDelayInputSetter setter;
+    QuadDelayInputSetter::Input input;
+    input.m_theoryOfTime = &time;
+    QuadDelay::Input output;
+
+    clock.m_running = true;
+    clock.m_unmodulatedPhase = 0.25;
+    time.TheoryOfTimeBase::Process(clock);
+    setter.Process(input, output);
+    for (size_t channel = 0; channel < 4; ++channel)
+    {
+        DOCTEST_CHECK(output.m_readHeadPhase[channel] == output.m_writeHeadPhase - 0.75);
+    }
+
+    for (size_t step = 0; step < 8; ++step)
+    {
+        float fraction = 0.25f + static_cast<float>(step) / 64.0f;
+        input.m_delayTimeFactorKnob = QuadFloat(0.0f, 1.0f, fraction, 0.75f - fraction);
+        clock.m_unmodulatedPhase = 0.5 + static_cast<double>(step) / 64.0;
+        time.TheoryOfTimeBase::Process(clock);
+        DOCTEST_REQUIRE_FALSE(time.CrossedCycleBoundary(TheoryOfTimeBase::x_globalLoop, PhaseDomain::Modulated));
+        setter.Process(input, output);
+        DOCTEST_CHECK(output.m_readHeadPhase[0] == output.m_writeHeadPhase - 1.0);
+        DOCTEST_CHECK(output.m_readHeadPhase[1] == output.m_readHeadPhase[0]);
+        DOCTEST_CHECK(output.m_readHeadPhase[2] == output.m_writeHeadPhase - fraction);
+        DOCTEST_CHECK(output.m_readHeadPhase[3] == output.m_writeHeadPhase - (0.75f - fraction));
+    }
+}
+
 DOCTEST_TEST_CASE("Delay heads: stopped transport retains every selected playback speed")
 {
     GlobalEnv::ResetPerTest();
@@ -115,7 +150,6 @@ DOCTEST_TEST_CASE("Delay heads: stopped transport retains every selected playbac
         for (size_t channel = 0; channel < 4; ++channel)
         {
             input.m_readHeadSpeedSwitchVal[channel] = group * 4 + channel;
-            setter.m_bufferFrac[channel] = 0.75f;
         }
 
         clock.AdvanceSample();
@@ -244,6 +278,43 @@ DOCTEST_TEST_CASE("Delay heads: stopped waveform fills the display and survives 
     DOCTEST_CHECK(output.m_writeHeadPhase - previousWrite == doctest::Approx(1024.0 / (2.0 * x_period)));
 }
 
+DOCTEST_TEST_CASE("Delay scope: each lane publishes the period of its accepted loop")
+{
+    synthrig::SynthRig rig;
+    auto& internal = rig.Internal();
+    auto& synth = internal.m_squiggleBoy;
+    auto& time = *synth.m_theoryOfTime;
+    auto& writer = rig.UIState().m_squiggleBoyUIState.m_delayUIState.m_scopeWriter;
+    QuadDelayInputSetter::Input input;
+    input.m_theoryOfTime = &time;
+    for (size_t channel = 0; channel < 4; ++channel)
+    {
+        input.m_loopSelectorSwitchVal[channel] = static_cast<int>(channel);
+    }
+
+    for (bool atBoundary : {false, true})
+    {
+        rig.RunFrames(1);
+        for (auto& loop : time.m_sample.m_loops)
+        {
+            loop.m_modulatedCycleCrossed = atBoundary;
+        }
+
+        synth.m_delayInputSetter.Process(input, synth.m_delayState);
+        internal.PopulateUIState();
+        writer.AcceptSamples();
+        for (size_t channel = 0; channel < 4; ++channel)
+        {
+            size_t loop = TheoryOfTimeBase::x_globalLoop - (atBoundary ? channel : 0);
+            const auto& axis = writer.GetAcceptedMarkers(0, channel).m_periodic;
+            DOCTEST_CHECK(axis.m_origin == 0.0);
+            DOCTEST_CHECK(axis.m_period == doctest::Approx(1.0 / time.GetCycleRatio(loop)));
+        }
+    }
+
+    DOCTEST_CHECK(writer.GetAcceptedMarkers(0, 3).m_periodic.m_period < 1.0);
+}
+
 DOCTEST_TEST_CASE("Delay heads: sparse audio under the visualized heads reaches grain playback")
 {
     GlobalEnv::ResetPerTest();
@@ -278,7 +349,7 @@ DOCTEST_TEST_CASE("Delay heads: sparse audio under the visualized heads reaches 
         displayedHeads[channel] = readers[channel].m_phase;
     }
 
-    // Record one sparse tone burst per channel at the position shown by its
+    // Record one sparse tone burst per channel up to the position shown by its
     // read head. The display composes the same inverse with a magnitude scope.
     //
     for (size_t sample = 0; sample < x_period; ++sample)
@@ -288,7 +359,7 @@ DOCTEST_TEST_CASE("Delay heads: sparse audio under the visualized heads reaches 
         for (size_t channel = 0; channel < 4; ++channel)
         {
             const double offset = (position - displayedHeads[channel]) * x_period;
-            audio[channel] = -1024 <= offset && offset < 2048
+            audio[channel] = -2560 <= offset && offset < 64
                 ? 0.2f * std::cos(2.0 * M_PI * 18.0 * offset / 4096.0)
                 : 0.0f;
         }

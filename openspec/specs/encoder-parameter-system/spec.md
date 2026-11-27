@@ -287,12 +287,12 @@ Smoothing SHALL happen where values enter the encoder system:
 
 ### Requirement: Named JSON Serialization via the Global Owner
 The system SHALL serialize all encoder state through `EncoderBankBank::ToJSON`/`FromJSON`, which iterate the flat owner array of named encoder cells; each cell writes eight flat per-scene target values in `values.values`, its non-null modulation depth cells (recursively), its gesture target cells, and—for gesture cells—the eight per-scene activation flags in `active`.
-Voice root names SHALL append Water, Fire, or Earth (for example `Harmonics1Fire`); Quad and Global names SHALL remain unsuffixed. Patch JSON SHALL carry top-level integer `version: 3`. Missing or explicit zero
+Voice root names SHALL append Water, Fire, or Earth (for example `Harmonics1Fire`); Quad and Global names SHALL remain unsuffixed. Patch JSON SHALL carry top-level integer `version: 4`. Missing or explicit zero
 SHALL be treated as legacy version 0. Older versions SHALL be upgraded in memory
 on the message thread before a load is published to audio. Opening SHALL NOT rewrite the disk
 file; the converted form SHALL be written on a normal save. Negative, future, noninteger, and
 null versions SHALL be rejected. Duplicate top-level `version` or
-`squiggleBoy` keys SHALL be rejected. A version 3 object SHALL be passed through.
+`squiggleBoy` keys SHALL be rejected. A version 4 object SHALL be passed through.
 The version 0 upgrade SHALL split known Voice roots into Water, Fire, and Earth,
 selecting track indexes 0, 1, and 2 from every scene row recursively through
 modulators and gestures. Gesture activation SHALL select
@@ -306,7 +306,10 @@ After that conversion when applicable, patches before version 2 SHALL reverse
 Shape SRR, and patches before version 3 SHALL reverse Physical Modeling RATE.
 Both upgrades SHALL replace each stored unipolar scene or gesture target with
 `1 - value` and negate signed values in the control's recursive modulation
-tree. Recording container versions are independent of patch version.
+tree. Patches before version 4 SHALL convert each saved Delay Time Factor scene
+or gesture target from its old switch position to the corresponding fraction
+{0.8, 2/3, 1, 3/4, 5/8}. Signed modulation depths SHALL retain their saved values.
+Recording container versions are independent of patch version.
 Loading SHALL look each parameter up by name, synchronize any deferred prepared state, reuse depth and gesture cells at matching serialized slot paths, create missing paths, remove paths absent from the patch, garbage-collect empty cells, recompute affecting bitmasks, and set force-update. Matching cells SHALL retain current values and pending ramp timing when the saved targets are unchanged; changed targets SHALL use the ordinary ramp from current values. New paths SHALL ramp from their constructor neutral. The loader SHALL compare targets in the saved value domain before decoding, so an identical bipolar float round-trip does not reset ramp timing. Banks deselect any open modulator selection before loading so visible grid pointers never dangle.
 
 Reloading an identical settled patch under unchanged scene/modulator/gesture inputs SHALL preserve the evaluated output and every published engine-sample cache value. Changes to topology or activation flags in a different patch are outside that guarantee. The [formal patch-load model](../../../formal/Encoder/README.md#patch-load-coverage) retains the original replacement counterexample and proves continuity for the fixed logical transition.

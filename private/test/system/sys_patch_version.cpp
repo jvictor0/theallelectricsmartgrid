@@ -5,7 +5,7 @@ DOCTEST_TEST_CASE("sys_patch_version: legacy trio values survive live load save 
 {
     synthrig::SynthRig rig;
     rig.RunFrames(2);
-    const std::string legacy = R"({"squiggleBoy":{"Harmonics1":{"values":{"values":[[0.11,0.22,0.33],[0.41,0.52,0.63]]},"gestures":[{"values":{"values":[[0.15,0.26,0.37]]},"active":[true,true,true]}]},"HPCutoff":{"values":{"values":[[0.14,0.25,0.36]]}},"PanRadius":{"values":{"values":[[0.17,0.28,0.39]]}},"LFO1Skew":{"values":{"values":[[0.19,0.29,0.49]]}},"DelayTime":{"values":{"values":[[0.71,0.82,0.93]]}}}})";
+    const std::string legacy = R"({"squiggleBoy":{"Harmonics1":{"values":{"values":[[0.11,0.22,0.33],[0.41,0.52,0.63]]},"gestures":[{"values":{"values":[[0.15,0.26,0.37]]},"active":[true,true,true]}]},"HPCutoff":{"values":{"values":[[0.14,0.25,0.36]]}},"PanRadius":{"values":{"values":[[0.17,0.28,0.39]]}},"LFO1Skew":{"values":{"values":[[0.19,0.29,0.49]]}},"DelayTime":{"values":{"values":[[0.71,0.82,0.93]]}},"DelayTimeFactor":{"values":{"values":[[0.25]]}}}})";
     DOCTEST_REQUIRE(rig.LoadPatch(legacy));
     rig.RunHostFrames(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     rig.RunFrames(2);
@@ -17,12 +17,13 @@ DOCTEST_TEST_CASE("sys_patch_version: legacy trio values survive live load save 
     DOCTEST_CHECK(encoders.GetValue(SmartGridOneEncoders::Param::PanRadius, 6) == doctest::Approx(0.39));
     DOCTEST_CHECK(encoders.GetValue(SmartGridOneEncoders::Param::LFO1Skew, 0) == doctest::Approx(0.19));
     DOCTEST_CHECK(encoders.GetValue(SmartGridOneEncoders::Param::DelayTime, 0) == doctest::Approx(0.71));
+    DOCTEST_CHECK(encoders.GetValue(SmartGridOneEncoders::Param::DelayTimeFactor, 0) == doctest::Approx(2.0 / 3.0));
     std::string saved = rig.SavePatch();
     JsonArena arena;
     arena.Init(JsonArena::kDefaultCapacity);
     JSON patch = arena.Loads(saved.c_str());
     DOCTEST_REQUIRE_FALSE(patch.IsNull());
-    DOCTEST_CHECK(patch.Get("version").IntegerValue() == 3);
+    DOCTEST_CHECK(patch.Get("version").IntegerValue() == PatchFormat::x_currentVersion);
     DOCTEST_CHECK(patch.Get("squiggleBoy").Get("Harmonics1").IsNull());
     DOCTEST_CHECK(patch.Get("squiggleBoy").Get("Harmonics1Fire").Get("values").Get("values").GetAt(0).NumberValue() == doctest::Approx(0.22));
     JSON waterGesture = patch.Get("squiggleBoy").Get("Harmonics1Water").Get("gestures").GetAt(0);
@@ -38,6 +39,7 @@ DOCTEST_TEST_CASE("sys_patch_version: legacy trio values survive live load save 
     rig.RunHostFrames(SmartGrid::TickDistributor::x_maxSamplesToDistribute);
     rig.RunFrames(2);
     DOCTEST_CHECK(encoders.GetValue(SmartGridOneEncoders::Param::Harmonics1, 3) == doctest::Approx(0.22));
+    DOCTEST_CHECK(encoders.GetValue(SmartGridOneEncoders::Param::DelayTimeFactor, 0) == doctest::Approx(2.0 / 3.0));
 }
 
 DOCTEST_TEST_CASE("sys_patch_version: Shape SRR keeps the legacy rate and saves the reversed position")

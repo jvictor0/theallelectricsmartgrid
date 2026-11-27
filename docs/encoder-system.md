@@ -86,7 +86,7 @@ A named cell saves `values.values` as eight numbers; a gesture also saves `activ
 as eight booleans. There is no inner track array.
 
 Patch JSON has a top-level integer `version`. Current saves, including recording
-snapshots, write version 3. A missing version means version 0. On the message
+snapshots, write version 4. A missing version means version 0. On the message
 thread, `StateInterchange::ParseForLoad` upgrades older patches in memory before
 publishing the tree to audio. Opening a legacy patch does not rewrite its disk
 file. A normal save writes the upgraded form. The version 0 upgrade splits each
@@ -104,7 +104,10 @@ The version 2 upgrade reverses Shape SRR for patches before version 2. The
 version 3 upgrade reverses Physical Modeling RATE for patches before version 3.
 Both upgrades apply `1 - value` to knob positions and gesture targets and
 negate signed modulation depths and their gesture targets to preserve the
-effective reducer rate. Version 3 is used as saved. Negative, future, noninteger, and null
+effective reducer rate. The version 4 upgrade converts Delay Time Factor scene
+and gesture targets from their old switch positions to the corresponding loop
+fractions and retains signed modulation depths. Version 4 is used as saved.
+Negative, future, noninteger, and null
 versions are rejected, as are duplicate top-level `version` or `squiggleBoy`
 keys and legacy Voice roots that collide with a suffixed root. The recording
 container version is independent of the patch version.

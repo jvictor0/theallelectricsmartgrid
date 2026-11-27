@@ -478,6 +478,53 @@ DOCTEST_TEST_CASE("Delay waveform: the shared magnitude scope draws a symmetric 
     }
 }
 
+DOCTEST_TEST_CASE("Delay waveform: each lane draws its magnitude and heads on its own loop axis")
+{
+    auto ui = std::make_unique<TheNonagonSquiggleBoyInternal::UIState>();
+    auto& state = ui->m_squiggleBoyUIState.m_delayUIState;
+    constexpr size_t x_samplesPerMasterCycle = 3072;
+    TimeWarpInverter<8192> inverse(x_samplesPerMasterCycle);
+    auto& writer = state.m_scopeWriter;
+    writer.SetTimeWarp(0, &inverse);
+    for (size_t lane = 0; lane < 4; ++lane)
+    {
+        writer.SetPeriodic(0, lane, {0.0, 1.0 / (lane + 1)});
+        state.m_readHeadPhase[lane].store(2.0 - 1.0 / 32.0);
+    }
+
+    for (size_t sample = 0; sample <= 69 * x_samplesPerMasterCycle / 32; ++sample)
+    {
+        double phase = static_cast<double>(sample) / x_samplesPerMasterCycle;
+        inverse.Write(phase, static_cast<double>(sample));
+        writer.Write(0, QuadFloat::Splat(phase >= 2.0 ? 1.0f : 0.0f));
+        writer.AdvanceIndex();
+    }
+
+    writer.Publish();
+    writer.AcceptSamples();
+    QuadDelayEnvelopeVisualizerComponent visualizer(ui.get());
+    juce::Image image(juce::Image::ARGB, 1024, 160, true);
+    juce::Graphics graphics(image);
+    visualizer.Draw(graphics, image.getBounds());
+    for (int lane = 0; lane < 4; ++lane)
+    {
+        DOCTEST_CAPTURE(lane);
+        auto strip = image.getClippedImage({0, lane * 40, 1024, 40});
+        int writeX = 160 * (lane + 1);
+        int readX = 1024 - 32 * (lane + 1);
+        DOCTEST_CHECK(std::abs(FindPeakX(strip, [](juce::Colour colour)
+        {
+            return colour.getRed() > colour.getGreen() && colour.getGreen() > colour.getBlue();
+        }) - writeX) <= 1.0f);
+        DOCTEST_CHECK(std::abs(FindPeakX(strip, [](juce::Colour colour)
+        {
+            return colour.getBlue() == colour.getGreen() && colour.getGreen() > colour.getRed();
+        }) - readX) <= 1.0f);
+        DOCTEST_CHECK(strip.getPixelAt(writeX - 16, 20).getRed() > 100);
+        DOCTEST_CHECK(strip.getPixelAt(writeX + 16, 20) == juce::Colours::black);
+    }
+}
+
 DOCTEST_TEST_CASE("Time warp scope: unwarped periodic axis, cursor, and disconnected vertical wraps")
 {
     for (bool reverse : {false, true})

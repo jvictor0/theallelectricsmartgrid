@@ -206,21 +206,22 @@ struct DelayLineMovableWriterGeneric
 
     Vector ReadAtIndex(double index)
     {
-        size_t i0 = WrapIndex(static_cast<int64_t>(std::floor(index)));
-        size_t iSub1 = (i0 + x_maxDelaySamples - 1) % x_maxDelaySamples;
-        size_t i1 = (i0 + 1) % x_maxDelaySamples;
-        size_t i2 = (i0 + 2) % x_maxDelaySamples;
-
-        const Vector& ySub1 = m_delayLine[iSub1];
+        double base = std::floor(index);
+        size_t i0 = WrapIndex(static_cast<int64_t>(base));
         const Vector& y0 = m_delayLine[i0];
-        const Vector& y1 = m_delayLine[i1];
-        const Vector& y2 = m_delayLine[i2];
+        if (index == base)
+        {
+            return y0;
+        }
 
+        const Vector& ySub1 = m_delayLine[(i0 + x_maxDelaySamples - 1) % x_maxDelaySamples];
+        const Vector& y1 = m_delayLine[(i0 + 1) % x_maxDelaySamples];
+        const Vector& y2 = m_delayLine[(i0 + 2) % x_maxDelaySamples];
         Vector c = y1 - ySub1;
         Vector d = ySub1 * 2 - y0 * 5 + y1 * 4 - y2;
         Vector e = -ySub1 + (y0 - y1) * 3 + y2;
-        Number alpha = static_cast<Number>(index - std::floor(index));
-        
+        Number alpha = static_cast<Number>(index - base);
+
         return y0 + (c + (d + e * alpha) * alpha) * alpha / 2;
     }
 
@@ -375,11 +376,12 @@ struct GrainManagerGeneric
         m_ola.Write(m_synthesisFrame);
     }
 
-    // Recorded sample banks have no write frontier.
+    // Recorded sample banks position the start of the analysis window.
     //
     Vector Process(const TimeVector& warpedTime, const Vector& sampleOffset, Input& input)
     {
-        return Process(warpedTime, sampleOffset, input, std::numeric_limits<double>::infinity());
+        return ProcessAnchored(warpedTime, sampleOffset, input, 0.0,
+            -std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity());
     }
 
     Vector Process(const TimeVector& warpedTime, const Vector& sampleOffset, Input& input, double latestSampleTime)
@@ -389,6 +391,16 @@ struct GrainManagerGeneric
 
     Vector Process(const TimeVector& warpedTime, const Vector& sampleOffset, Input& input,
         double oldestSampleTime, double latestSampleTime)
+    {
+        // The live delay anchors the exclusive end of the current window.
+        // Its last sample is one host sample earlier, leaving the right cubic taps available.
+        //
+        return ProcessAnchored(warpedTime, sampleOffset, input, Resynth::x_N,
+            oldestSampleTime, latestSampleTime);
+    }
+
+    Vector ProcessAnchored(const TimeVector& warpedTime, const Vector& sampleOffset, Input& input,
+        double samplesBeforeAnchor, double oldestSampleTime, double latestSampleTime)
     {
         if (!m_audioBuffer)
         {
@@ -407,17 +419,15 @@ struct GrainManagerGeneric
 
         if (m_samplesToNextGrain <= 1)
         {
-            // Protect the full analysis window after mapping to real time.
-            // Cubic audio interpolation reads two samples beyond its floor index.
+            // The earlier frame needs a full hop of history plus the left cubic tap.
             //
-            double latestStart = latestSampleTime - (Resynth::x_N - 1) - 2;
             double earliestStart = oldestSampleTime + Resynth::x_H + 1;
             TimeVector startTime = m_audioBuffer->GetRealTime(warpedTime) + sampleOffset.template Convert<double>();
             for (size_t channel = 0; channel < Size; ++channel)
             {
                 if (std::isfinite(startTime[channel]))
                 {
-                    startTime[channel] = std::min(startTime[channel], latestStart);
+                    startTime[channel] = std::min(startTime[channel], latestSampleTime) - samplesBeforeAnchor;
                     if (startTime[channel] < earliestStart)
                     {
                         startTime[channel] = std::numeric_limits<double>::quiet_NaN();

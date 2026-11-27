@@ -221,6 +221,10 @@ struct ControlReplay
                 {
                     value = PatchFormat::ReverseSrrValue(value, cell->m_bipolar);
                 }
+                else if (!cell->m_bipolar && PatchFormat::NeedsDelayFactorUpgrade(event.m_name.c_str(), m_patchVersion))
+                {
+                    value = PatchFormat::ConvertDelayFactorValue(value);
+                }
 
                 cell->SetAndRecordValue(cell->ToNormalized(value), event.m_scene);
                 cell->SetState();
