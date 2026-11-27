@@ -102,8 +102,11 @@ nominal tempo must exceed 0.1 seconds. It is independent of the inverse history
 span and does not change the composition theorem or LOD/source-span calculation.
 
 Delay read heads project `writePhase * speed - loopPeriod * bufferFraction`,
-then wrap into `[writePhase - loopPeriod, writePhase)`. The general proof allows
-a nonnegative phase gap; production uses zero. After mapping through `G` into
+then wrap into `[writePhase - loopPeriod, writePhase)`. [TapeHead.lean](../DSP/TapeHead.lean)
+exports one four-lane update that selects each loop and computes its period and
+read position. It proves the wrap bounds over exact reals for positive loop
+periods. The general phase model allows a nonnegative phase gap; production uses
+zero. After mapping through `G` into
 real host samples, the grain manager caps the current window's exclusive right
 edge at the latest completed host write. The last sample is one host sample
 earlier, leaving the fractional cubic reads with retained taps. Integral reads

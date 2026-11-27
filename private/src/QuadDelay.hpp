@@ -8,7 +8,7 @@
 #include "Oversample.hpp"
 #include "PhaseUtils.hpp"
 #include "TheoryOfTime.hpp"
-#include "TapeHead.hpp"
+#include "ReadTapeHead.hpp"
 #include "Q.hpp"
 
 struct QuadDelay
@@ -194,7 +194,11 @@ struct QuadDelayInputSetter
     QuadZeroedExpParam m_unisonGain;
     QuadExpParam m_slewUp;
 
-    ReadTapeHead m_readTapeHead[4];
+    static constexpr size_t x_globalLoop = TheoryOfTimeBase::x_globalLoop;
+    static_assert(std::tuple_size_v<decltype(ReadTapeHead::Input::m_cycleRatio)> == TheoryOfTimeBase::x_numLoops);
+    ReadTapeHead m_readTapeHead{
+        {{x_globalLoop, x_globalLoop, x_globalLoop, x_globalLoop}},
+        {{}, {}, {1.0, 1.0, 1.0, 1.0}}};
 
     struct Input
     {
@@ -271,43 +275,28 @@ struct QuadDelayInputSetter
         QuadFloat unisonGain = m_unisonGain.Update(QuadFloat::Min(QuadFloat::Splat(1.0f), input.m_resynthUnisonKnob * 3.0f));
         QuadFloat slewUp = m_slewUp.Update(QuadFloat::Splat(1.0f) - input.m_resynthSlewUpKnob);
 
+        ReadTapeHead::Input tapeHeads;
+        tapeHeads.m_writePhase = writePhase;
+        for (size_t loop = 0; loop < TheoryOfTimeBase::x_numLoops; ++loop)
+        {
+            const auto ratio = input.m_theoryOfTime->GetCycleRatio(loop);
+            assert(ratio > 0);
+            tapeHeads.m_cycleRatio[loop] = static_cast<double>(ratio);
+            tapeHeads.m_crossed[loop] = input.m_theoryOfTime->CrossedCycleBoundary(loop, PhaseDomain::Modulated);
+        }
+
+        static constexpr std::array<double, 16> x_readHeadSpeeds = {
+            -4.0, -3.0, -2.0, -3.0 / 2.0, -4.0 / 3.0, -1.0, -1.0 / 2.0, -1.0 / 4.0,
+            1.0 / 4.0, 1.0 / 2.0, 1.0, 4.0 / 3.0, 3.0 / 2.0, 2.0, 3.0, 4.0};
         for (int i = 0; i < 4; ++i)
         {
-            int totLoopSelector =
-                TheoryOfTimeBase::x_numLoops - input.m_loopSelectorSwitchVal[i] - 1;
-
-            double possibleReadHeadSpeeds[16] =
-            {
-                -4.0,
-                -3.0,
-                -2.0,
-                -3.0 / 2.0,
-                -4.0 / 3.0,
-                -1.0,
-                -1.0 / 2.0,
-                -1.0 / 4.0,
-                1.0 / 4.0,
-                1.0 / 2.0,
-                1.0,
-                4.0 / 3.0,
-                3.0 / 2.0,
-                2.0,
-                3.0,
-                4.0
-            };
-
-            ReadTapeHead::Input readInput;
-            readInput.m_theoryOfTime = input.m_theoryOfTime;
-            // Use the same wrapped phase for both ends of the knob's travel.
-            //
-            float fraction = input.m_delayTimeFactorKnob[i];
-            readInput.m_bufferFraction = fraction == 0.0f ? 1.0f : fraction;
-            readInput.m_readHeadSpeed = possibleReadHeadSpeeds[input.m_readHeadSpeedSwitchVal[i]];
-            readInput.m_requestedLoopSelector = totLoopSelector;
-            m_readTapeHead[i].Update(readInput);
-            double readPhase = m_readTapeHead[i].m_phase;
-            delayInput.m_readHeadPhase[i] = readPhase;
-            delayInput.m_relativeReadHeadPosition[i] = static_cast<float>(readPhase - std::floor(readPhase));
+            const auto loopSwitch = static_cast<size_t>(input.m_loopSelectorSwitchVal[i]);
+            const auto speedSwitch = static_cast<size_t>(input.m_readHeadSpeedSwitchVal[i]);
+            assert(loopSwitch <= x_globalLoop);
+            assert(speedSwitch < x_readHeadSpeeds.size());
+            tapeHeads.m_requestedLoop[i] = x_globalLoop - loopSwitch;
+            tapeHeads.m_speed[i] = x_readHeadSpeeds[speedSwitch];
+            tapeHeads.m_fraction[i] = input.m_delayTimeFactorKnob[i];
 
             // Resynth parameters
             //
@@ -337,5 +326,8 @@ struct QuadDelayInputSetter
                 : slewUp[i];
         }
 
+        m_readTapeHead.Process(tapeHeads);
+        delayInput.m_readHeadPhase = QuadDouble(m_readTapeHead.m_output.m_readPhase.data());
+        delayInput.m_relativeReadHeadPosition = QuadFloat(m_readTapeHead.m_output.m_relativeReadPosition.data());
     }
 };

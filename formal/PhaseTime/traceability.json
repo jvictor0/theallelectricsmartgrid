@@ -5,23 +5,23 @@
     "private/src/Filter.hpp": "2408be3d5b4a6a7a6cd33cf5d40c150b2e1c5a1cb799d23b18de228309bc60d6",
     "private/src/PeriodicPhaseAxis.hpp": "b096ac7757d8eaad83ab2d1134d2e8bdb9288dcfcbe5c4e1d63bfa48a522951f",
     "private/src/PhaseClock.hpp": "c25af523a36008d891388900b52b44e27398973bee1aa3c40f6e552509379c95",
-    "private/src/PhaseUtils.hpp": "5e569f67e8b6a1c9ee143400caef8916383bbfc1f5d72ba1e021f9ec88652368",
     "private/src/PolyXFader.hpp": "ed902e89b6ac9cb0cfd3f8fad9a8699db6ef984b6faee35e172a1f78be9cf4d3",
-    "private/src/QuadDelay.hpp": "0e10a73865a3b585233d71168a9162a3c62c68f8f6778002b7b3337b246fcdf1",
+    "private/src/QuadDelay.hpp": "69325ca14956221f3ca8207ebd78651071111abd7ed3160a7eb46a9e0a3d77f4",
     "private/src/ScopeWriter.hpp": "23d01acfecc41ad945c53bfbde16c376c38dcd8a9aad1a556d6d57a0272f8788",
     "private/src/SmartGridOneModulatorHistory.hpp": "8c17b7abd10f07d0d953cf543b425b49a027c2d30fdbf2cba278e28309ee15d6",
     "private/src/SquiggleBoyTrack.hpp": "904975838563f7020bd15a774ed996fdc2cbb28882b68f04485224517d0ef37f",
-    "private/src/TapeHead.hpp": "fd7e94c9eca576ba8ed19bc0df9100970657c1683b96c8685ab1283f825a999f",
     "private/src/TheoryOfTime.hpp": "ba0776bf99c1b05eb0d66cad077acd4ca08a17992964b32c060c7e563f9dbbb9",
     "private/src/TheoryOfTimeBase.hpp": "753a7ae7c1d173261a46b307c38611c4883f715d4e42cfa4e50d5ad2d227bf9c",
     "private/src/TimeWarpInverter.hpp": "133b6402ca0c9b4d69e8bb73964c1867c0f0aba88a3e2c9fbe5d204699a44ac4",
     "private/src/TimeWarpView.hpp": "d6787c25d2229d1437c57fa96d99302542508654c925c3a7192c909c0ae178e4",
     "JUCE/SmartGridOne/Source/ScopeComponent.hpp": "3bf1d94152f2a060f0ba0da962e06563e374a41f2971a713d2d7a18ecfcec629",
     "private/src/Resynthesis.hpp": "af0a131cec7de3ac5f75f516175b1eb7fe7158d3f9f75a62d62f4fffa691915e",
-    "private/src/SquiggleBoy.hpp": "881417f5565cd3571bbd7e2c0c32df62b0b7c410ee9363083876e7b57c980e40",
+    "private/src/SquiggleBoy.hpp": "561b4ee760f93e6fde64f92411ce6c94225db061170b036e1158074132df01a3",
     "formal/DSP/Resynthesis/FrameStorage.lean": "9f9447748830ebb0febe3db876b141769d0dfde5e470236bef02c48efe8598c3",
     "formal/DSP/Resynthesis/SpectrumStorage.lean": "1f88175e10f1458f1ca1c36145cf2742b6cfb24dc4ac361e928dfa4172566caf",
     "formal/DSP/Resynthesis/Grain.lean": "e6bb1b30c9b9374a6c76af598139a6a85736b87dfbeb4e3db5d7a47ebc05d02c",
+    "formal/DSP/TapeHead.lean": "37c29aa10bc245a5fd2de15d66542046094039707b7e040146181fb694cf2314",
+    "formal/DSP/generated/ReadTapeHead.hpp": "aabc09166d402cbca7ff8857234341f5ef02aa0fd491e3d63cb5203f8331ca1c",
     "formal/PhaseTime/InverseStorage.lean": "d774ee778c3f52a1c242a888982dab84ebc4be79cef39ea7f1feae8d9cfa4075",
     "formal/PhaseTime/InverseRuntime.lean": "1b98c4824a1d0eb0d581fa1e960991669d15baa32ac4b873ac750b1adc5fa275",
     "formal/PhaseTime/generated/TimeWarpInverseRead.hpp": "c5b84648a8afebe4ce294aea5f4104692433f1644e63f275889a364bd979ba33",
@@ -147,12 +147,16 @@
     ],
     "read_head": [
       {
-        "path": "private/src/TapeHead.hpp",
-        "symbol": "void Update(const Input& input)"
+        "path": "formal/DSP/TapeHead.lean",
+        "symbol": "def selectLoop"
       },
       {
-        "path": "private/src/PhaseUtils.hpp",
-        "symbol": "inline double WrapMod(double a, double b, double x)"
+        "path": "formal/DSP/TapeHead.lean",
+        "symbol": "theorem project_phase_bounds"
+      },
+      {
+        "path": "formal/DSP/generated/ReadTapeHead.hpp",
+        "symbol": "void Process(Input& input)"
       },
       {
         "path": "private/src/QuadDelay.hpp",

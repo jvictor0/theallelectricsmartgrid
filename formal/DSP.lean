@@ -13,6 +13,7 @@ import DSP.Filters.OnePoleTPTLowPass
 import DSP.Filters.OnePoleTPTLowPass.Proofs
 import DSP.Step
 import DSP.AHD.Proofs
+import DSP.TapeHead
 import DSP.Transfer.Bilinear
 import DSP.Filters.OnePoleTPTHighPass
 import DSP.Filters.OnePoleTPTHighPass.Proofs

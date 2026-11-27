@@ -1130,7 +1130,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         for (int i = 0; i < 4; ++i)
         {
             delayLoopTop[i] = m_theoryOfTime->CrossedCycleBoundary(
-                m_delayInputSetter.m_readTapeHead[i].m_loopSelector,
+                m_delayInputSetter.m_readTapeHead.m_state.m_loopSelector[i],
                 PhaseDomain::Modulated);
         }
 
@@ -1344,8 +1344,7 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
 
             for (size_t channel = 0; channel < 4; ++channel)
             {
-                const auto& head = m_delayInputSetter.m_readTapeHead[channel];
-                double period = ReadTapeHead::ComputeLoopPeriod(*m_theoryOfTime, head.m_loopSelector);
+                double period = m_delayInputSetter.m_readTapeHead.m_output.m_loopPeriod[channel];
                 uiState->m_delayUIState.m_scopeWriter.SetPeriodic(0, channel, {0.0, period});
             }
         }

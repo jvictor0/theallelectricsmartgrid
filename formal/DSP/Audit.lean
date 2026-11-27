@@ -8,6 +8,7 @@ open Lean in
 run_cmd do
   let env ← getEnv
   let required := #[
+    ``DSP.TapeHead.project_phase_bounds,
     ``DSP.AHD.completionRetainsOvershoot,
     ``DSP.AHD.reverseEndpoint,
     ``DSP.AHD.reverseDecayValue,

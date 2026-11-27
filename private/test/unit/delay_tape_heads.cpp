@@ -3,8 +3,11 @@
 #include "../support/SynthRig.hpp"
 #include "../support/TimeRig.hpp"
 #include "QuadDelay.hpp"
+#include <algorithm>
 #include <array>
 #include <cmath>
+#include <iterator>
+#include <limits>
 #include <memory>
 
 DOCTEST_TEST_CASE("Delay heads: audio and display share a position at every speed and loop")
@@ -13,6 +16,15 @@ DOCTEST_TEST_CASE("Delay heads: audio and display share a position at every spee
     TimeRig clock;
     clock.SetRunning(true);
     clock.AdvanceSample();
+    QuadDelayInputSetter setter;
+    QuadDelayInputSetter::Input input;
+    QuadDelay::Input output;
+    input.m_theoryOfTime = clock.Get();
+    for (auto& loop : clock.Get()->m_sample.m_loops)
+    {
+        loop.m_modulatedCycleCrossed = true;
+    }
+
     const double speeds[] =
     {
         -4, -3, -2, -1.5, -4.0 / 3.0, -1, -0.5, -0.25,
@@ -20,35 +32,78 @@ DOCTEST_TEST_CASE("Delay heads: audio and display share a position at every spee
     };
     for (int loop = 0; loop < TheoryOfTimeBase::x_numLoops; ++loop)
     {
+        input.m_loopSelectorSwitchVal[0] = static_cast<int>(TheoryOfTimeBase::x_globalLoop) - loop;
         for (double phase : {-2.375, 0.0, 3.375, 128.125})
         {
-            for (double speed : speeds)
+            for (size_t setting = 0; setting < std::size(speeds); ++setting)
             {
+                const double speed = speeds[setting];
                 DOCTEST_CAPTURE(loop);
                 DOCTEST_CAPTURE(phase);
                 DOCTEST_CAPTURE(speed);
                 clock.Get()->m_phaseClock.m_phase = phase;
-                ReadTapeHead reader;
-                reader.m_loopSelector = loop;
-                ReadTapeHead::Input input;
-                input.m_theoryOfTime = clock.Get();
-                input.m_requestedLoopSelector = loop;
-                input.m_bufferFraction = 0.75;
-                input.m_readHeadSpeed = speed;
-                reader.Update(input);
-                double period = ReadTapeHead::ComputeLoopPeriod(*clock.Get(), loop);
-                DOCTEST_CHECK(reader.m_phase >= phase - period);
-                DOCTEST_CHECK(reader.m_phase < phase);
-                double wrapped = (reader.m_phase - (phase * speed - period * 0.75)) / period;
+                input.m_readHeadSpeedSwitchVal[0] = static_cast<int>(setting);
+                setter.Process(input, output);
+                const double period = 1.0 / static_cast<double>(clock.Get()->GetCycleRatio(loop));
+                const double read = output.m_readHeadPhase[0];
+                DOCTEST_CHECK(read >= phase - period);
+                DOCTEST_CHECK(read < phase);
+                DOCTEST_CHECK(output.m_relativeReadHeadPosition[0] == static_cast<float>(read - std::floor(read)));
+                double wrapped = (read - (phase * speed - period * 0.75)) / period;
                 DOCTEST_CHECK(wrapped == doctest::Approx(std::round(wrapped)));
-                double before = reader.m_phase;
                 clock.Get()->m_globalPeriodSamples *= 2.0;
-                reader.Update(input);
-                DOCTEST_CHECK(reader.m_phase == before);
+                setter.Process(input, output);
+                DOCTEST_CHECK(output.m_readHeadPhase[0] == read);
                 clock.Get()->m_phaseClock.Resume(-700.25);
-                reader.Update(input);
-                DOCTEST_CHECK(reader.m_phase == before);
+                setter.Process(input, output);
+                DOCTEST_CHECK(output.m_readHeadPhase[0] == read);
             }
+        }
+    }
+}
+
+DOCTEST_TEST_CASE("Delay heads: packed positions retain the scalar wrap at long phases and seams")
+{
+    GlobalEnv::ResetPerTest();
+    TimeRig clock;
+    QuadDelayInputSetter setter;
+    QuadDelayInputSetter::Input input;
+    QuadDelay::Input output;
+    input.m_theoryOfTime = clock.Get();
+    const int speedSettings[] = {11, 0, 7, 13};
+    const double speeds[] = {4.0 / 3.0, -4.0, -0.25, 2.0};
+    const int loops[] = {0, 1, 2, TheoryOfTimeBase::x_globalLoop};
+    const int64_t ratios[] = {3, 5, 7, 1};
+    input.m_delayTimeFactorKnob = QuadFloat(0.625f, 0.125f, 0.0f, 0.75f);
+    for (int lane = 0; lane < 4; ++lane)
+    {
+        clock.Get()->m_sample.m_loops[loops[lane]].m_cycleRatio = ratios[lane];
+        clock.Get()->m_sample.m_loops[loops[lane]].m_modulatedCycleCrossed = true;
+        input.m_loopSelectorSwitchVal[lane] = TheoryOfTimeBase::x_globalLoop - loops[lane];
+        input.m_readHeadSpeedSwitchVal[lane] = speedSettings[lane];
+    }
+
+    const double phases[] =
+    {
+        -1150096798.1511078,
+        std::nextafter(0.75, 0.0),
+        0.75,
+        std::nextafter(0.75, 1.0),
+        1150096798.1511078
+    };
+    for (double write : phases)
+    {
+        clock.Get()->m_phaseClock.m_phase = write;
+        setter.Process(input, output);
+        for (int lane = 0; lane < 4; ++lane)
+        {
+            DOCTEST_CAPTURE(lane);
+            DOCTEST_CAPTURE(write);
+            const double period = 1.0 / static_cast<double>(ratios[lane]);
+            const double fraction = input.m_delayTimeFactorKnob[lane] == 0.0f ? 1.0 : input.m_delayTimeFactorKnob[lane];
+            const double projected = write * speeds[lane] - period * fraction;
+            const double expected = PhaseUtils::WrapMod(write - period, write, projected);
+            DOCTEST_CHECK(output.m_readHeadPhase[lane] == expected);
         }
     }
 }
@@ -292,12 +347,14 @@ DOCTEST_TEST_CASE("Delay scope: each lane publishes the period of its accepted l
         input.m_loopSelectorSwitchVal[channel] = static_cast<int>(channel);
     }
 
-    for (bool atBoundary : {false, true})
+    for (size_t crossing = 0; crossing < 4; ++crossing)
     {
         rig.RunFrames(1);
-        for (auto& loop : time.m_sample.m_loops)
+        for (size_t loop = 0; loop < TheoryOfTimeBase::x_numLoops; ++loop)
         {
-            loop.m_modulatedCycleCrossed = atBoundary;
+            const bool global = loop == TheoryOfTimeBase::x_globalLoop;
+            time.m_sample.m_loops[loop].m_modulatedCycleCrossed = crossing == 3
+                || (crossing == 1 && global) || (crossing == 2 && !global);
         }
 
         synth.m_delayInputSetter.Process(input, synth.m_delayState);
@@ -305,7 +362,7 @@ DOCTEST_TEST_CASE("Delay scope: each lane publishes the period of its accepted l
         writer.AcceptSamples();
         for (size_t channel = 0; channel < 4; ++channel)
         {
-            size_t loop = TheoryOfTimeBase::x_globalLoop - (atBoundary ? channel : 0);
+            size_t loop = TheoryOfTimeBase::x_globalLoop - (crossing == 3 ? channel : 0);
             const auto& axis = writer.GetAcceptedMarkers(0, channel).m_periodic;
             DOCTEST_CHECK(axis.m_origin == 0.0);
             DOCTEST_CHECK(axis.m_period == doctest::Approx(1.0 / time.GetCycleRatio(loop)));
@@ -319,34 +376,28 @@ DOCTEST_TEST_CASE("Delay heads: sparse audio under the visualized heads reaches 
 {
     GlobalEnv::ResetPerTest();
     TimeRig clock;
-    clock.SetRunning(true);
-    clock.AdvanceSample();
     constexpr size_t x_period = 65536;
-    // A host-rate inverter, recorded once per written sample.
-    //
-    using Storage = DelayLineMovableWriterGeneric<float, 4, x_period, 1>;
-    auto storage = std::make_unique<Storage>();
-    auto inverter = std::make_unique<Storage::Inverter>(x_period);
-    storage->m_inverter = inverter.get();
-    auto grains = std::make_unique<QuadGrainManager<Storage>>(storage.get());
-    QuadGrainManager<Storage>::Input grainInput;
-    ScopeWriterGeneric<4, 1> envelope(1, x_period);
-    envelope.SetTimeWarp(0, inverter.get());
+    auto delay = std::make_unique<QuadDelay>();
+    auto& inverter = *clock.Get()->m_timeWarpInverter;
+    delay->m_delayLine.m_inverter = &inverter;
+    QuadDelay::UIState ui;
+    delay->SetupScopeWriter(&ui);
+
     clock.Get()->m_phaseClock.m_phase = 3.375;
-    const double writePhase = clock.Get()->m_phaseClock.m_phase;
-    const double speeds[] = {1, 0.5, 2, -1};
-    std::array<ReadTapeHead, 4> readers;
-    QuadDouble audioHeads;
+    QuadDelayInputSetter setter;
+    QuadDelayInputSetter::Input controls;
+    controls.m_theoryOfTime = clock.Get();
+    const int speedSettings[] = {10, 9, 13, 5};
+    std::copy_n(speedSettings, 4, controls.m_readHeadSpeedSwitchVal);
+    QuadDelay::Input input;
+    setter.Process(controls, input);
+    delay->PopulateUIState(&ui, input);
+    const double writePhase = ui.m_writeHeadPhase.load();
     QuadDouble displayedHeads;
     for (size_t channel = 0; channel < 4; ++channel)
     {
-        ReadTapeHead::Input input;
-        input.m_theoryOfTime = clock.Get();
-        input.m_bufferFraction = 0.75;
-        input.m_readHeadSpeed = speeds[channel];
-        readers[channel].Update(input);
-        audioHeads[channel] = readers[channel].m_phase;
-        displayedHeads[channel] = readers[channel].m_phase;
+        displayedHeads[channel] = ui.m_readHeadPhase[channel].load();
+        DOCTEST_CHECK(displayedHeads[channel] == input.m_readHeadPhase[channel]);
     }
 
     // Record one sparse tone burst per channel up to the position shown by its
@@ -364,25 +415,31 @@ DOCTEST_TEST_CASE("Delay heads: sparse audio under the visualized heads reaches 
                 : 0.0f;
         }
 
-        inverter->Write(position, static_cast<double>(sample + 1));
-        storage->Write(audio, sample + 1);
-        if (sample == 0)
+        for (size_t subSample = 0; subSample < SampleTimer::x_oversample; ++subSample)
         {
-            for (size_t channel = 0; channel < 4; ++channel)
-            {
-                envelope.SetPeriodic(0, channel, {0.0, 1.0});
-            }
+            SampleTimer::IncrementSample();
         }
 
-        envelope.Write(0, audio.Abs());
-        envelope.AdvanceIndex();
+        inverter.Write(position, static_cast<double>(SampleTimer::GetSample()));
+        delay->WriteAudio(audio, SampleTimer::GetHostSample());
+        for (size_t subSample = 0; subSample < SampleTimer::x_oversample; ++subSample)
+        {
+            delay->WriteEnvelopeScope();
+            ui.m_scopeWriter.AdvanceIndex();
+        }
+
+        if (SampleTimer::GetSample() % SampleTimer::x_samplesPerProcessFrame == 0)
+        {
+            delay->PopulateUIState(&ui, input);
+            ui.m_scopeWriter.AcceptSamples();
+        }
     }
 
-    envelope.Publish();
-    envelope.AcceptSamples();
+    delay->PopulateUIState(&ui, input);
+    ui.m_scopeWriter.AcceptSamples();
     for (size_t channel = 0; channel < 4; ++channel)
     {
-        ScopeReader reader(&envelope, channel, 0, 1024);
+        ScopeReader reader(&ui.m_scopeWriter, channel, 0, 1024);
         DOCTEST_REQUIRE_FALSE(reader.m_empty);
         DOCTEST_REQUIRE(reader.ReadCoordinate(displayedHeads[channel]) > 0.1f);
     }
@@ -390,7 +447,9 @@ DOCTEST_TEST_CASE("Delay heads: sparse audio under the visualized heads reaches 
     std::array<double, 4> energy{};
     for (size_t sample = 0; sample < 8192 * SampleTimer::x_oversample; ++sample)
     {
-        QuadFloat output = grains->Process(audioHeads, QuadFloat(), grainInput, storage->GetLatestSampleTime());
+        SampleTimer::IncrementSample();
+        QuadFloat output = delay->Process(input);
+        ui.m_scopeWriter.AdvanceIndex();
         for (size_t channel = 0; channel < 4; ++channel)
         {
             energy[channel] += output[channel] * output[channel];
@@ -399,7 +458,7 @@ DOCTEST_TEST_CASE("Delay heads: sparse audio under the visualized heads reaches 
 
     for (size_t channel = 0; channel < 4; ++channel)
     {
-        DOCTEST_CAPTURE(speeds[channel]);
+        DOCTEST_CAPTURE(channel);
         DOCTEST_CHECK(energy[channel] > 1.0);
     }
 }

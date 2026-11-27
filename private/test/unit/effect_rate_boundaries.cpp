@@ -19,7 +19,6 @@
 #include "PartialMachine.hpp"
 #include "QuadDelay.hpp"
 #include "QuadReverb.hpp"
-#include "TapeHead.hpp"
 
 #ifdef SMARTGRID_TEST_OVERSAMPLE
 static_assert(SampleTimer::x_oversample == SMARTGRID_TEST_OVERSAMPLE);
@@ -392,7 +391,7 @@ DOCTEST_TEST_CASE("Rate boundaries: delay tape heads count cycles at either engi
 
     DOCTEST_CHECK(delayInput.m_writeHeadPhase - start == doctest::Approx(0.1));
     DOCTEST_CHECK(clock.Get()->m_globalPeriodSamples == doctest::Approx(48000.0 * x_ratio));
-    DOCTEST_CHECK(ReadTapeHead::ComputeLoopPeriod(*clock.Get(), TheoryOfTimeBase::x_globalLoop) == 1.0);
+    DOCTEST_CHECK(setter.m_readTapeHead.m_output.m_loopPeriod[0] == 1.0);
 }
 
 DOCTEST_TEST_CASE("Rate boundaries: the partial machine analyzes decimated mono input every host hop")
