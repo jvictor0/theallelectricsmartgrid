@@ -435,6 +435,9 @@ struct TheNonagonSquiggleBoyWrldBldr
 
             Put(0, 4, m_owner->m_internal->MakeShiftCell());
             Put(0, 5, m_owner->MakeAuxFocusCell());
+            auto& scene = owner->m_internal->m_context.m_sceneManager;
+            Put(1, 4, TheNonagonSquiggleBoyInternal::MakeModifierCell(scene.m_fineTune));
+            Put(1, 5, TheNonagonSquiggleBoyInternal::MakeModifierCell(scene.m_spread));
             Put(2, 4, m_owner->m_internal->MakeRunningCell());
             Put(2, 5, new TheNonagonSquiggleBoyInternal::RecordCell(m_owner->m_internal));
             Put(3, 4, new TheNonagonSquiggleBoyInternal::SaveLoadJSONCell(m_owner->m_internal, true));

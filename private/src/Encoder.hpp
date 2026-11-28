@@ -28,7 +28,17 @@ struct EncoderCell
     {
     }
 
+    static float ScaleTurnDelta(float delta, bool fineTune)
+    {
+        return fineTune ? delta / 100.0f : delta;
+    }
+
     void HandleIncDec(size_t timestamp, int64_t delta)
+    {
+        HandleIncDec(timestamp, delta, false);
+    }
+
+    void HandleIncDec(size_t timestamp, int64_t delta, bool fineTune)
     {
         if (delta == 0)
         {
@@ -108,7 +118,7 @@ struct EncoderCell
         m_lastDeltaSign = currentSign;
         m_lastSpeed = speed;
         
-        Increment(delta * speed);
+        Increment(ScaleTurnDelta(delta * speed, fineTune));
     }
 
     virtual float GetNormalizedValue() = 0;

@@ -1,7 +1,7 @@
 # Encoder state-machine specification
 
 This directory specifies the encoder runtime in **Lean 4.32.0 and Veil**, with
-73 EARS entries and kernel-checked proofs. Observable control behavior is specified
+76 EARS entries and kernel-checked proofs. Observable control behavior is specified
 independently of evaluation strategy. Supporting models describe the prepared
 evaluator, editable recursive encoder state, and committed `HEAD` at
 `0a0d206529be45b6ff3ac82824c65ebe73b49003`. Production C++ is
@@ -54,6 +54,7 @@ from its own location, including when invoked from another working directory.
 | [Schedule.lean](Schedule.lean) | Child-before-parent graph evaluation, with arbitrary nesting and pure operations | `prepared_equals_recursive` |
 | [Crossfade.lean](Crossfade.lean) | Scene-manager change flags and ordinary distinct-scene increment arithmetic | `no_blend_change_is_lost`, `distinct_scene_increment` |
 | [Edits.lean](Edits.lean) | Ordinary/Shift combine, sign and zero handling, scene shares, recursive descendant visits and gesture edit allocation | `shift_preserves_sign`, `shift_edits_every_descendant`, `actual_edit_partition` |
+| [TurnModifiers.lean](TurnModifiers.lean) | Fine Tune input scaling, Spread slot creation, signed target edits and Shift+Spread selection | `fine_tune_before_routing`, `spread_keeps_slot_at_zero`, `spread_descendant_slot` |
 | [Curve.lean](Curve.lean) | Ideal real exponential law and a separate exact-arithmetic model of the SIMD polynomial | Ideal bounds/monotone magnitude/half-depth; polynomial zero/oddness/saturation |
 | [Head.lean](Head.lean) | HEAD recursive evaluation and its original publication loop | `prepared_publication_equals_head` |
 | [HeadStateMachine.lean](HeadStateMachine.lean), [HeadReachability.lean](HeadReachability.lean) | Separate HEAD Veil runtime using shared leaf operations | `EncoderHeadRuntime.reachable_safe` |
@@ -75,6 +76,14 @@ The numerical and graph contracts justify evaluation separately. Publication's
 `published` flag and recording-request count are ghost state, not proposed C++
 fields. `published` marks completion of a cache write; intermediate states are
 not claimed to be DSP-observable.
+
+The turn-modifier model starts with a decoded relative delta and describes
+routing and signed edits on one normalized scene target at a time. Production
+passes the scaled delta through its existing gesture and scene weighting.
+Shift+Spread walks the existing tree, including descendants below a Spread node,
+and sends the turn only to Spread slots owned by non-Spread modulators.
+The native traversal excludes entirely neutral branches with no active gestures,
+including branches that retain selection placeholders after browsing.
 
 The prepared protocol models a connected, named root. Its `snapshot` contains
 the relevant scene/target/source/amplitude/gesture inputs, `evaluate` computes a

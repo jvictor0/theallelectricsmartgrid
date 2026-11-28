@@ -1018,5 +1018,48 @@
       "compute",
       "publish"
     ]
+  },
+  {
+    "id": "E79",
+    "status": "proved",
+    "requirement": "While Fine Tune is held, a relative encoder turn shall supply one hundredth of its usual signed delta to the selected edit route before gesture allocation, scene weighting or clamping.",
+    "theorems": [
+      "Encoder.TurnModifiers.fine_tune_before_routing"
+    ],
+    "anchors": [
+      "fine_tune"
+    ]
+  },
+  {
+    "id": "E80",
+    "status": "proved",
+    "requirement": "When Spread alone is held for routing and slot 11 is connected, a nonzero relative turn shall edit the direct Spread slot, starting from neutral if absent. The ordinary signed update shall allow targets to pass through zero and retain the slot at zero. Gesture parameters use the ordinary turn route.",
+    "theorems": [
+      "Encoder.TurnModifiers.spread_dispatch",
+      "Encoder.TurnModifiers.gesture_turn_bypasses_shortcuts",
+      "Encoder.TurnModifiers.unavailable_spread_is_noop",
+      "Encoder.TurnModifiers.spread_only_edits_direct_slot",
+      "Encoder.TurnModifiers.zero_delta_preserves_slot",
+      "Encoder.TurnModifiers.spread_creates_from_neutral",
+      "Encoder.TurnModifiers.spread_adds_signed_delta",
+      "Encoder.TurnModifiers.spread_keeps_slot_at_zero"
+    ],
+    "anchors": [
+      "spread_turn",
+      "combine"
+    ]
+  },
+  {
+    "id": "E81",
+    "status": "proved",
+    "requirement": "When Shift and Spread are held and slot 11 is connected, the turn shall route its signed delta to the Spread child of each existing non-Spread modulator descendant. The selected encoder's own Spread depth and all other modulator slots receive no turn.",
+    "theorems": [
+      "Encoder.TurnModifiers.spread_descendant_slot",
+      "Encoder.TurnModifiers.spread_descendants_preserve_other_slots"
+    ],
+    "anchors": [
+      "spread_turn",
+      "spread_descendants"
+    ]
   }
 ]

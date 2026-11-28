@@ -1498,6 +1498,27 @@
       "theorems": [],
       "anchors": [],
       "reason": "The pinned revision uses adaptive linear ramps, not the new manual-control one-pole. Its safety and finite-convergence obligations remain covered by the shared contracts."
+    },
+    {
+      "id": "E79",
+      "status": "not-applicable",
+      "theorems": [],
+      "anchors": [],
+      "reason": "Fine Tune was added after the pinned revision."
+    },
+    {
+      "id": "E80",
+      "status": "not-applicable",
+      "theorems": [],
+      "anchors": [],
+      "reason": "The Spread shortcut was added after the pinned revision."
+    },
+    {
+      "id": "E81",
+      "status": "not-applicable",
+      "theorems": [],
+      "anchors": [],
+      "reason": "The Shift and Spread combination was added after the pinned revision."
     }
   ]
 }

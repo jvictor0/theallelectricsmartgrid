@@ -15,6 +15,7 @@ import Encoder.HeadGestureMachine
 import Encoder.Behavior
 import Encoder.PatchLoad
 import Encoder.Settling
+import Encoder.TurnModifiers
 import Lean.Util.CollectAxioms
 
 /-! Build-time trust audit. Inspect transitive dependencies, including generated

@@ -20,9 +20,11 @@ struct SceneManager
     size_t m_scene2;
     float m_blendFactor;
 
-    // Shift state (centralized here, set directly by owner)
+    // Modifier state (set directly by the pad cells)
     //
     bool m_shift;
+    bool m_fineTune;
+    bool m_spread;
 
     // Blink state (for UI feedback)
     //
@@ -44,6 +46,8 @@ struct SceneManager
         , m_scene2(1)
         , m_blendFactor(0.0f)
         , m_shift(false)
+        , m_fineTune(false)
+        , m_spread(false)
         , m_changed(false)
         , m_changedScene(false)
         , m_prevScene1(0)

@@ -238,8 +238,6 @@ struct WrldBuildrComponent : public juce::Component
         addAndMakeVisible(m_belowEncodersGrid->m_padGrid.get());
 
         auto leftTopGrid = std::make_unique<BasicPadGrid>(m_nonagon->MkLaunchPadUIGridWrldBldr(TheNonagonSquiggleBoyWrldBldr::Routes::AuxGrid), 0, 4, 4, 6);
-        leftTopGrid->GetPad(1, 0)->setVisible(false);
-        leftTopGrid->GetPad(1, 1)->setVisible(false);
         m_leftTopGrid = std::make_unique<BasicPadGridHolder>(std::move(leftTopGrid), 0, 6);
         addAndMakeVisible(m_leftTopGrid->m_padGrid.get());
 

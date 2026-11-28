@@ -114,13 +114,43 @@ DOCTEST_TEST_CASE("WorldBuilder aux grid: scenes and transport use their new pad
         DOCTEST_CHECK(sceneManager.m_scene2 == scene);
     }
 
-    DOCTEST_CHECK(grid.GetColor(1, 4) == SmartGrid::Color::Off);
-    DOCTEST_CHECK(grid.GetColor(1, 5) == SmartGrid::Color::Off);
     const bool wasRunning = internal.m_running;
     grid.OnPress(2, 4, 100);
     DOCTEST_CHECK(internal.m_running != wasRunning);
     DOCTEST_CHECK(grid.GetColor(2, 5) == SmartGrid::Color::Red.Dim());
     DOCTEST_CHECK(rig.Quad().m_bottomLeftGrid->GetColor(-1, 5) == SmartGrid::Color::Off);
+}
+
+DOCTEST_TEST_CASE("WorldBuilder aux grid: Fine Tune and Spread are momentary pads")
+{
+    synthrig::SynthRig rig;
+    auto& internal = rig.Internal();
+    TheNonagonSquiggleBoyWrldBldr world(&internal);
+    auto& grid = world.m_auxGrid;
+    auto& scene = internal.m_context.m_sceneManager;
+    const auto shiftOff = grid.GetColor(0, 4);
+    DOCTEST_CHECK(shiftOff != SmartGrid::Color::Off);
+    DOCTEST_CHECK(grid.GetColor(1, 4) == shiftOff);
+    DOCTEST_CHECK(grid.GetColor(1, 5) == shiftOff);
+
+    grid.OnPress(0, 4, 100);
+    const auto shiftOn = grid.GetColor(0, 4);
+    DOCTEST_CHECK(shiftOn != shiftOff);
+    grid.OnPress(1, 4, 100);
+    grid.OnPress(1, 5, 100);
+    DOCTEST_CHECK(scene.m_fineTune);
+    DOCTEST_CHECK(scene.m_spread);
+    DOCTEST_CHECK(grid.GetColor(1, 4) == shiftOn);
+    DOCTEST_CHECK(grid.GetColor(1, 5) == shiftOn);
+
+    grid.OnRelease(1, 4);
+    DOCTEST_CHECK_FALSE(scene.m_fineTune);
+    DOCTEST_CHECK(scene.m_spread);
+    grid.OnRelease(1, 5);
+    DOCTEST_CHECK_FALSE(scene.m_spread);
+    grid.OnRelease(0, 4);
+    DOCTEST_CHECK(grid.GetColor(1, 4) == shiftOff);
+    DOCTEST_CHECK(grid.GetColor(1, 5) == shiftOff);
 }
 
 DOCTEST_TEST_CASE("encoder display: every selected trio bank maps to its family display")

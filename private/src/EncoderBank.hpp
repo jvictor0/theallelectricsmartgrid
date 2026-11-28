@@ -8,6 +8,7 @@
 #include "FixedAllocator.hpp"
 #include "QuadUtils.hpp"
 #include "SampleTimer.hpp"
+#include "SmartGridOneModulators.hpp"
 #include <cstdint>
 #include <limits>
 
@@ -46,6 +47,8 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
 
     static constexpr size_t x_numModulators = 15;
     static constexpr size_t x_numGestureParams = 16;
+    static constexpr size_t x_spreadModulator = static_cast<size_t>(VoiceModulator::Spread);
+    static_assert(x_spreadModulator == static_cast<size_t>(QuadModulator::Spread));
     static_assert(x_numModulators - 1 <= std::numeric_limits<int8_t>::max());
     static_assert(x_numGestureParams - 1 <= std::numeric_limits<int8_t>::max());
 
@@ -203,16 +206,23 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
             m_numActiveModulators = 0;
         }
 
+        BankedEncoderCell* GetOrAddModulator(BankedEncoderCell* parent, SmartGridOneContext* context, size_t index)
+        {
+            auto& slot = m_modulators[index];
+            if (!slot)
+            {
+                slot = Make(context, parent, index, EncoderType::ModulatorAmount);
+                m_activeModulators[m_numActiveModulators++] = index;
+            }
+
+            return slot.get();
+        }
+
         void FillModulators(BankedEncoderCell* parent, SmartGridOneContext* context)
         {
             for (size_t i = 0; i < x_numModulators; ++i)
             {
-                if (!m_modulators[i].get())
-                {
-                    m_modulators[i] = Make(context, parent, i, BankedEncoderCell::EncoderType::ModulatorAmount);
-                    m_activeModulators[m_numActiveModulators] = i;
-                    ++m_numActiveModulators;
-                }
+                GetOrAddModulator(parent, context, i);
             }
         }
 
@@ -552,7 +562,34 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
 
     virtual void Increment(float delta) override
     {
-        Increment(delta, false);
+        const auto& scene = m_context->m_sceneManager;
+        if (!scene.m_spread || m_type == EncoderType::GestureParam)
+        {
+            Increment(delta, false);
+            return;
+        }
+
+        if (delta == 0 || !m_modulatorValues->m_modulatorConnected[x_spreadModulator])
+        {
+            return;
+        }
+
+        SynchronizePreparedState();
+        if (scene.m_shift)
+        {
+            bool edited = false;
+            RecursivelySpreadModulators(delta, edited);
+            if (!edited)
+            {
+                return;
+            }
+        }
+        else
+        {
+            IncrementSpread(delta);
+        }
+
+        SetModulatorsAffectingRecursive();
     }
 
     void Increment(float delta, bool towardsZero)
@@ -567,8 +604,14 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
             return;
         }
 
-        Compute(false);
+        IncrementValue(delta, towardsZero);
+        SetModulatorsAffectingRecursive();
+        SetForceUpdateRecursive();
+    }
 
+    void IncrementValue(float delta, bool towardsZero)
+    {
+        Compute(false);
         if (m_type != EncoderType::GestureParam && !GetSelectedGestures().IsZero())
         {
             // Add all selected gestures
@@ -611,9 +654,52 @@ struct alignas(128) BankedEncoderCell : public StateEncoderCell
         {
             IncrementInternal(delta, towardsZero);
         }
+    }
 
-        SetModulatorsAffectingRecursive();
-        SetForceUpdateRecursive();
+    void IncrementSpread(float delta)
+    {
+        auto* spread = m_modulators.GetOrAddModulator(this, m_context, x_spreadModulator);
+        spread->IncrementValue(delta, false);
+        spread->SetForceUpdateRecursive();
+    }
+
+    bool RecursivelySpreadModulators(float delta, bool& edited)
+    {
+        bool used = false;
+        for (size_t i = 0; i < m_modulators.m_numActiveModulators; ++i)
+        {
+            const size_t slot = m_modulators.m_activeModulators[i];
+            auto* child = m_modulators.m_modulators[slot].get();
+
+            // Determine whether the subtree was used before adding a Spread slot.
+            //
+            if (!child->RecursivelySpreadModulators(delta, edited))
+            {
+                continue;
+            }
+
+            used = true;
+            if (slot != x_spreadModulator)
+            {
+                child->IncrementSpread(delta);
+                edited = true;
+            }
+        }
+
+        if (used || !AllNeutral())
+        {
+            return true;
+        }
+
+        for (size_t i = 0; i < m_modulators.m_numActiveGestures; ++i)
+        {
+            if (!m_modulators.GetGesture(i)->CanBeGarbageCollected())
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     void RecursivelyIncrementModulatorsTowardsZero(float delta)
@@ -1696,7 +1782,7 @@ struct EncoderBankInternal : public EncoderGrid
             BankedEncoderCell* cell = static_cast<BankedEncoderCell*>(GetVisible(msg.m_x, msg.m_y));
             if (cell && cell->m_sharedEncoderState)
             {
-                cell->HandleIncDec(msg.m_timestamp, msg.m_amount);
+                cell->HandleIncDec(msg.m_timestamp, msg.m_amount, m_context->m_sceneManager.m_fineTune);
             }
         }
         else if (msg.m_mode == MessageIn::Mode::EncoderExponentialDelta)
@@ -1709,7 +1795,8 @@ struct EncoderBankInternal : public EncoderGrid
             BankedEncoderCell* cell = static_cast<BankedEncoderCell*>(GetVisible(msg.m_x, msg.m_y));
             if (cell && cell->m_sharedEncoderState)
             {
-                cell->Increment(static_cast<float>(ExponentialEncoderDelta::Decode(static_cast<uint8_t>(msg.m_amount))));
+                const auto delta = static_cast<float>(ExponentialEncoderDelta::Decode(static_cast<uint8_t>(msg.m_amount)));
+                cell->Increment(EncoderCell::ScaleTurnDelta(delta, m_context->m_sceneManager.m_fineTune));
             }
         }
         else if (msg.m_mode == MessageIn::Mode::EncoderSet)

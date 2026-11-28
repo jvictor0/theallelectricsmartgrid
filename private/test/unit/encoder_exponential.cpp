@@ -191,6 +191,139 @@ DOCTEST_TEST_CASE("encoder shift-turn: exponential MIDI adjusts descendants and 
     DOCTEST_CHECK(rig.Cell().m_modulators.m_modulators[2]->m_targets[0] == 0.5f);
 }
 
+DOCTEST_TEST_CASE("encoder fine tune scales exponential and legacy movement before routing")
+{
+    ExponentialEncoderRig rig;
+    auto& scene = rig.m_context.m_sceneManager;
+    const float delta = static_cast<float>(ExponentialEncoderDelta::Decode(127));
+    scene.m_fineTune = true;
+    rig.Turn(127, 1);
+    DOCTEST_CHECK(rig.Cell().m_targets[0] == doctest::Approx(0.5f + delta / 100.0f).epsilon(1e-7));
+
+    rig.Cell().SetValue(0.5f, true);
+    rig.m_banks.m_banks[0].Apply(WrldBLDRMidi::FromMidi(BasicMidi::CC(1000, -1, 0, 0, 65)));
+    DOCTEST_CHECK(rig.Cell().m_targets[0] == doctest::Approx(0.5f + EncoderCell::x_minSpeed / 100.0f).epsilon(1e-7));
+    DOCTEST_CHECK(rig.Cell().m_lastSpeed == EncoderCell::x_minSpeed);
+
+    rig.m_banks.GetModulatorValues(0).SetModulatorSkin(0, Color::Red, nullptr);
+    auto* child = rig.Cell().m_modulators.GetOrAddModulator(&rig.Cell(), &rig.m_context, 0);
+    child->SetValue(0.25f, true);
+    scene.m_shift = true;
+    rig.Turn(127, 2);
+    DOCTEST_CHECK(child->m_targets[0] == doctest::Approx(0.25f - delta / 100.0f).epsilon(1e-7));
+
+    scene.m_fineTune = false;
+    rig.Turn(127, 3);
+    DOCTEST_CHECK(child->m_targets[0] == doctest::Approx(0.25f - delta / 100.0f - delta).epsilon(1e-7));
+}
+
+DOCTEST_TEST_CASE("encoder Spread creates a signed depth and keeps it when crossing zero")
+{
+    ExponentialEncoderRig rig;
+    auto& scene = rig.m_context.m_sceneManager;
+    auto& modulators = rig.Cell().m_modulators;
+    constexpr size_t x_spread = BankedEncoderCell::x_spreadModulator;
+    constexpr float x_delta = 1.0f / 65536.0f;
+    scene.m_spread = true;
+    rig.Turn(65, 1);
+    DOCTEST_CHECK(modulators.m_numActiveModulators == 0);
+
+    rig.m_banks.GetModulatorValues(0).SetModulatorSkin(x_spread, Color::Grey, "SPRD");
+    rig.Turn(65, 2);
+    auto* spread = modulators.m_modulators[x_spread].get();
+    DOCTEST_REQUIRE(spread);
+    DOCTEST_CHECK(modulators.m_numActiveModulators == 1);
+    DOCTEST_CHECK(spread->m_targets[0] == 0.5f + x_delta);
+    rig.Turn(63, 3);
+    DOCTEST_CHECK(modulators.m_modulators[x_spread].get() == spread);
+    DOCTEST_CHECK(spread->m_targets[0] == 0.5f);
+    rig.Turn(63, 4);
+    DOCTEST_CHECK(spread->m_targets[0] == 0.5f - x_delta);
+    rig.Turn(65, 5);
+    rig.Turn(65, 6);
+    DOCTEST_CHECK(spread->m_targets[0] == 0.5f + x_delta);
+
+    scene.m_fineTune = true;
+    rig.Turn(127, 7);
+    const float fineDelta = static_cast<float>(ExponentialEncoderDelta::Decode(127)) / 100.0f;
+    DOCTEST_CHECK(spread->m_targets[0] == doctest::Approx(0.5f + x_delta + fineDelta).epsilon(1e-7));
+    DOCTEST_CHECK(spread->m_targets[1] == 0.5f);
+    DOCTEST_CHECK(rig.Cell().m_targets[0] == 0.5f);
+}
+
+DOCTEST_TEST_CASE("encoder Shift plus Spread adds fine signed depths to used modulator routes")
+{
+    ExponentialEncoderRig rig;
+    auto& scene = rig.m_context.m_sceneManager;
+    auto& sources = rig.m_banks.GetModulatorValues(0);
+    constexpr size_t x_spread = BankedEncoderCell::x_spreadModulator;
+    sources.SetModulatorSkin(0, Color::Red, nullptr);
+    sources.SetModulatorSkin(1, Color::Blue, nullptr);
+    sources.SetModulatorSkin(x_spread, Color::Grey, "SPRD");
+    rig.Cell().FillModulators(&rig.m_context);
+    auto& slots = rig.Cell().m_modulators.m_modulators;
+    slots[0]->SetValue(0.75f, true);
+    slots[x_spread]->SetValue(0.8f, true);
+    auto* nested = slots[0]->m_modulators.GetOrAddModulator(slots[0].get(), &rig.m_context, 1);
+    nested->SetValue(0.25f, true);
+    auto* underSpread = slots[x_spread]->m_modulators.GetOrAddModulator(slots[x_spread].get(), &rig.m_context, 1);
+    underSpread->SetValue(0.25f, true);
+
+    scene.m_shift = true;
+    scene.m_spread = true;
+    scene.m_fineTune = true;
+    rig.Turn(0, 1);
+    const float expected = 0.5f + static_cast<float>(ExponentialEncoderDelta::Decode(0)) / 100.0f;
+    for (auto* cell : {slots[0].get(), nested, underSpread})
+    {
+        const auto& spread = cell->m_modulators.m_modulators[x_spread];
+        DOCTEST_REQUIRE(spread);
+        DOCTEST_CHECK(spread->m_targets[0] == doctest::Approx(expected).epsilon(1e-7));
+        DOCTEST_CHECK(spread->m_modulators.m_numActiveModulators == 0);
+    }
+
+    DOCTEST_CHECK_FALSE(slots[1]->m_modulators.m_modulators[x_spread]);
+    DOCTEST_CHECK_FALSE(slots[x_spread]->m_modulators.m_modulators[x_spread]);
+    DOCTEST_CHECK(slots[x_spread]->m_targets[0] == 0.8f);
+    DOCTEST_CHECK(slots[0]->m_targets[0] == 0.75f);
+    DOCTEST_CHECK(nested->m_targets[0] == 0.25f);
+    DOCTEST_CHECK(rig.Cell().m_targets[0] == 0.5f);
+}
+
+DOCTEST_TEST_CASE("encoder Shift plus Spread ignores routes only browsed in the picker")
+{
+    ExponentialEncoderRig rig;
+    auto& sources = rig.m_banks.GetModulatorValues(0);
+    constexpr size_t x_spread = BankedEncoderCell::x_spreadModulator;
+    sources.SetModulatorSkin(0, Color::Red, nullptr);
+    sources.SetModulatorSkin(x_spread, Color::Grey, "SPRD");
+    auto& bank = rig.m_banks.m_banks[0];
+    bank.HandlePress(0, 0);
+    bank.HandlePress(0, 0);
+    bank.HandlePress(0, 0);
+    bank.HandlePress(3, 3);
+
+    const auto& route = rig.Cell().m_modulators.m_modulators[0];
+    DOCTEST_REQUIRE(route);
+    const auto& spread = route->m_modulators.m_modulators[x_spread];
+    DOCTEST_REQUIRE(spread);
+    DOCTEST_CHECK(spread->m_targets[0] == 0.5f);
+
+    auto& scene = rig.m_context.m_sceneManager;
+    scene.m_shift = true;
+    scene.m_spread = true;
+    rig.Turn(127, 1);
+    DOCTEST_CHECK(spread->m_targets[0] == 0.5f);
+
+    const auto& nested = route->m_modulators.m_modulators[0];
+    DOCTEST_REQUIRE(nested);
+    nested->SetValue(0.75f, true);
+    rig.Turn(127, 2);
+    DOCTEST_CHECK(spread->m_targets[0] > 0.5f);
+    DOCTEST_CHECK(route->m_targets[0] == 0.5f);
+    DOCTEST_CHECK(nested->m_targets[0] == 0.75f);
+}
+
 DOCTEST_TEST_CASE("exponential encoder: ignored values do not activate gestures and valid edits do")
 {
     ExponentialEncoderRig rig;

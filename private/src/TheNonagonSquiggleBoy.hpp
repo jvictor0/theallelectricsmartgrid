@@ -815,13 +815,18 @@ struct TheNonagonSquiggleBoyInternal
         }
     };
 
-    SmartGrid::Cell* MakeShiftCell()
+    static SmartGrid::Cell* MakeModifierCell(bool& held)
     {
         return new SmartGrid::RuntimeStateCell(
-                SmartGrid::Color::White /*onColor*/,
-                SmartGrid::Color::White.Dim() /*offColor*/,
-                &m_context.m_sceneManager.m_shift,
+                SmartGrid::Color::White,
+                SmartGrid::Color::White.Dim(),
+                &held,
                 SmartGrid::RuntimeStateCell::Mode::Momentary);
+    }
+
+    SmartGrid::Cell* MakeShiftCell()
+    {
+        return MakeModifierCell(m_context.m_sceneManager.m_shift);
     }
 
     SmartGrid::Cell* MakeRunningCell()
