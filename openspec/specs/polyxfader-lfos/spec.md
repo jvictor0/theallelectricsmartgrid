@@ -5,16 +5,17 @@ The PolyXFader LFOs (`private/src/PolyXFader.hpp`, `PolyXFaderInternal`) are the
 
 ## Requirements
 
-### Requirement: Phase Derived from Unmodulated Time Loop Phasors
-Each LFO SHALL read absolute loop phases through the shared GetPhase API using an explicit Unmodulated or Modulated domain, retaining the domain selected by its current integration. The ToT phase-modulation LFO SHALL use Unmodulated. The LFO SHALL generate no independent phase accumulator and SHALL support up to 16 loops, with six in voice LFOs. It SHALL reduce phase in double inside waveform evaluation before narrowing to float; topology changes SHALL NOT be handled by locally reconstructing winding.
+### Requirement: Phase Derived from Continuous Time Loop Phasors
+Each LFO SHALL derive loop phase by multiplying the selected continuous Theory of Time master phase by the loop cycle ratio. Voice and quad LFOs SHALL use the delay’s modulated continuous clock. The Theory of Time phase-modulation LFO SHALL read the unmodulated continuous clock before advancing it for the current sample. The generated core SHALL support up to six loops supplied by Theory of Time. It SHALL reduce phase in double inside waveform evaluation before narrowing to float.
 
 #### Scenario: Integer phase shifts preserve the waveform
-- **WHEN** an aligned topology change changes a loop's absolute phase by an integer with waveform controls unchanged
-- **THEN** that loop's shaped waveform value is unchanged
+- **WHEN** a topology change changes a loop’s absolute phase by an integer with waveform controls unchanged
+- **THEN** that loop’s shaped waveform value is unchanged
 
-#### Scenario: Stationary phase
-- **WHEN** phase and waveform controls stop changing
-- **THEN** the shaped per-loop waveform remains constant
+#### Scenario: Stopped transport
+- **WHEN** the transport stops
+- **THEN** the LFO waveforms SHALL continue on their continuous clocks at nominal tempo
+- **AND** restarting transport SHALL preserve each continuous clock coordinate at the point of rebasing
 
 ### Requirement: Center/Slope Weighted Loop Mixing
 The system SHALL mix the shaped per-loop signals with weights computed from `m_center` and `m_slope`: the loop index nearest `center × size` (within ±0.25) receives weight 1, and weights taper linearly away from the center with slope `1 / (slope × size)` (a fixed taper of 2 when `slope × size < 0.5`), clamped at 0. The weighted sum is divided by the total weight, and each loop's contribution is additionally scaled by a per-voice external weight `m_externalWeights[i]`.
@@ -40,7 +41,13 @@ The voice LFO multiplier is an exponential parameter spanning 1 to 16.
 - **WHEN** `m_mult` is 2.5
 - **THEN** two full-amplitude cycles are followed by a final cycle whose amplitude is scaled by 0.5
 
-The existing partial-lobe construction SHALL remain periodic in the incoming loop phase, including for fractional multipliers. Center/slope controls, topology-dependent external weights, quantization, sample-and-hold, and output slew SHALL retain existing behavior. No additional continuity guarantee SHALL be imposed on user control changes or the existing unmodulated/modulated topology-boundary mismatch.
+The existing partial-lobe construction SHALL remain periodic in the incoming loop phase, including for fractional multipliers. Center/slope controls and topology-dependent external weights SHALL retain their existing mapping. The audio-rate processing SHALL be generated from Lean, using Theory of Time phase, ratios and phase travel as inputs.
+
+Each loop's effective waveform multiplier SHALL be the smaller of the mapped Mult and the nominal rate ceiling divided by that loop's nominal rate. The rate ceiling SHALL equal the maximum internal tempo times the largest ratio reachable from the grid. A loop SHALL retain its own effective multiplier when its blend weight changes or another loop changes rate.
+
+#### Scenario: Mult at maximum nominal topology
+- **WHEN** the internal tempo is at its maximum, all five links have multiplier five, and the mapped Mult exceeds one
+- **THEN** the fastest loop uses effective Mult one while slower loops retain their own limits
 
 #### Scenario: Fractional shaping remains loop-periodic
 - **WHEN** multiplier is 2.5 and the absolute source phase differs by exactly one cycle
@@ -57,61 +64,21 @@ The system SHALL skew each cycle with `m_attackFrac` (clamped to [0.001, 0.999])
 - **WHEN** `m_attackFrac` is set to 0
 - **THEN** the effective attack fraction is 0.001 and no division by zero occurs
 
-### Requirement: Continuous Shape Morph with Driven Sine
-The system SHALL morph the waveform with `m_shape`, applied to each skewed ramp `in`. At shape 0 the ramp passes unchanged, a triangle at centered skew. From 0 to 0.5 the ramp crossfades toward the raised-cosine sine `(1 − cos(2π · in / 2)) / 2` with sine weight `shape × 2`. Above 0.5 the bipolar sine passes through the normalized fast tanh `(tanh(drive · (2 · sine − 1)) / tanh(drive) + 1) / 2`, with `drive = ExpParam::Compute(0.25, 8, 2 · shape − 1)`: exponential from 0.25 just above 0.5 to 8 at shape 1. Mono, trio and quad callers SHALL share this generic mapping lane by lane. No quantizer or quantizer history is used.
-Normalization keeps every shape in [0, 1]. Because the minimum drive is positive, the waveform steps slightly just above shape 0.5 rather than continuing exactly from the sine.
+### Requirement: Continuous Shape Morph with Fixed Saturation
+The system SHALL morph from the skewed ramp at Shape 0 to the raised cosine at Shape 0.5 and to the fixed gain-8 saturated cosine at Shape 1. Each half SHALL interpolate continuously between its endpoints. Mono, trio and quad callers SHALL share this mapping lane by lane.
 
-#### Scenario: Shape zero is the skewed ramp
-- **WHEN** `m_shape` is 0
-- **THEN** each loop's shaped value equals its skewed ramp
+### Requirement: Phase-Distance Slew and Triggered Sample-and-Hold
+The system SHALL smooth the normalized mix using a one-pole with double state. Its cutoff SHALL scale with eight times the phase travel per sample and the largest product of loop ratio and that loop's effective multiplier among loops with nonzero geometric weight on the lane. The cutoff SHALL be capped at the maximum nominal internal tempo times the largest topology ratio reachable from the grid. At a 192 kHz engine sample rate this is 9,155.2734375 Hz, or 3,125/65,536 cycles per sample. The coefficient SHALL be calculated each sample using the same polynomial throughout that range. Running voice and quad LFOs SHALL use the magnitude of modulated continuous phase travel. The time-warp LFO and stopped LFOs SHALL use nominal travel.
 
-#### Scenario: Shape one half is the sine
-- **WHEN** `m_shape` is 0.5
-- **THEN** each loop's shaped value is the raised-cosine sine of its skewed ramp
-
-#### Scenario: Full shape drives the sine at 8
-- **WHEN** `m_shape` is 1
-- **THEN** the drive is 8, the endpoints of the ramp still map to 0 and 1, and the waveform approaches a square
-
-#### Scenario: Drive starts at 0.25 above the sine boundary
-- **WHEN** `m_shape` rises just above 0.5
-- **THEN** the drive is approximately 0.25 and the output differs slightly from the undriven sine
-
-### Requirement: Triggered Sample-and-Hold Blend
-The system SHALL capture the current mixed output into a held value whenever the trigger input `m_trig` is asserted, and blend the held value with the live output as `held × m_shFade + live × (1 − m_shFade)` before smoothing.
-In the voice LFOs the trigger is the voice's AHD gate trigger (see ahd-envelopes and multi-phasor-gate), so a fully faded S+H output steps to a new value exactly once per note.
-
-#### Scenario: Full S+H fade steps per trigger
-- **WHEN** `m_shFade` is 1 and the voice receives a trigger
-- **THEN** the pre-slew output jumps to the value captured at the trigger and holds it until the next trigger
-
-#### Scenario: Half fade mixes stepped and continuous
-- **WHEN** `m_shFade` is 0.5
-- **THEN** the pre-slew output is the average of the held capture and the live continuous waveform
-
-### Requirement: Output Slew and Amplitude Centering
-The system SHALL smooth the blended output with a one-pole low-pass slew filter (natural frequency 500 Hz at 48 kHz) to produce `m_rawOutput`, and additionally publish `m_output = m_rawOutput × m_amplitude + (1 − m_amplitude) × 0.5`, which collapses toward the 0.5 midpoint as amplitude decreases.
-The slew rounds off S+H transitions.
-
-#### Scenario: Zero amplitude centers the output
-- **WHEN** `m_amplitude` is 0
-- **THEN** `m_output` is 0.5 regardless of the raw waveform
-
-#### Scenario: Held steps are smoothed
-- **WHEN** a trigger steps the held S+H value at full fade
-- **THEN** `m_rawOutput` approaches each new level exponentially rather than discontinuously
+The system SHALL capture the smoothed mix whenever the trigger input is asserted. A 500 Hz one-pole SHALL process the held value every sample, including at zero S+H fade. The raw output SHALL blend the filtered hold value with the smoothed live mix. The published output SHALL be `raw × amplitude + (1 − amplitude) × 0.5`. Voice triggers are supplied by the AHD gate. Quad triggers follow the accepted delay loop’s musical crossings.
 
 ### Requirement: Voice LFO Integration into the Modulation Matrix
 The system SHALL run two SquiggleLFO instances per voice and publish their raw (pre-amplitude-centering) outputs and amplitudes to the corresponding globally indexed manager sources; the instrument's default voice groups SHALL gather these sources into slots 6 and 7; encoder cells consume these per-voice values as modulation sources (see encoder-parameter-system).
-The LFO also exposes a top flag, true when every weighted contributing loop reports its top (cycle start), used to restart the LFO scope display.
+Voice and quad LFO scopes SHALL use continuous phase zero as the periodic origin and the reciprocal of the GCD of the active loop ratios as their period.
 
 #### Scenario: LFO modulates a routed parameter per voice
 - **WHEN** voice 4's LFO 1 outputs 0.8 and a parameter has modulation slot 6 at nonzero depth
 - **THEN** the parameter's voice-4 channel output reflects 0.8 through the crossfade modulation math while other voices follow their own LFO values
-
-#### Scenario: Top flag marks cycle start
-- **WHEN** all loops with nonzero mix weight report their top on the same control sample
-- **THEN** the LFO's top flag is true on that sample and the scope recording restarts
 
 ### Requirement: Quad LFO Integration into the Modulation Matrix
 The system SHALL run the two quad LFOs as four-lane `SquiggleLFOGeneric<4>` instances, one lane per quad channel, controlled from the `QuadLFOs` encoder bank through interpolated four-lane encoder reads (`GetValue<4>(param, 0)`). Each lane SHALL match an independent mono LFO given that channel's parameters, trigger and phase offset. The system SHALL publish their raw (pre-amplitude-centering) outputs and amplitudes to the corresponding globally indexed manager sources; the instrument's four Quad groups SHALL gather these sources into slots 6 and 7.

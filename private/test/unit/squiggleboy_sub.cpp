@@ -313,7 +313,7 @@ DOCTEST_TEST_CASE("Sub: scope starts on each lane's fractional oscillator wrap")
         //
         for (size_t sample = 0; sample < 8; ++sample)
         {
-            track.Processs(input);
+            track.Processs(input, *synth.m_theoryOfTime);
             for (size_t lane = 0; lane < 3; ++lane)
             {
                 const bool expectedTop = sample == (lane == 2 ? 1 : 0);

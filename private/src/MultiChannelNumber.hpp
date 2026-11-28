@@ -265,7 +265,16 @@ struct MultiChannelNumber
     //
     static MultiChannelNumber IfLess(const MultiChannelNumber& a, const MultiChannelNumber& b, const MultiChannelNumber& ifLess, const MultiChannelNumber& otherwise)
     {
-        return FromVector(a.Load() < b.Load() ? ifLess.Load() : otherwise.Load());
+        if constexpr (Size == 1)
+        {
+            // Let the compiler emit a scalar select directly.
+            //
+            return a[0] < b[0] ? ifLess[0] : otherwise[0];
+        }
+        else
+        {
+            return FromVector(a.Load() < b.Load() ? ifLess.Load() : otherwise.Load());
+        }
     }
 
     MultiChannelNumber Sqrt() const

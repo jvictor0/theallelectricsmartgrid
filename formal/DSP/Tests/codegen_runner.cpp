@@ -1,3 +1,4 @@
+#include "PackedCopy.hpp"
 #include "TPTSVFLowPass.hpp"
 #include "TPTSVFHighPass.hpp"
 #include "TPTSVFBandPass.hpp"
@@ -245,6 +246,12 @@ bool RunFMA()
 
 int main()
 {
+    using PackedFloat = MultiChannelNumber<float, 3>;
+    const PackedCopy::Input packedInput{{PackedFloat(1.0f, 2.0f, 3.0f), PackedFloat(-4.0f, 5.0f, 6.0f)}};
+    PackedCopy::State packedState{};
+    PackedCopy::Process(packedState, packedInput);
+    assert(packedState.m_samples == packedInput.m_samples);
+
     struct RecordState
     {
         double m_left;

@@ -8,7 +8,7 @@
     "private/src/QuadUtils.hpp": "eb287a8dd5c2f88979153018a2b246aa7056979ae252773cccb92182c293a69b",
     "private/src/SampleTimer.hpp": "d55157bec9215ac2d96da5cff2307ee19f7c2c2145a7a2775186be31f39d10b9",
     "private/src/SceneManager.hpp": "121352a6f3ce55761903df5ca8b5e30e2dd1f4e5004de761a813eefbcc03d8e3",
-    "private/src/MultiChannelNumber.hpp": "525be6791e223ca6a92cb0e78cebb114b45d1fdc74e292110e7c90451539ce47",
+    "private/src/MultiChannelNumber.hpp": "c0673337042eec57bc44a0d498768f2f894aa482d0434f4aab57f5c0aa3cf06c",
     "private/src/ModulatorManager.hpp": "9203a414105f7234fbfe1dc3d6a940531a747f3fd014dab4c40c46243b85633b"
   },
   "anchors": {

@@ -44,13 +44,6 @@ DOCTEST_TEST_CASE("Quad SquiggleLFO: four-lane instance matches mono lanes with 
     Quad::Input quadInput;
     Mono mono[4];
     Mono::Input monoInput[4];
-    quadInput.m_polyXFaderInput.m_theoryOfTime = &time;
-    quadInput.m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
-    for (size_t lane = 0; lane < 4; ++lane)
-    {
-        monoInput[lane].m_polyXFaderInput.m_theoryOfTime = &time;
-        monoInput[lane].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
-    }
 
     for (size_t sample = 0; sample < 4800; ++sample)
     {
@@ -88,12 +81,12 @@ DOCTEST_TEST_CASE("Quad SquiggleLFO: four-lane instance matches mono lanes with 
         }
 
         quadInput.m_mult.Update(mult);
-        quad.Process(quadInput);
+        quad.Process(quadInput, time);
         for (size_t lane = 0; lane < 4; ++lane)
         {
             DOCTEST_CAPTURE(sample);
             DOCTEST_CAPTURE(lane);
-            mono[lane].Process(monoInput[lane]);
+            mono[lane].Process(monoInput[lane], time);
             DOCTEST_CHECK(quad.m_output[lane] == doctest::Approx(mono[lane].m_output[0]).epsilon(0.00001).scale(1.0));
             DOCTEST_CHECK(quad.m_polyXFader.m_output[lane] == doctest::Approx(mono[lane].m_polyXFader.m_output[0]).epsilon(0.00001).scale(1.0));
             DOCTEST_CHECK(quad.m_polyXFader.m_amplitude[lane] == mono[lane].m_polyXFader.m_amplitude[0]);
@@ -118,7 +111,6 @@ DOCTEST_TEST_CASE("Quad SquiggleLFO: published periods cover each lane's partici
     SquiggleLFOGeneric<4> lfo;
     SquiggleLFOGeneric<4>::Input input;
     auto& mix = input.m_polyXFaderInput;
-    mix.m_theoryOfTime = &time;
     mix.m_size = 2;
     mix.m_center = QuadFloat(0.0f, 0.5f, 0.25f, 0.25f);
     mix.m_slope = QuadFloat(0.0f, 0.0f, 0.5f, 0.5f);
@@ -127,7 +119,7 @@ DOCTEST_TEST_CASE("Quad SquiggleLFO: published periods cover each lane's partici
 
     for (size_t step = 0; step < 2; ++step)
     {
-        lfo.Process(input);
+        lfo.Process(input, time);
         writer.AdvanceIndex();
         lfo.PopulateScopeState(time);
         writer.Publish();
@@ -137,7 +129,7 @@ DOCTEST_TEST_CASE("Quad SquiggleLFO: published periods cover each lane's partici
         {
             const auto& markers = writer.GetAcceptedMarkers(0, lane);
             DOCTEST_CHECK(markers.m_periodic.m_period == doctest::Approx(expected[lane]));
-            DOCTEST_CHECK(markers.m_periodic.m_origin == time.m_phaseClock.m_offset);
+            DOCTEST_CHECK(markers.m_periodic.m_origin == 0.0);
             DOCTEST_CHECK(markers.m_startIndexIndex == 0);
         }
 
@@ -147,6 +139,6 @@ DOCTEST_TEST_CASE("Quad SquiggleLFO: published periods cover each lane's partici
     }
 
     mix.m_size = 0;
-    lfo.Process(input);
+    lfo.Process(input, time);
     DOCTEST_CHECK(lfo.m_polyXFader.ComputeLogicalPeriods(time) == QuadDouble::Splat(1.0));
 }

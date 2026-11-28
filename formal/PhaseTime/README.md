@@ -337,19 +337,22 @@ and reuses its cursor value. UI views are not frozen inverse snapshots.
 
 The LFO is a pure function for the composition theorem. Its hypothesis is
 explicit: the recorded signal must be `S = L ∘ F` over the queried history.
-Parameter changes, sample-and-hold state, and transport changes to the LFO's
-musical origin can violate that hypothesis. Existing real-time FIR LODs are
+Parameter changes, sample-and-hold state, and topology edits can violate that hypothesis.
+Voice and quad LFO scope periods are anchored to continuous phase zero. Existing real-time FIR LODs are
 retained: the proof does not claim those filters commute with nonlinear warping
 or that all LODs reconstruct the identical unsmoothed signal.
 
 The slew model gives the ideal decay `exp(-k * abs(deltaPhase))`. Production uses
-`k = 2*pi*8*mult*maxCycleRatio`, a stable approximate coefficient for small steps,
-and `expm1` for large steps. The continuous forward chain rule explains tempo
-invariance; discrete sampled varying inputs still incur integration error.
-Reversal uses absolute travelled distance; it does not undo the filter state.
+`k = 2*pi*8*max(loopRatio*effectiveMult)` over the contributing loops until the per-sample cutoff reaches
+`3125/65536` cycles. This ceiling comes from the maximum internal tempo and
+maximum grid topology ratio. The [PolyXFader proofs](../DSP/PolyXFader/Proofs.lean)
+check the bound and the error of the coefficient polynomial in real arithmetic.
+The continuous forward chain rule explains tempo invariance below the cap.
+Discrete sampled varying inputs still incur integration error. Reversal uses
+absolute travelled distance and continues the forward filter recurrence.
 The warp-producing oscillator uses nominal unmodulated increments to avoid a
-self-dependent derivative. Stopped LFO slew uses nominal increments so it can
-settle while the musical phase is stationary.
+self-dependent derivative. Stopped LFOs and their slew advance at nominal
+tempo on the continuous clocks.
 
 Native regressions exercise phase clocks, transport, all delay speeds, inverse
 replacement/cutoffs, periodic startup and rewind, shared overlay coordinates,

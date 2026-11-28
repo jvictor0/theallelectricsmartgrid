@@ -594,7 +594,7 @@ struct TheNonagonSmartGrid
                 State* multState = m_owner->m_stateSaver.Insert(
                     "TheoryOfTimeMult", i, &m_timeState->m_input[i].m_parentMult);
 
-                for (size_t mult = 2; mult <= 5; ++mult)
+                for (size_t mult = 2; mult <= TheoryOfTimeBase::x_maxTopologyMultiplier; ++mult)
                 {
                     Put(
                         xPos,

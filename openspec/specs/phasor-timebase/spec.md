@@ -12,7 +12,7 @@ The system SHALL keep ClockMode and Input::m_clockMode absent. It SHALL advance 
 - **AND** no product clock-mode API is introduced
 
 ### Requirement: True Phase and Phase-Modulated Phase
-The system SHALL maintain absolute unmodulated and modulated phases with modulated = unmodulated - 2 * modIndex * lfoRawOutput. The phase-modulation PolyXFader SHALL read unmodulated loop phases and retain its existing loop-period/global-period amplitude weights. Modulated time SHALL drive gates and musical position; unmodulated time SHALL drive external synchronization, recording timestamps, outgoing clock, and existing unmodulated consumers.
+The system SHALL maintain absolute unmodulated and modulated phases with modulated = unmodulated - 2 * modIndex * lfoRawOutput. The phase-modulation PolyXFader SHALL derive loop phases from the previous sample’s continuous unmodulated master phase and retain its existing loop-period/global-period amplitude weights. Modulated time SHALL drive gates and musical position; unmodulated time SHALL drive external synchronization, recording timestamps, outgoing clock, and existing unmodulated consumers.
 
 #### Scenario: Zero modulation is identity
 - **WHEN** modulation index is zero at global phase 7.25

@@ -384,10 +384,9 @@ DOCTEST_TEST_CASE("ScopeReader: LFO publishes a periodic axis between stored sam
     writer->m_subIndex = 2;
     SquiggleLFOGeneric<1> lfo;
     SquiggleLFOGeneric<1>::Input input;
-    input.m_polyXFaderInput.m_theoryOfTime = &time;
     input.m_polyXFaderInput.m_size = 1;
     lfo.m_scopeWriter = ScopeWriterHolder(writer.get(), 0);
-    lfo.Process(input);
+    lfo.Process(input, time);
     AdvanceTo(*writer, 11);
     lfo.PopulateScopeState(time);
     writer->Publish();
@@ -397,7 +396,7 @@ DOCTEST_TEST_CASE("ScopeReader: LFO publishes a periodic axis between stored sam
     const auto& markers = writer->GetAcceptedMarkers(0, 0);
     DOCTEST_CHECK(markers.m_startIndexIndex == 0);
     DOCTEST_CHECK(markers.m_periodic.m_period == 1.0);
-    DOCTEST_CHECK(markers.m_periodic.m_origin == time.m_phaseClock.m_offset);
+    DOCTEST_CHECK(markers.m_periodic.m_origin == 0.0);
 }
 
 DOCTEST_TEST_CASE("ScopeReader: Theory of Time captures one displacement per control sample")
@@ -532,10 +531,9 @@ DOCTEST_TEST_CASE("ScopeReader: LFO publishes its axis with UI state")
     writer->m_index = 20;
     SquiggleLFOGeneric<1> lfo;
     SquiggleLFOGeneric<1>::Input input;
-    input.m_polyXFaderInput.m_theoryOfTime = &time;
     input.m_polyXFaderInput.m_size = 1;
     lfo.m_scopeWriter = ScopeWriterHolder(writer.get(), 0);
-    lfo.Process(input);
+    lfo.Process(input, time);
     AdvanceTo(*writer, 21);
     DOCTEST_CHECK(writer->GetMarkers(0, 0).m_periodic.m_period == 0.0);
     lfo.PopulateScopeState(time);
@@ -546,5 +544,5 @@ DOCTEST_TEST_CASE("ScopeReader: LFO publishes its axis with UI state")
     const auto& markers = writer->GetAcceptedMarkers(0, 0);
     DOCTEST_CHECK(markers.m_startIndexIndex == 0);
     DOCTEST_CHECK(markers.m_periodic.m_period == 1.0);
-    DOCTEST_CHECK(markers.m_periodic.m_origin == time.m_phaseClock.m_offset);
+    DOCTEST_CHECK(markers.m_periodic.m_origin == 0.0);
 }

@@ -227,6 +227,17 @@ def scalarType (type : Expr) (numberType : Option Expr) : MetaM String := do
   let type ← whnf type
   if numberType == some type then return "Vector"
   if type.isAppOfArity ``Fin 1 then return "size_t"
+  if type.isAppOfArity ``DSP.Packed 2 then
+    let args := type.getAppArgs
+    let number ← match ← whnf args[0]! with
+      | .const ``Float _ => pure "double"
+      | .const ``Float32 _ => pure "float"
+      | _ => throwError "C++ codegen: packed numbers must use Float or Float32"
+    let .lit (.natVal count) ← whnf args[1]!
+      | throwError "C++ codegen: packed lane count must be static"
+    unless count == 3 || (0 < count && count &&& (count - 1) == 0) do
+      throwError "C++ codegen: unsupported packed lane count {count}"
+    return s!"MultiChannelNumber<{number}, {count}>"
   match type with
   | .const ``Float _ => return "double"
   | .const ``Float32 _ => return "float"
@@ -297,7 +308,7 @@ partial def fieldShape (type : Expr) (numberType : Option Expr)
     unless !body.hasLooseBVars do throwError "C++ codegen: dependent vector elements are unsupported"
     return .vector (← finSize domain) (← fieldShape body numberType numberName nativeStorage)
   if #[``Float, ``Float32, ``Bool, ``Int, ``UInt64, ``DelayBuffer.QuadAges].any type.isConstOf ||
-      type.isAppOfArity ``Fin 1 then
+      type.isAppOfArity ``Fin 1 || type.isAppOfArity ``DSP.Packed 2 then
     return .scalar (← scalarType type numberType)
   let .const name _ := type.getAppFn
     | throwError "C++ codegen: unsupported field type {type}"
@@ -632,6 +643,10 @@ def emitBranch (condition : String) (yes no : GenM Value) : GenM Value := do
 def mathIncludes (used : Bool) : Array String :=
   if used then #["#include \"Math.hpp\"", "#include \"MultiChannelNumber.hpp\"", ""] else #[]
 
+private def emissionIncludes (emission : Emission) (storage : Array String := #[]) : Array String :=
+  let headers := (storage ++ emission.stateHeaders).toList.eraseDups.toArray
+  mathIncludes emission.usesMath ++ headers.map (fun header => s!"#include \"{header}\"")
+
 /-- Only exact eighth-cycle phases have a constexpr Math4096 table entry.
 Other constants and all runtime phases retain the ordinary lookup path. -/
 def eighthCycle (x : Float) : Option Nat := do
@@ -705,6 +720,11 @@ private def emitNumeric (operation : NumericLowering) (type : String) (values : 
     let method := if vector then "Vector::FusedMultiplyAdd" else "std::fma"
     temporary type s!"{method}({a}, {b}, {c})"
   | .libm method result, #[x] => temporary result s!"std::{method}({x})"
+  | .curvePair header method, #[x] => do
+    modify fun s => { s with stateHeaders := s.stateHeaders.push header }
+    let pair ← fresh
+    emit s!"const auto {pair} = {method}({x});"
+    return .record #[.scalar type s!"{pair}.first", .scalar type s!"{pair}.second"]
   | _, _ => throwError "C++ codegen: invalid native numeric application"
 
 private partial def callArgument : Value → GenM String
@@ -1047,8 +1067,11 @@ partial def evaluate (expression : Expr) (locals : Locals)
               else mkApp2 args[offset + 1]! accVar indexVar
             if let some (stateType, stateValue, owned) := state then
               withLocal `state stateType fun stateVar => do
+                let target := match stateValue, (← get).recordState with
+                  | .borrowed receiver _, some stateShape => Destination.action stateShape receiver
+                  | _, _ => .value
                 let result ← evaluate (mkApp step stateVar)
-                  ((stateVar.fvarId!, stateValue) :: locals)
+                  ((stateVar.fvarId!, stateValue) :: locals) target
                 let stepValue ← selectField result 0
                 let (done, nextAcc) ← if earlyExit then do
                   let .optional done next ← pure stepValue
@@ -1402,6 +1425,31 @@ partial def evaluate (expression : Expr) (locals : Locals)
       let pairs ← args.mapM fun arg => do scalar (← evaluate arg locals)
       let some (type, _) := pairs[0]? | throwError "C++ codegen: native numeric operation needs operands"
       return ← emitNumeric operation type (pairs.map Prod.snd)
+    | some (.packedArithmetic operation arity instances) =>
+      if let some (doubleInstance, singleInstance) := instances then
+        let expected ← match ← whnf args[0]! with
+          | .const ``Float _ => pure doubleInstance
+          | .const ``Float32 _ => pure singleInstance
+          | _ => throwError "C++ codegen: packed arithmetic requires Float or Float32"
+        let actual ← expose args[2]! #[expected]
+        unless actual.isConstOf expected do
+          throwError "C++ codegen: {name} requires the standard packed arithmetic instance {expected}"
+      let pairs ← (args.extract (args.size - arity) args.size).mapM fun arg => do
+        scalar (← evaluate arg locals)
+      let values := pairs.map Prod.snd
+      modify fun s => { s with stateHeaders := s.stateHeaders.push "MultiChannelNumber.hpp" }
+      if let .curvePair header method := operation then
+        return ← emitNumeric (.curvePair header method) pairs[0]!.1 values
+      let result ← scalarType (← inferType e) (← get).numberType
+      match operation, values with
+      | .splat, #[x] => return ← temporary result s!"{result}::Splat({x})"
+      | .binary op, #[a, b] => return ← binaryTemporary result op a b
+      | .neg, #[a] => return ← negativeTemporary result a
+      | .member method, #[x] => return ← temporary result s!"{x}.{method}()"
+      | .method method, _ =>
+        return ← temporary result (s!"{result}::{method}(" ++ String.intercalate ", " values.toList ++ ")")
+      | .convert number, #[x] => return ← temporary result s!"{x}.template Convert<{number}>()"
+      | _, _ => throwError "C++ codegen: invalid packed arithmetic application"
     | some (.packedStorage (.sampleWord fromWord)) =>
       let (type, value) ← scalar (← evaluate args.back! locals)
       unless (← get).numberType == some args[0]! && (← get).checkedIndices do
@@ -1535,6 +1583,19 @@ partial def evaluate (expression : Expr) (locals : Locals)
     | _ => pure ()
     throwError "C++ codegen: unsupported expression {e}"
 
+private partial def usesConcretePackedNumber : Shape → Bool
+  | .scalar type => type.startsWith "MultiChannelNumber<float, " ||
+      type.startsWith "MultiChannelNumber<double, "
+  | .record fields => fields.any fun (_, field) => usesConcretePackedNumber field
+  | .vector _ element | .indexed _ element => usesConcretePackedNumber element
+  | .storage _ _ => false
+
+private def withPackedNumberInclude (includes : Array String) (shapes : Array Shape) :
+    Array String :=
+  let header := "#include \"MultiChannelNumber.hpp\""
+  if !includes.contains header && shapes.any usesConcretePackedNumber then includes.push header
+  else includes
+
 /-- A reusable data template, independent of the processor's channel wrapper.
 `Number` may be a scalar or MultiChannelNumber; no arithmetic is generated. -/
 def generateRecord (record : Name) (cppName : String) : MetaM String := do
@@ -1549,8 +1610,10 @@ def generateRecord (record : Name) (cppName : String) : MetaM String := do
     unless (← inferType parameters[0]!) == mkSort (.succ .zero) do
       throwError "C++ codegen: record export expects one number type parameter"
     let fields ← fieldShape (mkAppN (mkConst record) parameters) (some parameters[0]!) "Number"
-    let header := #["#pragma once", "", s!"// Generated from {record}. Do not edit.", "//", "",
-      "#include <array>", "#include <cstdint>", "#include <stddef.h>", "", "template<typename Number>"]
+    let includes := withPackedNumberInclude #["#include <array>", "#include <cstdint>", "#include <stddef.h>"]
+      #[fields]
+    let header := #["#pragma once", "", s!"// Generated from {record}. Do not edit.", "//", ""] ++
+      includes ++ #["", "template<typename Number>"]
     return String.intercalate "\n" (header ++ (← renderRecord cppName fields "")).toList
 
 def renderHeader (function : Name) (cppName : String) (generic : Bool)
@@ -1588,12 +1651,14 @@ def renderFunction (function : Name) (method : String) (parameters runtime : Arr
   let inputNumber ← if numericInput then pure inputType else do
     unless inputType.getAppArgs.size == 1 do throwError "C++ codegen: record input expects one number type"
     pure inputType.getAppArgs[0]!
-  unless ← isDefEq inputNumber resultType do
+  unless (← isDefEq inputNumber resultType) || (numberType.isNone && inputRecord.isNone &&
+      (resultType.isConstOf ``Float || resultType.isConstOf ``Float32)) do
     throwError "C++ codegen: function result must have the input's numeric type"
   unless (numberType == some inputNumber) ||
       (numberType.isNone && (inputNumber.isConstOf ``Float || inputNumber.isConstOf ``Float32)) do
     throwError "C++ codegen: record input must use the exported number type"
   let cppType ← scalarType inputNumber numberType
+  let resultCppType ← scalarType resultType numberType
   let inputFields ← fieldShape inputType numberType
   let (includes, aliases, inputCppType) := match inputRecord with
     | none => (#[], #[], cppType)
@@ -1603,7 +1668,7 @@ def renderFunction (function : Name) (method : String) (parameters runtime : Arr
     (runtime[1]!.fvarId!, readValue inputFields "input")]
   let (_, emission) ← (do
     let (type, result) ← scalar (← evaluate (mkAppN (mkConst function) parameters) locals)
-    unless type == cppType do throwError "C++ codegen: function result type mismatch"
+    unless type == resultCppType do throwError "C++ codegen: function result type mismatch"
     emit s!"return {result};").run { numberType, arithmetic }
   let mut body := pruneTemporaries emission.lines
   for name in #["snapshot", "input"] do
@@ -1612,8 +1677,10 @@ def renderFunction (function : Name) (method : String) (parameters runtime : Arr
       body := #[s!"static_cast<void>({name});"] ++ body
   let record ← renderRecord "Snapshot" snapshotFields
   let declarations := if declareRecords then aliases ++ record else #[]
-  return (includes ++ mathIncludes emission.usesMath, declarations ++
-    #[s!"    static {cppType} {method}(const Snapshot& snapshot, const {inputCppType}& input)", "    {"] ++
+  let includes := withPackedNumberInclude (includes ++ emissionIncludes emission)
+    #[snapshotFields, inputFields]
+  return (includes, declarations ++
+    #[s!"    static {resultCppType} {method}(const Snapshot& snapshot, const {inputCppType}& input)", "    {"] ++
     body.map (fun line => if line.isEmpty then "" else "        " ++ line) ++ #["    }", ""])
 
 /-- Close a record's arithmetic parameter before comparing signatures from
@@ -1643,7 +1710,8 @@ def renderSnapshot (function : Name) (parameters runtime : Array Expr)
     emit "return result;").run { numberType, arithmetic }
   let body := if emission.lines.any (fun line => (line.splitOn "spec.").length > 1)
     then emission.lines else #["static_cast<void>(spec);"] ++ emission.lines
-  return (mathIncludes emission.usesMath, (← renderRecord "Snapshot" outputFields) ++
+  return (withPackedNumberInclude (emissionIncludes emission) #[inputFields, outputFields],
+    (← renderRecord "Snapshot" outputFields) ++
     #["    static Snapshot MakeSnapshot(const LogicalSpec& spec)", "    {"] ++
     (pruneTemporaries body).map (fun line => if line.isEmpty then "" else "        " ++ line) ++ #["    }", ""])
 
@@ -1715,7 +1783,8 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
         emit "Prepared result{};"
         commitValue outputShape output "result"
         emit "return result;").run {numberType,arithmetic}
-      return (mathIncludes emission.usesMath, inputDeclaration ++ (← renderRecord "Prepared" outputShape) ++
+      return (withPackedNumberInclude (emissionIncludes emission) #[inputShape, outputShape],
+        inputDeclaration ++ (← renderRecord "Prepared" outputShape) ++
         #[s!"    static Prepared Prepare(const {inputCppType}& input)", "    {"] ++
         (pruneTemporaries emission.lines).map ("        " ++ ·) ++ #["    }", ""])
     if let some expected := resetState then
@@ -1744,7 +1813,8 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
         for line in assignments do emit line
         if let some outputFields := outputFields then
           commitValue outputFields output.get! "m_output").run {numberType, arithmetic}
-      return (mathIncludes emission.usesMath,
+      return (withPackedNumberInclude (emissionIncludes emission)
+          (#[fields] ++ outputFields.toArray),
         #["    void Reset()", "    {"] ++ (pruneTemporaries emission.lines).map ("        " ++ ·) ++ #["    }", ""])
     if let some expected := captureSpec then
       return ← renderSnapshot function parameters runtime resultType numberType arithmetic expected
@@ -1815,7 +1885,7 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
       let lines := cache ++ specRecord ++ inlineAttribute ++
         #[s!"    void {tuningMethod}({specArgument})", "    {"] ++
         (pruneTemporaries body).map (fun line => if line.isEmpty then "" else "        " ++ line) ++ #["    }", ""]
-      return (mathIncludes emission.usesMath, lines)
+      return (withPackedNumberInclude (emissionIncludes emission) #[inputFields], lines)
     let outputLines ← match outputFields with
       | none => pure #["    State m_state;", ""]
       | some outputFields => do
@@ -1826,7 +1896,8 @@ def generateParts (function : Name) (cppName : String) (generic : Bool)
       (scheduleStores (pruneTemporaries body)).map (fun line => if line.isEmpty then "" else "        " ++ line) ++
       #["    }", ""]
     let indexIncludes := if boundedIndices then #["#include \"CodegenInteger.hpp\""] else #[]
-    return (indexIncludes ++ mathIncludes emission.usesMath, lines)
+    return (withPackedNumberInclude (indexIncludes ++ emissionIncludes emission)
+        (#[stateFields, inputFields] ++ outputFields.toArray), lines)
 
 private def generateResetParts (step reset : Name) (cppName : String) (generic : Bool) :
     MetaM (Array String × Array String) := do
@@ -1892,8 +1963,9 @@ def generateView (function : Name) (cppName : String) (into : Bool := false) : M
         "    static void Evaluate([[maybe_unused]] const Input& input, Output& output)"]
       else #["    template<typename Input>",
         s!"    static {result} Evaluate([[maybe_unused]] const Input& input)"]
-    return String.intercalate "\n" (renderHeader function cppName false
-        (#["#include \"CodegenInteger.hpp\""] ++ mathIncludes emission.usesMath) ++ declarations ++
+    let includes := withPackedNumberInclude (#["#include \"CodegenInteger.hpp\""] ++ emissionIncludes emission)
+      #[shape, outputShape]
+    return String.intercalate "\n" (renderHeader function cppName false includes ++ declarations ++
       signature ++ #["    {"] ++ body ++ #["    }", "", "};", ""]).toList
 
 private partial def storageHeaders : Shape → Array String
@@ -1999,15 +2071,16 @@ def generateEffect (function : Name) (cppName : String) (ownRecord : Bool := fal
       else if ownRecord || callable || scalarInputs then "    template<typename State>"
       else "    template<typename State, typename Input>"
     let inlineAttribute := if outlined then "[[gnu::noinline]] " else ""
-    let headers := (recordState.elim #[] storageHeaders ++ emission.stateHeaders).toList.eraseDups
-    let calls := headers.toArray.map fun header => s!"#include \"{header}\""
+    let includes := withPackedNumberInclude
+      (#["#include \"CodegenInteger.hpp\"", "#include <tuple>"] ++
+        emissionIncludes emission (recordState.elim #[] storageHeaders))
+      (#[shape, outputShape] ++ recordState.toArray)
     let stateDeclaration ← if declareState then
       renderRecord "State" recordState.get!
     else pure #[]
     let sizeAssert := if emission.usesWideIndices then
       #["    static_assert(std::numeric_limits<std::size_t>::digits >= 64);", ""] else #[]
-    return String.intercalate "\n" (renderHeader function cppName generic
-        (#["#include \"CodegenInteger.hpp\"", "#include <tuple>"] ++ mathIncludes emission.usesMath ++ calls) ++
+    return String.intercalate "\n" (renderHeader function cppName generic includes ++
       sizeAssert ++ stateDeclaration ++ inputDeclaration ++ outputDeclaration ++
       #[template, s!"    {inlineAttribute}static {returnType} Process({parameters})", "    {"] ++
       body ++ #["    }", "", "};", ""]).toList
@@ -2346,10 +2419,12 @@ elab "#generate_cpp_effect_generic " function:ident " as " cppName:ident " to " 
   modifyEnv fun env => compiledActions.addEntry env function.getId
   logInfo m!"Generated {output} from {function.getId} as a packed state action"
 
-private def exportStateAction (source : Name) (cppName path : String) (outlined : Bool) : CommandElabM Unit := do
+private def exportStateAction (source : Name) (cppName path : String)
+    (outlined : Bool) (declareState : Bool := false) : CommandElabM Unit := do
   let output : System.FilePath := path
   let header ← checkStateExport source cppName output
-  let code ← liftTermElabM <| generateEffect source cppName (ownRecord := true) (outlined := outlined)
+  let code ← liftTermElabM <| generateEffect source cppName
+    (ownRecord := true) (outlined := outlined) (declareState := declareState)
   if let some parent := output.parent then IO.FS.createDirAll parent
   IO.FS.writeFile output code
   modifyEnv fun env => stateExports.addEntry env (source, { cppName, header })
@@ -2360,6 +2435,9 @@ elab "#generate_cpp_state " function:ident " as " cppName:ident " to " path:str 
 
 elab "#generate_cpp_state " function:ident " outlined " "as " cppName:ident " to " path:str : command =>
   exportStateAction function.getId cppName.getId.toString path.getString true
+
+elab "#generate_cpp_state " function:ident " owning " "as " cppName:ident " to " path:str : command =>
+  exportStateAction function.getId cppName.getId.toString path.getString false true
 
 private def exportPackedStateAction (function : Name) (cppName path : String)
     (declareState : Bool) : CommandElabM Unit := do

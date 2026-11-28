@@ -566,7 +566,7 @@ DOCTEST_TEST_CASE("recording engine: UI and MIDI transport and unmodulated phase
     DOCTEST_INFO("index=" << encoders.GetValue(SmartGridOneEncoders::Param::TempoLFOIndex)
         << " depth=" << internal.m_nonagon.m_state.m_theoryOfTimeInput.m_modIndex.m_expParam
         << " raw=" << time.m_phaseModLFO.m_rawOutput
-        << " center=" << time.m_phaseModLFO.m_center);
+        << " center=" << time.m_phaseModLFO.m_dsp.m_center[0]);
     DOCTEST_CHECK(sawModulation);
     if (const char* output = std::getenv("SMARTGRID_ENGINE_TIMELINE_FIXTURE"))
     {

@@ -1,5 +1,6 @@
 #include "Cases.hpp"
 #include "../DensityCase.hpp"
+#include "../PolyXFaderWorkload.hpp"
 #include "../ResponsesCase.hpp"
 #include "../ResynthesisWorkload.hpp"
 #include "../ReverbWorkload.hpp"
@@ -121,6 +122,33 @@ void RunResynthesis(const std::vector<std::string>& arguments, std::ostream& out
     }
 }
 
+template<size_t Size, int Mode>
+void MeasurePolyXFader(double seconds, const char* label, std::ostream& output)
+{
+    PolyXFaderWorkload<Size, Mode> work;
+    Measure(work, label, Mode, SampleTimer::x_sampleRate, seconds, 0.5, nullptr, output);
+}
+
+void RunPolyXFader(const std::vector<std::string>& arguments, std::ostream& output)
+{
+    Require(arguments.size() <= 2, "PolyXFader: [REPEATS] [SECONDS_PER_CASE]");
+    const int repeats = arguments.empty() ? 5 : Integer(arguments[0].c_str());
+    const double seconds = arguments.size() < 2 ? 6 : PositiveSeconds(arguments[1].c_str());
+    Require(repeats > 0, "PolyXFader repeats must be positive");
+
+    PrepareCPU();
+    SampleTimer::Init(512);
+    for (int repeat = 0; repeat < repeats; ++repeat)
+    {
+        MeasurePolyXFader<1, 0>(seconds, "polyxfader-three-mono", output);
+        MeasurePolyXFader<3, 0>(seconds, "polyxfader-trio", output);
+        MeasurePolyXFader<4, 0>(seconds, "polyxfader-quad", output);
+        MeasurePolyXFader<1, 3>(seconds, "polyxfader-three-mono", output);
+        MeasurePolyXFader<3, 3>(seconds, "polyxfader-trio", output);
+        MeasurePolyXFader<4, 3>(seconds, "polyxfader-quad", output);
+    }
+}
+
 const std::vector<BenchmarkCase>& BenchmarkCases()
 {
     static const std::vector<BenchmarkCase> x_cases
@@ -142,6 +170,9 @@ const std::vector<BenchmarkCase>& BenchmarkCases()
         {"butterworth", "Direct form I and Lean transposed direct form II at the engine rate. "
             "Times 33 quad second-order decimators and eight quad eighth-order decimators on identical inputs. "
             "Arguments: [REPEATS] [AUDIO_SECONDS_PER_CASE].", RunButterworth},
+        {"polyxfader", "Compare three mono instances, one trio and one quad at the engine rate. "
+            "Mode 0 holds the controls fixed; mode 3 varies them every sample. "
+            "Arguments: [REPEATS] [AUDIO_SECONDS_PER_CASE].", RunPolyXFader},
         {"resynthesis", "Process Hann-windowed 48 kHz grains through the full phase vocoder, including packed FFTs, "
             "pitch shift, unison, and the engine-rate synthesis frame. Reports CPU and wall timing for one, three, and four lanes. "
             "Arguments: [REPEATS] [AUDIO_SECONDS_PER_CASE].", RunResynthesis}

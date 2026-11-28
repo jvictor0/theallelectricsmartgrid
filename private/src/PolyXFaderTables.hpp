@@ -3,6 +3,7 @@
 #include "MultiChannelNumber.hpp"
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 // Both fixed curves share one interpolated segment lookup per lane. The
 // non-template table is shared by every instance and channel count.
@@ -48,8 +49,8 @@ struct PolyXFaderTables
     }
 
     template<size_t Size>
-    static void Evaluate(const MultiChannelNumber<float, Size>& input,
-        MultiChannelNumber<float, Size>& sine, MultiChannelNumber<float, Size>& hard)
+    static std::pair<MultiChannelNumber<float, Size>, MultiChannelNumber<float, Size>>
+    Evaluate(const MultiChannelNumber<float, Size>& input)
     {
         using Vector = MultiChannelNumber<float, Size>;
         Vector x = Vector::Min(Vector::Splat(1), Vector::Max(Vector(), input));
@@ -69,8 +70,13 @@ struct PolyXFaderTables
             dh[lane] = entry.m_hardDelta;
         }
 
-        sine = s0 + ds * frac;
-        hard = h0 + dh * frac;
+        return {s0 + ds * frac, h0 + dh * frac};
+    }
+
+    static std::pair<float, float> Evaluate(float input)
+    {
+        const auto result = Evaluate(MultiChannelNumber<float, 1>::Splat(input));
+        return {result.first[0], result.second[0]};
     }
 };
 

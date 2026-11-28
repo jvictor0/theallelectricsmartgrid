@@ -45,20 +45,25 @@ struct SquiggleLFOGeneric
 
     struct Input
     {
-        typename PolyXFader::Input m_polyXFaderInput;
+        typename PolyXFader::Input m_polyXFaderInput = PolyXFader::MakeInput();
         PhaseUtils::ExpParamGeneric<float, Size> m_mult;
 
         Input()
-            : m_mult(1, 16)
+            : m_mult(1, PolyXFader::x_maxMappedMult)
         {
             m_polyXFaderInput.m_size = x_numPhasors;
         }
     };
 
-    Vector Process(Input& input)
+    Vector Process(Input& input, const TheoryOfTimeBase& time)
+    {
+        return Process(input, PolyXFader::MakeClockInput(time, PhaseDomain::Modulated));
+    }
+
+    Vector Process(Input& input, const PolyXFaderClockInput& clock)
     {
         input.m_polyXFaderInput.m_mult = input.m_mult.m_expParam;
-        m_polyXFader.Process(input.m_polyXFaderInput);
+        m_polyXFader.Process(input.m_polyXFaderInput, clock);
         m_output = m_polyXFader.m_rawOutput;
 
         m_scopeWriter.Write(m_polyXFader.m_output);
@@ -76,8 +81,7 @@ struct SquiggleLFOGeneric
         auto periods = m_polyXFader.ComputeLogicalPeriods(time);
         for (size_t i = 0; i < Size; ++i)
         {
-            m_scopeWriter.SetPeriodicAtVoice(i,
-                {time.m_phaseClock.m_offset, periods[i]});
+            m_scopeWriter.SetPeriodicAtVoice(i, {0.0, periods[i]});
         }
     }
 
@@ -587,14 +591,18 @@ struct SquiggleBoyTrackGeneric
             lfoInput.m_polyXFaderInput.m_center = Vector::Splat(1) - encoders.GetValue<Size>(params[4], track);
             lfoInput.m_polyXFaderInput.m_slope = encoders.GetValue<Size>(params[5], track);
             lfoInput.m_polyXFaderInput.m_phaseShift = encoders.GetValue<Size>(params[6], track) * lfoPhaseSpread;
-            lfoInput.m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
             lfoInput.m_polyXFaderInput.m_shFade = encoders.GetValue<Size>(params[7], track);
         }
 
         input.SetGates();
     }
 
-    Vector Processs(Input& input)
+    Vector Processs(Input& input, const TheoryOfTimeBase& time)
+    {
+        return Processs(input, PolyXFaderGeneric<Size>::MakeClockInput(time, PhaseDomain::Modulated));
+    }
+
+    Vector Processs(Input& input, const PolyXFaderClockInput& clock)
     {
         for (size_t i = 0; i < x_numGangedRandomLFOs; ++i)
         {
@@ -612,8 +620,8 @@ struct SquiggleBoyTrackGeneric
         m_amp.m_subScopeWriter.RecordStarts(m_sub.m_top);
 
         m_pan.Process(input.m_panInput);
-        m_squiggleLFO[0].Process(input.m_squiggleLFOInput[0]);
-        m_squiggleLFO[1].Process(input.m_squiggleLFOInput[1]);
+        m_squiggleLFO[0].Process(input.m_squiggleLFOInput[0], clock);
+        m_squiggleLFO[1].Process(input.m_squiggleLFOInput[1], clock);
 
         Vector recorded = m_recordingDecimator.Process(m_output);
         ++m_recordingSubSample;

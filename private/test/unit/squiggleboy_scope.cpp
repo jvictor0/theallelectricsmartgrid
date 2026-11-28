@@ -22,7 +22,7 @@ DOCTEST_TEST_CASE("LFO scopes: UI publication refreshes all voice, quad and warp
         {
             const auto& markers = holder.m_scopeWriter->GetAcceptedMarkers(holder.m_scopeIx, lane);
             DOCTEST_CHECK(markers.m_periodic.m_period == periods[lane]);
-            DOCTEST_CHECK(markers.m_periodic.m_origin == time.m_phaseClock.m_offset);
+            DOCTEST_CHECK(markers.m_periodic.m_origin == 0.0);
             DOCTEST_CHECK(markers.m_startIndexIndex == 0);
         }
     };

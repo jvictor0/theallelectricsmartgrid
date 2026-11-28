@@ -70,10 +70,10 @@ LFO and delay scopes SHALL publish a positive period and origin rather than infe
 - **THEN** the display selects coordinates from the latest logical period using the retained forward inverse, without undoing periodic start markers
 
 ### Requirement: Phase-distance LFO slew
-Modulated LFO mix slew SHALL use the magnitude of the published modulated phase increment. Unmodulated warp generation and stopped settling SHALL use the nominal increment. Zero travel SHALL hold the mix, and large increments SHALL retain a finite coefficient in [0,1] without an audio cutoff clamp.
+Modulated LFO mix slew SHALL use the magnitude of the published modulated phase increment. Unmodulated warp generation and stopped settling SHALL use the nominal increment. Zero travel SHALL hold the mix. The effective cutoff SHALL be capped at the maximum internal tempo times the largest grid topology ratio.
 
 #### Scenario: Changing forward speed
-- **WHEN** a fixed waveform traverses the same forward phase path at different speeds
+- **WHEN** a fixed waveform traverses the same forward phase path at different speeds below the slew cutoff ceiling
 - **THEN** the slew follows phase distance, up to coefficient and discrete integration error
 
 ### Requirement: Checked phase model

@@ -55,7 +55,7 @@ This is a direct function of the current phase and accepted topology, including 
 
 ## Time-warp modulation controls
 
-The clock's phase-modulation LFO shares the voice and quad LFO Shape curve: zero (the default) is triangle, 0.5 is sine, and values above 0.5 progressively apply normalized tanh to make the sine square-like. There is no waveform quantization. Skew maps the full knob range to attack fractions 0.1 through 0.9; its midpoint remains symmetric at 0.5. Existing control filtering, loop blending and fractional-Mult lobes are retained. The mixed waveform passes through one low-pass filter at eight times the fastest contributing phasor's expected frequency, as described in [PolyXFader LFOs](polyxfader-lfos.md).
+The clock's phase-modulation LFO shares the voice and quad LFO Shape curve: zero (the default) is triangle, 0.5 is sine, and values above 0.5 blend toward a fixed gain-8 saturated sine. There is no waveform quantization. Skew maps the full knob range to attack fractions 0.1 through 0.9; its midpoint remains symmetric at 0.5. Existing control filtering, loop blending and fractional-Mult lobes are retained. The mixed waveform passes through one low-pass filter at eight times the fastest contributing phasor's expected frequency, as described in [PolyXFader LFOs](polyxfader-lfos.md).
 
 The narrower Skew range applies specifically to the time-warp LFO. Voice and quad LFOs retain their wider Skew range. High Mult can still reverse time; reversals remain an intentional part of the effect.
 
@@ -109,7 +109,7 @@ The engine supports 16 rhythm slots. The grid edits slots 0 through 7 and sizes 
 
 `TheoryOfTimeBase` holds one `Sample`, `m_sample`, containing its phases, positions, accepted loop topology, gates, crossing events, running flag, and change flag. `Process` advances it in place by exactly one engine sample; crossings compare against the phases it held before the call. Queries take no sample index and read the current sample: `GetLoop`, `GetPhase`, `GetGlobalTickPosition`, `GetPeriodTicks`, `GetCycleRatio`, `CrossedCycleBoundary`, `GetLoopCyclePosition`, and `GetResetCycleCount`. `AnyChange()` reports position motion, startup, stop, or an accepted topology edit on the current sample; `AnyTick(loop)` reports the loop's modulated crossing on the current sample. The static `GetLoopCyclePosition(sample, loop, resetLoop)`, `GetLoopCyclePositionFromTicks`, and `GetResetCycleCount(loopPeriodTicks, resetPeriodTicks)` evaluate the same arithmetic from a given sample or from tick periods.
 
-`TheoryOfTime::Process` runs once per engine sample. It advances the unmodulated phase by `m_freq` (or sets it to zero when stopped), evaluates the phase-modulation LFO from the previous sample's phases, advances the base sample, emits transport start and stop messages, emits a MIDI clock message on any sample where `Phasor2Tick` sees a division crossing, and writes the mono scope.
+`TheoryOfTime::Process` runs once per engine sample. It advances the unmodulated phase by `m_freq` (or sets it to zero when stopped), evaluates the phase-modulation LFO from the previous sample’s continuous unmodulated clock, advances the base sample, emits transport start and stop messages, emits a MIDI clock message on any sample where `Phasor2Tick` sees a division crossing, and writes the mono scope.
 
 When stopped, musical phases and positions are zero and gates and crossing flags are false. The stop transition and any accepted stopped topology edit raise the change flag for that sample. Accepted topology remains available for the next start.
 
@@ -117,7 +117,7 @@ When stopped, musical phases and positions are zero and gates and crossing flags
 
 - [Sequencer UI State](sequencer-ui-state.md) publishes accepted periods and all loop rhythm slots for signed tick queries outside the audio thread. Reset eligibility is inferred from period divisibility, so these queries do not need a copied parent tree.
 - Playback uses absolute modulated loop phase, applies speed and window length, then wraps into its output window.
-- PolyXFader selects an explicit phase domain and evaluates a periodic waveform in double precision before narrowing to float. Voice LFOs use modulated phase; the clock's own modulation LFO uses unmodulated phase.
+- PolyXFader selects an explicit phase domain and evaluates a periodic waveform in double precision before narrowing to float. Voice and quad LFOs use the modulated continuous clock, and the phase-modulation LFO uses the unmodulated continuous clock. Both clocks free-run at nominal tempo while transport is stopped.
 - AHD captures a source/global cycle ratio and envelope period at trigger and follows only absolute modulated global phase during the note.
 - Recording timestamps and outgoing MIDI clock use unmodulated global phase. Recording does not inherit phase-offset excursions.
 - Delay heads use continuous master phase. `PhaseClock` follows musical phase plus a constant offset while running, advances at nominal speed while stopped, and rebases only the offset on restart. Tempo changes do not reinterpret retained phase history. Read heads wrap within one selected loop behind the writer.

@@ -1,7 +1,7 @@
 #include "Bench.hpp"
 #include "GangedRandomLFO.hpp"
 #include "PartialMachine.hpp"
-#include "PolyXFader.hpp"
+#include "PolyXFaderWorkload.hpp"
 #include "QuadDelay.hpp"
 #include "QuadMasterChain.hpp"
 #include "ReverbWorkload.hpp"
@@ -34,11 +34,6 @@ std::array<float, 4> Result(const V& v, size_t channels)
     }
 
     return result;
-}
-
-float Motion(const Signals& signals, size_t n, size_t c, int mode)
-{
-    return (mode == 3 || (mode == 2 && c == 1)) ? signals.m_controls[n % signals.m_period][c] : 0;
 }
 
 // The clock runs a block ahead in PrepareBlock. Each sample then loads its
@@ -298,65 +293,6 @@ struct Random
     }
 };
 
-template <size_t Size, int Mode>
-struct Poly
-{
-    using Core = PolyXFaderGeneric<Size>;
-    Signals m_signals{x_rate};
-    TheoryOfTimeBase m_clock;
-    static constexpr size_t x_groups = Size == 4 ? 1 : 3 / Size;
-    Core m_core[x_groups];
-    typename Core::Input m_input[x_groups];
-    Poly()
-    {
-        m_clock.m_globalPeriodSamples = x_rate;
-        auto& sample = m_clock.m_sample;
-        sample.m_running = true;
-        for (size_t j = 0; j < 6; ++j)
-        {
-            sample.m_loops[j].m_cycleRatio = 1ll << (5 - j);
-        }
-
-        for (auto& p : m_input)
-        {
-            p.m_size = 6;
-            p.m_theoryOfTime = &m_clock;
-        }
-    }
-
-    std::array<float, 4> Process(size_t n)
-    {
-        auto& sample = m_clock.m_sample;
-        sample.m_modulatedPhase = static_cast<double>(n) / x_rate;
-        std::array<float, 4> out{};
-        for (size_t g = 0; g < x_groups; ++g)
-        {
-            auto& p = m_input[g];
-            for (size_t c = 0; c < Size; ++c)
-            {
-                size_t ch = g * Size + c;
-                float move = Motion(m_signals, n, ch, Mode);
-                Put(p.m_attackFrac, c, 0.3f + 0.1f * ch + 0.1f * move);
-                Put(p.m_shape, c, 0.25f + 0.1f * move);
-                Put(p.m_mult, c, 1.3f + 0.3f * ch + 0.1f * move);
-                Put(p.m_amplitude, c, 0.8f);
-                Put(p.m_phaseShift, c, 0.1f * ch);
-                Put(p.m_slope, c, 0.65f + 0.1f * move);
-                Put(p.m_center, c, 0.5f + 0.1f * move);
-                Put(p.m_shFade, c, 0.1f);
-            }
-
-            m_core[g].Process(p);
-            for (size_t c = 0; c < Size; ++c)
-            {
-                out[g * Size + c] = m_core[g].m_output[c];
-            }
-        }
-
-        return out;
-    }
-};
-
 template <int Mode>
 void Run(const char* kind, int size, double seconds, const char* path)
 {
@@ -401,17 +337,17 @@ void Run(const char* kind, int size, double seconds, const char* path)
     {
         if (size == 4)
         {
-            auto w = std::make_unique<Poly<4, Mode>>();
+            auto w = std::make_unique<PolyXFaderWorkload<4, Mode>>();
             Measure(*w, kind, Mode, x_rate, seconds, 1, path);
         }
         else if (size == 3)
         {
-            auto w = std::make_unique<Poly<3, Mode>>();
+            auto w = std::make_unique<PolyXFaderWorkload<3, Mode>>();
             Measure(*w, kind, Mode, x_rate, seconds, 1, path);
         }
         else
         {
-            auto w = std::make_unique<Poly<1, Mode>>();
+            auto w = std::make_unique<PolyXFaderWorkload<1, Mode>>();
             Measure(*w, kind, Mode, x_rate, seconds, 1, path);
         }
     }

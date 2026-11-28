@@ -42,6 +42,17 @@ struct TheoryOfTimeBase
 {
     static constexpr size_t x_numLoops = 6;
     static constexpr size_t x_globalLoop = x_numLoops - 1;
+    static constexpr size_t x_maxTopologyMultiplier = 5;
+    static constexpr size_t x_maxNominalCycleRatio = []
+    {
+        size_t ratio = 1;
+        for (size_t i = 0; i < x_globalLoop; ++i)
+        {
+            ratio *= x_maxTopologyMultiplier;
+        }
+
+        return ratio;
+    }();
 
     struct Sample
     {
@@ -83,6 +94,7 @@ struct TheoryOfTimeBase
 
     Sample m_sample;
     PhaseClock m_phaseClock;
+    PhaseClock m_unmodulatedPhaseClock;
     double m_globalPeriodSamples = 1.0;
 
     static int64_t ComputeGlobalTickPosition(double phase, int64_t globalPeriodTicks)
@@ -108,6 +120,11 @@ struct TheoryOfTimeBase
         assert(loopIndex < x_numLoops);
         double globalPhase = domain == PhaseDomain::Unmodulated ? m_sample.m_unmodulatedPhase : m_sample.m_modulatedPhase;
         return globalPhase * static_cast<double>(m_sample.m_loops[loopIndex].m_cycleRatio);
+    }
+
+    const PhaseClock& GetPhaseClock(PhaseDomain domain) const
+    {
+        return domain == PhaseDomain::Unmodulated ? m_unmodulatedPhaseClock : m_phaseClock;
     }
 
     // Basic global cycles per engine sample, including while transport is stopped.
@@ -347,6 +364,7 @@ struct TheoryOfTimeBase
 
             sample.m_anyChange = wasRunning || changed;
             m_phaseClock.Update(0.0, false, GetUnmodulatedGlobalPhaseIncrement());
+            m_unmodulatedPhaseClock.Update(0.0, false, GetUnmodulatedGlobalPhaseIncrement());
             return;
         }
 
@@ -375,6 +393,7 @@ struct TheoryOfTimeBase
 
         SetGates(sample, input);
         m_phaseClock.Update(sample.m_modulatedPhase, true, GetUnmodulatedGlobalPhaseIncrement());
+        m_unmodulatedPhaseClock.Update(sample.m_unmodulatedPhase, true, GetUnmodulatedGlobalPhaseIncrement());
     }
 
     void PopulateUIState(TheoryOfTimeBaseUIState& uiState, const Input& input) const;

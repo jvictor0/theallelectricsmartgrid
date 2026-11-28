@@ -214,6 +214,11 @@ def main():
     (output / "reference.txt").write_text(reference)
     runner = output / "runner"
     compiler = shlex.split(os.environ.get("CXX", "c++"))
+    for header in ("CurveBodyView.hpp", "PackedBodyView.hpp"):
+        subprocess.run(compiler + [
+            "-std=c++17", "-fsyntax-only", "-x", "c++",
+            "-I", str(GENERATED), "-I", str(ROOT / "private/src"), "-I", str(FIXTURES), "-",
+        ], input=f'#include "{header}"\n', text=True, check=True)
     subprocess.run(compiler + [
         "-std=c++17", "-O2", "-fno-fast-math", "-ffp-contract=off",
         "-Wall", "-Wextra", "-Werror", "-I", str(GENERATED), "-I", str(ROOT / "private/src"),

@@ -61,11 +61,59 @@ def focusCapturesParent (_ : PUnit.{1}) : StateM FocusState Float := fun parent 
     let saved := (readFocusParent ⟨⟩).run parent
     (saved.1, child))).run parent
 
+structure PackedCopyInput where
+  samples : Vector (Packed Float32 3) 2
+
+structure PackedCopyState where
+  samples : Vector (Packed Float32 3) 2
+
+def copyPacked (input : PackedCopyInput) : StateM PackedCopyState PUnit :=
+  modify fun _ => ⟨input.samples⟩
+
+@[reducible] private def leftAdd : Add Float32 := ⟨fun x _ => x⟩
+
+def packedCustomAdd (input : PackedCopyInput) : StateM PackedCopyState PUnit :=
+  let samples := input.samples
+  let sum := @Packed.add Float32 3 leftAdd (samples.get 0) (samples.get 1)
+  modify fun _ => ⟨samples.set 0 sum (by decide)⟩
+
+@[reducible] private def alwaysEqual : BEq Float32 := ⟨fun _ _ => true⟩
+
+def packedCustomEquality (input : PackedCopyInput) : StateM PackedCopyState Bool :=
+  pure (@Packed.anyDifferent Float32 3 alwaysEqual (input.samples.get 0) (input.samples.get 1))
+
+structure ScalarViewInput where
+  value : Float32
+
+def curveBodyView (input : ScalarViewInput) : Float32 :=
+  (PolyXFader.curvesFloat32 input.value).1
+
+def packedBodyView (input : ScalarViewInput) : Bool :=
+  Packed.anyDifferent (Packed.splat (n := 3) input.value) 0
+
 end DSP.Tests
 
+#generate_cpp_state DSP.Tests.copyPacked owning as PackedCopy to "build/lean/codegen-test/fixtures/PackedCopy.hpp"
+#generate_cpp_view DSP.Tests.curveBodyView as CurveBodyView to "build/lean/codegen-test/fixtures/CurveBodyView.hpp"
+#generate_cpp_view DSP.Tests.packedBodyView as PackedBodyView to "build/lean/codegen-test/fixtures/PackedBodyView.hpp"
 #generate_cpp_state DSP.Tests.recordPairUpdate outlined as RecordPairUpdate to "build/lean/codegen-test/fixtures/RecordPairUpdate.hpp"
 #generate_cpp_state DSP.Tests.recordUpdate as RecordUpdate to "build/lean/codegen-test/fixtures/RecordUpdate.hpp"
 #generate_cpp_state DSP.Tests.readFocusParent outlined as ReadFocusParent to "build/lean/codegen-test/fixtures/ReadFocusParent.hpp"
+
+open Lean Elab Command in
+run_cmd liftTermElabM do
+  for source in #[``DSP.Tests.packedCustomAdd, ``DSP.Tests.packedCustomEquality] do
+    let mut rejected := false
+    try
+      let _ ← DSP.Codegen.generateEffect source "CustomPackedInstance"
+        (ownRecord := true) (declareState := true)
+    catch error =>
+      let message ← error.toMessageData.toString
+      unless (message.splitOn "requires the standard packed arithmetic instance").length > 1 do
+        throwError "unexpected packed instance rejection for {source}: {message}"
+      rejected := true
+    unless rejected do throwError "C++ codegen accepted custom packed arithmetic in {source}"
+  logInfo "Packed arithmetic instance rejection checks passed."
 
 open Lean Elab Command in
 run_cmd liftTermElabM do

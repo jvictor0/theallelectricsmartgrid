@@ -55,22 +55,22 @@ DOCTEST_TEST_CASE("AbsoluteTime: sample playback applies speed before wrapping")
 DOCTEST_TEST_CASE("AbsoluteTime: PolyXFader partial lobes remain loop periodic")
 {
     TheoryOfTimeBase time;
+    time.m_globalPeriodSamples = 48000.0;
     TheoryOfTimeBase::Input clock;
     clock.m_running = true;
-    PolyXFaderInternal::Input lfo;
-    lfo.m_theoryOfTime = &time;
-    lfo.m_phaseDomain = PhaseDomain::Unmodulated;
+    auto lfo = PolyXFaderInternal::MakeInput();
     lfo.m_mult = 2.5f;
     lfo.m_phaseShift = -0.75f;
     lfo.m_attackFrac = 0.5f;
     lfo.m_shape = 0.0f;
+    time.Process(clock);
     clock.m_unmodulatedPhase = 0.9;
     time.Process(clock);
-    float first = lfo.ComputePhase(5);
+    float first = PolyXFaderInternal::ComputePhase(lfo, time, PhaseDomain::Unmodulated, 5);
     DOCTEST_CHECK(first == doctest::Approx(0.5));
     clock.m_unmodulatedPhase = 1048576.9;
     time.Process(clock);
-    DOCTEST_CHECK(lfo.ComputePhase(5) == doctest::Approx(first));
+    DOCTEST_CHECK(PolyXFaderInternal::ComputePhase(lfo, time, PhaseDomain::Unmodulated, 5) == doctest::Approx(first));
 }
 
 DOCTEST_TEST_CASE("AbsoluteTime: arp handles negative and wide step coordinates")
@@ -123,6 +123,7 @@ DOCTEST_TEST_CASE("AbsoluteTime: recording spans use only unmodulated global pha
 DOCTEST_TEST_CASE("AbsoluteTime: PolyXFader evaluates accepted reparenting without interpolation travel")
 {
     TheoryOfTimeBase time;
+    time.m_globalPeriodSamples = 48000.0;
     TheoryOfTimeBase::Input clock;
     clock.m_running = true;
     for (size_t i = 0; i < 5; ++i)
@@ -133,6 +134,7 @@ DOCTEST_TEST_CASE("AbsoluteTime: PolyXFader evaluates accepted reparenting witho
 
     clock.m_input[4].m_parentMult = 2;
     clock.m_input[3].m_parentIndex = 4;
+    time.Process(clock);
     clock.m_unmodulatedPhase = 9.49;
     time.Process(clock);
     clock.m_input[3].m_parentIndex = 5;
@@ -147,16 +149,15 @@ DOCTEST_TEST_CASE("AbsoluteTime: PolyXFader evaluates accepted reparenting witho
     DOCTEST_REQUIRE(time.GetCycleRatio(3) == 3);
 
     PolyXFaderInternal lfo;
-    PolyXFaderInternal::Input input;
-    input.m_theoryOfTime = &time;
+    auto input = PolyXFaderInternal::MakeInput();
     input.m_size = 6;
     input.m_center = 0.5f;
     input.m_mult = 2.5f;
     input.m_phaseShift = -0.75f;
     input.m_attackFrac = 0.5f;
     input.m_shape = 0.0f;
-    lfo.Process(input);
-    DOCTEST_CHECK(lfo.m_values[3] == doctest::Approx(0.15));
+    lfo.Process(input, time, PhaseDomain::Modulated);
+    DOCTEST_CHECK(lfo.m_dsp.m_values[3][0] == doctest::Approx(0.15));
 }
 
 DOCTEST_TEST_CASE("AbsoluteTime: MIDI ignores modulation while the scope captures warp displacement")
@@ -253,53 +254,50 @@ DOCTEST_TEST_CASE("AbsoluteTime: lattice arithmetic floors signed coordinates")
 DOCTEST_TEST_CASE("AbsoluteTime: PolyXFader quarter-cycle channel offsets match a delayed unshifted channel")
 {
     TheoryOfTimeBase time;
+    time.m_globalPeriodSamples = 48000.0;
     TheoryOfTimeBase::Input clock;
     clock.m_running = true;
     clock.m_unmodulatedPhase = 1.0;
     time.Process(clock);
 
-    PolyXFaderInternal::Input unshifted;
-    unshifted.m_theoryOfTime = &time;
-    unshifted.m_phaseDomain = PhaseDomain::Unmodulated;
+    auto unshifted = PolyXFaderInternal::MakeInput();
     unshifted.m_mult = 1.0f;
     unshifted.m_phaseShift = 0.0f;
     unshifted.m_attackFrac = 0.5f;
     unshifted.m_shape = 0.0f;
 
-    PolyXFaderInternal::Input quarter;
-    quarter = unshifted;
+    auto quarter = unshifted;
     quarter.m_phaseShift = 0.25f;
 
-    float quarterShifted = quarter.ComputePhase(TheoryOfTimeBase::x_globalLoop);
-    float unshiftedNow = unshifted.ComputePhase(TheoryOfTimeBase::x_globalLoop);
+    float quarterShifted = PolyXFaderInternal::ComputePhase(quarter, time, PhaseDomain::Unmodulated, TheoryOfTimeBase::x_globalLoop);
+    float unshiftedNow = PolyXFaderInternal::ComputePhase(unshifted, time, PhaseDomain::Unmodulated, TheoryOfTimeBase::x_globalLoop);
     DOCTEST_CHECK(std::abs(unshiftedNow - quarterShifted) > 0.05f);
 
     for (size_t i = 0; i < 4; ++i)
     {
         PolyXFaderInternal::Input channel = unshifted;
         channel.m_phaseShift = static_cast<float>(i) / 4.0f;
-        float value = channel.ComputePhase(TheoryOfTimeBase::x_globalLoop);
+        float value = PolyXFaderInternal::ComputePhase(channel, time, PhaseDomain::Unmodulated, TheoryOfTimeBase::x_globalLoop);
         DOCTEST_CHECK(value >= 0.0f);
         DOCTEST_CHECK(value <= 1.0f);
     }
 
     clock.m_unmodulatedPhase = 1.25;
     time.Process(clock);
-    float delayedUnshifted = unshifted.ComputePhase(TheoryOfTimeBase::x_globalLoop);
+    float delayedUnshifted = PolyXFaderInternal::ComputePhase(unshifted, time, PhaseDomain::Unmodulated, TheoryOfTimeBase::x_globalLoop);
     DOCTEST_CHECK(delayedUnshifted == doctest::Approx(quarterShifted));
 }
 
 DOCTEST_TEST_CASE("AbsoluteTime: PolyXFader sample-and-hold captures on delay-loop cycle boundary")
 {
     TheoryOfTimeBase time;
+    time.m_globalPeriodSamples = 48000.0;
     TheoryOfTimeBase::Input clock;
     clock.m_running = true;
     size_t delayLoop = TheoryOfTimeBase::x_globalLoop;
 
     PolyXFaderInternal lfo;
-    PolyXFaderInternal::Input input;
-    input.m_theoryOfTime = &time;
-    input.m_phaseDomain = PhaseDomain::Modulated;
+    auto input = PolyXFaderInternal::MakeInput();
     input.m_size = 6;
     input.m_center = 0.0f;
     input.m_mult = 1.0f;
@@ -312,20 +310,69 @@ DOCTEST_TEST_CASE("AbsoluteTime: PolyXFader sample-and-hold captures on delay-lo
     time.Process(clock);
     input.m_trig[0] = time.CrossedCycleBoundary(delayLoop, PhaseDomain::Modulated);
     DOCTEST_REQUIRE(input.m_trig[0]);
-    lfo.Process(input);
-    float captured = lfo.m_shValue;
+    lfo.Process(input, time, PhaseDomain::Modulated);
+    float captured = lfo.m_dsp.m_heldValue[0];
 
     clock.m_unmodulatedPhase = 0.4;
     time.Process(clock);
     input.m_trig[0] = time.CrossedCycleBoundary(delayLoop, PhaseDomain::Modulated);
     DOCTEST_CHECK_FALSE(input.m_trig[0]);
-    lfo.Process(input);
-    DOCTEST_CHECK(lfo.m_shValue == doctest::Approx(captured));
+    lfo.Process(input, time, PhaseDomain::Modulated);
+    DOCTEST_CHECK(lfo.m_dsp.m_heldValue[0] == doctest::Approx(captured));
 
     clock.m_unmodulatedPhase = 1.3;
     time.Process(clock);
     input.m_trig[0] = time.CrossedCycleBoundary(delayLoop, PhaseDomain::Modulated);
     DOCTEST_REQUIRE(input.m_trig[0]);
-    lfo.Process(input);
-    DOCTEST_CHECK(std::abs(lfo.m_shValue - captured) > 1e-4f);
+    lfo.Process(input, time, PhaseDomain::Modulated);
+    DOCTEST_CHECK(std::abs(lfo.m_dsp.m_heldValue[0] - captured) > 1e-4f);
+}
+
+DOCTEST_TEST_CASE("AbsoluteTime: PolyXFader keeps moving on both clocks through stop and resume")
+{
+    TheoryOfTimeBase time;
+    time.m_globalPeriodSamples = 32;
+    TheoryOfTimeBase::Input clock;
+    clock.m_running = true;
+    for (auto& loop : clock.m_input)
+    {
+        loop.m_parentMult = 1;
+    }
+
+    time.Process(clock);
+    clock.m_unmodulatedPhase = 0.125;
+    clock.m_phaseOffset = 0.0625;
+    time.Process(clock);
+
+    PolyXFaderInternal modulated;
+    PolyXFaderInternal unmodulated;
+    auto input = PolyXFaderInternal::MakeInput();
+    input.m_size = TheoryOfTimeBase::x_numLoops;
+    input.m_center = 1.0f;
+    input.m_mult = 1.0f;
+    input.m_attackFrac = 0.5f;
+    input.m_phaseShift = -0.75f;
+
+    auto check = [&](float expectedModulated, float expectedUnmodulated)
+    {
+        modulated.Process(input, time, PhaseDomain::Modulated);
+        unmodulated.Process(input, time, PhaseDomain::Unmodulated);
+        DOCTEST_CHECK(modulated.m_dsp.m_values[TheoryOfTimeBase::x_globalLoop][0] == expectedModulated);
+        DOCTEST_CHECK(unmodulated.m_dsp.m_values[TheoryOfTimeBase::x_globalLoop][0] == expectedUnmodulated);
+    };
+
+    check(0.375f, 0.25f);
+    clock.m_running = false;
+    time.Process(clock);
+    check(0.4375f, 0.3125f);
+    DOCTEST_CHECK(time.GetPhase(TheoryOfTimeBase::x_globalLoop, PhaseDomain::Modulated) == 0.0);
+    time.Process(clock);
+    check(0.5f, 0.375f);
+    clock.m_running = true;
+    clock.m_unmodulatedPhase = 0.0625;
+    time.Process(clock);
+    check(0.5f, 0.375f);
+    clock.m_unmodulatedPhase = 0.125;
+    time.Process(clock);
+    check(0.625f, 0.5f);
 }

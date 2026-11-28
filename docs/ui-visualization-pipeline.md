@@ -130,7 +130,7 @@ Cycle crossings and scope capture work as follows:
 | Sample source | `SampleTopGeneric::FromPhases` detects integer crossings between the previous and current total phase vectors and interpolates their offsets. |
 | Theory of Time base | Stores boolean crossings in both phase domains, computed before topology acceptance. No remaining consumer needs a fractional offset. |
 | Filter scopes | Pass the source top's offset to `RecordStart`. |
-| SquiggleLFO scopes | Publish the clock offset and common participating loop period; no start events. |
+| SquiggleLFO scopes | Publish continuous phase zero and the common participating loop period; no start events. |
 | Theory of Time scope | Writes warp displacement when `IsWriteSample()` is true and publishes an unmodulated periodic axis; no start events. |
 | Boolean-only delay trigger | Uses the loop-crossing flag for sample-and-hold triggering. |
 | Scope writer | Stores double start positions and integer end positions. Its writer-owned marker count starts at zero and is copied into the atomic publication. |

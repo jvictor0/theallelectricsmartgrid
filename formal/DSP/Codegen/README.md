@@ -193,6 +193,8 @@ and methods, existing C++ records, and numerical and packed operations. Both
 scalar calls and packed arithmetic class fields use this list. The common
 emitter handles language constructs such as casts, branches, and finite loops
 and interprets the registered lowerings.
+Packed arithmetic lowers the standard Float and Float32 instances. Other
+instances are rejected at generation time.
 
 For index operations with established bounds, use the proof-carrying operations
 in [Index.lean](Index.lean). They lower to native additions, subtractions, and
@@ -215,7 +217,9 @@ installs a record, and `modify` and `modifyGet` write changed fields within
 the branch that updates them. Finite monadic folds carry the same storage
 through each iteration. A previously exported `#generate_cpp_state` action
 can be called directly from another action. Add `outlined` before `as` to
-keep its code in a separate function.
+keep its code in a separate function, or add `owning` to emit the state layout
+alongside the method. These state exports take their generated `Input` record
+by const reference.
 
 `DSP.focus` runs a child action on one field of its parent. The emitter checks
 the getter and setter and passes the field by reference. Use it to access a

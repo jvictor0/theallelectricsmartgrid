@@ -33,6 +33,9 @@ make perf-ipad PERF_ARGS='--notes "Compare tape and phase-grid cost" -- tape-per
 # Time the full phase vocoder at one, three, and four channels.
 make perf-ipad PERF_ARGS='--case resynthesis -- 5 8'
 
+# Time three mono PolyXFaders, one trio, and one quad at 192 kHz.
+make perf-ipad PERF_ARGS='--case polyxfader -- 7 12'
+
 # Run the already installed build, without rebuilding or installing.
 scripts/.venv-ios/bin/python scripts/ipad_perf.py --skip-install \
   --case inverter --notes 'Heavy reversal case' -- current-performance 16 16 5
@@ -81,6 +84,11 @@ The app reports its own compiled commit, including with `--skip-install`.
 Thermal state is Apple's enum: 0 nominal, 1 fair, 2 serious, 3 critical. Telemetry
 includes start/end samples, thermal transitions, battery/power state, and loss
 of foreground status. These offline timings do not establish audio deadlines.
+
+The `polyxfader` case uses one shared six-loop clock with fractional
+multipliers and staggered sample-and-hold triggers. Mode 0 holds blend and
+waveform controls fixed. Mode 3 moves them every sample. Both modes report
+thread CPU milliseconds per audio second, block percentiles, RMS, and peak.
 
 ```sh
 sqlite3 ~/Documents/SmartGridOne/perf.sqlite3 \

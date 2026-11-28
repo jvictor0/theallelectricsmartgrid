@@ -12,6 +12,7 @@ struct TimeWarpLFORig
 
     TimeWarpLFORig()
     {
+        m_time.m_globalPeriodSamples = 48000.0;
         m_input.m_phaseModLFOInput.m_center = 1.0f;
         m_input.m_phaseModLFOInput.m_slope = 0.0f;
         m_input.m_phaseModLFOInput.m_attackFrac = 0.5f;
@@ -22,10 +23,10 @@ struct TimeWarpLFORig
     float Evaluate(float phase)
     {
         TheoryOfTimeBase::Sample& sample = m_time.m_sample;
-        sample.m_unmodulatedPhase = phase;
+        m_time.m_unmodulatedPhaseClock.m_phase = phase;
         TheoryOfTimeBase::SetLoopPeriods(sample);
         m_time.ProcessPhaseModLFO(m_input);
-        return m_time.m_phaseModLFO.m_values[TheoryOfTimeBase::x_globalLoop];
+        return m_time.m_phaseModLFO.m_dsp.m_values[TheoryOfTimeBase::x_globalLoop][0];
     }
 };
 }
@@ -92,6 +93,40 @@ DOCTEST_TEST_CASE("TimeWarpLFO: fractional Mult preserves the partial lobe")
     DOCTEST_CHECK(rig.Evaluate(0.75f) == doctest::Approx(0.5f));
 }
 
+DOCTEST_TEST_CASE("TimeWarpLFO: the fast loop's cap leaves the global loop multiplier alone")
+{
+    TimeWarpLFORig rig;
+    rig.m_time.m_globalPeriodSamples = SampleTimer::x_sampleRate / Tuning::x_maxTempoHz;
+    for (size_t loop = 0; loop < TheoryOfTimeBase::x_globalLoop; ++loop)
+    {
+        rig.m_time.m_sample.m_loops[loop].m_input.m_parentMult = TheoryOfTimeBase::x_maxTopologyMultiplier;
+    }
+
+    rig.m_input.m_lfoMult.m_expParam = 16.0f;
+    DOCTEST_CHECK(rig.Evaluate(1.0f / 64.0f) == doctest::Approx(0.5f));
+    rig.m_input.m_phaseModLFOInput.m_center = 0;
+    rig.Evaluate(0.25f / 3125.0f);
+    DOCTEST_CHECK(rig.m_time.m_phaseModLFO.m_dsp.m_values[0][0] == doctest::Approx(0.5f));
+}
+
+DOCTEST_TEST_CASE("TimeWarpLFO: reads the previous continuous phase while stopped")
+{
+    TimeWarpLFORig rig;
+    constexpr double x_freq = 1.0 / 1024.0;
+    rig.m_input.m_freq = x_freq;
+    rig.m_input.m_running = true;
+    rig.m_time.Process(rig.m_input);
+    rig.m_time.Process(rig.m_input);
+
+    rig.m_input.m_running = false;
+    rig.m_time.Process(rig.m_input);
+    const auto& values = rig.m_time.m_phaseModLFO.m_dsp.m_values;
+    DOCTEST_CHECK(values[TheoryOfTimeBase::x_globalLoop][0] == 2.0 * x_freq);
+    rig.m_time.Process(rig.m_input);
+    DOCTEST_CHECK(values[TheoryOfTimeBase::x_globalLoop][0] == 4.0 * x_freq);
+    DOCTEST_CHECK(rig.m_time.m_sample.m_unmodulatedPhase == 0.0);
+}
+
 DOCTEST_TEST_CASE("TimeWarpLFO: Center keeps the global source at its blend boundary")
 {
     const float boundary = 23.0f / 24.0f;
@@ -101,7 +136,7 @@ DOCTEST_TEST_CASE("TimeWarpLFO: Center keeps the global source at its blend boun
         TimeWarpLFORig rig;
         rig.m_input.m_phaseModLFOInput.m_center = center;
         DOCTEST_CHECK(rig.Evaluate(0.125f) == doctest::Approx(0.25f));
-        DOCTEST_CHECK(rig.m_time.m_phaseModLFO.m_totalWeight > 0);
+        DOCTEST_CHECK(rig.m_time.m_phaseModLFO.m_dsp.m_totalWeight[0] > 0);
     }
 }
 
@@ -142,7 +177,7 @@ DOCTEST_TEST_CASE("TimeWarpLFO: filtered Center motion cannot interrupt the glob
         double speed = (moving.m_sample.m_modulatedPhase - previousPhase) / input.m_freq;
         double referenceSpeed = (reference.m_sample.m_modulatedPhase - previousPhase) / input.m_freq;
         maxSpeedDifference = std::max(maxSpeedDifference, std::abs(speed - referenceSpeed));
-        minWeight = std::min(minWeight, moving.m_phaseModLFO.m_totalWeight[0]);
+        minWeight = std::min(minWeight, moving.m_phaseModLFO.m_dsp.m_totalWeight[0]);
     }
 
     DOCTEST_REQUIRE(reachedBoundary);
@@ -153,32 +188,31 @@ DOCTEST_TEST_CASE("TimeWarpLFO: filtered Center motion cannot interrupt the glob
 DOCTEST_TEST_CASE("PolyXFader: square-like Shape responds continuously without quantizer history")
 {
     TheoryOfTimeBase time;
-    time.m_sample.m_unmodulatedPhase = 0.22;
+    time.m_globalPeriodSamples = 48000.0;
+    time.m_unmodulatedPhaseClock.m_phase = 0.22;
     TheoryOfTimeBase::SetLoopPeriods(time.m_sample);
 
     PolyXFaderInternal fader;
-    PolyXFaderInternal::Input input;
-    input.m_theoryOfTime = &time;
-    input.m_phaseDomain = PhaseDomain::Unmodulated;
+    auto input = PolyXFaderInternal::MakeInput();
     input.m_size = 1;
     input.m_attackFrac = 0.5f;
     input.m_shape = 1.0f;
     input.m_mult = 1.0f;
     input.m_phaseShift = -0.75f;
-    fader.Process(input);
+    fader.Process(input, time, PhaseDomain::Unmodulated);
 
-    float before = fader.m_values[0];
+    float before = fader.m_dsp.m_values[0][0];
     DOCTEST_CHECK(before > 0.0f);
     DOCTEST_CHECK(before < 0.1f);
 
-    time.m_sample.m_unmodulatedPhase += 0.0001;
-    fader.Process(input);
-    DOCTEST_CHECK(fader.m_values[0] > before);
-    DOCTEST_CHECK(fader.m_values[0] - before < 0.01f);
+    time.m_unmodulatedPhaseClock.m_phase += 0.0001;
+    fader.Process(input, time, PhaseDomain::Unmodulated);
+    DOCTEST_CHECK(fader.m_dsp.m_values[0][0] > before);
+    DOCTEST_CHECK(fader.m_dsp.m_values[0][0] - before < 0.01f);
 
     PolyXFaderInternal fresh;
-    fresh.Process(input);
-    DOCTEST_CHECK(fader.m_values[0] == fresh.m_values[0]);
+    fresh.Process(input, time, PhaseDomain::Unmodulated);
+    DOCTEST_CHECK(fader.m_dsp.m_values[0][0] == fresh.m_dsp.m_values[0][0]);
 }
 
 DOCTEST_TEST_CASE("PolyXFader: Shape morphs fixed linear, sine and saturated sine curves")
@@ -194,12 +228,12 @@ DOCTEST_TEST_CASE("PolyXFader: Shape morphs fixed linear, sine and saturated sin
             double expected = shape <= 0.5f
                 ? position + (2.0 * shape) * (sine - position)
                 : sine + (2.0 * shape - 1.0) * (hard - sine);
-            double actual = PolyXFaderInternal::Input::Shape(shape, position)[0];
+            double actual = PolyXFaderInternal::Shape(shape, position)[0];
             DOCTEST_CHECK(std::abs(actual - expected) < 0.00003);
         }
 
-        float atSine = PolyXFaderInternal::Input::Shape(0.5f, position)[0];
-        float aboveSine = PolyXFaderInternal::Input::Shape(std::nextafter(0.5f, 1.0f), position)[0];
+        float atSine = PolyXFaderInternal::Shape(0.5f, position)[0];
+        float aboveSine = PolyXFaderInternal::Shape(std::nextafter(0.5f, 1.0f), position)[0];
         DOCTEST_CHECK(std::abs(aboveSine - atSine) < 0.000001f);
     }
 }
@@ -217,51 +251,50 @@ DOCTEST_TEST_CASE("PolyXFader: Shape lanes match mono evaluation")
         position[lane] = positions[lane];
     }
 
-    Quad::Vector quad = Quad::Input::Shape(shape, position);
+    Quad::Vector quad = Quad::Shape(shape, position);
     for (size_t lane = 0; lane < 4; ++lane)
     {
-        DOCTEST_CHECK(quad[lane] == doctest::Approx(PolyXFaderInternal::Input::Shape(shapes[lane], positions[lane])[0]).epsilon(0.000001));
+        DOCTEST_CHECK(quad[lane] == doctest::Approx(PolyXFaderInternal::Shape(shapes[lane], positions[lane])[0]).epsilon(0.000001));
     }
 }
 
 DOCTEST_TEST_CASE("PolyXFader: Shape endpoints and sine boundary stay normalized")
 {
-    PolyXFaderInternal::Input input;
+    auto input = PolyXFaderInternal::MakeInput();
     DOCTEST_CHECK(input.m_shape == 0.0f);
 
     for (float shape : {0.0f, 0.25f, std::nextafter(0.5f, 0.0f), 0.5f, std::nextafter(0.5f, 1.0f), 0.5625f, 0.75f, 1.0f})
     {
-        DOCTEST_CHECK(input.Shape(shape, 0.0f) == doctest::Approx(0.0f).epsilon(0.000001));
-        DOCTEST_CHECK(input.Shape(shape, 0.5f) == doctest::Approx(0.5f).epsilon(0.000001));
-        DOCTEST_CHECK(input.Shape(shape, 1.0f) == doctest::Approx(1.0f).epsilon(0.000001));
+        DOCTEST_CHECK(PolyXFaderInternal::Shape(shape, 0.0f) == doctest::Approx(0.0f).epsilon(0.000001));
+        DOCTEST_CHECK(PolyXFaderInternal::Shape(shape, 0.5f) == doctest::Approx(0.5f).epsilon(0.000001));
+        DOCTEST_CHECK(PolyXFaderInternal::Shape(shape, 1.0f) == doctest::Approx(1.0f).epsilon(0.000001));
 
         float previous = 0.0f;
         for (size_t i = 0; i <= 1024; ++i)
         {
             float position = static_cast<float>(i) / 1024.0f;
-            float value = input.Shape(shape, position);
+            float value = PolyXFaderInternal::Shape(shape, position);
             DOCTEST_CHECK(std::isfinite(value));
             DOCTEST_CHECK(value >= 0.0f);
             DOCTEST_CHECK(value <= 1.0f);
             DOCTEST_CHECK(value >= previous);
             DOCTEST_CHECK(value - previous < 0.02f);
-            DOCTEST_CHECK(value + input.Shape(shape, 1.0f - position) == doctest::Approx(1.0f).epsilon(0.00001));
+            DOCTEST_CHECK(value + PolyXFaderInternal::Shape(shape, 1.0f - position) == doctest::Approx(1.0f).epsilon(0.00001));
             previous = value;
         }
     }
 
-    float sine = input.Shape(0.5f, 0.3f);
-    DOCTEST_CHECK(input.Shape(std::nextafter(0.5f, 0.0f), 0.3f) == doctest::Approx(sine).epsilon(0.000001));
+    float sine = PolyXFaderInternal::Shape(0.5f, 0.3f);
+    DOCTEST_CHECK(PolyXFaderInternal::Shape(std::nextafter(0.5f, 0.0f), 0.3f) == doctest::Approx(sine).epsilon(0.000001));
 }
 
 DOCTEST_TEST_CASE("PolyXFader: increasing Shape above sine progressively sharpens the waveform")
 {
-    PolyXFaderInternal::Input input;
-    float previous = input.Shape(0.5f, 0.45f);
+    float previous = PolyXFaderInternal::Shape(0.5f, 0.45f);
     for (size_t i = 1; i <= 100; ++i)
     {
         float shape = 0.5f + 0.5f * static_cast<float>(i) / 100.0f;
-        float value = input.Shape(shape, 0.45f);
+        float value = PolyXFaderInternal::Shape(shape, 0.45f);
         DOCTEST_CHECK(value < previous);
         previous = value;
     }

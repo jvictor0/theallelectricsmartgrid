@@ -1,187 +1,160 @@
 #pragma once
 
-#include <numeric>
-
 #include "Filter.hpp"
-#include "PolyXFaderTables.hpp"
-#include "MultiChannelNumber.hpp"
-#include "SampleTimer.hpp"
-
+#include "PolyXFaderMono.hpp"
+#include "PolyXFaderMorph.hpp"
+#include "PolyXFaderQuad.hpp"
+#include "PolyXFaderTrio.hpp"
+#include "PolyXFaderWaveform.hpp"
 #include "TheoryOfTimeBase.hpp"
+#include "Tuning.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
+#include <limits>
+#include <numeric>
+#include <tuple>
+#include <type_traits>
 
-// Crossfades the theory-of-time loops for Size voices at once. The loops are
-// shared, so a loop is evaluated for every lane whenever any lane weights it.
+// A snapshot of one clock domain. The multiplier ceilings depend only on
+// nominal tempo and loop ratios.
+//
+struct PolyXFaderClockInput
+{
+    double m_masterPhase = 0.0;
+    double m_phaseTravel = 0.0;
+    std::array<double, TheoryOfTimeBase::x_numLoops> m_cycleRatios{};
+    float m_minWaveMultLimit = std::numeric_limits<float>::infinity();
+    std::array<float, TheoryOfTimeBase::x_numLoops> m_waveMultLimits{};
+
+    static float LimitForRatio(double nominalBudget, int64_t ratio)
+    {
+        assert(ratio > 0 && nominalBudget > 0.0);
+        const double limit = nominalBudget / static_cast<double>(ratio);
+        float rounded = static_cast<float>(limit);
+        if (static_cast<double>(rounded) > limit)
+        {
+            // The next lower positive float keeps the cap from rounding up.
+            //
+            uint32_t bits;
+            static_assert(sizeof(bits) == sizeof(rounded));
+            std::memcpy(&bits, &rounded, sizeof(bits));
+            --bits;
+            std::memcpy(&rounded, &bits, sizeof(rounded));
+        }
+
+        return rounded;
+    }
+};
+
+// Crossfades the shared Theory of Time loops for Size voices at once.
 //
 template <size_t Size>
 struct PolyXFaderGeneric
 {
+    static_assert(Size == 1 || Size == 3 || Size == 4);
     using Vector = MultiChannelNumber<float, Size>;
     using DoubleVector = MultiChannelNumber<double, Size>;
-    static constexpr size_t x_maxSize = 16;
+    using Core = std::conditional_t<Size == 1, PolyXFaderMono,
+        std::conditional_t<Size == 3, PolyXFaderTrio, PolyXFaderQuad>>;
+    using Input = typename Core::Input;
+    static constexpr float x_maxMappedMult = 16.0f;
+    static constexpr size_t x_maxSize = std::tuple_size_v<decltype(Input::m_cycleRatio)>;
+    static_assert(x_maxSize == TheoryOfTimeBase::x_numLoops);
+    static constexpr double x_maxSlewCycles =
+        Tuning::x_maxTempoHz * TheoryOfTimeBase::x_maxNominalCycleRatio / SampleTimer::x_sampleRate;
+    static constexpr double x_maxWaveCycles = x_maxSlewCycles;
+    static constexpr size_t x_slewDoublings = SampleTimer::x_oversampleBits < 2 ? 2 - SampleTimer::x_oversampleBits : 0;
+    static constexpr double x_slewStepScale = 1.0 / (size_t{1} << x_slewDoublings);
+    static_assert(x_maxSlewCycles * x_slewStepScale <= 3125.0 / 65536.0);
 
-    struct Input
+    static Input MakeInput()
     {
-        TheoryOfTimeBase* m_theoryOfTime;
-        PhaseDomain m_phaseDomain;
-
-        Vector m_attackFrac;
-        Vector m_shape;
-        Vector m_mult;
-        Vector m_amplitude;
-
-        Vector m_phaseShift;
-
-        size_t m_size;
-        Vector m_slope;
-        Vector m_center;
-
-        Vector m_externalWeights[x_maxSize];
-
-        bool m_trig[Size];
-        Vector m_shFade;
-
-        Input()
-            : m_theoryOfTime(nullptr)
-            , m_phaseDomain(PhaseDomain::Modulated)
-            , m_attackFrac()
-            , m_shape()
-            , m_mult()
-            , m_amplitude(Vector::Splat(1))
-            , m_phaseShift()
-            , m_size(0)
-            , m_slope()
-            , m_center()
-            , m_trig{}
-            , m_shFade()
-        {
-            for (size_t i = 0; i < x_maxSize; ++i)
-            {
-                m_externalWeights[i] = Vector::Splat(1);
-            }
-        }
-
-        struct Prepared
-        {
-            DoubleVector m_phaseShift;
-            Vector m_floorMult;
-            Vector m_partialAmp;
-            Vector m_inversePartial;
-            Vector m_attack;
-            Vector m_inverseAttack;
-            Vector m_inverseDecay;
-
-            explicit Prepared(const Input& input)
-            {
-                m_phaseShift = input.m_phaseShift.template Convert<double>();
-                m_floorMult = input.m_mult.Floor();
-                m_partialAmp = input.m_mult - m_floorMult;
-
-                // Integer multipliers have no partial lobe; keep its unused
-                // reciprocal finite.
-                //
-                Vector denominator = Vector::IfLess(Vector(), m_partialAmp, m_partialAmp, Vector::Splat(1));
-                m_inversePartial = Vector::Splat(1) / denominator;
-                m_attack = Vector::Max(Vector::Splat(0.001f), Vector::Min(Vector::Splat(0.999f), input.m_attackFrac));
-                m_inverseAttack = Vector::Splat(1) / m_attack;
-                m_inverseDecay = Vector::Splat(1) / (Vector::Splat(1) - m_attack);
-            }
-        };
-
-        Vector ComputePhase(size_t i) const
-        {
-            return ComputePhase(i, Prepared(*this));
-        }
-
-        Vector ComputePhase(size_t i, const Prepared& prepared) const
-        {
-            double loopPhase = m_theoryOfTime->GetPhase(i, m_phaseDomain);
-            DoubleVector phase = DoubleVector::Splat(loopPhase) + prepared.m_phaseShift + 0.75;
-            Vector t = (phase - phase.Floor()).template Convert<float>() * m_mult;
-            Vector partialT = (t - prepared.m_floorMult) * prepared.m_inversePartial;
-            Vector wholeT = t - t.Floor();
-            Vector amp = Vector::IfLess(prepared.m_floorMult, t, prepared.m_partialAmp, Vector::Splat(1));
-            t = Vector::IfLess(prepared.m_floorMult, t, partialT, wholeT);
-            Vector rise = t * prepared.m_inverseAttack;
-            Vector decay = Vector::Splat(1) - (t - prepared.m_attack) * prepared.m_inverseDecay;
-            return amp * Shape(m_shape, Vector::IfLess(prepared.m_attack, t, decay, rise));
-        }
-
-        // Morph linear -> sine -> the fixed, gain-8 saturated sine.
-        //
-        static Vector Shape(const Vector& shape, const Vector& in)
-        {
-            Vector sine;
-            Vector hard;
-            PolyXFaderTables::Evaluate(in, sine, hard);
-            Vector a = Vector::Min(Vector::Splat(1), Vector::Max(Vector(), shape * 2));
-            Vector b = Vector::Min(Vector::Splat(1), Vector::Max(Vector(), shape * 2 - 1));
-            return in * (Vector::Splat(1) - a) + sine * (a - b) + hard * b;
-        }
-    };
-
-    PolyXFaderGeneric()
-        : m_size(0)
-        , m_amplitude(Vector::Splat(1))
-        , m_slope()
-        , m_center()
-        , m_values{}
-        , m_weights{}
-        , m_totalWeight()
-        , m_mixSlewFreq()
-        , m_rawOutput()
-        , m_output()
-        , m_shValue()
-    {
-        m_shSlew.SetAlphaFromNatFreq(SampleTimer::HzToCycPerSamp(500.0));
+        Input input{};
+        input.m_maxSlewCycles = x_maxSlewCycles;
+        input.m_slewDoublings = x_slewDoublings;
+        input.m_slewStepScale = x_slewStepScale;
+        input.m_amplitude = Vector::Splat(1);
+        input.m_externalWeights.fill(Vector::Splat(1));
+        return input;
     }
 
-    size_t m_size;
-    Vector m_amplitude;
-    Vector m_slope;
-    Vector m_center;
-    Vector m_values[x_maxSize];
-    Vector m_weights[x_maxSize];
-    Vector m_totalWeight;
-    // Double state: slow loops give mix slews whose coefficients are below
-    // float resolution at the engine rate.
-    //
-    OPLowPassFilterGeneric<double, Size> m_mixSlew;
-    DoubleVector m_mixSlewFreq;
-    OPLowPassFilterGeneric<float, Size> m_shSlew;
-    Vector m_rawOutput;
-    Vector m_output;
-    Vector m_shValue;
-
-    static bool AnyNonZero(const Vector& values)
+    static PolyXFaderClockInput MakeClockInput(const TheoryOfTimeBase& time, PhaseDomain phaseDomain)
     {
+        PolyXFaderClockInput input;
+        const auto& clock = time.GetPhaseClock(phaseDomain);
+        input.m_masterPhase = clock.m_phase;
+
+        // The warp producer uses nominal travel, avoiding feedback from its own derivative.
+        //
+        input.m_phaseTravel = phaseDomain == PhaseDomain::Unmodulated || !time.m_sample.m_running
+            ? time.GetUnmodulatedGlobalPhaseIncrement() : std::abs(clock.m_increment);
+        const double budget = x_maxWaveCycles * time.m_globalPeriodSamples;
+        for (size_t loop = 0; loop < x_maxSize; ++loop)
+        {
+            const int64_t ratio = time.GetCycleRatio(loop);
+            const float limit = PolyXFaderClockInput::LimitForRatio(budget, ratio);
+            input.m_cycleRatios[loop] = static_cast<double>(ratio);
+            input.m_waveMultLimits[loop] = limit;
+            input.m_minWaveMultLimit = std::min(input.m_minWaveMultLimit, limit);
+        }
+
+        return input;
+    }
+
+    static Vector ComputePhase(const Input& input, const TheoryOfTimeBase& time, PhaseDomain phaseDomain, size_t loop)
+    {
+        const int64_t ratio = time.GetCycleRatio(loop);
+        const double phase = time.GetPhaseClock(phaseDomain).m_phase * static_cast<double>(ratio);
+        const float limit = PolyXFaderClockInput::LimitForRatio(x_maxWaveCycles * time.m_globalPeriodSamples, ratio);
+        const Vector mult = Vector::Min(input.m_mult, Vector::Splat(limit));
+        Vector result;
         for (size_t lane = 0; lane < Size; ++lane)
         {
-            if (values[lane] != 0)
-            {
-                return true;
-            }
+            result[lane] = PolyXFaderWaveform::Evaluate(
+                {input.m_phaseShift[lane], mult[lane], input.m_attackFrac[lane], input.m_shape[lane]}, phase);
         }
 
-        return false;
+        return result;
     }
 
-    // Display metadata is computed only when publishing UI state. Weights
-    // come from the most recently processed sample; tempo is not involved.
+    static Vector Shape(const Vector& shape, const Vector& in)
+    {
+        Vector result;
+        for (size_t lane = 0; lane < Size; ++lane)
+        {
+            result[lane] = PolyXFaderMorph::Evaluate({shape[lane]}, in[lane]);
+        }
+
+        return result;
+    }
+
+    typename Core::State m_dsp{};
+    Vector m_amplitude = Vector::Splat(1);
+    Vector m_rawOutput;
+    Vector m_output;
+
+    PolyXFaderGeneric()
+    {
+        m_dsp.m_holdAlpha = OPLowPassFilterGeneric<float, 1>::AlphaFromNatFreq(
+            static_cast<float>(SampleTimer::HzToCycPerSamp(500.0)))[0];
+    }
+
+    // Display metadata uses the weights from the most recently processed sample.
     //
     DoubleVector ComputeLogicalPeriods(const TheoryOfTimeBase& time) const
     {
-        int64_t commonCycleRatio[Size] = {};
-        for (size_t i = 0; i < m_size; ++i)
+        int64_t commonCycleRatio[Size]{};
+        for (size_t i = 0; i < m_dsp.m_size; ++i)
         {
-            int64_t cycleRatio = time.GetCycleRatio(i);
+            const int64_t cycleRatio = time.GetCycleRatio(i);
             for (size_t lane = 0; lane < Size; ++lane)
             {
-                if (m_weights[i][lane] != 0)
+                if (m_dsp.m_weights[i][lane] != 0)
                 {
                     commonCycleRatio[lane] = std::gcd(commonCycleRatio[lane], cycleRatio);
                 }
@@ -197,106 +170,27 @@ struct PolyXFaderGeneric
         return periods;
     }
 
-    void Process(Input& input)
+    void Process(Input& input, const TheoryOfTimeBase& time, PhaseDomain phaseDomain)
+    {
+        Process(input, MakeClockInput(time, phaseDomain));
+    }
+
+    [[gnu::always_inline]] void Process(Input& input, const PolyXFaderClockInput& clock)
     {
         assert(input.m_size <= x_maxSize);
-        if (m_size != input.m_size || m_slope != input.m_slope || m_center != input.m_center)
+        if (input.m_size != 0)
         {
-            m_size = input.m_size;
-            m_slope = input.m_slope;
-            m_center = input.m_center;
-            m_totalWeight = Vector();
-
-            Vector center = m_center * static_cast<float>(m_size);
-            Vector preSlope = m_slope * static_cast<float>(m_size);
-            Vector safeSlope = Vector::Max(preSlope, Vector::Splat(0.5f));
-            Vector slope = Vector::IfLess(preSlope, Vector::Splat(0.5f), Vector::Splat(2), Vector::Splat(1) / safeSlope);
-            for (size_t i = 0; i < m_size; ++i)
-            {
-                Vector distance = (Vector::Splat(static_cast<float>(i)) - center).Abs();
-                Vector weight = Vector::Max(Vector(), Vector::Splat(1) - Vector::Max(Vector(), distance - 0.25f) * slope);
-                if (i == 0)
-                {
-                    weight = Vector::IfLess(center, Vector::Splat(0.25f), Vector::Splat(1), weight);
-                }
-
-                if (i + 1 == m_size)
-                {
-                    weight = Vector::IfLess(center, Vector::Splat(static_cast<float>(m_size) - 0.25f), weight, Vector::Splat(1));
-                }
-
-                m_weights[i] = weight;
-                m_totalWeight += m_weights[i];
-            }
+            input.m_masterPhase = clock.m_masterPhase;
+            input.m_phaseTravel = clock.m_phaseTravel;
+            input.m_cycleRatio = clock.m_cycleRatios;
+            input.m_minWaveMultLimit = clock.m_minWaveMultLimit;
+            input.m_waveMultLimits = clock.m_waveMultLimits;
+            m_amplitude = input.m_amplitude;
         }
 
-        if (m_size == 0)
-        {
-            return;
-        }
-
-        typename Input::Prepared prepared(input);
-
-        int64_t maxCycleRatio[Size] = {};
-        Vector output;
-        for (size_t i = 0; i < m_size; ++i)
-        {
-            if (!AnyNonZero(m_weights[i]))
-            {
-                continue;
-            }
-
-            int64_t cycleRatio = input.m_theoryOfTime->GetCycleRatio(i);
-            for (size_t lane = 0; lane < Size; ++lane)
-            {
-                if (m_weights[i][lane] != 0)
-                {
-                    maxCycleRatio[lane] = std::max(maxCycleRatio[lane], cycleRatio);
-                }
-            }
-
-            m_values[i] = input.ComputePhase(i, prepared);
-            output += m_values[i] * m_weights[i] * input.m_externalWeights[i];
-        }
-
-        // Avoid division by zero if all weights are zero
-        //
-        output = Vector::IfLess(Vector(), m_totalWeight, output / m_totalWeight, output);
-
-        // Slew per unit of phase travel. The warp-producing oscillator uses
-        // the unmodulated clock to avoid feeding its own derivative back in.
-        //
-        const auto& time = *input.m_theoryOfTime;
-        double increment = input.m_phaseDomain == PhaseDomain::Unmodulated || !time.m_sample.m_running
-            ? time.GetUnmodulatedGlobalPhaseIncrement() : std::abs(time.GetModulatedGlobalPhaseIncrement());
-        DoubleVector slewFreq;
-        for (size_t lane = 0; lane < Size; ++lane)
-        {
-            slewFreq[lane] = 8.0 * input.m_mult[lane] * maxCycleRatio[lane] * increment;
-            assert(slewFreq[lane] >= 0.0);
-        }
-
-        if (slewFreq != m_mixSlewFreq)
-        {
-            m_mixSlewFreq = slewFreq;
-
-            m_mixSlew.m_alpha = OPLowPassFilterGeneric<float, Size>::AlphaFromPhaseTravel(
-                slewFreq.template Convert<float>()).template Convert<double>();
-        }
-
-        output = m_mixSlew.Process(output.template Convert<double>()).template Convert<float>();
-        m_amplitude = input.m_amplitude;
-        for (size_t lane = 0; lane < Size; ++lane)
-        {
-            if (input.m_trig[lane])
-            {
-                m_shValue[lane] = output[lane];
-            }
-        }
-
-        Vector held = m_shSlew.Process(m_shValue);
-        m_rawOutput = held * input.m_shFade + output * (Vector::Splat(1) - input.m_shFade);
-        m_output = m_rawOutput * input.m_amplitude + (Vector::Splat(1) - input.m_amplitude) * 0.5f;
+        Core::Process(m_dsp, input);
+        m_rawOutput = m_dsp.m_rawOutput;
+        m_output = m_dsp.m_output;
     }
 };
 

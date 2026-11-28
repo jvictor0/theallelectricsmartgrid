@@ -43,18 +43,15 @@ struct TheoryOfTime : public TheoryOfTimeBase
     PolyXFaderInternal m_phaseModLFO;
     ScopeWriterHolder m_scopeWriter;
     std::unique_ptr<Inverter> m_timeWarpInverter;
-    PhaseClock m_unmodulatedPhaseClock;
     std::unique_ptr<UnmodulatedInverter> m_unmodulatedPhaseInverter;
 
     struct Input : public TheoryOfTimeBase::Input
     {
         Input()
             : m_freq(1.0 / 4)
-            , m_lfoMult(1, 16)
+            , m_lfoMult(1, PolyXFaderInternal::x_maxMappedMult)
         {
             m_phaseModLFOInput.m_size = x_numLoops;
-            m_phaseModLFOInput.m_theoryOfTime = nullptr;
-            m_phaseModLFOInput.m_phaseDomain = PhaseDomain::Unmodulated;
             m_phaseModLFOInput.m_phaseShift = -0.75;
 
             m_modIndex.SetBaseByCenter(1.0 / 16);
@@ -79,7 +76,7 @@ struct TheoryOfTime : public TheoryOfTimeBase
         OPLowPassFilterDouble m_lfoIndexFilter;
 
         double m_freq;
-        PolyXFaderInternal::Input m_phaseModLFOInput;
+        PolyXFaderInternal::Input m_phaseModLFOInput = PolyXFaderInternal::MakeInput();
         PhaseUtils::ZeroedExpParam m_modIndex;
         PhaseUtils::ExpParam m_lfoMult;
     };
@@ -89,12 +86,13 @@ struct TheoryOfTime : public TheoryOfTimeBase
     void PopulateUIState(UIState* uiState, const Input& input)
     {
         TheoryOfTimeBase::PopulateUIState(*uiState, input);
+        // This scope reconstructs musical phase from a continuous coordinate and the recorded displacement.
+        //
         m_scopeWriter.SetPeriodicAtVoice(0,
             {m_unmodulatedPhaseClock.m_offset, m_phaseModLFO.ComputeLogicalPeriods(*this)[0]});
     }
 
-    // Reads the previous sample, which m_sample still holds until Process
-    // advances it.
+    // Reads the unmodulated continuous clock before advancing it this sample.
     //
     void ProcessPhaseModLFO(Input& input)
     {
@@ -106,9 +104,7 @@ struct TheoryOfTime : public TheoryOfTimeBase
         PolyXFaderInternal::Input lfoInput = input.m_phaseModLFOInput;
         lfoInput.m_attackFrac = 0.1f + 0.8f * lfoInput.m_attackFrac;
         lfoInput.m_mult = input.m_lfoMult.m_expParam;
-        lfoInput.m_theoryOfTime = this;
-        lfoInput.m_phaseDomain = PhaseDomain::Unmodulated;
-        m_phaseModLFO.Process(lfoInput);
+        m_phaseModLFO.Process(lfoInput, *this, PhaseDomain::Unmodulated);
         input.m_phaseOffset = -2 * input.m_modIndex.m_expParam * m_phaseModLFO.m_rawOutput;
     }
 
@@ -154,8 +150,6 @@ struct TheoryOfTime : public TheoryOfTimeBase
         ProcessPhaseModLFO(input);
         TheoryOfTimeBase::Process(input);
         ObservePhase();
-        m_unmodulatedPhaseClock.Update(m_sample.m_unmodulatedPhase,
-            input.m_running, GetUnmodulatedGlobalPhaseIncrement());
         m_unmodulatedPhaseInverter->Write(m_unmodulatedPhaseClock.m_phase,
             static_cast<double>(SampleTimer::GetSample()));
 

@@ -28,6 +28,7 @@ import DSP.WanderingRandomLFO
 import DSP.AHD
 import DSP.SampleRateReducer
 import DSP.TapeHead
+import DSP.PolyXFader
 
 #generate_cpp_record DSP.AHD.Memory as AHDMemory to "build/lean/generated/AHDMemory.hpp"
 #generate_cpp_state DSP.AHD.processFloat as AHDProcess to "build/lean/generated/AHDProcess.hpp"
@@ -36,6 +37,12 @@ import DSP.TapeHead
   as SampleRateReducerCoreGeneric to "build/lean/generated/SampleRateReducerCoreGeneric.hpp"
 
 #generate_cpp_bounded DSP.TapeHead.run as ReadTapeHead to "build/lean/generated/ReadTapeHead.hpp"
+
+#generate_cpp_function DSP.PolyXFader.shapeRamp as PolyXFaderMorph method Evaluate to "build/lean/generated/PolyXFaderMorph.hpp"
+#generate_cpp_function DSP.PolyXFader.shapeSingle as PolyXFaderWaveform method Evaluate to "build/lean/generated/PolyXFaderWaveform.hpp"
+#generate_cpp_state DSP.PolyXFader.processMono owning as PolyXFaderMono to "build/lean/generated/PolyXFaderMono.hpp"
+#generate_cpp_state DSP.PolyXFader.processTrio owning as PolyXFaderTrio to "build/lean/generated/PolyXFaderTrio.hpp"
+#generate_cpp_state DSP.PolyXFader.processQuad owning as PolyXFaderQuad to "build/lean/generated/PolyXFaderQuad.hpp"
 
 #generate_cpp_preparation_generic DSP.SmoothRandomLFO.prepare as SmoothRandomLFOPrepareGeneric to "build/lean/generated/SmoothRandomLFOPrepareGeneric.hpp"
 #generate_cpp_function_generic DSP.SmoothRandomLFO.evaluate as SmoothRandomLFOCubicGeneric method Evaluate to "build/lean/generated/SmoothRandomLFOCubicGeneric.hpp"

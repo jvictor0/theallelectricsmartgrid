@@ -15,6 +15,7 @@ import DSP.Step
 import DSP.AHD.Proofs
 import DSP.SampleRateReducer.Proofs
 import DSP.TapeHead
+import DSP.PolyXFader.Proofs
 import DSP.Transfer.Bilinear
 import DSP.Filters.OnePoleTPTHighPass
 import DSP.Filters.OnePoleTPTHighPass.Proofs

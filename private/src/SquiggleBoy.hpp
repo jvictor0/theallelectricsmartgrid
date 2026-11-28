@@ -347,9 +347,10 @@ struct SquiggleBoy
         m_globalGangedRandomLFO[0].Process(SampleTimer::x_samplePeriod, m_globalGangedRandomLFOInput[0]);
         m_globalGangedRandomLFO[1].Process(SampleTimer::x_samplePeriod, m_globalGangedRandomLFOInput[1]);
 
+        const auto lfoClock = PolyXFaderInternal::MakeClockInput(*m_theoryOfTime, PhaseDomain::Modulated);
         for (size_t lfo = 0; lfo < 2; ++lfo)
         {
-            m_quadSquiggleLFO[lfo].Process(m_quadSquiggleLFOInput[lfo]);
+            m_quadSquiggleLFO[lfo].Process(m_quadSquiggleLFOInput[lfo], lfoClock);
         }
 
         m_sourceMixer.Process(m_sourceMixerState);
@@ -360,7 +361,7 @@ struct SquiggleBoy
             m_trackState[track].m_panInput.m_input = static_cast<float>(m_panPhase.m_phase);
 
             QuadMixerInternal::TrackInput& mixerTrack = m_mixerState.m_tracks[track];
-            mixerTrack.m_input = squiggleBoyTrack.Processs(m_trackState[track]);
+            mixerTrack.m_input = squiggleBoyTrack.Processs(m_trackState[track], lfoClock);
             mixerTrack.m_sub = squiggleBoyTrack.m_amp.m_subOut;
             mixerTrack.m_x = squiggleBoyTrack.m_pan.m_outputX;
             mixerTrack.m_y = squiggleBoyTrack.m_pan.m_outputY;
@@ -911,11 +912,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
     {
         for (size_t track = 0; track < x_numTracks; ++track)
         {
-            m_trackState[track].m_squiggleLFOInput[0].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
-            m_trackState[track].m_squiggleLFOInput[1].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
-            m_trackState[track].m_squiggleLFOInput[0].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
-            m_trackState[track].m_squiggleLFOInput[1].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
-
             m_trackState[track].SetTheoryOfTimeInputs(m_theoryOfTime);
             m_trackState[track].m_ampInput.m_ahdInput.SetTheoryOfTime(m_theoryOfTime);
 
@@ -930,12 +926,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
         }
 
         m_recordingManager.m_ioTaskThread = m_ioTaskThread;
-
-        for (size_t lfo = 0; lfo < 2; ++lfo)
-        {
-            m_quadSquiggleLFOInput[lfo].m_polyXFaderInput.m_theoryOfTime = m_theoryOfTime;
-            m_quadSquiggleLFOInput[lfo].m_polyXFaderInput.m_phaseDomain = PhaseDomain::Modulated;
-        }
 
         m_delay.m_delayLine.m_inverter = m_theoryOfTime->m_timeWarpInverter.get();
     }
@@ -1145,8 +1135,6 @@ struct SquiggleBoyWithEncoderBank : SquiggleBoy
             faderInput.m_center = QuadFloat::Splat(1.0f) - m_encoders.GetValue<4>(x_quadLFOCenter[lfo], 0);
             faderInput.m_slope = m_encoders.GetValue<4>(x_quadLFOSlope[lfo], 0);
             faderInput.m_phaseShift = m_encoders.GetValue<4>(x_quadLFOPhaseShift[lfo], 0) * channelFrac;
-            faderInput.m_theoryOfTime = m_theoryOfTime;
-            faderInput.m_phaseDomain = PhaseDomain::Modulated;
             faderInput.m_shFade = m_encoders.GetValue<4>(x_quadLFOSampleAndHold[lfo], 0);
             for (int i = 0; i < 4; ++i)
             {

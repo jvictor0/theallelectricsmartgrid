@@ -113,42 +113,59 @@ DOCTEST_TEST_CASE("Phase axes: negative origins and boundary queries select the 
     }
 }
 
-DOCTEST_TEST_CASE("Phase slew: uses signed-clock magnitude, holds at zero and preserves constant-input subdivision")
+DOCTEST_TEST_CASE("Phase slew: uses signed-clock magnitude, holds at zero and limits the cutoff")
 {
     TheoryOfTimeBase time;
     time.m_sample.m_running = true;
-    time.m_sample.m_modulatedPhase = 0.25;
-    time.m_sample.m_modulatedPhaseIncrement = 1.0 / 4096.0;
+    time.m_phaseClock.m_phase = 0.5;
+    time.m_unmodulatedPhaseClock.m_phase = 0.5;
+    time.m_phaseClock.m_increment = 1.0 / 4096.0;
     time.m_globalPeriodSamples = 8192;
     PolyXFaderInternal fader;
-    PolyXFaderInternal::Input input;
-    input.m_theoryOfTime = &time;
+    auto input = PolyXFaderInternal::MakeInput();
+
     input.m_size = 1;
     input.m_mult = 1.0f;
     input.m_attackFrac = 0.5f;
     input.m_phaseShift = -0.75f;
-    fader.Process(input);
-    double alpha = fader.m_mixSlew.m_alpha[0];
-    DOCTEST_CHECK(alpha == doctest::Approx(-std::expm1(-2 * M_PI * 8.0 / 4096.0)).epsilon(1e-6));
-    time.m_sample.m_modulatedPhaseIncrement *= -1;
-    fader.Process(input);
-    DOCTEST_CHECK(fader.m_mixSlew.m_alpha[0] == alpha);
-    time.m_sample.m_modulatedPhaseIncrement = 0;
-    double held = fader.m_mixSlew.m_output[0];
-    fader.Process(input);
-    DOCTEST_CHECK(fader.m_mixSlew.m_output[0] == held);
-    input.m_phaseDomain = PhaseDomain::Unmodulated;
-    fader.Process(input);
-    DOCTEST_CHECK(fader.m_mixSlew.m_alpha[0] > 0.0);
-    DOCTEST_CHECK(fader.m_mixSlew.m_alpha[0] < alpha);
-    using Filter = OPLowPassFilterGeneric<double, 1>;
-    for (double distance : {1e-8, 0.01, 0.5, 2.0})
+    auto measureAlpha = [&](PhaseDomain phaseDomain)
     {
-        double full = Filter::AlphaFromPhaseTravel(distance)[0];
-        double half = Filter::AlphaFromPhaseTravel(distance / 2)[0];
+        // The sample starts with zero history and the waveform at its unit peak.
+        //
+        fader.m_dsp.m_mixOutput[0] = 0.0;
+        fader.Process(input, time, phaseDomain);
+        return fader.m_dsp.m_mixOutput[0];
+    };
+
+    double alpha = measureAlpha(PhaseDomain::Modulated);
+    DOCTEST_CHECK(alpha == doctest::Approx(-std::expm1(-2 * M_PI * 8.0 / 4096.0)).epsilon(1e-6));
+    time.m_phaseClock.m_increment *= -1;
+    DOCTEST_CHECK(measureAlpha(PhaseDomain::Modulated) == alpha);
+    time.m_phaseClock.m_increment = 0;
+    double held = fader.m_dsp.m_mixOutput[0];
+    fader.Process(input, time, PhaseDomain::Modulated);
+    DOCTEST_CHECK(fader.m_dsp.m_mixOutput[0] == held);
+    const double nominalAlpha = measureAlpha(PhaseDomain::Unmodulated);
+    DOCTEST_CHECK(nominalAlpha > 0.0);
+    DOCTEST_CHECK(nominalAlpha < alpha);
+    auto alphaFor = [&](double cycles)
+    {
+        time.m_phaseClock.m_increment = cycles / 8.0;
+        return measureAlpha(PhaseDomain::Modulated);
+    };
+
+    const double maxCycles = PolyXFaderInternal::x_maxSlewCycles;
+    for (double distance : {1e-8, 0.01, maxCycles})
+    {
+        double full = alphaFor(distance);
+        double half = alphaFor(distance / 2);
         DOCTEST_CHECK(full == doctest::Approx(1 - (1 - half) * (1 - half)).epsilon(3e-6));
         DOCTEST_CHECK(full == doctest::Approx(-std::expm1(-2 * M_PI * distance)).epsilon(3e-6));
     }
+
+    const double maxAlpha = alphaFor(maxCycles);
+    DOCTEST_CHECK(alphaFor(0.5) == maxAlpha);
+    DOCTEST_CHECK(alphaFor(2.0) == maxAlpha);
 }
 
 DOCTEST_TEST_CASE("Phase slew: forward warped LFO reconstructs the same logical curve")
@@ -162,8 +179,8 @@ DOCTEST_TEST_CASE("Phase slew: forward warped LFO reconstructs the same logical 
         time.m_sample.m_running = true;
         time.m_globalPeriodSamples = x_samples / 4;
         PolyXFaderInternal fader;
-        PolyXFaderInternal::Input input;
-        input.m_theoryOfTime = &time;
+        auto input = PolyXFaderInternal::MakeInput();
+
         input.m_size = 1;
         input.m_mult = 2.5f;
         input.m_attackFrac = 0.3f;
@@ -178,10 +195,10 @@ DOCTEST_TEST_CASE("Phase slew: forward warped LFO reconstructs the same logical 
         {
             double t = 4.0 * sample / x_samples;
             double phase = t + depth / (2 * M_PI) * std::sin(2 * M_PI * t);
-            time.m_sample.m_modulatedPhase = phase;
-            time.m_sample.m_modulatedPhaseIncrement = phase - previous;
+            time.m_phaseClock.m_phase = phase;
+            time.m_phaseClock.m_increment = phase - previous;
             previous = phase;
-            fader.Process(input);
+            fader.Process(input, time, PhaseDomain::Modulated);
             inverse.Write(phase, sample);
             writer.Write(0, fader.m_output);
             writer.AdvanceIndex();

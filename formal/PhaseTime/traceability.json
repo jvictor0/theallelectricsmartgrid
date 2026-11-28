@@ -2,21 +2,20 @@
   "description": "Reviewed mathematical correspondence. Full-file hashes detect drift; they do not prove C++ refinement. Review before updating.",
   "files": {
     "private/src/DelayLine.hpp": "219f0286d257b4e6a471c54164e7ac3cea999fe91ef4f4a79a50635d8bd36873",
-    "private/src/Filter.hpp": "2408be3d5b4a6a7a6cd33cf5d40c150b2e1c5a1cb799d23b18de228309bc60d6",
     "private/src/PeriodicPhaseAxis.hpp": "b096ac7757d8eaad83ab2d1134d2e8bdb9288dcfcbe5c4e1d63bfa48a522951f",
     "private/src/PhaseClock.hpp": "c25af523a36008d891388900b52b44e27398973bee1aa3c40f6e552509379c95",
-    "private/src/PolyXFader.hpp": "ed902e89b6ac9cb0cfd3f8fad9a8699db6ef984b6faee35e172a1f78be9cf4d3",
+    "private/src/PolyXFader.hpp": "86053337d91cc7e70ce1a0f26e3b343e14c485a8f1cd0b3b8c6c5661d2d7521f",
     "private/src/QuadDelay.hpp": "69325ca14956221f3ca8207ebd78651071111abd7ed3160a7eb46a9e0a3d77f4",
     "private/src/ScopeWriter.hpp": "23d01acfecc41ad945c53bfbde16c376c38dcd8a9aad1a556d6d57a0272f8788",
     "private/src/SmartGridOneModulatorHistory.hpp": "8c17b7abd10f07d0d953cf543b425b49a027c2d30fdbf2cba278e28309ee15d6",
-    "private/src/SquiggleBoyTrack.hpp": "904975838563f7020bd15a774ed996fdc2cbb28882b68f04485224517d0ef37f",
-    "private/src/TheoryOfTime.hpp": "ba0776bf99c1b05eb0d66cad077acd4ca08a17992964b32c060c7e563f9dbbb9",
-    "private/src/TheoryOfTimeBase.hpp": "753a7ae7c1d173261a46b307c38611c4883f715d4e42cfa4e50d5ad2d227bf9c",
+    "private/src/SquiggleBoyTrack.hpp": "e92a7b6ab4ddb86773ace3c00266aafe67686ab7c7eb536f3eb1b52ac42594e0",
+    "private/src/TheoryOfTime.hpp": "01e1f71f7a68161c98c9e16b293705ce057383e5a8d53e3184a846c9654c29b4",
+    "private/src/TheoryOfTimeBase.hpp": "11452ce6ea2799fc8bdc82c323c7ba29ad7464d0f6192d63f873ad474e6d4fbe",
     "private/src/TimeWarpInverter.hpp": "133b6402ca0c9b4d69e8bb73964c1867c0f0aba88a3e2c9fbe5d204699a44ac4",
     "private/src/TimeWarpView.hpp": "d6787c25d2229d1437c57fa96d99302542508654c925c3a7192c909c0ae178e4",
     "JUCE/SmartGridOne/Source/ScopeComponent.hpp": "3bf1d94152f2a060f0ba0da962e06563e374a41f2971a713d2d7a18ecfcec629",
     "private/src/Resynthesis.hpp": "af0a131cec7de3ac5f75f516175b1eb7fe7158d3f9f75a62d62f4fffa691915e",
-    "private/src/SquiggleBoy.hpp": "561b4ee760f93e6fde64f92411ce6c94225db061170b036e1158074132df01a3",
+    "private/src/SquiggleBoy.hpp": "82d89497be6d27b91a44fa33764f8616d538b3868ae753e85c28e73cd09733f4",
     "formal/DSP/Resynthesis/FrameStorage.lean": "9f9447748830ebb0febe3db876b141769d0dfde5e470236bef02c48efe8598c3",
     "formal/DSP/Resynthesis/SpectrumStorage.lean": "1f88175e10f1458f1ca1c36145cf2742b6cfb24dc4ac361e928dfa4172566caf",
     "formal/DSP/Resynthesis/Grain.lean": "e6bb1b30c9b9374a6c76af598139a6a85736b87dfbeb4e3db5d7a47ebc05d02c",
@@ -30,7 +29,8 @@
     "formal/PhaseTime/InverseCodegen.lean": "471f376de1ddab821e1be060c2ecb51f3ec6ac76ac9c0c7075e44d0f97453956",
     "formal/PhaseTime/InverseResolution.lean": "d961fe0b2ab6cf381716340d55940bde48264e91381281779d10451a075441c9",
     "formal/PhaseTime/InverseTimestampBounds.lean": "abf078c41fe995e345174825b3b36107280252bb3fe4685f6f3001400d07ff00",
-    "formal/DSP/Codegen/Scratch.lean": "7bf073e6b241ec621dd4c8526f0054fe08566c190c0cec5824f767884f1e74f7"
+    "formal/DSP/Codegen/Scratch.lean": "7bf073e6b241ec621dd4c8526f0054fe08566c190c0cec5824f767884f1e74f7",
+    "formal/DSP/PolyXFader.lean": "d8063e0efcf4e143452c22cdcdfbdc2f2193232c194e0b7a6840b53ff311881b"
   },
   "anchors": {
     "clock_init": [
@@ -166,11 +166,15 @@
     "phase_slew": [
       {
         "path": "private/src/PolyXFader.hpp",
-        "symbol": "void Process(Input& input)"
+        "symbol": "static PolyXFaderClockInput MakeClockInput"
       },
       {
-        "path": "private/src/Filter.hpp",
-        "symbol": "static Vector AlphaFromPhaseTravel(const Vector& cycles)"
+        "path": "formal/DSP/PolyXFader.lean",
+        "symbol": "def filterMix"
+      },
+      {
+        "path": "formal/DSP/PolyXFader.lean",
+        "symbol": "def slewAlpha"
       }
     ],
     "runtime": [

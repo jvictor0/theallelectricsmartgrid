@@ -3,6 +3,7 @@ import DSP.ChannelMean
 import DSP.DelayBuffer.Quad
 import DSP.DelayMath
 import DSP.Nonlinear
+import DSP.PolyXFader
 
 namespace DSP.Codegen
 
@@ -47,6 +48,7 @@ inductive NumericLowering where
   | ifLess
   | fma
   | libm (method result : String)
+  | curvePair (header method : String)
 
 inductive PackedStorageLowering where
   | sampleWord (fromWord : Bool)
@@ -55,9 +57,20 @@ inductive PackedStorageLowering where
   | broadcastLane
   | gather
 
+inductive PackedArithmeticLowering where
+  | splat
+  | binary (operator : String)
+  | neg
+  | member (method : String)
+  | method (name : String)
+  | convert (number : String)
+  | curvePair (header method : String)
+
 inductive ValueLowering where
   | numeric (operation : NumericLowering)
   | packedStorage (operation : PackedStorageLowering)
+  | packedArithmetic (operation : PackedArithmeticLowering) (arguments : Nat)
+      (instances : Option (Name × Name))
 
 inductive NativeBinding where
   | action (binding : StateBinding)
@@ -72,6 +85,12 @@ private def native (source : Name) (method : String) (arguments : Nat) : NativeB
 
 private def numeric (source : Name) (operation : NumericLowering) : NativeBinding :=
   .value source (.numeric operation)
+
+/-- The optional pair names the standard Float and Float32 instances,
+respectively, required by the native operation. -/
+private def packed (source : Name) (operation : PackedArithmeticLowering) (arguments : Nat)
+    (instances : Option (Name × Name) := none) : NativeBinding :=
+  .value source (.packedArithmetic operation arguments instances)
 
 /-- The native storage and numeric allowlist. Actions marked generated must
 resolve to two emitted Lean procedures, one per sample precision. -/
@@ -105,6 +124,23 @@ def nativeBindings : Array NativeBinding := #[
   numeric ``Float.sqrt .sqrt,
   numeric ``Float32.sqrt .sqrt,
   numeric ``Float.floor (.libm "floor" "double"),
+  numeric ``Float32.floor (.libm "floor" "float"),
+  numeric ``DSP.PolyXFader.curvesFloat32 (.curvePair "PolyXFaderTables.hpp" "PolyXFaderTables::Evaluate"),
+  packed ``DSP.Packed.splat .splat 1,
+  packed ``DSP.Packed.add (.binary "+") 2 (some (``instAddFloat, ``instAddFloat32)),
+  packed ``DSP.Packed.sub (.binary "-") 2 (some (``instSubFloat, ``instSubFloat32)),
+  packed ``DSP.Packed.mul (.binary "*") 2 (some (``instMulFloat, ``instMulFloat32)),
+  packed ``DSP.Packed.div (.binary "/") 2 (some (``instDivFloat, ``instDivFloat32)),
+  packed ``DSP.Packed.neg .neg 1 (some (``instNegFloat, ``instNegFloat32)),
+  packed ``DSP.Packed.anyDifferent (.binary "!=") 2 (some (``instBEqFloat, ``instBEqFloat32)),
+  packed ``DSP.Packed.abs32 (.member "Abs") 1,
+  packed ``DSP.Packed.floor32 (.member "Floor") 1,
+  packed ``DSP.Packed.floor64 (.member "Floor") 1,
+  packed ``DSP.Packed.widen (.convert "double") 1,
+  packed ``DSP.Packed.narrow (.convert "float") 1,
+  packed ``DSP.Packed.ifLess (.method "IfLess") 4 (some (``DSP.instIfLessFloat, ``DSP.instIfLessFloat32)),
+  packed ``DSP.Packed.fma (.method "FusedMultiplyAdd") 3 (some (``DSP.instFMAFloat, ``DSP.instFMAFloat32)),
+  packed ``DSP.PolyXFader.curvesPacked (.curvePair "PolyXFaderTables.hpp" "PolyXFaderTables::Evaluate") 1,
   numeric ``Float.ceil (.libm "ceil" "double"),
   numeric ``Float.isFinite (.libm "isfinite" "bool"),
   numeric ``Float.exp (.libm "exp" "double"),

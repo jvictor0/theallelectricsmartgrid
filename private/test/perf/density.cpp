@@ -88,10 +88,8 @@ Trace Generate(Settings settings, double period, double cycles)
     }
 
     PolyXFaderInternal lfo;
-    PolyXFaderInternal::Input input;
-    input.m_theoryOfTime = &time;
+    auto input = PolyXFaderInternal::MakeInput();
     input.m_size = TheoryOfTimeBase::x_numLoops;
-    input.m_phaseDomain = PhaseDomain::Unmodulated;
     input.m_phaseShift = -.75f;
     input.m_attackFrac = .1f + .8f * settings.m_skew;
     input.m_shape = settings.m_shape;
@@ -151,7 +149,7 @@ Trace Generate(Settings settings, double period, double cycles)
             input.m_externalWeights[i] = 1.0 / static_cast<double>(time.GetCycleRatio(i));
         }
 
-        lfo.Process(input);
+        lfo.Process(input, time, PhaseDomain::Unmodulated);
         clock.m_phaseOffset = -2.0f * settings.m_depth * lfo.m_rawOutput[0];
         time.Process(clock);
         trace.m_phase.push_back(time.m_phaseClock.m_phase);
