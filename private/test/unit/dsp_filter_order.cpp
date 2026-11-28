@@ -1,6 +1,7 @@
 #include "doctest.h"
 
 #include "../support/GlobalEnv.hpp"
+#include "BitCrush.hpp"
 #include "NaiveReuppingLadderShape.hpp"
 #include "SVF2PoleShape.hpp"
 #include "SquiggleBoyShape.hpp"
@@ -110,6 +111,24 @@ constexpr double x_reducerHz[x_lanes][2] = {
     {5030.0, 4950.0},
 };
 
+}
+
+DOCTEST_TEST_CASE("SampleRateReducer: each lane resumes its held sample and phase after bypass")
+{
+    using Vector = TrioSampleRateReducer::Vector;
+    TrioSampleRateReducer reducer;
+    reducer.SetFreq(Vector(0.5f, 0.75f, 1.25f));
+    DOCTEST_CHECK(reducer.Process(Vector(10, 20, 30)) == Vector(0, 0, 30));
+    DOCTEST_CHECK(reducer.Process(Vector(11, 21, 31)) == Vector(11, 21, 31));
+
+    reducer.SetFreq(Vector(0.25f, 1.0f, 0.5f));
+    DOCTEST_CHECK(reducer.Process(Vector(12, 22, 32)) == Vector(11, 22, 0));
+
+    reducer.SetFreq(Vector(0.0f, 0.25f, 0.5f));
+    DOCTEST_CHECK(reducer.Process(Vector(13, 23, 33)) == Vector(11, 21, 33));
+
+    reducer.SetFreq(Vector(0.75f, 0.25f, 0.0f));
+    DOCTEST_CHECK(reducer.Process(Vector(14, 24, 34)) == Vector(14, 24, 33));
 }
 
 DOCTEST_TEST_CASE("NaiveReuppingLadderShape: high-pass removes bass created by the sample rate reducer")

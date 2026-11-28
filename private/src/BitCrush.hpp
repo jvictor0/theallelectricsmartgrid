@@ -1,6 +1,7 @@
 #pragma once
 
 #include "MultiChannelNumber.hpp"
+#include "SampleRateReducerCoreGeneric.hpp"
 #include <cmath>
 
 template <size_t Size>
@@ -47,36 +48,21 @@ using BitRateReducer = BitRateReducerGeneric<1>;
 using TrioBitRateReducer = BitRateReducerGeneric<3>;
 
 template <size_t Size>
-struct SampleRateReducerGeneric
+struct SampleRateReducerGeneric : SampleRateReducerCoreGeneric<float, Size>::State
 {
-    using Vector = MultiChannelNumber<float, Size>;
+    using Core = SampleRateReducerCoreGeneric<float, Size>;
+    using Vector = typename Core::Vector;
 
     Vector m_freq;
-    Vector m_phase;
-    Vector m_output;
-
-    SampleRateReducerGeneric()
-        : m_freq(Vector::Splat(0))
-        , m_phase(Vector::Splat(0))
-        , m_output(Vector::Splat(0))
-    {
-    }
 
     void SetFreq(const Vector& freq)
     {
         m_freq = freq;
     }
 
-    // Channels at or above one cycle per sample bypass and hold their phase.
-    //
     Vector Process(const Vector& input)
     {
-        Vector one = Vector::Splat(1);
-        m_phase += Vector::IfLess(m_freq, one, m_freq, Vector::Splat(0));
-        Vector wrapped = m_phase - m_phase.Floor();
-        m_output = Vector::IfLess(m_phase, one, m_output, input);
-        m_phase = Vector::IfLess(m_phase, one, m_phase, wrapped);
-        return Vector::IfLess(m_freq, one, m_output, input);
+        return Core::Process(*this, typename Core::Input{m_freq, input});
     }
 };
 

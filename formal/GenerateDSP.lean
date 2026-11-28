@@ -26,10 +26,14 @@ import DSP.Filters.Runtime
 import DSP.SmoothRandomLFO
 import DSP.WanderingRandomLFO
 import DSP.AHD
+import DSP.SampleRateReducer
 import DSP.TapeHead
 
 #generate_cpp_record DSP.AHD.Memory as AHDMemory to "build/lean/generated/AHDMemory.hpp"
 #generate_cpp_state DSP.AHD.processFloat as AHDProcess to "build/lean/generated/AHDProcess.hpp"
+
+#generate_cpp_state_generic DSP.SampleRateReducer.process owning
+  as SampleRateReducerCoreGeneric to "build/lean/generated/SampleRateReducerCoreGeneric.hpp"
 
 #generate_cpp_bounded DSP.TapeHead.run as ReadTapeHead to "build/lean/generated/ReadTapeHead.hpp"
 
